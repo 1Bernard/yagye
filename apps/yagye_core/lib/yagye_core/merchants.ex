@@ -84,6 +84,13 @@ defmodule YagyeCore.Merchants do
     end
   end
 
+  def live_mode_enabled?(merchant_id) do
+    Repo.exists?(
+      from m in MerchantMode,
+        where: m.merchant_id == ^merchant_id and m.mode == :live
+    )
+  end
+
   # ── Dispatch ─────────────────────────────────────────────────────────────────
 
   defp dispatch(%RegisterMerchant{} = cmd) do

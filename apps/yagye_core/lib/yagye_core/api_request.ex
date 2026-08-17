@@ -31,4 +31,10 @@ defmodule YagyeCore.ApiRequest do
     |> cast(attrs, @required ++ @optional)
     |> validate_required(@required)
   end
+
+  def log(attrs) do
+    %__MODULE__{}
+    |> changeset(attrs)
+    |> YagyeCore.Repo.insert(returning: false)
+  end
 end
