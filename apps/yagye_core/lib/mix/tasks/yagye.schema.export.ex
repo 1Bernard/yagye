@@ -103,6 +103,7 @@ defmodule Mix.Tasks.Yagye.Schema.Export do
 
   defp timestamp do
     {{y, mo, d}, {h, mi, s}} = :calendar.universal_time()
+
     :io_lib.format("~4..0B~2..0B~2..0BT~2..0B~2..0B~2..0BZ", [y, mo, d, h, mi, s])
     |> IO.iodata_to_binary()
   end

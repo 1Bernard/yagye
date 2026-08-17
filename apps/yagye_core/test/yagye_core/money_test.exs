@@ -131,7 +131,9 @@ defmodule Yagye.MoneyTest do
     end
 
     test "from_json returns error on invalid input" do
-      assert Money.from_json(%{"amount" => 12.34, "currency" => "GHS"}) == {:error, :invalid_money}
+      assert Money.from_json(%{"amount" => 12.34, "currency" => "GHS"}) ==
+               {:error, :invalid_money}
+
       assert Money.from_json("1234 GHS") == {:error, :invalid_money}
       assert Money.from_json(nil) == {:error, :invalid_money}
     end
