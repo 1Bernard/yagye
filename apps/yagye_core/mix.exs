@@ -14,6 +14,7 @@ defmodule YagyeCore.MixProject do
       listeners: [Phoenix.CodeReloader],
       dialyzer: [
         plt_file: {:no_warn, "priv/plts/project.plt"},
+        plt_add_apps: [:mix],
         ignore_warnings: ".dialyzer_ignore.exs"
       ]
     ]
