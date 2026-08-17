@@ -135,59 +135,55 @@ defmodule YagyeCore.Compliance do
 
   defp dispatch(%SubmitBeneficialOwner{} = cmd) do
     Repo.transaction(fn ->
-      attrs = %{
-        merchant_id: cmd.merchant_id,
-        subject_ref: cmd.subject_ref,
-        role: cmd.role,
-        ownership_bps: cmd.ownership_bps
-      }
+      with {:ok, merchant} <- resolve_merchant(cmd.merchant_id),
+           attrs = %{
+             merchant_id: merchant.id,
+             subject_ref: cmd.subject_ref,
+             role: cmd.role,
+             ownership_bps: cmd.ownership_bps
+           },
+           {:ok, owner} <- %BeneficialOwner{} |> BeneficialOwner.changeset(attrs) |> Repo.insert() do
+        event = %BeneficialOwnerAdded{
+          beneficial_owner_id: owner.id,
+          merchant_id: owner.merchant_id,
+          subject_ref: owner.subject_ref,
+          role: owner.role,
+          ownership_bps: owner.ownership_bps,
+          occurred_at: DateTime.utc_now()
+        }
 
-      case %BeneficialOwner{} |> BeneficialOwner.changeset(attrs) |> Repo.insert() do
-        {:ok, owner} ->
-          event = %BeneficialOwnerAdded{
-            beneficial_owner_id: owner.id,
-            merchant_id: owner.merchant_id,
-            subject_ref: owner.subject_ref,
-            role: owner.role,
-            ownership_bps: owner.ownership_bps,
-            occurred_at: DateTime.utc_now()
-          }
-
-          # P7: outbox
-          {owner, event}
-
-        {:error, reason} ->
-          Repo.rollback(reason)
+        # P7: outbox
+        {owner, event}
+      else
+        {:error, reason} -> Repo.rollback(reason)
       end
     end)
   end
 
   defp dispatch(%SubmitKybDocument{} = cmd) do
     Repo.transaction(fn ->
-      attrs = %{
-        merchant_id: cmd.merchant_id,
-        kind: cmd.kind,
-        s3_key: cmd.s3_key,
-        checksum: cmd.checksum,
-        uploaded_by: cmd.uploaded_by
-      }
+      with {:ok, merchant} <- resolve_merchant(cmd.merchant_id),
+           attrs = %{
+             merchant_id: merchant.id,
+             kind: cmd.kind,
+             s3_key: cmd.s3_key,
+             checksum: cmd.checksum,
+             uploaded_by: cmd.uploaded_by
+           },
+           {:ok, doc} <- %KybDocument{} |> KybDocument.changeset(attrs) |> Repo.insert() do
+        event = %KybDocumentUploaded{
+          document_id: doc.id,
+          merchant_id: doc.merchant_id,
+          kind: doc.kind,
+          s3_key: doc.s3_key,
+          uploaded_by: doc.uploaded_by,
+          occurred_at: DateTime.utc_now()
+        }
 
-      case %KybDocument{} |> KybDocument.changeset(attrs) |> Repo.insert() do
-        {:ok, doc} ->
-          event = %KybDocumentUploaded{
-            document_id: doc.id,
-            merchant_id: doc.merchant_id,
-            kind: doc.kind,
-            s3_key: doc.s3_key,
-            uploaded_by: doc.uploaded_by,
-            occurred_at: DateTime.utc_now()
-          }
-
-          # P7: outbox
-          {doc, event}
-
-        {:error, reason} ->
-          Repo.rollback(reason)
+        # P7: outbox
+        {doc, event}
+      else
+        {:error, reason} -> Repo.rollback(reason)
       end
     end)
   end
@@ -223,11 +219,18 @@ defmodule YagyeCore.Compliance do
 
   # ── Private helpers ──────────────────────────────────────────────────────────
 
-  defp fetch_submittable(merchant_id) do
-    case Repo.get(Merchant, merchant_id) do
+  defp fetch_submittable(public_id) do
+    case Repo.get_by(Merchant, public_id: public_id) do
       %Merchant{onboarding_state: state} = m when state in ["registered", "submitted"] -> {:ok, m}
       %Merchant{} -> {:error, :invalid_onboarding_state}
       nil -> {:error, :not_found}
+    end
+  end
+
+  defp resolve_merchant(public_id) do
+    case Repo.get_by(Merchant, public_id: public_id) do
+      nil -> {:error, :not_found}
+      merchant -> {:ok, merchant}
     end
   end
 

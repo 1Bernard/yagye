@@ -77,8 +77,8 @@ defmodule YagyeCore.Merchants do
     end
   end
 
-  def get_merchant(id) do
-    case Repo.get(Merchant, id) do
+  def get_merchant(public_id) do
+    case Repo.get_by(Merchant, public_id: public_id) do
       nil -> {:error, :not_found}
       merchant -> {:ok, merchant}
     end
@@ -149,55 +149,51 @@ defmodule YagyeCore.Merchants do
     Repo.transaction(fn ->
       {raw_key, key_prefix, secret_hash} = generate_key_material(cmd.kind)
 
-      attrs = %{
-        public_id: "key_#{Uniq.UUID.uuid7()}",
-        merchant_id: cmd.merchant_id,
-        mode: cmd.mode,
-        kind: to_string(cmd.kind),
-        key_prefix: key_prefix,
-        secret_hash: secret_hash,
-        scopes: cmd.scopes,
-        expires_at: cmd.expires_at,
-        created_by: cmd.created_by
-      }
+      with {:ok, merchant} <- resolve_merchant(cmd.merchant_id),
+           attrs = %{
+             public_id: "key_#{Uniq.UUID.uuid7()}",
+             merchant_id: merchant.id,
+             mode: cmd.mode,
+             kind: to_string(cmd.kind),
+             key_prefix: key_prefix,
+             secret_hash: secret_hash,
+             scopes: cmd.scopes,
+             expires_at: cmd.expires_at,
+             created_by: cmd.created_by
+           },
+           {:ok, api_key} <- %ApiKey{} |> ApiKey.changeset(attrs) |> Repo.insert() do
+        event = %ApiKeyIssued{
+          api_key_id: api_key.id,
+          public_id: api_key.public_id,
+          merchant_id: api_key.merchant_id,
+          mode: api_key.mode,
+          kind: api_key.kind,
+          key_prefix: api_key.key_prefix,
+          scopes: api_key.scopes,
+          expires_at: api_key.expires_at,
+          occurred_at: DateTime.utc_now()
+        }
 
-      case %ApiKey{} |> ApiKey.changeset(attrs) |> Repo.insert() do
-        {:ok, api_key} ->
-          event = %ApiKeyIssued{
-            api_key_id: api_key.id,
-            public_id: api_key.public_id,
-            merchant_id: api_key.merchant_id,
-            mode: api_key.mode,
-            kind: api_key.kind,
-            key_prefix: api_key.key_prefix,
-            scopes: api_key.scopes,
-            expires_at: api_key.expires_at,
-            occurred_at: DateTime.utc_now()
-          }
-
-          # P7: outbox
-          # raw_key is returned here and ONLY here — never stored, never logged
-          {api_key, raw_key, event}
-
-        {:error, reason} ->
-          Repo.rollback(reason)
+        # P7: outbox
+        # raw_key is returned here and ONLY here — never stored, never logged
+        {api_key, raw_key, event}
+      else
+        {:error, reason} -> Repo.rollback(reason)
       end
     end)
   end
 
   defp dispatch(%RevokeApiKey{} = cmd) do
     Repo.transaction(fn ->
-      query =
-        from k in ApiKey,
-          where: k.id == ^cmd.api_key_id,
-          where: k.merchant_id == ^cmd.merchant_id,
-          where: is_nil(k.revoked_at)
-
-      with {:ok, api_key} <- one_or_error(query),
+      with {:ok, merchant} <- resolve_merchant(cmd.merchant_id),
+           query =
+             from(k in ApiKey,
+               where: k.public_id == ^cmd.api_key_id,
+               where: k.merchant_id == ^merchant.id,
+               where: is_nil(k.revoked_at)),
+           {:ok, api_key} <- one_or_error(query),
            {:ok, api_key} <-
-             api_key
-             |> Ecto.Changeset.change(revoked_at: DateTime.utc_now())
-             |> Repo.update() do
+             api_key |> Ecto.Changeset.change(revoked_at: DateTime.utc_now()) |> Repo.update() do
         event = %ApiKeyRevoked{
           api_key_id: api_key.id,
           merchant_id: api_key.merchant_id,
@@ -225,11 +221,18 @@ defmodule YagyeCore.Merchants do
     |> Repo.insert(on_conflict: :nothing, conflict_target: [:merchant_id, :mode])
   end
 
-  defp fetch_approvable(merchant_id) do
-    case Repo.get(Merchant, merchant_id) do
+  defp fetch_approvable(public_id) do
+    case Repo.get_by(Merchant, public_id: public_id) do
       %Merchant{status: "registered"} = m -> {:ok, m}
       %Merchant{} -> {:error, :invalid_state}
       nil -> {:error, :not_found}
+    end
+  end
+
+  defp resolve_merchant(public_id) do
+    case Repo.get_by(Merchant, public_id: public_id) do
+      nil -> {:error, :not_found}
+      merchant -> {:ok, merchant}
     end
   end
 

@@ -28,12 +28,12 @@ case Repo.get_by(Merchant, legal_name: "Yagye Admin") do
 
     IO.puts("Created admin merchant : #{merchant.public_id}")
 
-    # approved_by is stored in the event only — passing own id is fine for bootstrap
-    {:ok, {merchant, _}} = Merchants.approve(merchant.id, merchant.id)
+    # approved_by (second arg) is stored in the event for audit only — internal UUID is fine
+    {:ok, {merchant, _}} = Merchants.approve(merchant.public_id, merchant.id)
     IO.puts("Approved              : status=#{merchant.status}")
 
     {:ok, {api_key, raw_key, _}} =
-      Merchants.issue_api_key(merchant.id, %{
+      Merchants.issue_api_key(merchant.public_id, %{
         kind: "secret",
         mode: "live",
         scopes: ["*"],
