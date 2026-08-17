@@ -65,6 +65,7 @@ defmodule YagyeCore.MixProject do
       {:stream_data, "~> 1.4", only: [:test]},
       {:boundary, "~> 0.10", runtime: false},
       {:uniq, "~> 0.6.3"},
+      {:argon2_elixir, "~> 4.0"},
       {:ex_machina, "~> 2.8.2", only: :test},
       {:mox, "~> 1.0", only: :test}
     ]
