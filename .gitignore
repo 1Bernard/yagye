@@ -31,6 +31,9 @@ BUILD_PLAN.md
 # Claude Code internal files
 AGENTS.md
 
+# Generated schema snapshots
+docs/schema/exports/
+
 # Terraform
 **/.terraform/
 *.tfstate
