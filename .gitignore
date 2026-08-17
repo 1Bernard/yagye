@@ -1,0 +1,39 @@
+# Elixir
+/apps/*/_build/
+/apps/*/deps/
+/apps/*/.elixir_ls/
+*.ez
+erl_crash.dump
+
+# Ruby / Rails
+/apps/*/log/*.log
+/apps/*/tmp/
+/apps/*/.bundle/
+/apps/*/vendor/bundle/
+
+# Node
+node_modules/
+
+# Env / secrets
+.env
+.env.*
+!.env.example
+
+# OS
+.DS_Store
+
+# Dialyzer PLT cache
+apps/*/priv/plts/
+
+# Internal planning — not for the repo
+BUILD_PLAN.md
+
+# Claude Code internal files
+AGENTS.md
+
+# Terraform
+**/.terraform/
+*.tfstate
+*.tfstate.*
+*.tfvars
+!*.tfvars.example
