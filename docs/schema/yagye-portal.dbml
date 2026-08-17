@@ -1,0 +1,371 @@
+// ═══════════════════════════════════════════════════════════════════════════
+//  Yagye PORTAL — Rails 8  ·  database: yagye_portal
+//
+//  SEPARATE DATABASE. The portal holds NO credential for the core database,
+//  and that absence is the control that keeps the ledger single-writer.
+//
+//  This database contains exactly three kinds of thing:
+//    1. HUMAN IDENTITY      — who the people are, and what they may do
+//    2. HUMAN WORKFLOW      — annotations, notes, saved views, audit
+//    3. READ MODELS         — portal_* tables written ONLY by app/consumers/
+//
+//  It contains NO money. Every financial mutation is a command to the core.
+//
+//  Rails convention: created_at / updated_at.  Ecto uses inserted_at.
+//  The difference is fine — the two databases share no tables, and nothing
+//  downstream reads a row timestamp. See §XXI.3.
+// ═══════════════════════════════════════════════════════════════════════════
+
+Project yagye_portal {
+  database_type: 'PostgreSQL'
+  Note: 'Rails 8 operator and merchant portal. Five layers, department namespaces, Pundit three gates, SoD.'
+}
+
+// ─── HUMAN IDENTITY ───────────────────────────────────────────────────────
+
+Table users [headercolor: #1A2B4C] {
+  id bigserial [pk]
+  user_code text [unique, not null, note: 'USR-A1B2 — the stable public handle sent to the core as on_behalf_of']
+  email citext [unique, not null, note: '[PII] DELIBERATELY NOT vault-indirected: it is the login lookup key, and a vault hop on the auth path is a cost with no security gain. Erasure here is ANONYMISATION (deleted-<id>@invalid), not crypto-shredding, because the row must survive so audit trails still resolve a name. Documented in §22.1.']
+  encrypted_password text [not null, note: '[SEC] Devise, argon2id']
+  first_name text [not null, note: '[PII] anonymised on erasure, not shredded — see email']
+  last_name text [not null, note: '[PII] anonymised on erasure, not shredded — see email']
+  kind text [not null, note: 'merchant_user | internal_staff — decides which role set applies']
+  reset_password_token text [unique, note: '[SEC] CSPRNG random, never a ULID — a ULID leaks its creation time']
+  reset_password_sent_at timestamptz
+  remember_created_at timestamptz
+  sign_in_count integer [not null]
+  current_sign_in_at timestamptz
+  last_sign_in_at timestamptz
+  current_sign_in_ip inet
+  last_sign_in_ip inet
+  failed_attempts integer [not null, note: 'Devise Lockable']
+  unlock_token text [unique]
+  locked_at timestamptz
+  otp_secret_encrypted bytea [note: '[SEC] ROTP seed under KMS envelope encryption — a plaintext TOTP seed is a second factor an attacker can clone']
+  otp_required_for_login boolean [not null, note: 'internal_staff cannot turn this off themselves — BR-011']
+  otp_confirmed_at timestamptz
+  recovery_codes_digest "text[]" [note: '[SEC] hashed, single use, shown once']
+  last_step_up_at timestamptz [note: 'BR-012 — sensitive actions require re-proof within 5 minutes']
+  del_status boolean [not null, note: 'Toggleable — soft delete']
+  active_status boolean [not null]
+  created_at timestamptz [not null]
+  updated_at timestamptz [not null]
+  Note: 'HUMAN credentials only. Machine credentials (API keys) live in the CORE database — different subjects, no duplication. See §XXII.1.'
+}
+
+Table webauthn_credentials [headercolor: #1A2B4C] {
+  id bigserial [pk]
+  user_id bigint [not null]
+  external_id text [unique, not null]
+  public_key text [not null, note: '[SEC] the passkey public key — phishing-resistant, bound to the origin']
+  nickname text
+  sign_count bigint [not null, note: 'must increase; a decrease means a cloned authenticator']
+  aaguid text
+  last_used_at timestamptz
+  created_at timestamptz [not null]
+}
+
+Table user_sessions [headercolor: #6B7A8D] {
+  id bigserial [pk]
+  user_id bigint [not null]
+  session_token_digest text [unique, not null, note: '[SEC] hashed']
+  device_fingerprint text [not null, note: 'a NEW device triggers an email — BR-050']
+  ip inet
+  user_agent_hash text [note: '[PII] hashed, never raw']
+  mfa_satisfied_at timestamptz
+  expires_at timestamptz [not null, note: 'absolute lifetime: 12h for internal staff']
+  revoked_at timestamptz
+  created_at timestamptz [not null]
+  Note: 'Refresh rotation with REUSE DETECTION: presenting a used token revokes the whole family, because presentation of a used token means it was stolen.'
+}
+
+// ─── RBAC ─────────────────────────────────────────────────────────────────
+
+Table roles [headercolor: #B4531F] {
+  id bigserial [pk]
+  key text [unique, not null, note: 'merchant_owner|merchant_finance|merchant_developer|merchant_support|ops_analyst|ops_manager|compliance_analyst|compliance_manager']
+  name text [not null]
+  scope text [not null, note: 'merchant | internal — a merchant role can never be granted to an internal user and vice versa']
+  description text [not null]
+  system_role boolean [not null, note: 'seeded roles cannot be edited or deleted in the UI']
+  created_at timestamptz [not null]
+  updated_at timestamptz [not null]
+}
+
+Table permissions [headercolor: #B4531F] {
+  id bigserial [pk]
+  key text [unique, not null, note: 'payments.refund · reconciliation.approve_adjustment · customer_data.view_msisdn']
+  resource text [not null, note: 'payments|settlements|reconciliation|payouts|developers|customer_data|operations']
+  action text [not null]
+  gate text [not null, note: 'action | scope | data — WHICH of the three gates this permission serves. §IX.3']
+  sod_conflicts_with "text[]" [note: 'permission keys that must NEVER be held by the same role. Seeded and TESTED.']
+  description text [not null]
+  created_at timestamptz [not null]
+  Note: 'Seeded from a single source list. A permission referenced by a policy but absent here fails CI.'
+}
+
+Table permissions_roles [headercolor: #B4531F] {
+  role_id bigint [pk]
+  permission_id bigint [pk]
+  created_at timestamptz [not null]
+  Note: 'THE GRANT MATRIX. permitted?() is a SQL EXISTS against this join. Seeded, versioned, and asserted by spec — §IX.3.'
+}
+
+Table user_roles [headercolor: #B4531F] {
+  id bigserial [pk]
+  user_id bigint [not null]
+  role_id bigint [not null]
+  merchant_code text [note: 'mch_01J… for merchant roles; NULL for internal roles']
+  granted_by bigint
+  granted_at timestamptz [not null]
+  expires_at timestamptz [note: 'time-boxed elevation — an ops_manager grant for one incident']
+  revoked_at timestamptz
+  indexes { (user_id, role_id, merchant_code) [unique] }
+}
+
+Table merchant_memberships [headercolor: #1F6B4A] {
+  id bigserial [pk]
+  user_id bigint [not null]
+  merchant_code text [not null, note: 'mch_01J… — the CORE owns merchants; this is a reference, not a foreign key across databases']
+  merchant_name text [not null, note: 'denormalised from the merchants Kafka topic for display without a core call']
+  state text [not null, note: 'invited|active|suspended|removed']
+  invited_by bigint
+  invitation_token_digest text [note: '[SEC] single use']
+  invitation_expires_at timestamptz
+  accepted_at timestamptz
+  created_at timestamptz [not null]
+  updated_at timestamptz [not null]
+  indexes { (user_id, merchant_code) [unique] }
+  Note: 'BR-013: a user belongs to exactly one merchant. Enforced by a partial unique index on user_id where state = active.'
+}
+
+// ─── HUMAN WORKFLOW ───────────────────────────────────────────────────────
+
+Table audit_logs [headercolor: #9B3232] {
+  id bigserial [pk]
+  user_id bigint
+  user_code text [not null, note: 'denormalised — the log must survive the user being deleted']
+  merchant_code text
+  action text [not null, note: 'payments.refund_requested | breaks.write_off_proposed']
+  resource_type text [not null]
+  resource_code text
+  outcome text [not null, note: 'attempted | succeeded | failed — ALL THREE are logged, always']
+  reason text
+  correlation_id text [not null, note: 'joins this row to the core payment_events and the trace']
+  ip inet
+  user_agent_hash text
+  metadata jsonb [not null]
+  created_at timestamptz [not null]
+  Note: 'WHY and BY WHOM. PaperTrail records WHAT CHANGED. Both are necessary and neither replaces the other. No has_paper_trail here — it would be circular.'
+}
+
+Table versions [headercolor: #6B7A8D] {
+  id bigserial [pk]
+  item_type text [not null]
+  item_id text [not null, note: 'STRING from day one — retrofitting this after uuid models exist is painful']
+  event text [not null]
+  whodunnit text
+  object jsonb
+  object_changes jsonb
+  created_at timestamptz [not null]
+  Note: 'PaperTrail. Portal-owned tables only. NEVER on portal_* read models — those are rebuilt, not versioned.'
+}
+
+Table break_notes [headercolor: #1F6B4A] {
+  id bigserial [pk]
+  break_code text [not null, note: 'brk_01J… — the break itself lives in the CORE']
+  user_id bigint [not null]
+  body text [not null]
+  visibility text [not null, note: 'internal | merchant_visible']
+  del_status boolean [not null]
+  created_at timestamptz [not null]
+  updated_at timestamptz [not null]
+  Note: 'The human INVESTIGATION lives here; the break and its resolution live in the core. The reconciliation engine is Phoenix; the investigation workflow is Rails.'
+}
+
+Table saved_filters [headercolor: #6B7A8D] {
+  id bigserial [pk]
+  user_id bigint [not null]
+  namespace text [not null, note: 'Payments:: | Reconciliation:: | Settlements::']
+  name text [not null]
+  filters jsonb [not null]
+  shared_with_merchant boolean [not null]
+  created_at timestamptz [not null]
+  updated_at timestamptz [not null]
+}
+
+Table notifications [headercolor: #6B7A8D] {
+  id bigserial [pk]
+  user_id bigint [not null]
+  kind text [not null]
+  title text [not null]
+  body text [not null]
+  link_path text
+  severity text [not null]
+  read_at timestamptz
+  created_at timestamptz [not null]
+}
+
+Table impersonation_sessions [headercolor: #9B3232] {
+  id bigserial [pk]
+  staff_user_id bigint [not null]
+  merchant_code text [not null]
+  reason text [not null, note: 'MANDATORY — a support ticket reference']
+  read_only boolean [not null, note: 'ALWAYS true. There is no code path that sets this false. MIGRATION REQUIRED: CHECK (read_only = true) — no future code path should be able to create a write-enabled impersonation session at the DB level.']
+  started_at timestamptz [not null]
+  expires_at timestamptz [not null, note: 'time-boxed, typically 60 minutes']
+  ended_at timestamptz
+  Note: 'Support impersonation. Audited, time-boxed, banner-visible, and write-blocked. A day to build now; far worse than a day to retrofit after someone has been sharing merchant passwords.'
+}
+
+// ─── READ MODELS  (written ONLY by app/consumers/) ────────────────────────
+
+Table portal_payments [headercolor: #2E4A73] {
+  payment_code text [pk, note: 'pay_01J…']
+  merchant_code text [not null]
+  mode text [not null]
+  aggregate_version integer [not null, note: 'THE VERSION FENCE — apply only when incoming version > stored']
+  state text [not null, note: 'mirrors the core aggregate state; see the core schema for the enumeration']
+  method text
+  provider_code text
+  amount bigint [not null]
+  currency char(3) [not null]
+  net_amount bigint
+  platform_fee bigint
+  provider_fee bigint
+  customer_code text
+  customer_email_masked text [note: '[PII] gate-3 controlled: masked unless the viewer holds customer_data.view_email']
+  customer_msisdn_masked text
+  merchant_reference text
+  settlement_code text
+  settlement_state text
+  risk_decision text
+  occurred_at timestamptz [not null]
+  last_transition_at timestamptz [not null]
+  last_event_id text [not null]
+  last_applied_at timestamptz [not null, note: 'rendered as UI::Freshness — an operator who cannot tell whether a number is current will not trust any number on the page']
+  indexes { (merchant_code, occurred_at) }
+  Note: 'NO has_paper_trail. NO Toggleable. Rebuilt, not soft-deleted. A model-level guard raises on write from anywhere outside app/consumers/.'
+}
+
+Table portal_settlements [headercolor: #2E4A73] {
+  settlement_code text [pk]
+  merchant_code text [not null]
+  provider_code text [not null]
+  mode text [not null]
+  aggregate_version integer [not null]
+  state text [not null, note: 'mirrors the core aggregate state; see the core schema for the enumeration']
+  currency char(3) [not null]
+  period_start timestamptz [not null]
+  period_end timestamptz [not null]
+  expected_net bigint [not null]
+  reported_net bigint
+  variance bigint
+  value_date date
+  item_count integer
+  last_event_id text [not null]
+  last_applied_at timestamptz [not null]
+}
+
+Table portal_breaks [headercolor: #B4531F] {
+  break_code text [pk]
+  run_code text [not null]
+  merchant_code text
+  provider_code text
+  mode text [not null]
+  aggregate_version integer [not null]
+  classification text [not null]
+  severity text [not null]
+  state text [not null, note: 'mirrors the core aggregate state; see the core schema for the enumeration']
+  difference bigint
+  currency char(3)
+  assigned_to_user_code text
+  evidence jsonb
+  detected_at timestamptz [not null]
+  sla_due_at timestamptz
+  last_event_id text [not null]
+  last_applied_at timestamptz [not null]
+  indexes { (state, severity, detected_at) }
+  Note: 'The queue an ops analyst works all day. Turbo Stream broadcasts on insert so work appears without a refresh.'
+}
+
+Table portal_merchant_balances [headercolor: #1F6B4A] {
+  merchant_code text [pk]
+  currency char(3) [pk]
+  mode text [pk]
+  available bigint [not null]
+  pending bigint [not null]
+  reserved bigint [not null]
+  in_transit bigint [not null]
+  last_event_id text
+  last_applied_at timestamptz [not null]
+  Note: 'MONEY counter — deduped on event_id before incrementing. Version fencing does NOT make counters idempotent (§XVII.4).'
+}
+
+Table portal_daily_metrics [headercolor: #1F6B4A] {
+  merchant_code text [pk]
+  day date [pk]
+  currency char(3) [pk]
+  mode text [pk]
+  payment_count integer [not null]
+  succeeded_count integer [not null]
+  failed_count integer [not null]
+  gross_volume bigint [not null]
+  refund_volume bigint [not null]
+  chargeback_count integer [not null]
+  Note: 'VOLUME counters — recomputed hourly from source rather than deduped. Proportionality: a wrong count self-corrects; a wrong amount is a misstatement.'
+}
+
+Table processed_events [headercolor: #6B7A8D] {
+  event_id text [pk]
+  consumer text [pk]
+  processed_at timestamptz [not null]
+  Note: 'Consumer-side dedupe. Required for COUNTER projections, where the version fence does not apply. Swept after 30 days.'
+}
+
+// ─── RELATIONSHIPS ────────────────────────────────────────────────────────
+
+Ref: webauthn_credentials.user_id > users.id
+Ref: user_sessions.user_id > users.id
+Ref: permissions_roles.role_id > roles.id
+Ref: permissions_roles.permission_id > permissions.id
+Ref: user_roles.user_id > users.id
+Ref: user_roles.role_id > roles.id
+Ref: user_roles.granted_by > users.id
+Ref: merchant_memberships.user_id > users.id
+Ref: merchant_memberships.invited_by > users.id
+Ref: audit_logs.user_id > users.id
+Ref: break_notes.user_id > users.id
+Ref: saved_filters.user_id > users.id
+Ref: notifications.user_id > users.id
+Ref: impersonation_sessions.staff_user_id > users.id
+
+TableGroup identity {
+  users
+  webauthn_credentials
+  user_sessions
+  merchant_memberships
+}
+TableGroup rbac {
+  roles
+  permissions
+  permissions_roles
+  user_roles
+}
+TableGroup workflow_and_audit {
+  audit_logs
+  versions
+  break_notes
+  saved_filters
+  notifications
+  impersonation_sessions
+}
+TableGroup read_models {
+  portal_payments
+  portal_settlements
+  portal_breaks
+  portal_merchant_balances
+  portal_daily_metrics
+  processed_events
+}
