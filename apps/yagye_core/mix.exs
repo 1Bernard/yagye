@@ -8,6 +8,7 @@ defmodule YagyeCore.MixProject do
       elixir: "~> 1.15",
       elixirc_paths: elixirc_paths(Mix.env()),
       start_permanent: Mix.env() == :prod,
+      compilers: [:boundary] ++ Mix.compilers(),
       aliases: aliases(),
       deps: deps(),
       listeners: [Phoenix.CodeReloader],
@@ -60,7 +61,11 @@ defmodule YagyeCore.MixProject do
       {:credo, "~> 1.7", only: [:dev, :test], runtime: false},
       {:dialyxir, "~> 1.4", only: [:dev, :test], runtime: false},
       {:sobelow, "~> 0.14", only: [:dev, :test], runtime: false, warn_if_outdated: true},
-      {:stream_data, "~> 1.4", only: [:test]}
+      {:stream_data, "~> 1.4", only: [:test]},
+      {:boundary, "~> 0.10", runtime: false},
+      {:uniq, "~> 0.6.3"},
+      {:ex_machina, "~> 2.8.2", only: :test},
+      {:mox, "~> 1.0", only: :test}
     ]
   end
 
