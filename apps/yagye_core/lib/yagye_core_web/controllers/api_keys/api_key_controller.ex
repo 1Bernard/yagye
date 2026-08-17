@@ -18,7 +18,7 @@ defmodule YagyeCoreWeb.Controllers.ApiKeys.ApiKeyController do
   def open_api_operation(action), do: ApiKeySpec.operation(action)
 
   def create(conn, %{merchant_id: merchant_id}) do
-    with {:ok, {api_key, raw_key, _event}} <- Merchants.issue_api_key(merchant_id, conn.body_params) do
+    with {:ok, {api_key, raw_key, _event}} <- Merchants.issue_api_key(merchant_id, Map.from_struct(conn.body_params)) do
       object = ApiKeyJSON.data(api_key, raw_key)
       maybe_complete_idempotency(conn, 201, object, "api_key", api_key.id)
       Response.created(conn, object)

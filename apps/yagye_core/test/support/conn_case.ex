@@ -35,4 +35,11 @@ defmodule YagyeCoreWeb.ConnCase do
     YagyeCore.DataCase.setup_sandbox(tags)
     {:ok, conn: Phoenix.ConnTest.build_conn()}
   end
+
+  @doc """
+  Puts a Bearer token into the conn's Authorization header.
+  """
+  def with_auth(conn, raw_key) do
+    Plug.Conn.put_req_header(conn, "authorization", "Bearer #{raw_key}")
+  end
 end

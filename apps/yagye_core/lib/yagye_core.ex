@@ -1,5 +1,17 @@
 defmodule YagyeCore do
-  use Boundary, deps: [Yagye], exports: [Merchants, Compliance, Idempotency, ApiRequest, RateLimiter]
+  use Boundary,
+    deps: [Yagye],
+    exports: [
+      Merchants,
+      Merchants.Merchant,
+      Merchants.ApiKey,
+      Compliance,
+      Compliance.BeneficialOwner,
+      Compliance.KybDocument,
+      Idempotency,
+      ApiRequest,
+      RateLimiter
+    ]
 
   @moduledoc """
   YagyeCore keeps the contexts that define your domain

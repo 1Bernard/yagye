@@ -99,8 +99,8 @@ defmodule YagyeCore.Merchants do
         public_id: "mch_#{Uniq.UUID.uuid7()}",
         legal_name: cmd.legal_name,
         trading_name: cmd.trading_name,
-        country: String.upcase(cmd.country),
-        default_currency: String.upcase(cmd.default_currency),
+        country: cmd.country && String.upcase(cmd.country),
+        default_currency: cmd.default_currency && String.upcase(cmd.default_currency),
         api_version: "2026-01-01",
         metadata: cmd.metadata || %{}
       }
