@@ -61,3 +61,6 @@ config :phoenix, :plug_init_mode, :runtime
 
 # Disable swoosh api client as it is only required for production adapters.
 config :swoosh, :api_client, false
+
+# Disable OpenApiSpex spec cache in dev so changes are picked up on reload
+config :open_api_spex, :cache_adapter, OpenApiSpex.Plug.NoneCache
