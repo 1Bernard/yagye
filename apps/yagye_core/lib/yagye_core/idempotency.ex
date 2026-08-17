@@ -1,0 +1,105 @@
+defmodule YagyeCore.Idempotency do
+  @moduledoc false
+
+  alias YagyeCore.Idempotency.IdempotencyKey
+  alias YagyeCore.Repo
+
+  @lease_seconds 30
+  @ttl_seconds 86_400
+
+  # Attempts to atomically claim an idempotency key for a merchant.
+  #
+  # Returns:
+  #   {:ok, :claimed, idem_key}          — new claim, proceed with the operation
+  #   {:ok, :replay, idem_key}           — already completed, replay stored response
+  #   {:error, :in_progress}             — another request holds the lease
+  #   {:error, :fingerprint_mismatch}    — key reused with different request body
+  #   {:error, :previous_attempt_failed} — prior attempt failed; client must use a new key
+  def claim(merchant_id, key, request_fingerprint, command_name \\ nil) do
+    now = DateTime.utc_now()
+
+    attrs = %{
+      merchant_id: merchant_id,
+      key: key,
+      request_fingerprint: request_fingerprint,
+      command_name: command_name,
+      state: "in_progress",
+      lease_expires_at: DateTime.add(now, @lease_seconds, :second),
+      expires_at: DateTime.add(now, @ttl_seconds, :second)
+    }
+
+    result =
+      %IdempotencyKey{}
+      |> IdempotencyKey.changeset(attrs)
+      |> Repo.insert(on_conflict: :nothing, conflict_target: [:merchant_id, :key])
+
+    case result do
+      # ON CONFLICT DO NOTHING returns an empty row — id is nil when the insert was skipped
+      {:ok, %IdempotencyKey{id: nil}} ->
+        existing = Repo.get_by!(IdempotencyKey, merchant_id: merchant_id, key: key)
+        handle_existing(existing, request_fingerprint)
+
+      {:ok, idem_key} ->
+        {:ok, :claimed, idem_key}
+
+      {:error, changeset} ->
+        {:error, changeset}
+    end
+  end
+
+  # Marks a claimed key as completed and stores the response for future replays.
+  def complete(idem_key_id, response_status, response_body, resource_type \\ nil, resource_id \\ nil) do
+    case Repo.get(IdempotencyKey, idem_key_id) do
+      nil ->
+        {:error, :not_found}
+
+      idem_key ->
+        idem_key
+        |> IdempotencyKey.complete_changeset(%{
+          state: "completed",
+          response_status: response_status,
+          response_body: response_body,
+          resource_type: resource_type,
+          resource_id: resource_id,
+          executed_at: DateTime.utc_now()
+        })
+        |> Repo.update()
+    end
+  end
+
+  # Marks a claimed key as failed. Clients must use a new key to retry.
+  def fail(idem_key_id) do
+    case Repo.get(IdempotencyKey, idem_key_id) do
+      nil ->
+        {:error, :not_found}
+
+      idem_key ->
+        idem_key
+        |> Ecto.Changeset.change(state: "failed")
+        |> Repo.update()
+    end
+  end
+
+  # ── Private ──────────────────────────────────────────────────────────────────
+
+  defp handle_existing(%IdempotencyKey{state: "completed"} = key, fingerprint) do
+    if key.request_fingerprint == fingerprint do
+      {:ok, :replay, key}
+    else
+      {:error, :fingerprint_mismatch}
+    end
+  end
+
+  defp handle_existing(%IdempotencyKey{state: "in_progress"} = key, _fingerprint) do
+    if DateTime.compare(DateTime.utc_now(), key.lease_expires_at) == :gt do
+      # Lease has expired — treat as retriable (client can try claiming again)
+      {:error, :lease_expired}
+    else
+      {:error, :in_progress}
+    end
+  end
+
+  defp handle_existing(%IdempotencyKey{state: "failed"}, _fingerprint) do
+    {:error, :previous_attempt_failed}
+  end
+end
