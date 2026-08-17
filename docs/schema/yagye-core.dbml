@@ -1,0 +1,1474 @@
+// ═══════════════════════════════════════════════════════════════════════════
+//  Yagye — Physical Data Model
+//  Source of truth for tables, columns, keys and relationships.
+//
+//  Render:      https://dbdiagram.io/d   (paste this file)
+//  Publish:     dbdocs build yagye-schema.dbml
+//  Regenerate:  mix yagye.schema.dbml   (reads pg_catalog + COMMENT ON)
+//
+//  THIS FILE IS GENERATED. Column descriptions live as COMMENT ON in the
+//  migration that creates the column. Edit the migration, not this file.
+//
+//  Classification legend, on every column that carries one:
+//    [PII]   personal data — lives behind subject_ref in the PII vault
+//    [FIN]   financial record — statutory retention, never deleted
+//    [SEC]   secret or credential — encrypted or hashed, never logged
+//    [EVD]   evidence — retained for dispute or audit defence
+// ═══════════════════════════════════════════════════════════════════════════
+
+Project yagye {
+  database_type: 'PostgreSQL'
+  Note: '''
+  Yagye — payment orchestration, settlement and reconciliation.
+
+  Conventions
+  - Internal PK: uuid (UUIDv7, generated in the application)
+  - Public id:   prefixed ULID, TEXT UNIQUE  (pay_ mch_ stl_ brk_ rfd_ pot_ cks_)
+  - Money:       BIGINT minor units + CHAR(3) ISO-4217, adjacent, never NUMERIC
+  - Tenancy:     every money-bearing table carries merchant_id AND mode
+  - Time:        occurred_at = domain time, recorded_at = system time (bitemporal)
+  - Append-only: ledger_entries, ledger_postings, payment_events, *_state_events
+  '''
+}
+
+Enum yagye_mode {
+  simulation
+  sandbox
+  live
+}
+
+Enum payment_state {
+  created
+  processing
+  requires_action
+  authorised
+  succeeded
+  failed
+  cancelled
+  indeterminate [note: 'We do not know what the provider did. Owned by the resolver.']
+  partially_refunded
+  refunded
+  disputed
+}
+
+Enum posting_direction {
+  debit
+  credit
+}
+Enum payment_method {
+  card
+  mobile_money
+  bank_transfer
+}
+Enum payment_rail {
+  fiat_provider
+  crypto [note: 'design the abstraction now; do not build the rail until a customer asks and the compliance is costed']
+  internal
+}
+
+Enum fee_party {
+  platform
+  provider
+}
+
+// ─── IDENTITY, MERCHANTS, COMPLIANCE ──────────────────────────────────────
+
+Table merchants [headercolor: #1A2B4C] {
+  id uuid [pk]
+  public_id text [unique, not null, note: 'mch_01J...']
+  legal_name text [not null, note: '[PII] of the business, not a natural person']
+  trading_name text [not null]
+  country char(2) [not null]
+  default_currency char(3) [not null]
+  status text [not null, note: 'registered|under_review|approved|active|suspended|terminated|rejected']
+  onboarding_state text [not null]
+  risk_rating text [note: 'low|medium|high — drives reserve policy and payout schedule']
+  settlement_schedule jsonb [not null]
+  pricing_plan_id uuid
+  activity_state text [not null, note: 'active|quiet|dormant|inactive|blind. BLIND is not a lifecycle state — it means WE cannot see their data and must say so on their dashboard.']
+  last_transaction_at timestamptz
+  baseline_daily_volume bigint [note: 'their OWN trailing baseline. A merchant doing 3 payments a month is not dormant at day 10; one doing 500 a day is broken at hour 6.']
+  quiet_since timestamptz
+  api_version text [not null, note: 'DATE-BASED, pinned at first API call and never moved without opt-in. Add this in Phase 1 while there is one version — an afternoon now, a migration project after fifty merchants.']
+  entitlements jsonb [not null, note: 'what the plan lets them DO: enabled methods, rate limit, volume cap, feature flags, support tier. Distinct from pricing, which is what they PAY.']
+  metadata jsonb [not null]
+  inserted_at timestamptz [not null]
+  updated_at timestamptz [not null]
+  Note: 'The tenant boundary. Every money-bearing row traces back here.'
+}
+
+Table merchant_modes [headercolor: #2E4A73] {
+  merchant_id uuid [pk]
+  mode yagye_mode [pk]
+  enabled_at timestamptz [not null]
+  Note: 'A merchant is usable in a mode only if explicitly enabled. Composite FK target so a simulation row can never reference a live merchant.'
+}
+
+Table merchant_checkout_configs [headercolor: #1F6B4A] {
+  merchant_id uuid [pk]
+  display_name text [not null]
+  logo_url text
+  brand_colour char(7)
+  support_email text
+  support_phone text
+  website_url text
+  terms_url text
+  privacy_url text
+  refund_policy_url text
+  default_locale text [not null]
+  updated_at timestamptz [not null]
+  Note: 'Branding and policy URLs rendered on hosted checkout. The terms shown are the MERCHANT s, never Yagye s.'
+}
+
+Table api_keys [headercolor: #1A2B4C] {
+  id uuid [pk]
+  public_id text [unique, not null, note: 'key_01J...']
+  merchant_id uuid [not null]
+  mode yagye_mode [not null]
+  kind text [not null, note: 'publishable|secret']
+  key_prefix text [not null, note: 'first 24 chars, shown in UI and logs']
+  secret_hash text [note: '[SEC] argon2id. NULL for publishable keys. Never recoverable.']
+  scopes "text[]" [not null]
+  ip_allowlist "inet[]"
+  last_used_at timestamptz
+  revoked_at timestamptz
+  expires_at timestamptz
+  created_by text
+  inserted_at timestamptz [not null]
+  updated_at timestamptz [not null]
+  indexes {
+    (merchant_id, mode, key_prefix) [unique]
+    (key_prefix) [name: 'api_keys_lookup', note: 'partial: WHERE revoked_at IS NULL']
+  }
+}
+
+Table idempotency_keys [headercolor: #1F6B4A] {
+  id uuid [pk]
+  merchant_id uuid [not null]
+  key text [not null, note: 'client-supplied, max 255']
+  request_fingerprint text [not null, note: 'sha256 of canonical request. Reuse with a different payload is 422.']
+  command_name text
+  state text [not null, note: 'in_progress|completed|failed — CLAIMED BEFORE the work runs']
+  lease_expires_at timestamptz [note: 'without this, a crash locks the key forever']
+  response_status integer
+  response_body jsonb
+  resource_type text
+  resource_id uuid
+  executed_at timestamptz
+  expires_at timestamptz [not null, note: '24h retention, swept hourly']
+  inserted_at timestamptz [not null]
+  updated_at timestamptz [not null]
+  indexes { (merchant_id, key) [unique] }
+  Note: 'The claim is inserted BEFORE execution. A uniqueness constraint that fires after the side effect is not idempotency.'
+}
+
+Table api_requests [headercolor: #6B7A8D] {
+  id uuid [pk]
+  merchant_id uuid
+  api_key_id uuid
+  mode yagye_mode
+  method text [not null]
+  path text [not null]
+  api_version text [note: 'pinned per merchant at first call']
+  status integer [not null, note: 'HTTP status code, not a state machine']
+  duration_ms integer [not null]
+  correlation_id text [not null]
+  trace_id text [note: 'ephemeral — the trace expires, this row does not']
+  idempotency_key text
+  request_body_sha256 text
+  error_code text
+  inserted_at timestamptz [not null]
+  Note: 'Partitioned monthly. 90 days hot, then archived.'
+}
+
+Table beneficial_owners [headercolor: #B4531F] {
+  id uuid [pk]
+  merchant_id uuid [not null]
+  subject_ref uuid [not null, note: '[PII] → pii_vault. Name, DOB, nationality live there, not here.']
+  ownership_bps integer
+  role text [not null, note: 'director|ubo|both']
+  inserted_at timestamptz [not null]
+}
+
+Table kyb_documents [headercolor: #B4531F] {
+  id uuid [pk]
+  merchant_id uuid [not null]
+  kind text [not null, note: 'incorporation|id|proof_of_address|bank_confirmation']
+  s3_key text [not null, note: '[PII][EVD] SSE-KMS, private, presigned access only']
+  checksum text [not null]
+  scanned_at timestamptz [note: 'virus scan completed — required before it is readable']
+  uploaded_by text [not null]
+  inserted_at timestamptz [not null]
+  Note: 'Statutory AML retention, measured from the END of the relationship.'
+}
+
+Table screening_hits [headercolor: #B4531F] {
+  id uuid [pk]
+  merchant_id uuid [not null]
+  subject_type text [not null, note: 'entity|director|ubo']
+  subject_id uuid [not null]
+  list_type text [not null, note: 'sanctions|pep|adverse_media']
+  list_source text [not null]
+  matched_name text [not null, note: '[PII]']
+  match_score "numeric(4,3)" [not null]
+  matched_attributes "text[]"
+  status text [not null, note: 'open|false_positive|true_match_cleared|true_match_blocked']
+  disposition_reason text [note: 'MANDATORY on disposition. "who cleared this and on what basis" is the whole audit question.']
+  dispositioned_by text
+  dispositioned_at timestamptz
+  inserted_at timestamptz [not null]
+  updated_at timestamptz [not null]
+  Note: 'A sanctions match is an absolute bar — there is no code path to approve one.'
+}
+
+Table pii_vault [headercolor: #9B3232] {
+  subject_ref uuid [pk]
+  kms_key_id text [not null, note: 'ONE data key per subject. Destroying it erases every copy everywhere.']
+  ciphertext bytea [not null, note: '[PII] email, name, msisdn, dob — encrypted']
+  subject_kind text [not null, note: 'customer|beneficial_owner|merchant_user']
+  erased_at timestamptz [note: 'set when the key is destroyed; the row stays as proof of erasure']
+  inserted_at timestamptz [not null]
+  Note: 'CRYPTO-SHREDDING. Resolves the conflict between right-to-erasure and immutable financial records you are legally required to keep.'
+}
+
+// ─── PROVIDERS ────────────────────────────────────────────────────────────
+
+Table providers [headercolor: #6B7A8D] {
+  id uuid [pk]
+  code text [unique, not null, note: 'simulator|provider_a']
+  display_name text [not null]
+  adapter_module text [not null]
+  updated_at timestamptz [not null]
+  capabilities jsonb [not null, note: 'drives routing, checkout and validation. There is no `case provider do` in the domain.']
+  settlement_cadence jsonb [not null, note: 'includes the CUTOFF TIMEZONE — batches are cut in theirs, not yours']
+  active boolean [not null]
+  inserted_at timestamptz [not null]
+}
+
+Table provider_credentials [headercolor: #9B3232] {
+  id uuid [pk]
+  provider_id uuid [not null]
+  merchant_id uuid [note: 'NULL = platform-level. In Model B these are the MERCHANT s own read credentials.']
+  mode yagye_mode [not null]
+  base_url text [not null]
+  encrypted_payload bytea [not null, note: '[SEC] KMS envelope encryption']
+  webhook_secret_encrypted bytea [not null, note: '[SEC]']
+  rotated_at timestamptz
+  active boolean [not null]
+  inserted_at timestamptz [not null]
+  updated_at timestamptz [not null]
+  indexes { (provider_id, merchant_id, mode) [unique] }
+}
+
+Table merchant_provider_connections [headercolor: #6B7A8D] {
+  id uuid [pk]
+  merchant_id uuid [not null]
+  provider_id uuid [not null]
+  mode yagye_mode [not null]
+  priority integer [not null, note: 'routing preference, lower wins']
+  enabled_methods "text[]" [not null]
+  status text [not null, note: 'active|paused|disabled']
+  health_state text [not null, note: 'updated by the circuit breaker']
+  last_successful_sync_at timestamptz [note: 'MODEL B: the moment we stop being able to read their provider, the dashboard starts lying']
+  last_sync_error text
+  credential_expires_at timestamptz [note: 'chase BEFORE it expires, not after we go blind']
+  heartbeat_at timestamptz [note: 'periodic no-op call that proves the credentials still work']
+  sync_backoff_seconds integer [not null, note: 'exponential — do not poll a dead connection every 15 minutes forever']
+  inserted_at timestamptz [not null]
+  updated_at timestamptz [not null]
+  indexes { (merchant_id, provider_id, mode) [unique] }
+}
+
+// ─── PAYMENTS ─────────────────────────────────────────────────────────────
+
+Table payments [headercolor: #1A2B4C] {
+  id uuid [pk]
+  public_id text [unique, not null, note: 'pay_01J...']
+  merchant_id uuid [not null]
+  mode yagye_mode [not null]
+  amount bigint [not null, note: '[FIN] minor units. IMMUTABLE after creation.']
+  currency char(3) [not null]
+  authorised_amount bigint [not null, note: 'may exceed captured_amount — partial capture is normal for physical goods']
+  captured_amount bigint [not null, note: 'DERIVED: SUM(payment_captures.amount WHERE succeeded). Denormalised for query speed, verified nightly like ledger_balances.']
+  refunded_amount bigint [not null, note: 'MIGRATION REQUIRED: CHECK (refunded_amount <= captured_amount). Declared here, enforced in the migration — DBML cannot express cross-column CHECKs.']
+  cancellation_type text [note: 'pre_authorisation|void_authorisation|expired_authorisation. A void requires a PROVIDER CALL and releases a hold; a pre-auth cancellation does not. Both land in state=cancelled and neither posts a ledger entry — nothing was ever captured.']
+  voided_at timestamptz
+  state payment_state [not null, note: 'see the payment_state enum — created → processing → … → succeeded, with indeterminate as the state the resolver owns']
+  rail payment_rail [not null, note: 'fiat_provider | crypto | internal. The RAIL decides which bounded context owns the settlement facts. Adding crypto must not add columns here.']
+  method payment_method [note: 'NULLABLE — denormalised from the latest attempt. The AUTHORITATIVE method is on payment_attempts, because a customer declined on card may succeed on MoMo within one session.']
+  customer_id uuid [note: 'the merchant s customer record']
+  customer_subject_ref uuid [note: '[PII] → pii_vault']
+  customer_reference text [note: 'the merchant s own customer id']
+  merchant_reference text [note: 'the merchant s order id — NEVER our payment id']
+  description text
+  statement_descriptor text
+  version integer [not null, note: 'optimistic lock AND event ordering fence']
+  fulfilment_type text [note: 'digital|physical|service. Changes the capture pattern (physical goods often authorise at order, capture at dispatch), the chargeback reason codes you will face, and the risk profile. NOT a shipping feature.']
+  shipping_country char(2) [note: 'COUNTRY ONLY, never an address. A risk signal, minimised at the source.']
+  billing_shipping_match boolean [note: 'computed BY THE MERCHANT and sent as a boolean. We get the fraud signal without ever holding either address.']
+  risk_score "numeric(5,4)"
+  risk_decision text [note: 'allow|review|block']
+  metadata jsonb [not null]
+  expires_at timestamptz
+  inserted_at timestamptz [not null]
+  updated_at timestamptz [not null]
+  indexes {
+    (merchant_id, merchant_reference) [unique]
+    (merchant_id, inserted_at) [note: 'DESC — the keyset pagination index']
+    (state, updated_at) [note: 'partial: stuck payments']
+  }
+}
+
+Table payment_attempts [headercolor: #2E4A73] {
+  id uuid [pk]
+  public_id text [unique, not null, note: 'att_01J...']
+  payment_id uuid [not null]
+  provider_id uuid [not null]
+  attempt_number integer [not null]
+  method payment_method [not null, note: 'AUTHORITATIVE. One attempt = one method at one provider.']
+  state text [not null, note: 'created|dispatched|succeeded|failed|timed_out|resolution_pending|abandoned']
+  provider_reference text [note: 'their id. May never arrive — hence idempotency_token.']
+  idempotency_token text [not null, note: 'OUR token, sent to them, so a charge is findable after a timeout']
+  request_payload_sha256 text
+  response_code text
+  response_message text
+  raw_response jsonb [note: '[EVD] archived for forensics, never read by the domain']
+  latency_ms integer
+  error_class text [note: 'definite_failure|retryable_error|indeterminate|invalid']
+  auth_expires_at timestamptz [note: 'card auths expire — capture before the issuer releases the hold']
+  dispatched_at timestamptz
+  settled_at timestamptz
+  inserted_at timestamptz [not null]
+  updated_at timestamptz [not null]
+  indexes {
+    (payment_id, attempt_number) [unique]
+    (provider_id, provider_reference) [unique]
+  }
+  Note: 'Immutable once terminal. A retry is a NEW attempt, never a mutation.'
+}
+
+Table payment_captures [headercolor: #2E4A73] {
+  id uuid [pk]
+  public_id text [unique, not null, note: 'cap_01J...']
+  payment_id uuid [not null]
+  attempt_id uuid [not null, note: 'a capture belongs to the ATTEMPT that authorised it']
+  sequence integer [not null, note: 'multiple captures against one authorisation']
+  amount bigint [not null, note: '[FIN]']
+  currency char(3) [not null]
+  is_final boolean [not null, note: 'a final capture releases the unused authorised balance back to the issuer']
+  state text [not null, note: 'requested|succeeded|failed|indeterminate — yes, a capture can time out too']
+  provider_reference text
+  arn text [note: 'THE AUTHORITATIVE ARN. Most providers issue it at CAPTURE, not authorisation — which is why it cannot live on the payment.']
+  failure_code text [note: 'exceeds_authorisation|auth_expired|already_final|declined']
+  idempotency_token text [not null]
+  captured_at timestamptz
+  inserted_at timestamptz [not null]
+  updated_at timestamptz [not null]
+  indexes {
+    (payment_id, sequence) [unique]
+    (attempt_id)
+  }
+  Note: 'Authorise at order, capture at dispatch. WITHOUT THIS TABLE a merchant doing three partial captures leaves no record of how, each capture is a separate settlement line you cannot match, and each may carry its own ARN. The ledger entry is posted PER CAPTURE, not per payment — source_type=payment_capture, which the entry uniqueness index already supports.'
+}
+
+Table payment_events [headercolor: #B4531F] {
+  id uuid [pk]
+  payment_id uuid [not null]
+  version integer [not null]
+  event_type text [not null]
+  from_state text
+  to_state text
+  payload jsonb [not null]
+  actor text [not null, note: 'api_key:… | user:… | system:resolver | webhook:providerA']
+  on_behalf_of text [note: 'the responsible human when the portal acts for a user']
+  correlation_id text [not null, note: 'PERMANENT — survives long after the trace expires']
+  causation_id text
+  trace_id text
+  occurred_at timestamptz [not null, note: 'domain time']
+  recorded_at timestamptz [not null, note: 'system time']
+  indexes { (payment_id, version) [unique] }
+  Note: 'APPEND ONLY. Never updated, never deleted.'
+}
+
+Table payment_card_details [headercolor: #6B7A8D] {
+  payment_id uuid [pk]
+  brand text
+  last4 char(4)
+  bin char(8) [note: 'drives interchange, routing and risk. From the provider, never derived from a PAN we hold.']
+  funding text [note: 'credit|debit|prepaid']
+  card_category text [note: 'consumer|commercial']
+  issuer_name text
+  issuer_country char(2)
+  exp_month smallint
+  exp_year smallint
+  provider_token text [note: '[SEC] NEVER a PAN']
+  network_token_used boolean
+  cardholder_name_subject_ref uuid [note: '[PII]']
+  avs_result text [note: 'chargeback evidence']
+  cvv_result text
+  auth_code text
+  rrn text [note: 'retrieval reference number']
+  arn text [note: 'acquirer reference number — the field a customer s BANK asks for. Most models omit it.']
+  network_transaction_id text [note: 'required to chain merchant-initiated transactions']
+  initiated_by text [note: 'cit|mit']
+  stored_credential text [note: 'initial|subsequent']
+  mit_type text [note: 'recurring|unscheduled|instalment']
+}
+
+Table payment_three_ds [headercolor: #B4531F] {
+  payment_id uuid [pk]
+  version text [note: '2.1|2.2']
+  flow text [note: 'frictionless|challenge']
+  status char(1) [note: 'Y|N|A|U|R']
+  eci char(2)
+  cavv text
+  ds_transaction_id text
+  acs_transaction_id text
+  liability_shift boolean [note: 'decides who eats a fraudulent chargeback. A boolean "3ds: yes" cannot answer this.']
+  exemption_applied text
+  challenge_started_at timestamptz
+  completed_at timestamptz
+}
+
+Table payment_mobile_money_details [headercolor: #6B7A8D] {
+  payment_id uuid [pk]
+  network text [not null, note: 'mtn|telecel|airteltigo']
+  network_source text [not null, note: 'user_selected|lookup|prefix_guess — portability means prefix is NOT authoritative']
+  msisdn_subject_ref uuid [note: '[PII] → pii_vault']
+  msisdn_masked text [not null]
+  msisdn_hash text [not null, note: 'HMAC — match without retaining the number']
+  account_name_returned text [note: '[PII] from name enquiry, masked in UI, never logged in full']
+  name_match_score "numeric(4,3)"
+  charge_bearer text [not null, note: 'merchant|customer. Customer-pays is common here and shifts every reconciliation line by the fee.']
+  levy_amount bigint [note: 'modelled separately so it can be computed, displayed, remitted and reconciled']
+  prompt_sent_at timestamptz
+  prompt_expires_at timestamptz
+  approved_at timestamptz
+  network_reference text
+  financial_transaction_id text
+}
+
+Table payment_bank_transfer_details [headercolor: #6B7A8D] {
+  payment_id uuid [pk]
+  virtual_account_number text
+  bank_code text
+  expected_by timestamptz
+  received_at timestamptz
+}
+
+Table card_declines [headercolor: #1F6B4A] {
+  attempt_id uuid [pk]
+  raw_code text [not null, note: 'the provider s string, kept verbatim']
+  canonical_code text [not null, note: 'CLOSED enum — our taxonomy']
+  hardness text [not null, note: 'soft|hard. Retrying a HARD decline gets the merchant fined and the card blocked.']
+  retryable boolean [not null]
+  retry_after interval
+  origin text [not null, note: 'issuer|network|gateway|risk — "declined" from our risk engine needs different handling entirely']
+  customer_message_key text [not null, note: 'i18n key. Never show a customer "51 - DO NOT HONOR".']
+}
+
+Table refunds [headercolor: #1F6B4A] {
+  id uuid [pk]
+  public_id text [unique, not null, note: 'rfd_01J...']
+  payment_id uuid [not null]
+  merchant_id uuid [not null]
+  mode yagye_mode [not null]
+  amount bigint [not null, note: '[FIN]']
+  currency char(3) [not null]
+  state text [not null, note: 'requested|processing|succeeded|failed|indeterminate']
+  reason text
+  provider_reference text
+  idempotency_token text [not null]
+  requested_by text [not null]
+  correlation_id text [not null]
+  inserted_at timestamptz [not null]
+  updated_at timestamptz [not null]
+  Note: 'Invariant: SUM(refunds in processing|succeeded) <= payment.captured_amount, enforced under a row lock.'
+}
+
+Table disputes [headercolor: #9B3232] {
+  id uuid [pk]
+  public_id text [unique, not null, note: 'dsp_01J...']
+  payment_id uuid [not null]
+  merchant_id uuid [not null]
+  mode yagye_mode [not null]
+  amount bigint [not null, note: '[FIN]']
+  currency char(3) [not null]
+  stage text [note: 'retrieval|first_chargeback|representment|pre_arbitration|arbitration']
+  scheme_reason_code text
+  state text [not null, note: 'received|under_review|evidence_submitted|won|lost|accepted|expired']
+  provider_reference text
+  evidence_due_at timestamptz [note: 'a missed deadline is an automatic loss — scheduled reminders at 72h/24h/4h']
+  evidence_submitted_at timestamptz
+  outcome text [note: 'won|lost']
+  outcome_at timestamptz
+  inserted_at timestamptz [not null]
+  updated_at timestamptz [not null]
+  Note: 'Arrives 60-120 days after the payment. Also the LABEL for the fraud model.'
+}
+
+// ─── CHECKOUT ─────────────────────────────────────────────────────────────
+
+Table checkout_sessions [headercolor: #1F6B4A] {
+  id uuid [pk]
+  public_id text [unique, not null, note: 'cks_01J...']
+  merchant_id uuid [not null]
+  mode yagye_mode [not null]
+  url_token_hash text [unique, not null, note: '[SEC] CSPRNG random, HASHED at rest. NOT a ULID — a ULID leaks its creation time.']
+  state text [not null, note: 'open|processing|completed|cancelled|expired']
+  subtotal_amount bigint [not null]
+  tax_amount bigint [not null]
+  shipping_amount bigint [not null]
+  discount_amount bigint [not null, note: 'merchant-supplied. Yagye never computes a discount.']
+  total_amount bigint [not null, note: 'AUTHORITATIVE. Never accepted from the browser.']
+  currency char(3) [not null]
+  merchant_reference text [not null]
+  description text
+  collect_email boolean [not null]
+  collect_phone boolean [not null]
+  collect_name boolean [not null]
+  customer_subject_ref uuid [note: '[PII]']
+  allowed_methods "text[]" [not null]
+  locale text [not null]
+  success_url text [not null, note: 'validated at creation — HTTPS in live, registered domain, no private ranges']
+  cancel_url text [not null]
+  payment_link_id uuid [note: 'set when the session was opened from a link or invoice']
+  payment_id uuid [note: 'NULL until the FIRST confirmed method selection']
+  metadata jsonb [not null]
+  expires_at timestamptz [not null]
+  completed_at timestamptz
+  inserted_at timestamptz [not null]
+  updated_at timestamptz [not null]
+  Note: 'Checkout is a customer INTERACTION. Payment is a financial TRANSACTION. A decline does not end the session.'
+}
+
+Table checkout_line_items [headercolor: #2E4A73] {
+  id uuid [pk]
+  session_id uuid [not null]
+  position integer [not null]
+  kind text [not null, note: 'item|shipping|tax|discount. DISPLAY ONLY — the merchant computes shipping; Yagye validates that the lines sum to total_amount and renders them. Yagye never quotes, calculates or tracks a shipment.']
+  description text [not null]
+  quantity integer [not null]
+  unit_amount bigint [not null, note: 'negative ONLY when kind = discount']
+  total_amount bigint [not null]
+  image_url text
+  indexes { (session_id, position) [unique] }
+  Note: 'INVARIANT: SUM(line items) = checkout_sessions.total_amount, or session creation is 422.'
+}
+
+Table checkout_events [headercolor: #6B7A8D] {
+  id uuid [pk]
+  session_id uuid [not null]
+  event_type text [not null, note: 'viewed|method_selected|submitted|validation_failed|redirected_3ds|returned|abandoned']
+  method_selected text
+  payload jsonb [not null]
+  ip_hash text [note: '[PII] HASHED, never raw']
+  user_agent_hash text
+  occurred_at timestamptz [not null]
+  Note: 'Funnel telemetry, NOT a domain entity. Partitioned monthly, 12 month retention.'
+}
+
+// ─── LEDGER ───────────────────────────────────────────────────────────────
+
+Table ledger_accounts [headercolor: #B4531F] {
+  id uuid [pk]
+  code text [unique, not null, note: 'merchant_payable:mch_01J...:GHS']
+  account_type text [not null]
+  normal_balance posting_direction [not null]
+  scope_type text [not null, note: 'merchant|provider|platform']
+  scope_id uuid
+  currency char(3) [not null]
+  mode yagye_mode [not null]
+  allows_negative boolean [not null]
+  inserted_at timestamptz [not null]
+}
+
+Table ledger_entries [headercolor: #B4531F] {
+  id uuid [pk]
+  public_id text [unique, not null, note: 'led_01J...']
+  mode yagye_mode [not null]
+  currency char(3) [not null]
+  entry_type text [not null]
+  source_type text [not null]
+  source_id uuid [not null]
+  description text [not null]
+  correlation_id text [not null]
+  reverses_entry_id uuid [note: 'corrections are REVERSING ENTRIES, never edits']
+  effective_at timestamptz [not null, note: 'domain / value date']
+  recorded_at timestamptz [not null, note: 'system date — bitemporal']
+  inserted_at timestamptz [not null]
+  indexes { (source_type, source_id, entry_type) [unique, note: 'ledger writes are idempotent'] }
+  Note: '[FIN] APPEND ONLY. REVOKE UPDATE, DELETE from the app role.'
+}
+
+Table ledger_postings [headercolor: #B4531F] {
+  id bigserial [pk, note: 'DELIBERATELY bigserial, not uuid — dense, ordered, never exposed, and last_posting_id is a meaningful watermark']
+  entry_id uuid [not null]
+  account_id uuid [not null]
+  direction posting_direction [not null]
+  amount bigint [not null, note: '[FIN] always > 0; direction carries the sign']
+  currency char(3) [not null]
+  merchant_id uuid [note: 'denormalised for query speed']
+  inserted_at timestamptz [not null]
+  Note: 'INVARIANT: per entry, SUM(debits) = SUM(credits). MIGRATION REQUIRED: DEFERRED constraint trigger (fires at COMMIT, not per-row — both postings land in the same transaction). Must be written and passing before any ledger code runs.'
+}
+
+Table ledger_balances [headercolor: #1F6B4A] {
+  account_id uuid [pk]
+  balance bigint [not null]
+  last_posting_id bigint [not null]
+  updated_at timestamptz [not null]
+  Note: 'A cache with a PROVABLE relationship to truth: balance = SUM(signed postings WHERE id <= last_posting_id). Verified nightly; disagreement is a P1.'
+}
+
+// ─── PRICING ──────────────────────────────────────────────────────────────
+
+Table pricing_plans [headercolor: #2E4A73] {
+  id uuid [pk]
+  public_id text [unique, not null, note: 'plan_01J...']
+  name text [not null]
+  version integer [not null]
+  currency char(3) [not null]
+  fee_mode text [not null, note: 'deducted|invoiced']
+  effective_from timestamptz [not null]
+  effective_to timestamptz [note: 'half-open, non-overlapping. MIGRATION REQUIRED: EXCLUDE USING gist (tstzrange(effective_from, effective_to) WITH &&) per plan name — DBML cannot express exclusion constraints.']
+  monthly_fee bigint [not null]
+  inserted_at timestamptz [not null]
+  indexes { (name, version) [unique] }
+}
+
+Table pricing_rules [headercolor: #2E4A73] {
+  id uuid [pk]
+  plan_id uuid [not null]
+  specificity integer [not null, note: 'precomputed; most-specific wins with a deterministic tiebreak']
+  method text
+  provider_code text
+  card_brand text
+  region char(2)
+  amount_min bigint
+  amount_max bigint
+  percentage_bps integer [not null, note: 'basis points, INTEGER. 150 = 1.50%']
+  fixed_amount bigint [not null]
+  minimum_fee bigint
+  maximum_fee bigint
+  rounding text [not null, note: 'half_up|bankers']
+  inserted_at timestamptz [not null]
+}
+
+Table fee_records [headercolor: #B4531F] {
+  id uuid [pk]
+  source_type text [not null]
+  source_id uuid [not null]
+  merchant_id uuid [not null]
+  mode yagye_mode [not null]
+  party fee_party [not null, note: 'BOTH sides are modelled — revenue AND cost. Otherwise you cannot compute margin.']
+  amount bigint [not null, note: '[FIN]']
+  currency char(3) [not null]
+  pricing_plan_id uuid
+  pricing_rule_id uuid [note: 'WHICH rule produced this number']
+  computation jsonb [not null, note: 'the full arithmetic. A merchant will dispute a fee 18 months from now.']
+  inserted_at timestamptz [not null]
+  indexes { (source_type, source_id, party) [unique] }
+}
+
+Table fx_rates [headercolor: #2E4A73] {
+  id uuid [pk]
+  base char(3) [not null]
+  quote char(3) [not null]
+  rate "numeric(20,10)" [not null, note: 'DECIMAL, not integer — a rate is a ratio, not money']
+  source text [not null]
+  markup_bps integer [not null]
+  quoted_at timestamptz [not null]
+  expires_at timestamptz [not null]
+  inserted_at timestamptz [not null]
+  Note: 'Four fields are mandatory per conversion: rate, source, timestamp, markup. Without all four the conversion is unreconcilable forever.'
+}
+
+// ─── SETTLEMENT ───────────────────────────────────────────────────────────
+
+Table settlements [headercolor: #1A2B4C] {
+  id uuid [pk]
+  public_id text [unique, not null, note: 'stl_01J...']
+  merchant_id uuid [not null]
+  provider_id uuid [not null]
+  mode yagye_mode [not null]
+  currency char(3) [not null]
+  period_start timestamptz [not null]
+  period_end timestamptz [not null, note: 'cut in the PROVIDER s timezone, not yours']
+  state text [not null, note: 'expected|reported|matching|matched|mismatched|investigating|settled|written_off']
+  expected_gross bigint [not null]
+  expected_provider_fees bigint [not null]
+  expected_platform_fees bigint [not null]
+  expected_refunds bigint [not null]
+  expected_chargebacks bigint [not null]
+  expected_net bigint [not null, note: 'OUR expectation']
+  reported_gross bigint
+  reported_fees bigint
+  reported_net bigint [note: 'THEIR report. Stored separately — expectation is never overwritten by actual.']
+  actual_received bigint
+  variance bigint [note: 'GENERATED ALWAYS AS (reported_net - expected_net) STORED — cannot go stale']
+  provider_settlement_reference text
+  value_date date
+  reconciliation_run_id uuid
+  inserted_at timestamptz [not null]
+  updated_at timestamptz [not null]
+  indexes { (merchant_id, provider_id, mode, currency, period_start, period_end) [unique] }
+}
+
+Table settlement_items [headercolor: #2E4A73] {
+  id uuid [pk]
+  settlement_id uuid [not null]
+  source_type text [not null, note: 'payment_capture|refund|chargeback|adjustment|fee — settlement matches CAPTURES, not payments, because a partially captured payment settles for the captured amount only']
+  source_id uuid [not null]
+  gross_amount bigint [not null]
+  provider_fee bigint [not null]
+  platform_fee bigint [not null]
+  net_amount bigint [not null]
+  currency char(3) [not null]
+  fx_rate "numeric(20,10)"
+  fx_source text
+  fx_quoted_at timestamptz
+  inserted_at timestamptz [not null]
+  indexes { (settlement_id, source_type, source_id) [unique] }
+}
+
+Table aggregate_state_events [headercolor: #B4531F] {
+  id uuid [pk]
+  aggregate_type text [not null, note: 'settlement|reconciliation_break|merchant|payout|dispute|refund']
+  aggregate_id uuid [not null]
+  merchant_id uuid [note: 'denormalised — without it an audit query cannot be scoped to a tenant without joining per aggregate type']
+  mode yagye_mode [not null]
+  from_state text
+  to_state text [not null]
+  cause text [note: 'why, where the domain has a reason vocabulary']
+  evidence jsonb [not null, note: 'the numbers that justified the transition — an analyst must not have to guess']
+  actor text [not null]
+  on_behalf_of text
+  correlation_id text [not null]
+  occurred_at timestamptz [not null]
+  indexes { (aggregate_type, aggregate_id, occurred_at) }
+  Note: 'ONE transition log for every LOW-VOLUME aggregate. payment_events stays separate because it is 5-10 rows per payment and needs its own partitioning — different volume, different table. Consolidating these three saved two tables and made the unified audit a single query.'
+}
+
+Table payouts [headercolor: #1F6B4A] {
+  id uuid [pk]
+  public_id text [unique, not null, note: 'pot_01J...']
+  merchant_id uuid [not null]
+  mode yagye_mode [not null]
+  amount bigint [not null, note: '[FIN]']
+  currency char(3) [not null]
+  destination_id uuid [not null]
+  destination_type text [not null, note: 'bank|mobile_money']
+  destination_fingerprint text [not null, note: 'denormalised from payout_destinations at submission — the payout records WHERE it went, immutably']
+  state text [not null, note: 'scheduled|validating|reserving|submitted|paid|returned|failed|cancelled']
+  provider_reference text
+  scheduled_for date [not null]
+  submitted_at timestamptz
+  completed_at timestamptz
+  failure_code text
+  returned_at timestamptz [note: 'a payout can bounce back DAYS later. Re-credit exactly once.']
+  saga_state jsonb [not null, note: 'the process manager must be resumable at every step']
+  inserted_at timestamptz [not null]
+  updated_at timestamptz [not null]
+}
+
+Table merchant_reserves [headercolor: #B4531F] {
+  id uuid [pk]
+  merchant_id uuid [not null]
+  mode yagye_mode [not null]
+  kind text [not null, note: 'rolling|fixed|ad_hoc']
+  percentage_bps integer
+  fixed_amount bigint
+  currency char(3) [not null]
+  hold_days integer
+  active boolean [not null]
+  reason text
+  inserted_at timestamptz [not null]
+  updated_at timestamptz [not null]
+  Note: 'Released FIFO by hold date. Drawn BEFORE payable on a chargeback. Derived from risk_rating.'
+}
+
+Table momo_float_balances [headercolor: #B4531F] {
+  id uuid [pk]
+  network text [not null]
+  mode yagye_mode [not null]
+  balance bigint [not null]
+  currency char(3) [not null]
+  low_water_mark bigint [not null, note: 'running out of float means payouts silently fail at 3am']
+  ledger_account_id uuid
+  last_synced_at timestamptz [not null]
+  indexes { (network, mode) [unique] }
+  Note: 'Model A only. Disbursement over mobile money requires a PREFUNDED balance with the network.'
+}
+
+// ─── RECONCILIATION ───────────────────────────────────────────────────────
+
+Table provider_settlement_reports [headercolor: #6B7A8D] {
+  id uuid [pk]
+  provider_id uuid [not null]
+  mode yagye_mode [not null]
+  report_date date [not null]
+  source text [not null, note: 'api|sftp|email|manual_upload']
+  raw_uri text [not null, note: '[EVD] the UNTOUCHED original in S3. It is evidence — never parse and discard.']
+  checksum text [not null]
+  line_count integer [not null]
+  reported_total bigint [not null]
+  currency char(3) [not null]
+  ingested_at timestamptz [not null]
+  indexes { (provider_id, mode, report_date, checksum) [unique, note: 're-sent identical file is a no-op; a DIFFERENT file for the same date is a new version'] }
+}
+
+Table provider_report_lines [headercolor: #6B7A8D] {
+  id uuid [pk]
+  report_id uuid [not null]
+  line_number integer [not null]
+  provider_reference text
+  transaction_type text [not null]
+  gross_amount bigint
+  fee_amount bigint
+  net_amount bigint
+  currency char(3)
+  occurred_at timestamptz
+  value_date date
+  raw jsonb [not null]
+  match_state text [not null]
+  indexes { (report_id, line_number) [unique] }
+  Note: 'Bad lines are QUARANTINED, not fatal. 3 bad lines out of 5,000 must still reconcile 4,997.'
+}
+
+Table reconciliation_runs [headercolor: #1A2B4C] {
+  id uuid [pk]
+  public_id text [unique, not null, note: 'rcn_01J...']
+  kind text [not null, note: 'transaction|settlement|bank']
+  provider_id uuid
+  merchant_id uuid
+  mode yagye_mode [not null]
+  scope_from timestamptz [not null]
+  scope_to timestamptz [not null]
+  state text [not null, note: 'created|loading|matching|classifying|completed|failed']
+  left_count integer
+  right_count integer
+  matched_count integer
+  break_count integer
+  matched_value bigint
+  break_value bigint
+  currency char(3)
+  started_at timestamptz
+  completed_at timestamptz
+  inserted_at timestamptz [not null]
+  updated_at timestamptz [not null]
+  Note: 'A re-run SUPERSEDES, never duplicates.'
+}
+
+Table reconciliation_matches [headercolor: #2E4A73] {
+  id uuid [pk]
+  run_id uuid [not null]
+  strategy text [not null, note: 'exact_reference|composite|amount_window|subset_sum']
+  confidence "numeric(4,3)" [not null]
+  left_type text [not null]
+  left_ids "uuid[]" [not null]
+  right_type text [not null]
+  right_ids "uuid[]" [not null]
+  amount_left bigint
+  amount_right bigint
+  currency char(3)
+  auto_accepted boolean [not null, note: 'below the confidence threshold it is PROPOSED to a human, never auto-accepted']
+  accepted_by text
+  accepted_at timestamptz
+  inserted_at timestamptz [not null]
+}
+
+Table reconciliation_breaks [headercolor: #B4531F] {
+  id uuid [pk]
+  public_id text [unique, not null, note: 'brk_01J...']
+  run_id uuid [not null]
+  merchant_id uuid
+  provider_id uuid
+  mode yagye_mode [not null]
+  classification text [not null, note: 'CLOSED taxonomy — see Appendix E. `unknown` is NEVER terminal.']
+  severity text [not null]
+  state text [not null, note: 'detected|triaged|assigned|investigating|resolved|escalated|written_off']
+  left_ref text
+  right_ref text
+  expected_amount bigint
+  actual_amount bigint
+  difference bigint
+  currency char(3)
+  evidence jsonb [not null, note: 'assembled FOR the analyst — he should not have to write SQL']
+  assigned_to text
+  resolution_code text
+  resolution_note text
+  resolving_entry_id uuid
+  detected_at timestamptz [not null]
+  resolved_at timestamptz
+  sla_due_at timestamptz
+}
+
+
+Table adjustment_approvals [headercolor: #9B3232] {
+  id uuid [pk]
+  break_id uuid [not null]
+  proposed_by text [not null]
+  proposed_at timestamptz [not null]
+  proposed_action jsonb [not null]
+  approved_by text
+  approved_at timestamptz
+  rejected_reason text
+  Note: 'CORE-owned, not portal-owned: the SoD constraint only protects you if it lives in the database that the single writer uses. Rails renders the queue and stores free-text notes; the core owns the decision. CHECK (approved_by IS NULL OR approved_by <> proposed_by), plus the Pundit policy, plus the core command guard.'
+}
+
+// ─── MESSAGING ────────────────────────────────────────────────────────────
+
+Table webhook_events [headercolor: #2E4A73] {
+  id uuid [pk]
+  provider_id uuid [not null]
+  mode yagye_mode [not null]
+  provider_event_id text [not null, note: 'THEIR id — the dedupe key']
+  event_type_raw text [not null]
+  normalised_type text
+  signature_valid boolean [not null, note: 'verified over the RAW body, constant-time, BEFORE parsing']
+  raw_headers jsonb [not null]
+  raw_body text [not null, note: '[EVD] 90 day retention']
+  received_at timestamptz [not null]
+  processing_state text [not null, note: 'received|processing|processed|duplicate|parked|failed|ignored']
+  processed_at timestamptz
+  attempts integer [not null]
+  last_error text
+  correlation_id text [not null]
+  indexes { (provider_id, provider_event_id) [unique, note: 'THE INBOX'] }
+}
+
+Table outbox_messages [headercolor: #B4531F] {
+  id bigserial [pk, note: 'bigserial: the relay reads in id order']
+  event_id text [unique, not null, note: 'ULID — the consumer dedupe key']
+  aggregate_type text [not null]
+  aggregate_id uuid [not null]
+  aggregate_version integer [not null, note: 'the projection version fence']
+  event_type text [not null]
+  event_version integer [not null]
+  partition_key text [not null]
+  merchant_id uuid [note: 'denormalised from the envelope — lets you retain, filter and purge by tenant without parsing JSONB']
+  destination text [not null, note: 'DATA, not code: bus:… → kafka:… is a config change']
+  envelope jsonb [not null]
+  mode yagye_mode [not null]
+  published_at timestamptz
+  publish_attempts integer [not null]
+  last_error text
+  occurred_at timestamptz [not null]
+  inserted_at timestamptz [not null]
+  Note: 'Written in the SAME TRANSACTION as the state change. This is what makes dual-write impossible.'
+}
+
+
+Table merchant_webhook_endpoints [headercolor: #1F6B4A] {
+  id uuid [pk]
+  merchant_id uuid [not null]
+  mode yagye_mode [not null]
+  url text [not null, note: 'SSRF-checked: private ranges blocked, re-checked after DNS resolution']
+  secret_encrypted bytea [not null, note: '[SEC]']
+  subscribed_events "text[]" [not null]
+  active boolean [not null]
+  consecutive_failures integer [not null]
+  disabled_at timestamptz [note: 'auto-disabled after 50 consecutive failures, owners emailed']
+  inserted_at timestamptz [not null]
+  updated_at timestamptz [not null]
+}
+
+Table merchant_webhook_deliveries [headercolor: #6B7A8D] {
+  id uuid [pk]
+  endpoint_id uuid [not null]
+  event_id text [not null]
+  event_type text [not null]
+  attempt integer [not null]
+  state text [not null, note: 'pending|delivering|delivered|failed|exhausted']
+  response_status integer [note: '2xx ONLY is success. A 3xx is a failure — we do not follow redirects.']
+  response_body_truncated text
+  duration_ms integer
+  next_attempt_at timestamptz
+  delivered_at timestamptz
+  inserted_at timestamptz [not null]
+  indexes { (endpoint_id, event_id, attempt) [unique] }
+}
+
+// ─── PROJECTIONS (read models) ────────────────────────────────────────────
+
+Table proj_merchant_balances [headercolor: #1F6B4A] {
+  merchant_id uuid [pk]
+  currency char(3) [pk]
+  mode yagye_mode [pk]
+  available bigint [not null]
+  pending bigint [not null]
+  reserved bigint [not null]
+  in_transit bigint [not null]
+  lifetime_volume bigint [not null]
+  last_event_id text
+  last_applied_at timestamptz [note: 'surfaced to the UI as a freshness indicator']
+  Note: 'MONEY counter — deduped on event_id before incrementing. Version fencing does NOT make counters idempotent.'
+}
+
+Table proj_payment_summaries [headercolor: #1F6B4A] {
+  payment_id uuid [pk]
+  merchant_id uuid [not null]
+  mode yagye_mode [not null]
+  aggregate_version integer [not null, note: 'THE VERSION FENCE: apply only if incoming version > stored']
+  state text [not null]
+  method text [not null]
+  provider_code text
+  amount bigint [not null]
+  currency char(3) [not null]
+  net_amount bigint
+  platform_fee bigint
+  provider_fee bigint
+  settlement_id uuid
+  settlement_state text
+  customer_reference text
+  merchant_reference text
+  created_at timestamptz [not null]
+  last_transition_at timestamptz [not null]
+  last_event_id text [not null]
+}
+
+Table proj_daily_merchant_metrics [headercolor: #1F6B4A] {
+  merchant_id uuid [pk]
+  day date [pk]
+  currency char(3) [pk]
+  mode yagye_mode [pk]
+  payment_count integer [not null]
+  succeeded_count integer [not null]
+  failed_count integer [not null]
+  gross_volume bigint [not null]
+  net_volume bigint [not null]
+  refund_volume bigint [not null]
+  chargeback_count integer [not null]
+  Note: 'VOLUME counters — recomputed hourly from source rather than deduped. Proportionality: a wrong count self-corrects; a wrong amount is a misstatement.'
+}
+
+// ─── RELATIONSHIPS ────────────────────────────────────────────────────────
+
+Ref: merchant_modes.merchant_id > merchants.id
+Ref: merchant_checkout_configs.merchant_id - merchants.id
+Ref: api_keys.merchant_id > merchants.id
+Ref: idempotency_keys.merchant_id > merchants.id
+Ref: api_requests.merchant_id > merchants.id
+Ref: api_requests.api_key_id > api_keys.id
+Ref: beneficial_owners.merchant_id > merchants.id
+Ref: beneficial_owners.subject_ref > pii_vault.subject_ref
+Ref: kyb_documents.merchant_id > merchants.id
+Ref: screening_hits.merchant_id > merchants.id
+Ref: provider_credentials.provider_id > providers.id
+Ref: provider_credentials.merchant_id > merchants.id
+Ref: merchant_provider_connections.merchant_id > merchants.id
+Ref: merchant_provider_connections.provider_id > providers.id
+Ref: payments.merchant_id > merchants.id
+Ref: payments.customer_subject_ref > pii_vault.subject_ref
+Ref: payment_attempts.payment_id > payments.id
+Ref: payment_attempts.provider_id > providers.id
+Ref: payment_captures.payment_id > payments.id
+Ref: payment_captures.attempt_id > payment_attempts.id
+Ref: payment_events.payment_id > payments.id
+Ref: payment_card_details.payment_id - payments.id
+Ref: payment_three_ds.payment_id - payments.id
+Ref: payment_mobile_money_details.payment_id - payments.id
+Ref: payment_bank_transfer_details.payment_id - payments.id
+Ref: card_declines.attempt_id - payment_attempts.id
+Ref: refunds.payment_id > payments.id
+Ref: disputes.payment_id > payments.id
+Ref: checkout_sessions.merchant_id > merchants.id
+Ref: checkout_sessions.payment_id - payments.id
+Ref: checkout_line_items.session_id > checkout_sessions.id
+Ref: checkout_events.session_id > checkout_sessions.id
+Ref: ledger_postings.entry_id > ledger_entries.id
+Ref: ledger_postings.account_id > ledger_accounts.id
+Ref: ledger_balances.account_id - ledger_accounts.id
+Ref: ledger_entries.reverses_entry_id > ledger_entries.id
+Ref: pricing_rules.plan_id > pricing_plans.id
+Ref: fee_records.pricing_plan_id > pricing_plans.id
+Ref: fee_records.pricing_rule_id > pricing_rules.id
+Ref: merchants.pricing_plan_id > pricing_plans.id
+Ref: settlements.merchant_id > merchants.id
+Ref: settlements.provider_id > providers.id
+Ref: settlements.reconciliation_run_id > reconciliation_runs.id
+Ref: settlement_items.settlement_id > settlements.id
+Ref: payouts.merchant_id > merchants.id
+Ref: merchant_reserves.merchant_id > merchants.id
+Ref: momo_float_balances.ledger_account_id > ledger_accounts.id
+Ref: provider_settlement_reports.provider_id > providers.id
+Ref: provider_report_lines.report_id > provider_settlement_reports.id
+Ref: reconciliation_runs.provider_id > providers.id
+Ref: reconciliation_runs.merchant_id > merchants.id
+Ref: reconciliation_matches.run_id > reconciliation_runs.id
+Ref: reconciliation_breaks.run_id > reconciliation_runs.id
+Ref: reconciliation_breaks.resolving_entry_id > ledger_entries.id
+Ref: adjustment_approvals.break_id > reconciliation_breaks.id
+Ref: webhook_events.provider_id > providers.id
+Ref: merchant_webhook_endpoints.merchant_id > merchants.id
+Ref: merchant_webhook_deliveries.endpoint_id > merchant_webhook_endpoints.id
+
+// ─── TABLE GROUPS ─────────────────────────────────────────────────────────
+
+TableGroup identity_and_access {
+  merchants
+  merchant_modes
+  api_keys
+  idempotency_keys
+  api_requests
+}
+TableGroup compliance {
+  beneficial_owners
+  kyb_documents
+  screening_hits
+  pii_vault
+}
+TableGroup providers_acl {
+  providers
+  provider_credentials
+  merchant_provider_connections
+}
+TableGroup payments_core {
+  payments
+  payment_attempts
+  payment_events
+  payment_captures
+  card_declines
+}
+TableGroup payment_methods {
+  payment_card_details
+  payment_three_ds
+  payment_mobile_money_details
+  payment_bank_transfer_details
+}
+TableGroup reversals {
+  refunds
+  disputes
+}
+TableGroup checkout {
+  checkout_sessions
+  checkout_line_items
+  checkout_events
+  merchant_checkout_configs
+}
+TableGroup ledger {
+  ledger_accounts
+  ledger_entries
+  ledger_postings
+  ledger_balances
+}
+TableGroup pricing {
+  pricing_plans
+  pricing_rules
+  fee_records
+  fx_rates
+}
+TableGroup settlement_and_payout {
+  settlements
+  settlement_items
+  aggregate_state_events
+  payouts
+  merchant_reserves
+  momo_float_balances
+}
+TableGroup reconciliation {
+  provider_settlement_reports
+  provider_report_lines
+  reconciliation_runs
+  reconciliation_matches
+  reconciliation_breaks
+  adjustment_approvals
+}
+TableGroup messaging {
+  webhook_events
+  outbox_messages
+  merchant_webhook_endpoints
+  merchant_webhook_deliveries
+}
+TableGroup projections {
+  proj_merchant_balances
+  proj_payment_summaries
+  proj_daily_merchant_metrics
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+//  MERCHANT PRODUCT LAYER  —  commerce INTENT, not financial transaction
+//
+//  Everything here creates an obligation or an offer. None of it moves money.
+//  The boundary is the same one that separates checkout_sessions from payments:
+//      intent to be paid   →   intent to collect   →   money moved
+//      (link / invoice)        (payment)               (attempt → ledger)
+// ═══════════════════════════════════════════════════════════════════════════
+
+Table customers [headercolor: #1F6B4A] {
+  id uuid [pk]
+  public_id text [unique, not null, note: 'cus_01J...']
+  merchant_id uuid [not null, note: 'a customer belongs to ONE merchant. There is no global customer.']
+  mode yagye_mode [not null]
+  subject_ref uuid [note: '[PII] → pii_vault. Email, name, phone live there, never here.']
+  email_hash text [note: 'HMAC — dedupe and match without retaining the address']
+  msisdn_hash text
+  external_reference text [note: 'the merchant s own customer id']
+  first_seen_at timestamptz [not null]
+  last_seen_at timestamptz [not null]
+  lifetime_payment_count integer [not null]
+  lifetime_gross_volume bigint [not null, note: 'in lifetime_volume_currency. A lifetime total with no currency is meaningless the moment a customer pays in two.']
+  lifetime_volume_currency char(3) [not null]
+  dispute_count integer [not null, note: 'the single highest-signal risk feature you own']
+  inserted_at timestamptz [not null]
+  updated_at timestamptz [not null]
+  indexes {
+    (merchant_id, email_hash)
+    (merchant_id, external_reference) [unique]
+  }
+  Note: 'Was a gap. Without it, repeat-customer velocity, customer-level dispute history and invoice addressing are all impossible, and the fraud model loses its best feature family.'
+}
+
+Table payment_links [headercolor: #1F6B4A] {
+  id uuid [pk]
+  public_id text [unique, not null, note: 'plk_01J...']
+  merchant_id uuid [not null]
+  mode yagye_mode [not null]
+  url_slug text [unique, not null]
+  kind text [not null, note: 'fixed_amount | customer_specified | invoice']
+  amount bigint [note: 'NULL when the payer chooses the amount']
+  currency char(3) [not null]
+  description text [not null]
+  image_url text
+  allowed_methods "text[]" [not null]
+  collect_email boolean [not null]
+  collect_phone boolean [not null]
+  collect_name boolean [not null]
+  reusable boolean [not null, note: 'a shareable link is reusable; an invoice link is single-use']
+  max_uses integer
+  use_count integer [not null]
+  active boolean [not null]
+  expires_at timestamptz
+  metadata jsonb [not null]
+  inserted_at timestamptz [not null]
+  updated_at timestamptz [not null]
+  Note: 'An OFFER. Creates a checkout_session when opened. A link is not a payment, and one link may produce many payments.'
+}
+
+Table invoices [headercolor: #1F6B4A] {
+  id uuid [pk]
+  public_id text [unique, not null, note: 'inv_01J...']
+  merchant_id uuid [not null]
+  mode yagye_mode [not null]
+  customer_id uuid [not null]
+  number text [not null, note: 'merchant-facing sequence, e.g. INV-00123. Gapless per merchant per year — a legal requirement in many jurisdictions.']
+  state text [not null, note: 'draft|open|partially_paid|paid|void|uncollectible|overdue']
+  subtotal_amount bigint [not null]
+  tax_amount bigint [not null]
+  discount_amount bigint [not null]
+  total_amount bigint [not null]
+  amount_paid bigint [not null]
+  amount_due bigint [not null]
+  currency char(3) [not null]
+  issue_date date [not null]
+  due_date date [not null]
+  payment_link_id uuid
+  notes text
+  terms text
+  sent_at timestamptz
+  paid_at timestamptz
+  voided_at timestamptz [note: 'an issued invoice is VOIDED, never deleted — same reasoning as the ledger']
+  inserted_at timestamptz [not null]
+  updated_at timestamptz [not null]
+  indexes { (merchant_id, number) [unique] }
+  Note: 'A commercial OBLIGATION. It knows nothing about ledger postings, provider fees or settlement. It creates a payment_link; the payment does the rest.'
+}
+
+Table invoice_line_items [headercolor: #2E4A73] {
+  id uuid [pk]
+  invoice_id uuid [not null]
+  position integer [not null]
+  description text [not null]
+  quantity "numeric(12,4)" [not null]
+  unit_amount bigint [not null, note: 'currency is inherited from invoices.currency — child tables do not repeat it']
+  tax_rate_bps integer [not null]
+  total_amount bigint [not null]
+  indexes { (invoice_id, position) [unique] }
+  Note: 'INVARIANT: SUM(line items) + tax - discount = invoices.total_amount.'
+}
+
+Table invoice_deliveries [headercolor: #6B7A8D] {
+  id uuid [pk]
+  invoice_id uuid [not null]
+  channel text [not null, note: 'email|whatsapp|sms|link_copied']
+  destination_hash text [not null, note: '[PII] hashed']
+  state text [not null, note: 'queued|sent|delivered|opened|failed']
+  provider_reference text
+  sent_at timestamptz
+  delivered_at timestamptz
+  opened_at timestamptz
+  failure_reason text
+  inserted_at timestamptz [not null]
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+//  PAYOUT DESTINATIONS  —  was a gap: payouts referenced a fingerprint with
+//  no table behind it. This is the highest-value target in the whole system.
+// ═══════════════════════════════════════════════════════════════════════════
+
+Table payout_destinations [headercolor: #9B3232] {
+  id uuid [pk]
+  public_id text [unique, not null, note: 'pdt_01J...']
+  merchant_id uuid [not null]
+  mode yagye_mode [not null]
+  kind text [not null, note: 'bank|mobile_money']
+  currency char(3) [not null]
+  account_details_encrypted bytea [not null, note: '[SEC] KMS envelope']
+  fingerprint text [not null, note: 'hash of the account details — a CHANGE triggers a 24h payout hold and notifies every owner']
+  account_name_verified text [note: 'from a name-enquiry or bank verification']
+  verification_state text [not null, note: 'unverified|micro_deposit_sent|verified|failed']
+  is_default boolean [not null]
+  active boolean [not null]
+  hold_until timestamptz [note: 'set on change. Account-takeover cash-out runs through this table.']
+  inserted_at timestamptz [not null]
+  updated_at timestamptz [not null]
+  indexes { (merchant_id, mode, fingerprint) [unique] }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+//  BANK RECONCILIATION  —  the third reconciliation (§8.2) had no source table
+// ═══════════════════════════════════════════════════════════════════════════
+
+Table bank_statements [headercolor: #6B7A8D] {
+  id uuid [pk]
+  account_reference text [not null]
+  mode yagye_mode [not null]
+  statement_date date [not null]
+  source text [not null, note: 'api|open_banking|csv_upload|mt940']
+  raw_uri text [not null, note: '[EVD] untouched original']
+  checksum text [not null]
+  opening_balance bigint [not null]
+  closing_balance bigint [not null]
+  currency char(3) [not null]
+  ingested_at timestamptz [not null]
+  indexes { (account_reference, statement_date, checksum) [unique] }
+}
+
+Table bank_statement_lines [headercolor: #6B7A8D] {
+  id uuid [pk]
+  statement_id uuid [not null]
+  line_number integer [not null]
+  value_date date [not null]
+  amount bigint [not null, note: 'signed: credits positive, debits negative']
+  currency char(3) [not null]
+  narrative text [not null, note: 'the free-text field you will spend your life parsing']
+  bank_reference text
+  counterparty text
+  match_state text [not null]
+  indexes { (statement_id, line_number) [unique] }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+//  MOBILE MONEY SUPPORT  —  referenced in Part XIX, was missing from the pack
+// ═══════════════════════════════════════════════════════════════════════════
+
+Table momo_name_enquiries [headercolor: #2E4A73] {
+  id uuid [pk]
+  merchant_id uuid
+  network text [not null]
+  msisdn_hash text [not null]
+  returned_name_subject_ref uuid [note: '[PII] masked in UI, never logged in full']
+  queried_at timestamptz [not null]
+  expires_at timestamptz [not null, note: 'short cache — this is a mild PII exposure, not a directory']
+  indexes { (network, msisdn_hash) [unique] }
+}
+
+Table momo_network_config [headercolor: #1F6B4A] {
+  network text [pk]
+  display_name text [not null]
+  msisdn_prefixes "text[]" [not null, note: 'NOT authoritative — number portability means a prefix does not determine the network']
+  prompt_timeout_seconds integer [not null]
+  callback_reliability text [not null, note: 'primary|advisory. Where ADVISORY, polling is the main path and the callback is an optimisation — the inverse of the card design.']
+  poll_interval_seconds integer [not null]
+  supports_name_enquiry boolean [not null]
+  supports_reversal boolean [not null]
+  customer_daily_limit bigint [note: 'declines caused by the CUSTOMER s KYC tier, nothing to do with the merchant']
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+//  DATA PROTECTION  —  described in Part XIX, was not in the schema
+// ═══════════════════════════════════════════════════════════════════════════
+
+Table data_subject_requests [headercolor: #9B3232] {
+  id uuid [pk]
+  public_id text [unique, not null, note: 'dsr_01J...']
+  subject_ref uuid
+  requester_email_hash text [not null]
+  controller text [not null, note: 'yagye|merchant — decides whether WE answer or forward. Getting this wrong is the most common compliance error. MIGRATION REQUIRED: add CHECK (controller IN (yagye, merchant)) — free text silently routes to nobody on a typo.']
+  merchant_id uuid [note: 'set when the merchant is the controller']
+  kind text [not null, note: 'access|rectification|erasure|portability|objection']
+  state text [not null, note: 'received|identity_verification|in_progress|fulfilled|refused|forwarded']
+  identity_verified_at timestamptz [note: 'a DSAR is a social-engineering vector — disclosing to an impostor is itself a breach']
+  refusal_basis text [note: 'e.g. statutory financial retention. Must cite the basis and say when it expires.']
+  export_uri text
+  key_destroyed_at timestamptz [note: 'crypto-shredding executed']
+  due_at timestamptz [not null]
+  fulfilled_at timestamptz
+  handled_by text
+  inserted_at timestamptz [not null]
+  updated_at timestamptz [not null]
+}
+
+Table retention_policies [headercolor: #6B7A8D] {
+  data_class text [pk, note: 'PII|FIN|SEC|EVD|OPS, or a table name for an override']
+  retention_period interval [not null]
+  basis text [not null, note: 'legal_obligation|contract|legitimate_interest|consent']
+  statutory_reference text
+  deletion_method text [not null, note: 'hard_delete|crypto_shred|anonymise|never']
+  last_swept_at timestamptz
+  Note: 'The retention policy is DATA, executed by RetentionSweep — not a paragraph in a document nobody runs.'
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+//  RELATIONSHIPS FOR THE ADDITIONS
+// ═══════════════════════════════════════════════════════════════════════════
+
+
+Ref: customers.merchant_id > merchants.id
+Ref: customers.subject_ref > pii_vault.subject_ref
+Ref: payment_links.merchant_id > merchants.id
+Ref: invoices.merchant_id > merchants.id
+Ref: invoices.customer_id > customers.id
+Ref: invoices.payment_link_id > payment_links.id
+Ref: invoice_line_items.invoice_id > invoices.id
+Ref: invoice_deliveries.invoice_id > invoices.id
+Ref: checkout_sessions.payment_link_id > payment_links.id
+Ref: payments.customer_id > customers.id
+Ref: payout_destinations.merchant_id > merchants.id
+Ref: payouts.destination_id > payout_destinations.id
+Ref: bank_statement_lines.statement_id > bank_statements.id
+Ref: momo_name_enquiries.merchant_id > merchants.id
+Ref: data_subject_requests.merchant_id > merchants.id
+Ref: data_subject_requests.subject_ref > pii_vault.subject_ref
+Ref: payment_card_details.cardholder_name_subject_ref > pii_vault.subject_ref
+Ref: payment_mobile_money_details.msisdn_subject_ref > pii_vault.subject_ref
+Ref: momo_name_enquiries.returned_name_subject_ref > pii_vault.subject_ref
+Ref: checkout_sessions.customer_subject_ref > pii_vault.subject_ref
+
+TableGroup merchant_product {
+  customers
+  payment_links
+  invoices
+  invoice_line_items
+  invoice_deliveries
+}
+
+TableGroup money_out {
+  payout_destinations
+}
+
+TableGroup bank_reconciliation {
+  bank_statements
+  bank_statement_lines
+}
+
+TableGroup mobile_money_support {
+  momo_name_enquiries
+  momo_network_config
+}
+
+TableGroup data_protection {
+  data_subject_requests
+  retention_policies
+}

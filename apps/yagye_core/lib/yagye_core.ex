@@ -1,4 +1,6 @@
 defmodule YagyeCore do
+  use Boundary, deps: [Yagye], exports: []
+
   @moduledoc """
   YagyeCore keeps the contexts that define your domain
   and business logic.

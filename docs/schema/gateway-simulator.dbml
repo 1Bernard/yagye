@@ -1,0 +1,260 @@
+// ═══════════════════════════════════════════════════════════════════════════
+//  GATEWAY SIMULATOR — Phoenix  ·  database: gateway_simulator
+//
+//  A SEPARATE DATABASE IS NON-NEGOTIABLE.
+//  If the simulator shares Yagye's database it cannot simulate a
+//  distributed system, and every lesson in Act II is compromised.
+//
+//  Its vocabulary is DELIBERATELY not Yagye's — charge_ref not payment_id,
+//  PENDING_AUTH not requires_action. If any of these words appear inside
+//  Yagye.Payments, the anti-corruption layer has failed and CI says so.
+//
+//  The simulator is a MODEL OF THE CONTRACT, not a convenient fake. It must
+//  be HARDER than any real provider (§XVIII.2).
+// ═══════════════════════════════════════════════════════════════════════════
+
+Project gateway_simulator {
+  database_type: 'PostgreSQL'
+  Note: 'Pretends to be an external payment provider. Permanent — it stays in CI forever, because no real provider will send you a duplicate webhook 40 seconds late on demand.'
+}
+
+Table gw_accounts [headercolor: #6B7A8D] {
+  id uuid [pk]
+  account_ref text [unique, not null, note: 'acct_… — what WE call the Yagye platform']
+  display_name text [not null]
+  api_key_hash text [not null]
+  webhook_url text [not null]
+  webhook_secret text [not null, note: 'plaintext ON PURPOSE — this is the simulator pretending to be a provider, and it must be readable to sign test payloads. Never a pattern to copy.']
+  settlement_cadence text [not null, note: 'daily|t_plus_2|weekly']
+  settlement_cutoff_time time [not null]
+  settlement_timezone text [not null, note: 'THEIR timezone. The batch-boundary bug lives here.']
+  currency char(3) [not null]
+  fee_percentage_bps integer [not null]
+  fee_fixed_minor bigint [not null]
+  created_at timestamptz [not null]
+}
+
+Table gw_charges [headercolor: #1A2B4C] {
+  id uuid [pk]
+  charge_ref text [unique, not null, note: 'gw_… — NOT pay_…']
+  account_id uuid [not null]
+  idempotency_key text [note: 'what the caller sent. Lookup by this is what makes an indeterminate charge findable.']
+  amount_minor bigint [not null]
+  currency char(3) [not null]
+  instrument_type text [not null, note: 'CARD|WALLET|BANK — deliberately not card|mobile_money|bank_transfer']
+  state text [not null, note: 'PENDING_AUTH|AUTHORISED|CAPTURED|PARTIALLY_CAPTURED|VOIDED|DECLINED|REVERSED|AUTH_EXPIRED — deliberately not our vocabulary']
+  authorised_amount_minor bigint [note: 'may exceed captured — partial capture is normal for physical goods']
+  captured_amount_minor bigint [not null, note: 'sum of gw_captures']
+  auth_expires_at timestamptz [note: 'THE ONE MOST SIMULATORS OMIT. Uncaptured auths expire and the issuer releases the hold. A capture after this MUST fail.']
+  authorised_at timestamptz
+  voided_at timestamptz [note: 'a VOID is not a reversal — no money moved, and usually no fee']
+  decline_code text
+  auth_code text
+  rrn text
+  arn text
+  scenario_id uuid [note: 'which injected scenario produced this outcome — makes a failing test reproducible']
+  seed integer [note: 'deterministic replay: same seed, same sequence']
+  created_at timestamptz [not null]
+  updated_at timestamptz [not null]
+  indexes { (account_id, idempotency_key) [unique] }
+}
+
+Table gw_charge_events [headercolor: #B4531F] {
+  id uuid [pk]
+  charge_id uuid [not null]
+  sequence integer [not null]
+  event_type text [not null]
+  from_state text
+  to_state text
+  payload jsonb [not null]
+  created_at timestamptz [not null]
+  indexes { (charge_id, sequence) [unique] }
+}
+
+Table gw_card_data [headercolor: #6B7A8D] {
+  charge_id uuid [pk]
+  scenario_pan text [not null, note: 'SCENARIO numbers only — 4000 0000 0000 0006 means TIMEOUT. Never a realistic PAN; CI greps for PAN-shaped strings.']
+  brand text
+  last4 char(4)
+  bin char(8)
+  exp_month smallint
+  exp_year smallint
+  token text [not null, note: 'tok_sim_…']
+  avs_result text
+  cvv_result text
+}
+
+Table gw_three_ds_sessions [headercolor: #B4531F] {
+  id uuid [pk]
+  charge_id uuid [not null]
+  acs_ref text [unique, not null]
+  required boolean [not null]
+  flow text [not null, note: 'FRICTIONLESS|CHALLENGE']
+  outcome text [note: 'APPROVED|DECLINED|ABANDONED|TIMEOUT — all four are testable on demand']
+  eci char(2)
+  cavv text
+  liability_shift boolean
+  redirect_delay_ms integer [note: 'lets you force the browser-return-vs-webhook race in either order']
+  challenge_started_at timestamptz
+  completed_at timestamptz
+}
+
+Table gw_wallet_prompts [headercolor: #1F6B4A] {
+  id uuid [pk]
+  charge_id uuid [not null]
+  network text [not null, note: 'MTN|TELECEL|AIRTELTIGO']
+  msisdn text [not null, note: 'FAKE NUMBERS ONLY — 024000000x scenario range. Not PII, and CI greps for anything outside the range.']
+  prompt_state text [not null, note: 'SENT|APPROVED|DECLINED|EXPIRED']
+  approval_delay_ms integer [not null, note: 'the "human presses a button" delay — 5s, 90s, or past the timeout']
+  account_name text [note: 'returned by a name enquiry']
+  sent_at timestamptz
+  resolved_at timestamptz
+}
+
+Table gw_captures [headercolor: #1F6B4A] {
+  id uuid [pk]
+  capture_ref text [unique, not null]
+  charge_id uuid [not null]
+  sequence integer [not null, note: 'multiple captures against one authorisation']
+  amount_minor bigint [not null]
+  is_final boolean [not null, note: 'a final capture releases the remaining authorised balance']
+  outcome text [not null, note: 'OK|EXCEEDS_AUTH|AUTH_EXPIRED|ALREADY_FINAL|DECLINED']
+  arn text [note: 'ARN is issued HERE, not at authorisation — the omission that breaks refund tracing']
+  captured_at timestamptz [not null]
+  indexes { (charge_id, sequence) [unique] }
+  Note: 'Authorise at order, capture at dispatch. The physical-goods pattern, and the reason auth_expires_at exists at all.'
+}
+
+Table gw_incremental_auths [headercolor: #2E4A73] {
+  id uuid [pk]
+  charge_id uuid [not null]
+  sequence integer [not null]
+  additional_amount_minor bigint [not null]
+  outcome text [not null, note: 'OK|DECLINED|NOT_SUPPORTED — capability differences between providers are the point']
+  requested_at timestamptz [not null]
+  indexes { (charge_id, sequence) [unique] }
+}
+
+Table gw_reversals [headercolor: #1F6B4A] {
+  id uuid [pk]
+  reversal_ref text [unique, not null]
+  charge_id uuid [not null]
+  amount_minor bigint [not null]
+  currency char(3) [not null]
+  state text [not null, note: 'REQUESTED|OK|FAILED']
+  created_at timestamptz [not null]
+}
+
+Table gw_settlement_files [headercolor: #2E4A73] {
+  id uuid [pk]
+  account_id uuid [not null]
+  file_ref text [unique, not null]
+  settlement_date date [not null]
+  format text [not null, note: 'JSON|CSV|FIXED_WIDTH — reality is not always JSON']
+  currency char(3) [not null]
+  gross_minor bigint [not null]
+  fee_minor bigint [not null]
+  net_minor bigint [not null]
+  line_count integer [not null]
+  injected_defect text [note: 'missing_line|duplicate_line|short_amount|fee_drift|malformed_lines|late_line — THE defect being tested']
+  generated_at timestamptz [not null]
+}
+
+Table gw_settlement_lines [headercolor: #2E4A73] {
+  id uuid [pk]
+  file_id uuid [not null]
+  line_number integer [not null]
+  charge_ref text
+  line_type text [not null, note: 'CHARGE|REVERSAL|FEE|ADJUSTMENT']
+  gross_minor bigint
+  fee_minor bigint
+  net_minor bigint
+  value_date date
+  malformed boolean [not null, note: 'when true the row is written deliberately broken — 3 bad lines in 5,000 must still reconcile 4,997']
+  indexes { (file_id, line_number) [unique] }
+}
+
+Table gw_webhook_deliveries [headercolor: #9B3232] {
+  id uuid [pk]
+  account_id uuid [not null]
+  charge_id uuid
+  event_id text [not null, note: 'OUR event id. Yagye dedupes on it — so we deliberately reuse it.']
+  event_type text [not null]
+  payload jsonb [not null]
+  signature text [not null]
+  scheduled_for timestamptz [not null, note: 'delay injection lives here']
+  delivery_number integer [not null, note: 'greater than 1 = a deliberate duplicate']
+  out_of_order boolean [not null]
+  dropped boolean [not null, note: 'a webhook we deliberately never send — proves the resolver works']
+  attempted_at timestamptz
+  response_status integer
+  Note: 'Every distributed-systems failure Yagye must survive is produced from this table on demand.'
+}
+
+Table gw_scenarios [headercolor: #B4531F] {
+  id uuid [pk]
+  name text [unique, not null]
+  active boolean [not null]
+  seed integer [note: 'set it and the whole run is reproducible — a failing test you cannot reproduce is a test you will delete']
+  latency_p50_ms integer [not null]
+  latency_p95_ms integer [not null]
+  latency_p99_ms integer [not null]
+  success_rate "numeric(4,3)" [not null]
+  decline_rate "numeric(4,3)" [not null]
+  provider_error_rate "numeric(4,3)" [not null]
+  timeout_rate "numeric(4,3)" [not null, note: 'timeout WITH the charge created is the scenario that matters most']
+  timeout_creates_charge boolean [not null]
+  duplicate_webhook_rate "numeric(4,3)" [not null]
+  out_of_order_rate "numeric(4,3)" [not null]
+  webhook_drop_rate "numeric(4,3)" [not null]
+  webhook_delay_max_ms integer [not null]
+  three_ds_required_rate "numeric(4,3)" [not null]
+  auth_validity_hours integer [not null, note: 'how long an uncaptured authorisation survives. Set it to 1 and watch the capture-at-dispatch flow break.']
+  supports_partial_capture boolean [not null]
+  supports_multiple_capture boolean [not null]
+  supports_incremental_auth boolean [not null]
+  supports_void boolean [not null, note: 'some providers make you refund instead of void — a different ledger entry and usually a fee']
+  arn_issued_at text [not null, note: 'authorisation|capture|settlement — WHEN the ARN appears. Real providers differ, and it decides whether you can trace a refund.']
+  settlement_discrepancy_rate "numeric(4,3)" [not null]
+  settlement_missing_line_rate "numeric(4,3)" [not null]
+  fee_drift_bps integer [not null, note: 'charge 1.6% while the plan expects 1.5% — the aggregate-pattern break']
+  created_at timestamptz [not null]
+  updated_at timestamptz [not null]
+  Note: 'The control plane, editable live from a LiveView admin page. This one table is why the chaos suite is demonstrable in a browser.'
+}
+
+Ref: gw_charges.account_id > gw_accounts.id
+Ref: gw_charge_events.charge_id > gw_charges.id
+Ref: gw_card_data.charge_id - gw_charges.id
+Ref: gw_three_ds_sessions.charge_id > gw_charges.id
+Ref: gw_wallet_prompts.charge_id > gw_charges.id
+Ref: gw_captures.charge_id > gw_charges.id
+Ref: gw_incremental_auths.charge_id > gw_charges.id
+Ref: gw_reversals.charge_id > gw_charges.id
+Ref: gw_settlement_files.account_id > gw_accounts.id
+Ref: gw_settlement_lines.file_id > gw_settlement_files.id
+Ref: gw_webhook_deliveries.account_id > gw_accounts.id
+Ref: gw_webhook_deliveries.charge_id > gw_charges.id
+Ref: gw_charges.scenario_id > gw_scenarios.id
+
+TableGroup provider_side {
+  gw_accounts
+  gw_charges
+  gw_charge_events
+  gw_captures
+  gw_incremental_auths
+  gw_reversals
+}
+TableGroup instrument_detail {
+  gw_card_data
+  gw_three_ds_sessions
+  gw_wallet_prompts
+}
+TableGroup settlement_reporting {
+  gw_settlement_files
+  gw_settlement_lines
+}
+TableGroup failure_injection {
+  gw_webhook_deliveries
+  gw_scenarios
+}

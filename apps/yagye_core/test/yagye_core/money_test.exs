@@ -96,6 +96,49 @@ defmodule Yagye.MoneyTest do
     end
   end
 
+  describe "multiply_bps/2" do
+    test "150 bps of GHS 1000 is GHS 15 (150 pesewas)" do
+      assert Money.multiply_bps(Money.new(1000, "GHS"), 150).amount == 15
+    end
+
+    test "10_000 bps is 100% — returns the original amount" do
+      m = Money.new(999, "USD")
+      assert Money.multiply_bps(m, 10_000) == m
+    end
+
+    test "0 bps always returns zero" do
+      assert Money.multiply_bps(Money.new(50_000, "GHS"), 0) == Money.zero("GHS")
+    end
+
+    test "preserves currency" do
+      assert Money.multiply_bps(Money.new(100, "NGN"), 200).currency == "NGN"
+    end
+  end
+
+  describe "to_json/1 and from_json/1" do
+    test "to_json produces the canonical wire shape" do
+      assert Money.to_json(Money.new(1234, "GHS")) == %{"amount" => 1234, "currency" => "GHS"}
+    end
+
+    test "to_json never produces a float amount" do
+      result = Money.to_json(Money.new(999, "USD"))
+      assert is_integer(result["amount"])
+    end
+
+    test "from_json roundtrips with to_json" do
+      m = Money.new(500, "GHS")
+      assert Money.from_json(Money.to_json(m)) == {:ok, m}
+    end
+
+    test "from_json returns error on invalid input" do
+      assert Money.from_json(%{"amount" => 12.34, "currency" => "GHS"}) ==
+               {:error, :invalid_money}
+
+      assert Money.from_json("1234 GHS") == {:error, :invalid_money}
+      assert Money.from_json(nil) == {:error, :invalid_money}
+    end
+  end
+
   # ---------------------------------------------------------------------------
   # Property tests
   # ---------------------------------------------------------------------------
@@ -163,6 +206,18 @@ defmodule Yagye.MoneyTest do
   property "add and negate cancel out" do
     check all(m <- money_gen()) do
       assert Money.add(m, Money.negate(m)) == Money.zero(m.currency)
+    end
+  end
+
+  property "to_json/from_json roundtrip is lossless" do
+    check all(m <- money_gen()) do
+      assert Money.from_json(Money.to_json(m)) == {:ok, m}
+    end
+  end
+
+  property "multiply_bps at 10_000 bps is identity" do
+    check all(m <- money_gen()) do
+      assert Money.multiply_bps(m, 10_000) == m
     end
   end
 end

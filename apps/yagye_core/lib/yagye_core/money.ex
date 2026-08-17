@@ -21,6 +21,14 @@ defmodule Yagye.Money do
   def multiply(%__MODULE__{} = m, scalar) when is_integer(scalar),
     do: %__MODULE__{m | amount: m.amount * scalar}
 
+  # Multiply by basis points (100 bps = 1%). Used for fee calculation.
+  # 1500 bps applied to GHS 1000 = GHS 15.00 (150 pesewas).
+  # Uses floor division — rounding modes live on pricing_rules, not here.
+  def multiply_bps(%__MODULE__{amount: amount, currency: currency}, bps)
+      when is_integer(bps) and bps >= 0 do
+    %__MODULE__{amount: Integer.floor_div(amount * bps, 10_000), currency: currency}
+  end
+
   def negate(%__MODULE__{} = m), do: %__MODULE__{m | amount: -m.amount}
 
   def zero?(%__MODULE__{amount: 0}), do: true
@@ -72,4 +80,51 @@ defmodule Yagye.Money do
       %__MODULE__{amount: alloc + bump, currency: currency}
     end)
   end
+
+  # Canonical wire format: {"amount": 1234, "currency": "GHS"}.
+  # Never 12.34. The float representation of money is always wrong.
+  def to_json(%__MODULE__{amount: amount, currency: currency}) do
+    %{"amount" => amount, "currency" => currency}
+  end
+
+  def from_json(%{"amount" => amount, "currency" => currency})
+      when is_integer(amount) and is_binary(currency) do
+    {:ok, new(amount, currency)}
+  end
+
+  def from_json(_), do: {:error, :invalid_money}
+end
+
+defmodule Yagye.Money.EctoType do
+  @moduledoc false
+
+  # Ecto.Type for Money stored as a JSONB column.
+  # For the standard two-column pattern (bigint + char(3)), declare two
+  # separate Ecto fields. This type is for JSONB storage and API casting.
+  use Ecto.Type
+
+  @impl true
+  def type, do: :map
+
+  @impl true
+  def cast(%Yagye.Money{} = money), do: {:ok, money}
+
+  def cast(%{"amount" => amount, "currency" => currency})
+      when is_integer(amount) and is_binary(currency) do
+    {:ok, Yagye.Money.new(amount, currency)}
+  end
+
+  def cast(_), do: :error
+
+  @impl true
+  def load(%{"amount" => amount, "currency" => currency})
+      when is_integer(amount) and is_binary(currency) do
+    {:ok, Yagye.Money.new(amount, currency)}
+  end
+
+  def load(_), do: :error
+
+  @impl true
+  def dump(%Yagye.Money{} = money), do: {:ok, Yagye.Money.to_json(money)}
+  def dump(_), do: :error
 end
