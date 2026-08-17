@@ -9,11 +9,9 @@ defmodule YagyeCore.Application do
     children = [
       YagyeCoreWeb.Telemetry,
       YagyeCore.Repo,
+      YagyeCore.RateLimiter,
       {DNSCluster, query: Application.get_env(:yagye_core, :dns_cluster_query) || :ignore},
       {Phoenix.PubSub, name: YagyeCore.PubSub},
-      # Start a worker by calling: YagyeCore.Worker.start_link(arg)
-      # {YagyeCore.Worker, arg},
-      # Start to serve requests, typically the last entry
       YagyeCoreWeb.Endpoint
     ]
 

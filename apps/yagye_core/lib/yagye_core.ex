@@ -1,5 +1,5 @@
 defmodule YagyeCore do
-  use Boundary, deps: [Yagye], exports: []
+  use Boundary, deps: [Yagye], exports: [Merchants, Compliance, Idempotency, ApiRequest, RateLimiter]
 
   @moduledoc """
   YagyeCore keeps the contexts that define your domain
