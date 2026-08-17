@@ -82,11 +82,12 @@ defmodule YagyeCore.MixProject do
       "ecto.reset": ["ecto.drop", "ecto.setup"],
       test: ["ecto.create --quiet", "ecto.migrate --quiet", "test"],
       precommit: [
-        "compile --warning-as-errors",
         "deps.unlock --unused",
         "format",
+        "compile",
         "credo --strict",
         "sobelow --config",
+        "compile --warnings-as-errors",
         "test --warnings-as-errors"
       ]
     ]
