@@ -1,10 +1,10 @@
 // ═══════════════════════════════════════════════════════════════════════════
-//  FinFlow — Physical Data Model
+//  Yagye — Physical Data Model
 //  Source of truth for tables, columns, keys and relationships.
 //
 //  Render:      https://dbdiagram.io/d   (paste this file)
-//  Publish:     dbdocs build finflow-schema.dbml
-//  Regenerate:  mix finflow.schema.dbml   (reads pg_catalog + COMMENT ON)
+//  Publish:     dbdocs build yagye-schema.dbml
+//  Regenerate:  mix yagye.schema.dbml   (reads pg_catalog + COMMENT ON)
 //
 //  THIS FILE IS GENERATED. Column descriptions live as COMMENT ON in the
 //  migration that creates the column. Edit the migration, not this file.
@@ -16,10 +16,10 @@
 //    [EVD]   evidence — retained for dispute or audit defence
 // ═══════════════════════════════════════════════════════════════════════════
 
-Project finflow {
+Project yagye {
   database_type: 'PostgreSQL'
   Note: '''
-  FinFlow — payment orchestration, settlement and reconciliation.
+  Yagye — payment orchestration, settlement and reconciliation.
 
   Conventions
   - Internal PK: uuid (UUIDv7, generated in the application)
@@ -31,7 +31,7 @@ Project finflow {
   '''
 }
 
-Enum finflow_mode {
+Enum yagye_mode {
   simulation
   sandbox
   live
@@ -99,7 +99,7 @@ Table merchants [headercolor: #1A2B4C] {
 
 Table merchant_modes [headercolor: #2E4A73] {
   merchant_id uuid [pk]
-  mode finflow_mode [pk]
+  mode yagye_mode [pk]
   enabled_at timestamptz [not null]
   Note: 'A merchant is usable in a mode only if explicitly enabled. Composite FK target so a simulation row can never reference a live merchant.'
 }
@@ -117,14 +117,14 @@ Table merchant_checkout_configs [headercolor: #1F6B4A] {
   refund_policy_url text
   default_locale text [not null]
   updated_at timestamptz [not null]
-  Note: 'Branding and policy URLs rendered on hosted checkout. The terms shown are the MERCHANT s, never FinFlow s.'
+  Note: 'Branding and policy URLs rendered on hosted checkout. The terms shown are the MERCHANT s, never Yagye s.'
 }
 
 Table api_keys [headercolor: #1A2B4C] {
   id uuid [pk]
   public_id text [unique, not null, note: 'key_01J...']
   merchant_id uuid [not null]
-  mode finflow_mode [not null]
+  mode yagye_mode [not null]
   kind text [not null, note: 'publishable|secret']
   key_prefix text [not null, note: 'first 24 chars, shown in UI and logs']
   secret_hash text [note: '[SEC] argon2id. NULL for publishable keys. Never recoverable.']
@@ -166,7 +166,7 @@ Table api_requests [headercolor: #6B7A8D] {
   id uuid [pk]
   merchant_id uuid
   api_key_id uuid
-  mode finflow_mode
+  mode yagye_mode
   method text [not null]
   path text [not null]
   api_version text [note: 'pinned per merchant at first call']
@@ -249,7 +249,7 @@ Table provider_credentials [headercolor: #9B3232] {
   id uuid [pk]
   provider_id uuid [not null]
   merchant_id uuid [note: 'NULL = platform-level. In Model B these are the MERCHANT s own read credentials.']
-  mode finflow_mode [not null]
+  mode yagye_mode [not null]
   base_url text [not null]
   encrypted_payload bytea [not null, note: '[SEC] KMS envelope encryption']
   webhook_secret_encrypted bytea [not null, note: '[SEC]']
@@ -264,7 +264,7 @@ Table merchant_provider_connections [headercolor: #6B7A8D] {
   id uuid [pk]
   merchant_id uuid [not null]
   provider_id uuid [not null]
-  mode finflow_mode [not null]
+  mode yagye_mode [not null]
   priority integer [not null, note: 'routing preference, lower wins']
   enabled_methods "text[]" [not null]
   status text [not null, note: 'active|paused|disabled']
@@ -285,7 +285,7 @@ Table payments [headercolor: #1A2B4C] {
   id uuid [pk]
   public_id text [unique, not null, note: 'pay_01J...']
   merchant_id uuid [not null]
-  mode finflow_mode [not null]
+  mode yagye_mode [not null]
   amount bigint [not null, note: '[FIN] minor units. IMMUTABLE after creation.']
   currency char(3) [not null]
   authorised_amount bigint [not null, note: 'may exceed captured_amount — partial capture is normal for physical goods']
@@ -472,7 +472,7 @@ Table refunds [headercolor: #1F6B4A] {
   public_id text [unique, not null, note: 'rfd_01J...']
   payment_id uuid [not null]
   merchant_id uuid [not null]
-  mode finflow_mode [not null]
+  mode yagye_mode [not null]
   amount bigint [not null, note: '[FIN]']
   currency char(3) [not null]
   state text [not null, note: 'requested|processing|succeeded|failed|indeterminate']
@@ -491,7 +491,7 @@ Table disputes [headercolor: #9B3232] {
   public_id text [unique, not null, note: 'dsp_01J...']
   payment_id uuid [not null]
   merchant_id uuid [not null]
-  mode finflow_mode [not null]
+  mode yagye_mode [not null]
   amount bigint [not null, note: '[FIN]']
   currency char(3) [not null]
   stage text [note: 'retrieval|first_chargeback|representment|pre_arbitration|arbitration']
@@ -513,13 +513,13 @@ Table checkout_sessions [headercolor: #1F6B4A] {
   id uuid [pk]
   public_id text [unique, not null, note: 'cks_01J...']
   merchant_id uuid [not null]
-  mode finflow_mode [not null]
+  mode yagye_mode [not null]
   url_token_hash text [unique, not null, note: '[SEC] CSPRNG random, HASHED at rest. NOT a ULID — a ULID leaks its creation time.']
   state text [not null, note: 'open|processing|completed|cancelled|expired']
   subtotal_amount bigint [not null]
   tax_amount bigint [not null]
   shipping_amount bigint [not null]
-  discount_amount bigint [not null, note: 'merchant-supplied. FinFlow never computes a discount.']
+  discount_amount bigint [not null, note: 'merchant-supplied. Yagye never computes a discount.']
   total_amount bigint [not null, note: 'AUTHORITATIVE. Never accepted from the browser.']
   currency char(3) [not null]
   merchant_reference text [not null]
@@ -546,7 +546,7 @@ Table checkout_line_items [headercolor: #2E4A73] {
   id uuid [pk]
   session_id uuid [not null]
   position integer [not null]
-  kind text [not null, note: 'item|shipping|tax|discount. DISPLAY ONLY — the merchant computes shipping; FinFlow validates that the lines sum to total_amount and renders them. FinFlow never quotes, calculates or tracks a shipment.']
+  kind text [not null, note: 'item|shipping|tax|discount. DISPLAY ONLY — the merchant computes shipping; Yagye validates that the lines sum to total_amount and renders them. Yagye never quotes, calculates or tracks a shipment.']
   description text [not null]
   quantity integer [not null]
   unit_amount bigint [not null, note: 'negative ONLY when kind = discount']
@@ -578,7 +578,7 @@ Table ledger_accounts [headercolor: #B4531F] {
   scope_type text [not null, note: 'merchant|provider|platform']
   scope_id uuid
   currency char(3) [not null]
-  mode finflow_mode [not null]
+  mode yagye_mode [not null]
   allows_negative boolean [not null]
   inserted_at timestamptz [not null]
 }
@@ -586,7 +586,7 @@ Table ledger_accounts [headercolor: #B4531F] {
 Table ledger_entries [headercolor: #B4531F] {
   id uuid [pk]
   public_id text [unique, not null, note: 'led_01J...']
-  mode finflow_mode [not null]
+  mode yagye_mode [not null]
   currency char(3) [not null]
   entry_type text [not null]
   source_type text [not null]
@@ -660,7 +660,7 @@ Table fee_records [headercolor: #B4531F] {
   source_type text [not null]
   source_id uuid [not null]
   merchant_id uuid [not null]
-  mode finflow_mode [not null]
+  mode yagye_mode [not null]
   party fee_party [not null, note: 'BOTH sides are modelled — revenue AND cost. Otherwise you cannot compute margin.']
   amount bigint [not null, note: '[FIN]']
   currency char(3) [not null]
@@ -691,7 +691,7 @@ Table settlements [headercolor: #1A2B4C] {
   public_id text [unique, not null, note: 'stl_01J...']
   merchant_id uuid [not null]
   provider_id uuid [not null]
-  mode finflow_mode [not null]
+  mode yagye_mode [not null]
   currency char(3) [not null]
   period_start timestamptz [not null]
   period_end timestamptz [not null, note: 'cut in the PROVIDER s timezone, not yours']
@@ -737,7 +737,7 @@ Table aggregate_state_events [headercolor: #B4531F] {
   aggregate_type text [not null, note: 'settlement|reconciliation_break|merchant|payout|dispute|refund']
   aggregate_id uuid [not null]
   merchant_id uuid [note: 'denormalised — without it an audit query cannot be scoped to a tenant without joining per aggregate type']
-  mode finflow_mode [not null]
+  mode yagye_mode [not null]
   from_state text
   to_state text [not null]
   cause text [note: 'why, where the domain has a reason vocabulary']
@@ -754,7 +754,7 @@ Table payouts [headercolor: #1F6B4A] {
   id uuid [pk]
   public_id text [unique, not null, note: 'pot_01J...']
   merchant_id uuid [not null]
-  mode finflow_mode [not null]
+  mode yagye_mode [not null]
   amount bigint [not null, note: '[FIN]']
   currency char(3) [not null]
   destination_id uuid [not null]
@@ -775,7 +775,7 @@ Table payouts [headercolor: #1F6B4A] {
 Table merchant_reserves [headercolor: #B4531F] {
   id uuid [pk]
   merchant_id uuid [not null]
-  mode finflow_mode [not null]
+  mode yagye_mode [not null]
   kind text [not null, note: 'rolling|fixed|ad_hoc']
   percentage_bps integer
   fixed_amount bigint
@@ -791,7 +791,7 @@ Table merchant_reserves [headercolor: #B4531F] {
 Table momo_float_balances [headercolor: #B4531F] {
   id uuid [pk]
   network text [not null]
-  mode finflow_mode [not null]
+  mode yagye_mode [not null]
   balance bigint [not null]
   currency char(3) [not null]
   low_water_mark bigint [not null, note: 'running out of float means payouts silently fail at 3am']
@@ -806,7 +806,7 @@ Table momo_float_balances [headercolor: #B4531F] {
 Table provider_settlement_reports [headercolor: #6B7A8D] {
   id uuid [pk]
   provider_id uuid [not null]
-  mode finflow_mode [not null]
+  mode yagye_mode [not null]
   report_date date [not null]
   source text [not null, note: 'api|sftp|email|manual_upload']
   raw_uri text [not null, note: '[EVD] the UNTOUCHED original in S3. It is evidence — never parse and discard.']
@@ -842,7 +842,7 @@ Table reconciliation_runs [headercolor: #1A2B4C] {
   kind text [not null, note: 'transaction|settlement|bank']
   provider_id uuid
   merchant_id uuid
-  mode finflow_mode [not null]
+  mode yagye_mode [not null]
   scope_from timestamptz [not null]
   scope_to timestamptz [not null]
   state text [not null, note: 'created|loading|matching|classifying|completed|failed']
@@ -884,7 +884,7 @@ Table reconciliation_breaks [headercolor: #B4531F] {
   run_id uuid [not null]
   merchant_id uuid
   provider_id uuid
-  mode finflow_mode [not null]
+  mode yagye_mode [not null]
   classification text [not null, note: 'CLOSED taxonomy — see Appendix E. `unknown` is NEVER terminal.']
   severity text [not null]
   state text [not null, note: 'detected|triaged|assigned|investigating|resolved|escalated|written_off']
@@ -922,7 +922,7 @@ Table adjustment_approvals [headercolor: #9B3232] {
 Table webhook_events [headercolor: #2E4A73] {
   id uuid [pk]
   provider_id uuid [not null]
-  mode finflow_mode [not null]
+  mode yagye_mode [not null]
   provider_event_id text [not null, note: 'THEIR id — the dedupe key']
   event_type_raw text [not null]
   normalised_type text
@@ -950,7 +950,7 @@ Table outbox_messages [headercolor: #B4531F] {
   merchant_id uuid [note: 'denormalised from the envelope — lets you retain, filter and purge by tenant without parsing JSONB']
   destination text [not null, note: 'DATA, not code: bus:… → kafka:… is a config change']
   envelope jsonb [not null]
-  mode finflow_mode [not null]
+  mode yagye_mode [not null]
   published_at timestamptz
   publish_attempts integer [not null]
   last_error text
@@ -963,7 +963,7 @@ Table outbox_messages [headercolor: #B4531F] {
 Table merchant_webhook_endpoints [headercolor: #1F6B4A] {
   id uuid [pk]
   merchant_id uuid [not null]
-  mode finflow_mode [not null]
+  mode yagye_mode [not null]
   url text [not null, note: 'SSRF-checked: private ranges blocked, re-checked after DNS resolution']
   secret_encrypted bytea [not null, note: '[SEC]']
   subscribed_events "text[]" [not null]
@@ -995,7 +995,7 @@ Table merchant_webhook_deliveries [headercolor: #6B7A8D] {
 Table proj_merchant_balances [headercolor: #1F6B4A] {
   merchant_id uuid [pk]
   currency char(3) [pk]
-  mode finflow_mode [pk]
+  mode yagye_mode [pk]
   available bigint [not null]
   pending bigint [not null]
   reserved bigint [not null]
@@ -1009,7 +1009,7 @@ Table proj_merchant_balances [headercolor: #1F6B4A] {
 Table proj_payment_summaries [headercolor: #1F6B4A] {
   payment_id uuid [pk]
   merchant_id uuid [not null]
-  mode finflow_mode [not null]
+  mode yagye_mode [not null]
   aggregate_version integer [not null, note: 'THE VERSION FENCE: apply only if incoming version > stored']
   state text [not null]
   method text [not null]
@@ -1032,7 +1032,7 @@ Table proj_daily_merchant_metrics [headercolor: #1F6B4A] {
   merchant_id uuid [pk]
   day date [pk]
   currency char(3) [pk]
-  mode finflow_mode [pk]
+  mode yagye_mode [pk]
   payment_count integer [not null]
   succeeded_count integer [not null]
   failed_count integer [not null]
@@ -1200,7 +1200,7 @@ Table customers [headercolor: #1F6B4A] {
   id uuid [pk]
   public_id text [unique, not null, note: 'cus_01J...']
   merchant_id uuid [not null, note: 'a customer belongs to ONE merchant. There is no global customer.']
-  mode finflow_mode [not null]
+  mode yagye_mode [not null]
   subject_ref uuid [note: '[PII] → pii_vault. Email, name, phone live there, never here.']
   email_hash text [note: 'HMAC — dedupe and match without retaining the address']
   msisdn_hash text
@@ -1224,7 +1224,7 @@ Table payment_links [headercolor: #1F6B4A] {
   id uuid [pk]
   public_id text [unique, not null, note: 'plk_01J...']
   merchant_id uuid [not null]
-  mode finflow_mode [not null]
+  mode yagye_mode [not null]
   url_slug text [unique, not null]
   kind text [not null, note: 'fixed_amount | customer_specified | invoice']
   amount bigint [note: 'NULL when the payer chooses the amount']
@@ -1250,7 +1250,7 @@ Table invoices [headercolor: #1F6B4A] {
   id uuid [pk]
   public_id text [unique, not null, note: 'inv_01J...']
   merchant_id uuid [not null]
-  mode finflow_mode [not null]
+  mode yagye_mode [not null]
   customer_id uuid [not null]
   number text [not null, note: 'merchant-facing sequence, e.g. INV-00123. Gapless per merchant per year — a legal requirement in many jurisdictions.']
   state text [not null, note: 'draft|open|partially_paid|paid|void|uncollectible|overdue']
@@ -1311,7 +1311,7 @@ Table payout_destinations [headercolor: #9B3232] {
   id uuid [pk]
   public_id text [unique, not null, note: 'pdt_01J...']
   merchant_id uuid [not null]
-  mode finflow_mode [not null]
+  mode yagye_mode [not null]
   kind text [not null, note: 'bank|mobile_money']
   currency char(3) [not null]
   account_details_encrypted bytea [not null, note: '[SEC] KMS envelope']
@@ -1333,7 +1333,7 @@ Table payout_destinations [headercolor: #9B3232] {
 Table bank_statements [headercolor: #6B7A8D] {
   id uuid [pk]
   account_reference text [not null]
-  mode finflow_mode [not null]
+  mode yagye_mode [not null]
   statement_date date [not null]
   source text [not null, note: 'api|open_banking|csv_upload|mt940']
   raw_uri text [not null, note: '[EVD] untouched original']
@@ -1395,7 +1395,7 @@ Table data_subject_requests [headercolor: #9B3232] {
   public_id text [unique, not null, note: 'dsr_01J...']
   subject_ref uuid
   requester_email_hash text [not null]
-  controller text [not null, note: 'finflow|merchant — decides whether WE answer or forward. Getting this wrong is the most common compliance error. MIGRATION REQUIRED: add CHECK (controller IN (finflow, merchant)) — free text silently routes to nobody on a typo.']
+  controller text [not null, note: 'yagye|merchant — decides whether WE answer or forward. Getting this wrong is the most common compliance error. MIGRATION REQUIRED: add CHECK (controller IN (yagye, merchant)) — free text silently routes to nobody on a typo.']
   merchant_id uuid [note: 'set when the merchant is the controller']
   kind text [not null, note: 'access|rectification|erasure|portability|objection']
   state text [not null, note: 'received|identity_verification|in_progress|fulfilled|refused|forwarded']

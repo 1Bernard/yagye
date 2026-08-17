@@ -1,5 +1,5 @@
 // ═══════════════════════════════════════════════════════════════════════════
-//  FinFlow PORTAL — Rails 8  ·  database: finflow_portal
+//  Yagye PORTAL — Rails 8  ·  database: yagye_portal
 //
 //  SEPARATE DATABASE. The portal holds NO credential for the core database,
 //  and that absence is the control that keeps the ledger single-writer.
@@ -16,7 +16,7 @@
 //  downstream reads a row timestamp. See §XXI.3.
 // ═══════════════════════════════════════════════════════════════════════════
 
-Project finflow_portal {
+Project yagye_portal {
   database_type: 'PostgreSQL'
   Note: 'Rails 8 operator and merchant portal. Five layers, department namespaces, Pundit three gates, SoD.'
 }

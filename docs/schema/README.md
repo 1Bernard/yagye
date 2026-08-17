@@ -4,8 +4,8 @@ DBML source files for the three Yagye databases.
 
 | File | Service | Tables | Database |
 |------|---------|--------|----------|
-| [finflow-core.dbml](finflow-core.dbml) | `yagye_core` (Elixir/Phoenix) | ~66 | `yagye_core_dev` / `yagye_core_prod` |
-| [finflow-portal.dbml](finflow-portal.dbml) | `yagye_portal` (Rails 8) | ~20 | `yagye_portal_dev` / `yagye_portal_prod` |
+| [yagye-core.dbml](yagye-core.dbml) | `yagye_core` (Elixir/Phoenix) | ~66 | `yagye_core_dev` / `yagye_core_prod` |
+| [yagye-portal.dbml](yagye-portal.dbml) | `yagye_portal` (Rails 8) | ~20 | `yagye_portal_dev` / `yagye_portal_prod` |
 | [gateway-simulator.dbml](gateway-simulator.dbml) | `gateway_simulator` (Elixir/Phoenix) | ~13 | `gateway_simulator_dev` |
 
 Render any file at [dbdiagram.io](https://dbdiagram.io/d) by pasting its contents.
@@ -31,7 +31,7 @@ search for `MIGRATION REQUIRED` in the DBML files.
 | `ledger_postings` | SUM(debits) = SUM(credits) per entry | Deferred trigger |
 | `pricing_plans` | `(effective_from, effective_to)` non-overlapping per plan name | Exclusion constraint |
 | `payments` | `refunded_amount <= captured_amount` | CHECK |
-| `data_subject_requests` | `controller IN ('finflow', 'merchant')` | CHECK |
+| `data_subject_requests` | `controller IN ('yagye', 'merchant')` | CHECK |
 | `impersonation_sessions` | `read_only = true` | CHECK |
 | `payment_card_details` | `cardholder_name_subject_ref → pii_vault` | FK |
 | `payment_mobile_money_details` | `msisdn_subject_ref → pii_vault` | FK |

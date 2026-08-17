@@ -2,12 +2,12 @@
 //  GATEWAY SIMULATOR — Phoenix  ·  database: gateway_simulator
 //
 //  A SEPARATE DATABASE IS NON-NEGOTIABLE.
-//  If the simulator shares FinFlow's database it cannot simulate a
+//  If the simulator shares Yagye's database it cannot simulate a
 //  distributed system, and every lesson in Act II is compromised.
 //
-//  Its vocabulary is DELIBERATELY not FinFlow's — charge_ref not payment_id,
+//  Its vocabulary is DELIBERATELY not Yagye's — charge_ref not payment_id,
 //  PENDING_AUTH not requires_action. If any of these words appear inside
-//  FinFlow.Payments, the anti-corruption layer has failed and CI says so.
+//  Yagye.Payments, the anti-corruption layer has failed and CI says so.
 //
 //  The simulator is a MODEL OF THE CONTRACT, not a convenient fake. It must
 //  be HARDER than any real provider (§XVIII.2).
@@ -20,7 +20,7 @@ Project gateway_simulator {
 
 Table gw_accounts [headercolor: #6B7A8D] {
   id uuid [pk]
-  account_ref text [unique, not null, note: 'acct_… — what WE call the FinFlow platform']
+  account_ref text [unique, not null, note: 'acct_… — what WE call the Yagye platform']
   display_name text [not null]
   api_key_hash text [not null]
   webhook_url text [not null]
@@ -178,7 +178,7 @@ Table gw_webhook_deliveries [headercolor: #9B3232] {
   id uuid [pk]
   account_id uuid [not null]
   charge_id uuid
-  event_id text [not null, note: 'OUR event id. FinFlow dedupes on it — so we deliberately reuse it.']
+  event_id text [not null, note: 'OUR event id. Yagye dedupes on it — so we deliberately reuse it.']
   event_type text [not null]
   payload jsonb [not null]
   signature text [not null]
@@ -188,7 +188,7 @@ Table gw_webhook_deliveries [headercolor: #9B3232] {
   dropped boolean [not null, note: 'a webhook we deliberately never send — proves the resolver works']
   attempted_at timestamptz
   response_status integer
-  Note: 'Every distributed-systems failure FinFlow must survive is produced from this table on demand.'
+  Note: 'Every distributed-systems failure Yagye must survive is produced from this table on demand.'
 }
 
 Table gw_scenarios [headercolor: #B4531F] {
