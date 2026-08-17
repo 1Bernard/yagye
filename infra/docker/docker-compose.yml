@@ -1,0 +1,25 @@
+services:
+  db:
+    image: postgres:18
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: yagye_core_dev
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+# Services added in later phases:
+#   redis      — P17 (distributed rate limiting, session store)
+#   redpanda   — P14 (Kafka-compatible event backbone)
+#   rabbitmq   — P15 (outbound webhook delivery)
+
+volumes:
+  postgres_data:

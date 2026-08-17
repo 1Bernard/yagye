@@ -1,0 +1,10 @@
+_build/
+deps/
+.elixir_ls/
+cover/
+doc/
+/tmp
+.git/
+.gitignore
+Dockerfile
+.dockerignore
