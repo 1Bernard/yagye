@@ -1,21 +1,20 @@
 defmodule YagyeCoreWeb.ErrorJSON do
-  @moduledoc """
-  This module is invoked by your endpoint in case of errors on JSON requests.
+  @moduledoc false
 
-  See config/config.exs.
-  """
+  def render("404.json", _assigns) do
+    %{error: %{type: "invalid_request_error", code: "not_found", message: "The requested resource does not exist."}}
+  end
 
-  # If you want to customize a particular status code,
-  # you may add your own clauses, such as:
-  #
-  # def render("500.json", _assigns) do
-  #   %{errors: %{detail: "Internal Server Error"}}
-  # end
+  def render("405.json", _assigns) do
+    %{error: %{type: "invalid_request_error", code: "method_not_allowed", message: "HTTP method not allowed for this endpoint."}}
+  end
 
-  # By default, Phoenix returns the status message from
-  # the template name. For example, "404.json" becomes
-  # "Not Found".
+  def render("500.json", _assigns) do
+    %{error: %{type: "api_error", code: "internal_error", message: "An unexpected error occurred."}}
+  end
+
   def render(template, _assigns) do
-    %{errors: %{detail: Phoenix.Controller.status_message_from_template(template)}}
+    message = Phoenix.Controller.status_message_from_template(template)
+    %{error: %{type: "api_error", code: "server_error", message: message}}
   end
 end
