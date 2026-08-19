@@ -42,3 +42,9 @@ What did we decide? One clear statement.
 | [0003](0003-phoenix-layered-architecture.md) | Phoenix two-layer architecture (core / web) | Accepted |
 | [0004](0004-structured-json-logging.md) | Structured JSON logging via logger_json | Accepted |
 | [0005](0005-double-entry-ledger.md) | Double-entry ledger as the accounting model | Accepted |
+| [0006](0006-postgresql-as-system-of-record.md) | PostgreSQL as the system of record | Accepted |
+| [0007](0007-prefixed-uuidv7-public-ids.md) | Prefixed UUIDv7 as public IDs | Accepted |
+| [0008](0008-db-backed-idempotency.md) | PostgreSQL-backed idempotency state machine | Accepted |
+| [0009](0009-soft-revocation-no-hard-delete.md) | Soft revocation — no hard deletes for credentials | Accepted |
+| [0010](0010-stripe-style-error-envelope.md) | Stripe-style JSON error envelope | Accepted |
+| [0011](0011-bearer-auth-mode-aware-api-keys.md) | Bearer token auth with mode-aware API keys | Accepted |

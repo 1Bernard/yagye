@@ -42,5 +42,10 @@ Concretely:
 ### Negative / Trade-offs
 - Controllers cannot shortcut — even a trivially simple endpoint must go through
   the context layer. This is more code for read-only passthrough operations.
-- The boundary is enforced by convention, not by the compiler. A Credo or
-  custom mix task check may be added later (P8) to enforce it statically.
+
+### Implementation note (added Phase 1)
+The boundary is enforced **statically at compile time** via the
+[`boundary`](https://hex.pm/packages/boundary) library. `lib/yagye_core.ex`
+declares `use Boundary, exports: [...]` listing every struct the web layer is
+permitted to reference. Any call that crosses the boundary without an explicit
+export produces a compiler warning. The P8 Credo check is no longer needed.

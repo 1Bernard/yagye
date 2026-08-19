@@ -16,7 +16,7 @@ defmodule YagyeCoreWeb.Schemas.Merchant do
       country: %Schema{type: :string, description: "ISO 3166-1 alpha-2", minLength: 2, maxLength: 2, example: "GB"},
       default_currency: %Schema{type: :string, description: "ISO 4217", minLength: 3, maxLength: 3, example: "GBP"},
       status: %Schema{type: :string, enum: ["registered", "approved", "suspended", "closed"]},
-      onboarding_state: %Schema{type: :string, enum: ["registered", "submitted", "under_review", "approved", "rejected"]},
+      onboarding_state: %Schema{type: :string, enum: ["registered", "details_submitted", "under_review", "approved", "rejected", "more_info_required"]},
       activity_state: %Schema{type: :string, enum: ["active", "dormant", "suspended"]},
       api_version: %Schema{type: :string, example: "2026-01-01"},
       inserted_at: %Schema{type: :string, format: :"date-time"}

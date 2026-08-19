@@ -26,6 +26,22 @@ defmodule YagyeCore.Fixtures do
     merchant
   end
 
+  # Inserts a pii_vault row and returns the subject_ref UUID string.
+  # Required before creating a BeneficialOwner (FK constraint).
+  def pii_vault_fixture(attrs \\ %{}) do
+    subject_ref = Map.get(attrs, :subject_ref, Uniq.UUID.uuid7())
+    kind = Map.get(attrs, :subject_kind, "beneficial_owner")
+
+    {:ok, subject_ref_bin} = Ecto.UUID.dump(subject_ref)
+
+    YagyeCore.Repo.query!(
+      "INSERT INTO pii_vault (subject_ref, kms_key_id, ciphertext, subject_kind, inserted_at) VALUES ($1, $2, $3, $4, $5)",
+      [subject_ref_bin, "test-kms-key", <<0>>, kind, DateTime.utc_now()]
+    )
+
+    subject_ref
+  end
+
   # Returns {api_key, raw_key}. raw_key is only available at creation.
   def api_key_fixture(merchant, attrs \\ %{}) do
     {:ok, {api_key, raw_key, _}} =

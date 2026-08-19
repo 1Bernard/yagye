@@ -1,0 +1,802 @@
+{
+  "components": {
+    "responses": {},
+    "schemas": {
+      "ApiKey": {
+        "description": "An API key \u2014 the secret field is present only on creation and never again",
+        "properties": {
+          "expires_at": {
+            "format": "date-time",
+            "nullable": true,
+            "type": "string"
+          },
+          "id": {
+            "example": "key_019526ab3e7f7b4fa19b8be26eac7d14",
+            "type": "string"
+          },
+          "inserted_at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "key": {
+            "description": "Full key \u2014 returned ONCE on creation only, never stored",
+            "example": "4eC39HqLyjWDarjtT7zdgkd1Axcj3a4eC39HqLyjWD",
+            "type": "string"
+          },
+          "key_prefix": {
+            "description": "First 24 chars \u2014 safe to log and display",
+            "example": "4eC39HqLyjWDarjtT7zdgkd1",
+            "type": "string"
+          },
+          "kind": {
+            "enum": [
+              "publishable",
+              "secret"
+            ],
+            "type": "string"
+          },
+          "mode": {
+            "enum": [
+              "simulation",
+              "sandbox",
+              "live"
+            ],
+            "type": "string"
+          },
+          "object": {
+            "enum": [
+              "api_key"
+            ],
+            "type": "string"
+          },
+          "revoked_at": {
+            "format": "date-time",
+            "nullable": true,
+            "type": "string"
+          },
+          "scopes": {
+            "example": [
+              "merchants:read",
+              "api_keys:write"
+            ],
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "id",
+          "object",
+          "kind",
+          "mode",
+          "key_prefix",
+          "scopes"
+        ],
+        "title": "ApiKey",
+        "type": "object"
+      },
+      "CreateMerchantRequest": {
+        "example": {
+          "country": "GB",
+          "default_currency": "GBP",
+          "legal_name": "Acme Payments Ltd",
+          "trading_name": "Acme Pay"
+        },
+        "properties": {
+          "country": {
+            "description": "ISO 3166-1 alpha-2 country code",
+            "maxLength": 2,
+            "minLength": 2,
+            "type": "string"
+          },
+          "default_currency": {
+            "description": "ISO 4217 currency code",
+            "maxLength": 3,
+            "minLength": 3,
+            "type": "string"
+          },
+          "legal_name": {
+            "description": "Legal registered business name",
+            "type": "string"
+          },
+          "metadata": {
+            "description": "Arbitrary key-value pairs",
+            "type": "object"
+          },
+          "trading_name": {
+            "description": "Trading or DBA name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "legal_name",
+          "trading_name",
+          "country",
+          "default_currency"
+        ],
+        "title": "CreateMerchantRequest",
+        "type": "object"
+      },
+      "ErrorResponse": {
+        "description": "Standard error envelope \u2014 matches Stripe/OpenAI error shape",
+        "example": {
+          "error": {
+            "code": "validation_failed",
+            "message": "Country must be a 2-letter ISO code",
+            "param": "country",
+            "type": "invalid_request_error"
+          }
+        },
+        "properties": {
+          "error": {
+            "properties": {
+              "code": {
+                "example": "validation_failed",
+                "type": "string"
+              },
+              "details": {
+                "description": "Field-level validation errors",
+                "type": "object"
+              },
+              "message": {
+                "example": "Country must be a 2-letter ISO code",
+                "type": "string"
+              },
+              "param": {
+                "description": "Field that caused the error",
+                "example": "country",
+                "type": "string"
+              },
+              "type": {
+                "example": "invalid_request_error",
+                "type": "string"
+              }
+            },
+            "required": [
+              "type",
+              "code",
+              "message"
+            ],
+            "type": "object"
+          }
+        },
+        "required": [
+          "error"
+        ],
+        "title": "ErrorResponse",
+        "type": "object"
+      },
+      "IssueApiKeyRequest": {
+        "example": {
+          "kind": "secret",
+          "mode": "simulation",
+          "scopes": [
+            "merchants:read",
+            "merchants:write",
+            "api_keys:write"
+          ]
+        },
+        "properties": {
+          "expires_at": {
+            "format": "date-time",
+            "nullable": true,
+            "type": "string"
+          },
+          "kind": {
+            "enum": [
+              "publishable",
+              "secret"
+            ],
+            "type": "string"
+          },
+          "mode": {
+            "enum": [
+              "simulation",
+              "sandbox",
+              "live"
+            ],
+            "type": "string"
+          },
+          "scopes": {
+            "example": [
+              "merchants:read"
+            ],
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "kind",
+          "mode",
+          "scopes"
+        ],
+        "title": "IssueApiKeyRequest",
+        "type": "object"
+      },
+      "Merchant": {
+        "description": "A merchant account",
+        "example": {
+          "activity_state": "active",
+          "api_version": "2026-01-01",
+          "country": "GB",
+          "default_currency": "GBP",
+          "id": "mch_019526ab3e7f7b4fa19b8be26eac7d14",
+          "inserted_at": "2026-08-17T10:00:00.000000Z",
+          "legal_name": "Acme Payments Ltd",
+          "object": "merchant",
+          "onboarding_state": "registered",
+          "status": "registered",
+          "trading_name": "Acme Pay"
+        },
+        "properties": {
+          "activity_state": {
+            "enum": [
+              "active",
+              "dormant",
+              "suspended"
+            ],
+            "type": "string"
+          },
+          "api_version": {
+            "example": "2026-01-01",
+            "type": "string"
+          },
+          "country": {
+            "description": "ISO 3166-1 alpha-2",
+            "example": "GB",
+            "maxLength": 2,
+            "minLength": 2,
+            "type": "string"
+          },
+          "default_currency": {
+            "description": "ISO 4217",
+            "example": "GBP",
+            "maxLength": 3,
+            "minLength": 3,
+            "type": "string"
+          },
+          "id": {
+            "description": "Public merchant ID",
+            "example": "mch_019526ab3e7f7b4fa19b8be26eac7d14",
+            "type": "string"
+          },
+          "inserted_at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "legal_name": {
+            "example": "Acme Payments Ltd",
+            "type": "string"
+          },
+          "object": {
+            "enum": [
+              "merchant"
+            ],
+            "type": "string"
+          },
+          "onboarding_state": {
+            "enum": [
+              "registered",
+              "submitted",
+              "under_review",
+              "approved",
+              "rejected"
+            ],
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "registered",
+              "approved",
+              "suspended",
+              "closed"
+            ],
+            "type": "string"
+          },
+          "trading_name": {
+            "example": "Acme Pay",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "object",
+          "legal_name",
+          "trading_name",
+          "country",
+          "default_currency",
+          "status"
+        ],
+        "title": "Merchant",
+        "type": "object"
+      }
+    },
+    "securitySchemes": {
+      "bearer_auth": {
+        "description": "API key \u2014 prefix with Bearer or use X-API-Key header",
+        "scheme": "bearer",
+        "type": "http"
+      }
+    }
+  },
+  "info": {
+    "description": "Payment orchestration, settlement and reconciliation API",
+    "title": "Yagye API",
+    "version": "2026-01-01"
+  },
+  "openapi": "3.0.0",
+  "paths": {
+    "/v1/merchants": {
+      "post": {
+        "callbacks": {},
+        "deprecated": false,
+        "operationId": "MerchantController.create",
+        "parameters": [],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateMerchantRequest"
+              }
+            }
+          },
+          "description": "Merchant attributes",
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Merchant"
+                }
+              }
+            },
+            "description": "Merchant created"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Validation error"
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ],
+        "summary": "Create a merchant",
+        "tags": [
+          "Merchants"
+        ]
+      }
+    },
+    "/v1/merchants/{id}": {
+      "get": {
+        "callbacks": {},
+        "deprecated": false,
+        "operationId": "MerchantController.show",
+        "parameters": [
+          {
+            "description": "Merchant public ID",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Merchant"
+                }
+              }
+            },
+            "description": "Merchant retrieved"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not found"
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ],
+        "summary": "Retrieve a merchant",
+        "tags": [
+          "Merchants"
+        ]
+      }
+    },
+    "/v1/merchants/{merchant_id}/approve": {
+      "post": {
+        "callbacks": {},
+        "deprecated": false,
+        "operationId": "MerchantController.approve",
+        "parameters": [
+          {
+            "description": "Merchant public ID",
+            "in": "path",
+            "name": "merchant_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Merchant"
+                }
+              }
+            },
+            "description": "Merchant approved"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not found"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Invalid state transition"
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ],
+        "summary": "Approve a merchant",
+        "tags": [
+          "Merchants"
+        ]
+      }
+    },
+    "/v1/merchants/{merchant_id}/beneficial-owners": {
+      "post": {
+        "callbacks": {},
+        "deprecated": false,
+        "operationId": "ComplianceController.add_beneficial_owner",
+        "parameters": [
+          {
+            "description": "Merchant public ID",
+            "in": "path",
+            "name": "merchant_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object"
+              }
+            }
+          },
+          "description": "Beneficial owner details",
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Beneficial owner added"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Validation error"
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ],
+        "summary": "Add a beneficial owner",
+        "tags": [
+          "Compliance / KYB"
+        ]
+      }
+    },
+    "/v1/merchants/{merchant_id}/documents": {
+      "post": {
+        "callbacks": {},
+        "deprecated": false,
+        "operationId": "ComplianceController.upload_document",
+        "parameters": [
+          {
+            "description": "Merchant public ID",
+            "in": "path",
+            "name": "merchant_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object"
+              }
+            }
+          },
+          "description": "Document metadata",
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Document uploaded"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Validation error"
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ],
+        "summary": "Upload a KYB document",
+        "tags": [
+          "Compliance / KYB"
+        ]
+      }
+    },
+    "/v1/merchants/{merchant_id}/keys": {
+      "post": {
+        "callbacks": {},
+        "deprecated": false,
+        "description": "The full key value is returned **once only** in the `key` field. Store it immediately \u2014 it cannot be retrieved again.",
+        "operationId": "ApiKeyController.create",
+        "parameters": [
+          {
+            "description": "Merchant public ID",
+            "in": "path",
+            "name": "merchant_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/IssueApiKeyRequest"
+              }
+            }
+          },
+          "description": "Key attributes",
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiKey"
+                }
+              }
+            },
+            "description": "API key issued"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Validation error"
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ],
+        "summary": "Issue an API key",
+        "tags": [
+          "API Keys"
+        ]
+      }
+    },
+    "/v1/merchants/{merchant_id}/keys/{id}": {
+      "delete": {
+        "callbacks": {},
+        "deprecated": false,
+        "operationId": "ApiKeyController.delete",
+        "parameters": [
+          {
+            "description": "Merchant public ID",
+            "in": "path",
+            "name": "merchant_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "API key public ID",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiKey"
+                }
+              }
+            },
+            "description": "API key revoked"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not found"
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ],
+        "summary": "Revoke an API key",
+        "tags": [
+          "API Keys"
+        ]
+      }
+    },
+    "/v1/merchants/{merchant_id}/onboarding": {
+      "post": {
+        "callbacks": {},
+        "deprecated": false,
+        "operationId": "ComplianceController.submit_onboarding",
+        "parameters": [
+          {
+            "description": "Merchant public ID",
+            "in": "path",
+            "name": "merchant_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object"
+              }
+            }
+          },
+          "description": "Onboarding details",
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Merchant with updated onboarding state"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Validation error"
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ],
+        "summary": "Submit onboarding details",
+        "tags": [
+          "Compliance / KYB"
+        ]
+      }
+    }
+  },
+  "security": [
+    {
+      "bearer_auth": []
+    }
+  ],
+  "servers": [
+    {
+      "url": "http://localhost:4000",
+      "variables": {}
+    }
+  ],
+  "tags": []
+}

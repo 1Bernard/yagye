@@ -2,10 +2,20 @@ defmodule YagyeCoreWeb.ApiSpecs.ComplianceSpec do
   @moduledoc false
 
   alias OpenApiSpex.{MediaType, Operation, Parameter, RequestBody, Response, Schema}
-  alias YagyeCoreWeb.Schemas.ErrorResponse
+  alias YagyeCoreWeb.Schemas.{ErrorResponse, SubmitOnboardingRequest,
+                               SubmitBeneficialOwnerRequest, UploadKybDocumentRequest}
 
   defp json(schema), do: %{"application/json" => %MediaType{schema: schema}}
-  defp object_schema, do: %Schema{type: :object}
+
+  defp merchant_id_param do
+    %Parameter{
+      name: :merchant_id,
+      in: :path,
+      description: "Merchant public ID",
+      required: true,
+      schema: %Schema{type: :string}
+    }
+  end
 
   def operation(:submit_onboarding) do
     %Operation{
@@ -13,23 +23,16 @@ defmodule YagyeCoreWeb.ApiSpecs.ComplianceSpec do
       summary: "Submit onboarding details",
       operationId: "ComplianceController.submit_onboarding",
       security: [%{"bearer_auth" => []}],
-      parameters: [
-        %Parameter{
-          name: :merchant_id,
-          in: :path,
-          description: "Merchant public ID",
-          required: true,
-          schema: %Schema{type: :string}
-        }
-      ],
+      parameters: [merchant_id_param()],
       requestBody: %RequestBody{
         description: "Onboarding details",
         required: true,
-        content: json(object_schema())
+        content: json(SubmitOnboardingRequest)
       },
       responses: %{
-        200 => %Response{description: "Merchant with updated onboarding state", content: json(object_schema())},
-        422 => %Response{description: "Validation error", content: json(ErrorResponse)}
+        200 => %Response{description: "Onboarding submitted; merchant returned with updated state"},
+        422 => %Response{description: "Validation error", content: json(ErrorResponse)},
+        404 => %Response{description: "Merchant not found", content: json(ErrorResponse)}
       }
     }
   end
@@ -40,23 +43,16 @@ defmodule YagyeCoreWeb.ApiSpecs.ComplianceSpec do
       summary: "Add a beneficial owner",
       operationId: "ComplianceController.add_beneficial_owner",
       security: [%{"bearer_auth" => []}],
-      parameters: [
-        %Parameter{
-          name: :merchant_id,
-          in: :path,
-          description: "Merchant public ID",
-          required: true,
-          schema: %Schema{type: :string}
-        }
-      ],
+      parameters: [merchant_id_param()],
       requestBody: %RequestBody{
         description: "Beneficial owner details",
         required: true,
-        content: json(object_schema())
+        content: json(SubmitBeneficialOwnerRequest)
       },
       responses: %{
-        201 => %Response{description: "Beneficial owner added", content: json(object_schema())},
-        422 => %Response{description: "Validation error", content: json(ErrorResponse)}
+        201 => %Response{description: "Beneficial owner added"},
+        422 => %Response{description: "Validation error", content: json(ErrorResponse)},
+        404 => %Response{description: "Merchant not found", content: json(ErrorResponse)}
       }
     }
   end
@@ -67,23 +63,16 @@ defmodule YagyeCoreWeb.ApiSpecs.ComplianceSpec do
       summary: "Upload a KYB document",
       operationId: "ComplianceController.upload_document",
       security: [%{"bearer_auth" => []}],
-      parameters: [
-        %Parameter{
-          name: :merchant_id,
-          in: :path,
-          description: "Merchant public ID",
-          required: true,
-          schema: %Schema{type: :string}
-        }
-      ],
+      parameters: [merchant_id_param()],
       requestBody: %RequestBody{
         description: "Document metadata",
         required: true,
-        content: json(object_schema())
+        content: json(UploadKybDocumentRequest)
       },
       responses: %{
-        201 => %Response{description: "Document uploaded", content: json(object_schema())},
-        422 => %Response{description: "Validation error", content: json(ErrorResponse)}
+        201 => %Response{description: "Document record created"},
+        422 => %Response{description: "Validation error", content: json(ErrorResponse)},
+        404 => %Response{description: "Merchant not found", content: json(ErrorResponse)}
       }
     }
   end

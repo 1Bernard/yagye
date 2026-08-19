@@ -20,7 +20,8 @@ defmodule YagyeCoreWeb.Controllers.Merchants.MerchantController do
   def open_api_operation(action), do: MerchantSpec.operation(action)
 
   def create(conn, _params) do
-    with {:ok, {merchant, _event}} <- Merchants.create_merchant(Map.from_struct(conn.body_params)) do
+    attrs = Map.from_struct(conn.body_params)
+    with {:ok, {merchant, _event}} <- Merchants.create_merchant(attrs) do
       object = MerchantJSON.data(merchant)
       maybe_complete_idempotency(conn, 201, object, "merchant", merchant.id)
       Response.created(conn, object)
