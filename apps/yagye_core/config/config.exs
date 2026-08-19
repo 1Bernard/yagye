@@ -38,6 +38,16 @@ config :logger, :default_handler,
 # Use Jason for JSON parsing in Phoenix
 config :phoenix, :json_library, Jason
 
+# Oban — PostgreSQL-backed job queue.
+# Queues are defined here; workers are added as they are introduced.
+# testing: Oban.Testing is used in tests instead of running real queues.
+config :yagye_core, Oban,
+  repo: YagyeCore.Repo,
+  plugins: [Oban.Plugins.Pruner],
+  queues: [
+    payments: 10
+  ]
+
 # Import environment specific config. This must remain at the bottom
 # of this file so it overrides the configuration defined above.
 import_config "#{config_env()}.exs"

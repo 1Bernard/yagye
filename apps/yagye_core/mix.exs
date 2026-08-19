@@ -67,6 +67,7 @@ defmodule YagyeCore.MixProject do
       {:uniq, "~> 0.6.3"},
       {:argon2_elixir, "~> 4.0"},
       {:open_api_spex, "~> 3.21"},
+      {:oban, "~> 2.23"},
       {:ex_machina, "~> 2.8.2", only: :test},
       {:mox, "~> 1.0", only: :test}
     ]

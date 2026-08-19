@@ -10,7 +10,9 @@ defmodule YagyeCore do
       Compliance.KybDocument,
       Idempotency,
       ApiRequest,
-      RateLimiter
+      RateLimiter,
+      Payments,
+      Payments.Payment
     ]
 
   @moduledoc """

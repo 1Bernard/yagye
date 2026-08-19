@@ -34,3 +34,6 @@ config :phoenix, :plug_init_mode, :runtime
 
 # Speed up Argon2 in tests — never use in prod
 config :argon2_elixir, t_cost: 1, m_cost: 8
+
+# Oban — disable queues and plugins in tests; use Oban.Testing helpers instead
+config :yagye_core, Oban, testing: :inline

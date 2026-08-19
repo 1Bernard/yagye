@@ -12,6 +12,7 @@ defmodule YagyeCore.Application do
       YagyeCore.RateLimiter,
       {DNSCluster, query: Application.get_env(:yagye_core, :dns_cluster_query) || :ignore},
       {Phoenix.PubSub, name: YagyeCore.PubSub},
+      {Oban, Application.fetch_env!(:yagye_core, Oban)},
       YagyeCoreWeb.Endpoint
     ]
 
