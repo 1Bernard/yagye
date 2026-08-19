@@ -1,4 +1,4 @@
-defmodule YagyeCoreWeb.Schemas.Compliance.SubmitOnboardingRequest do
+defmodule YagyeCoreWeb.Contracts.Compliance.SubmitOnboardingRequest do
   @moduledoc false
 
   require OpenApiSpex

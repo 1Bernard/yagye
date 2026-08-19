@@ -1,4 +1,4 @@
-defmodule YagyeCoreWeb.Schemas.ErrorResponse do
+defmodule YagyeCoreWeb.Contracts.ErrorResponse do
   @moduledoc false
 
   require OpenApiSpex

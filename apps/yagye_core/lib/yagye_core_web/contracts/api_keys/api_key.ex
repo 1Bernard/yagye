@@ -1,4 +1,4 @@
-defmodule YagyeCoreWeb.Schemas.ApiKeys.ApiKey do
+defmodule YagyeCoreWeb.Contracts.ApiKeys.ApiKey do
   @moduledoc false
 
   require OpenApiSpex

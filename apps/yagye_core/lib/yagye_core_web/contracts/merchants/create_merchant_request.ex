@@ -1,4 +1,4 @@
-defmodule YagyeCoreWeb.Schemas.Merchants.CreateMerchantRequest do
+defmodule YagyeCoreWeb.Contracts.Merchants.CreateMerchantRequest do
   @moduledoc false
 
   require OpenApiSpex

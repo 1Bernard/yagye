@@ -1,4 +1,4 @@
-defmodule YagyeCoreWeb.Schemas.Compliance.UploadKybDocumentRequest do
+defmodule YagyeCoreWeb.Contracts.Compliance.UploadKybDocumentRequest do
   @moduledoc false
 
   require OpenApiSpex

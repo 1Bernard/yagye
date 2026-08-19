@@ -22,6 +22,7 @@ defmodule YagyeCoreWeb.Router do
   alias YagyeCoreWeb.Controllers.ApiKeys.ApiKeyController
   alias YagyeCoreWeb.Controllers.Compliance.ComplianceController
   alias YagyeCoreWeb.Controllers.Merchants.MerchantController
+  alias YagyeCoreWeb.Controllers.Payments.PaymentController
 
   # Spec and interactive docs (unauthenticated)
   scope "/api" do
@@ -36,6 +37,8 @@ defmodule YagyeCoreWeb.Router do
   # v1 merchant-facing API
   scope "/v1" do
     pipe_through :v1
+
+    resources "/payments", PaymentController, only: [:create, :show], param: "id"
 
     resources "/merchants", MerchantController, only: [:create, :show] do
       post "/approve", MerchantController, :approve

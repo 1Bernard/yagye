@@ -2,8 +2,8 @@ defmodule YagyeCoreWeb.ApiSpecs.MerchantSpec do
   @moduledoc false
 
   alias OpenApiSpex.{MediaType, Operation, Parameter, RequestBody, Response, Schema}
-  alias YagyeCoreWeb.Schemas.ErrorResponse
-  alias YagyeCoreWeb.Schemas.Merchants.{CreateMerchantRequest, Merchant}
+  alias YagyeCoreWeb.Contracts.ErrorResponse
+  alias YagyeCoreWeb.Contracts.Merchants.{CreateMerchantRequest, Merchant}
 
   defp json(schema), do: %{"application/json" => %MediaType{schema: schema}}
 
