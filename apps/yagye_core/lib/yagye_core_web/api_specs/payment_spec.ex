@@ -1,7 +1,7 @@
 defmodule YagyeCoreWeb.ApiSpecs.PaymentSpec do
   @moduledoc false
 
-  alias OpenApiSpex.{MediaType, Operation, RequestBody, Response}
+  alias OpenApiSpex.{MediaType, Operation, Parameter, RequestBody, Response, Schema}
   alias YagyeCoreWeb.Contracts.ErrorResponse
   alias YagyeCoreWeb.Contracts.Payments.{CreatePaymentRequest, Payment}
 
@@ -32,6 +32,9 @@ defmodule YagyeCoreWeb.ApiSpecs.PaymentSpec do
       summary: "Retrieve a payment",
       operationId: "PaymentController.show",
       security: [%{"bearer_auth" => []}],
+      parameters: [
+        %Parameter{name: :id, in: :path, description: "Payment public ID", required: true, schema: %Schema{type: :string}}
+      ],
       responses: %{
         200 => %Response{description: "Payment retrieved", content: json(Payment)},
         404 => %Response{description: "Not found", content: json(ErrorResponse)}

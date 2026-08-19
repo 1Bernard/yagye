@@ -29,8 +29,8 @@ defmodule YagyeCore.Payments do
 
   # ── Private ──────────────────────────────────────────────────────────────────
 
-  defp resolve_merchant(public_id) do
-    case Repo.get_by(Merchant, public_id: public_id) do
+  defp resolve_merchant(merchant_id) do
+    case Repo.get(Merchant, merchant_id) do
       nil -> {:error, :not_found}
       merchant -> {:ok, merchant}
     end

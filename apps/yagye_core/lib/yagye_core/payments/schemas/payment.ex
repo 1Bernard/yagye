@@ -38,6 +38,7 @@ defmodule YagyeCore.Payments.Schemas.Payment do
     |> validate_number(:amount, greater_than: 0)
     |> validate_length(:currency, is: 3)
     |> put_public_id()
+    |> put_metadata_default()
     |> unique_constraint(:public_id)
     |> unique_constraint([:merchant_id, :merchant_reference])
     |> foreign_key_constraint(:merchant_id)
@@ -54,4 +55,11 @@ defmodule YagyeCore.Payments.Schemas.Payment do
   end
 
   defp put_public_id(changeset), do: changeset
+
+  defp put_metadata_default(changeset) do
+    case get_field(changeset, :metadata) do
+      nil -> put_change(changeset, :metadata, %{})
+      _   -> changeset
+    end
+  end
 end

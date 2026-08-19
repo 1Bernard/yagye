@@ -42,6 +42,16 @@ defmodule YagyeCore.Fixtures do
     subject_ref
   end
 
+  def payment_fixture(merchant, attrs \\ %{}) do
+    {:ok, {payment, _event}} =
+      YagyeCore.Payments.create_payment(
+        merchant.id,
+        Map.merge(%{amount: 10_000, currency: "GHS", rail: "fiat_provider"}, attrs)
+      )
+
+    payment
+  end
+
   # Returns {api_key, raw_key}. raw_key is only available at creation.
   def api_key_fixture(merchant, attrs \\ %{}) do
     {:ok, {api_key, raw_key, _}} =
