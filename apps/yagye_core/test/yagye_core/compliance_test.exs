@@ -41,7 +41,7 @@ defmodule YagyeCore.ComplianceTest do
 
       import Ecto.Query
       YagyeCore.Repo.update_all(
-        from(m in YagyeCore.Merchants.Merchant, where: m.id == ^merchant.id),
+        from(m in YagyeCore.Merchants.Schemas.Merchant, where: m.id == ^merchant.id),
         set: [onboarding_state: "under_review"]
       )
 

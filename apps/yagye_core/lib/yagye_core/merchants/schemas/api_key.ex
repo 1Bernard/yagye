@@ -1,6 +1,6 @@
-defmodule YagyeCore.Merchants.ApiKey do
+defmodule YagyeCore.Merchants.Schemas.ApiKey do
   @moduledoc false
-  use YagyeCore.Schema
+  use YagyeCore.Shared.Schema
   import Ecto.Changeset
 
   schema "api_keys" do
@@ -15,7 +15,7 @@ defmodule YagyeCore.Merchants.ApiKey do
     field :expires_at, :utc_datetime_usec
     field :created_by, :string
 
-    belongs_to :merchant, YagyeCore.Merchants.Merchant
+    belongs_to :merchant, YagyeCore.Merchants.Schemas.Merchant
 
     timestamps()
   end

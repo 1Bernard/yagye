@@ -1,6 +1,6 @@
-defmodule YagyeCore.Merchants.Merchant do
+defmodule YagyeCore.Merchants.Schemas.Merchant do
   @moduledoc false
-  use YagyeCore.Schema
+  use YagyeCore.Shared.Schema
   import Ecto.Changeset
 
   schema "merchants" do
@@ -22,8 +22,8 @@ defmodule YagyeCore.Merchants.Merchant do
     field :entitlements, :map, default: %{}
     field :metadata, :map, default: %{}
 
-    has_many :merchant_modes, YagyeCore.Merchants.MerchantMode
-    has_many :api_keys, YagyeCore.Merchants.ApiKey
+    has_many :merchant_modes, YagyeCore.Merchants.Schemas.MerchantMode
+    has_many :api_keys, YagyeCore.Merchants.Schemas.ApiKey
 
     timestamps()
   end

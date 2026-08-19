@@ -1,4 +1,4 @@
-defmodule YagyeCore.Schema do
+defmodule YagyeCore.Shared.Schema do
   @moduledoc false
 
   defmacro __using__(_) do

@@ -5,7 +5,7 @@ defmodule YagyeCoreWeb.Plugs.RateLimit do
 
   import Plug.Conn
 
-  alias YagyeCore.RateLimiter
+  alias YagyeCore.Shared.RateLimiter
 
   @impl Plug
   def init(opts), do: opts

@@ -1,12 +1,12 @@
-defmodule YagyeCore.Merchants.MerchantMode do
+defmodule YagyeCore.Merchants.Schemas.MerchantMode do
   @moduledoc false
-  use YagyeCore.Schema
+  use YagyeCore.Shared.Schema
   import Ecto.Changeset
 
   # Composite primary key (merchant_id, mode) — the DB constraint owns it.
   @primary_key false
   schema "merchant_modes" do
-    belongs_to :merchant, YagyeCore.Merchants.Merchant
+    belongs_to :merchant, YagyeCore.Merchants.Schemas.Merchant
     field :mode, Yagye.Types.YagyeMode
     field :enabled_at, :utc_datetime_usec
   end

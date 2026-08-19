@@ -1,7 +1,7 @@
 defmodule YagyeCore.Idempotency do
   @moduledoc false
 
-  alias YagyeCore.Idempotency.IdempotencyKey
+  alias YagyeCore.Idempotency.Schemas.IdempotencyKey
   alias YagyeCore.Repo
 
   @lease_seconds 30

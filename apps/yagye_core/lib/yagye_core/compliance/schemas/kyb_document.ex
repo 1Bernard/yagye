@@ -1,10 +1,10 @@
-defmodule YagyeCore.Compliance.KybDocument do
+defmodule YagyeCore.Compliance.Schemas.KybDocument do
   @moduledoc false
-  use YagyeCore.Schema
+  use YagyeCore.Shared.Schema
   import Ecto.Changeset
 
   schema "kyb_documents" do
-    belongs_to :merchant, YagyeCore.Merchants.Merchant
+    belongs_to :merchant, YagyeCore.Merchants.Schemas.Merchant
     field :kind, :string
     field :s3_key, :string
     field :checksum, :string

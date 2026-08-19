@@ -1,6 +1,6 @@
-defmodule YagyeCore.ApiRequest do
+defmodule YagyeCore.Shared.ApiRequest do
   @moduledoc false
-  use YagyeCore.Schema
+  use YagyeCore.Shared.Schema
   import Ecto.Changeset
 
   # Append-only audit log for every inbound API call including failures.

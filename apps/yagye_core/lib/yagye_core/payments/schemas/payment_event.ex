@@ -1,7 +1,7 @@
-defmodule YagyeCore.Payments.PaymentEvent do
+defmodule YagyeCore.Payments.Schemas.PaymentEvent do
   @moduledoc false
 
-  use YagyeCore.Schema
+  use YagyeCore.Shared.Schema
   import Ecto.Changeset
 
   schema "payment_events" do
@@ -15,7 +15,7 @@ defmodule YagyeCore.Payments.PaymentEvent do
     field :occurred_at,    :utc_datetime_usec
     field :recorded_at,    :utc_datetime_usec
 
-    belongs_to :payment, YagyeCore.Payments.Payment
+    belongs_to :payment, YagyeCore.Payments.Schemas.Payment
   end
 
   def changeset(event, attrs) do

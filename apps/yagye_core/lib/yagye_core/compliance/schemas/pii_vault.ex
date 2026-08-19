@@ -1,6 +1,6 @@
-defmodule YagyeCore.Compliance.PiiVault do
+defmodule YagyeCore.Compliance.Schemas.PiiVault do
   @moduledoc false
-  use YagyeCore.Schema
+  use YagyeCore.Shared.Schema
   import Ecto.Changeset
 
   # subject_ref is the PK — destroying this record's KMS key crypto-shreds

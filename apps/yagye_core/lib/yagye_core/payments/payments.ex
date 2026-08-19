@@ -1,8 +1,8 @@
 defmodule YagyeCore.Payments do
   @moduledoc false
 
-  alias YagyeCore.Payments.{Payment, PaymentEvent}
-  alias YagyeCore.Merchants.Merchant
+  alias YagyeCore.Payments.Schemas.{Payment, PaymentEvent}
+  alias YagyeCore.Merchants.Schemas.Merchant
   alias YagyeCore.Repo
 
   # ── Public API ───────────────────────────────────────────────────────────────

@@ -12,7 +12,7 @@ defmodule YagyeCoreWeb.Plugs.AuditLog do
 
   import Plug.Conn
 
-  alias YagyeCore.ApiRequest
+  alias YagyeCore.Shared.ApiRequest
 
   @impl Plug
   def init(opts), do: opts

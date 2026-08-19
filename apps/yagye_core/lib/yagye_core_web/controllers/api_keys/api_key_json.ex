@@ -1,7 +1,7 @@
 defmodule YagyeCoreWeb.Controllers.ApiKeys.ApiKeyJSON do
   @moduledoc false
 
-  alias YagyeCore.Merchants.ApiKey
+  alias YagyeCore.Merchants.Schemas.ApiKey
 
   # raw_key is present ONLY on creation — shown once and never stored.
   def data(%ApiKey{} = k, raw_key \\ nil) do

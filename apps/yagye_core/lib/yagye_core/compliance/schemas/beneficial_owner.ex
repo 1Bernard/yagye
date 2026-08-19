@@ -1,10 +1,10 @@
-defmodule YagyeCore.Compliance.BeneficialOwner do
+defmodule YagyeCore.Compliance.Schemas.BeneficialOwner do
   @moduledoc false
-  use YagyeCore.Schema
+  use YagyeCore.Shared.Schema
   import Ecto.Changeset
 
   schema "beneficial_owners" do
-    belongs_to :merchant, YagyeCore.Merchants.Merchant
+    belongs_to :merchant, YagyeCore.Merchants.Schemas.Merchant
     # subject_ref points to pii_vault — personal data lives there, not here.
     field :subject_ref, Uniq.UUID
     field :ownership_bps, :integer

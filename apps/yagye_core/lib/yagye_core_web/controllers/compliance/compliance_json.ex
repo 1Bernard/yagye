@@ -1,7 +1,7 @@
 defmodule YagyeCoreWeb.Controllers.Compliance.ComplianceJSON do
   @moduledoc false
 
-  alias YagyeCore.Compliance.{BeneficialOwner, KybDocument}
+  alias YagyeCore.Compliance.Schemas.{BeneficialOwner, KybDocument}
 
   def onboarding_data(merchant) do
     %{

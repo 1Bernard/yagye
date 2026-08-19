@@ -1,10 +1,10 @@
-defmodule YagyeCore.Idempotency.IdempotencyKey do
+defmodule YagyeCore.Idempotency.Schemas.IdempotencyKey do
   @moduledoc false
-  use YagyeCore.Schema
+  use YagyeCore.Shared.Schema
   import Ecto.Changeset
 
   schema "idempotency_keys" do
-    belongs_to :merchant, YagyeCore.Merchants.Merchant
+    belongs_to :merchant, YagyeCore.Merchants.Schemas.Merchant
     field :key, :string
     field :request_fingerprint, :string
     field :command_name, :string

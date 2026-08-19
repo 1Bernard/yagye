@@ -1,10 +1,10 @@
-defmodule YagyeCore.Compliance.ScreeningHit do
+defmodule YagyeCore.Compliance.Schemas.ScreeningHit do
   @moduledoc false
-  use YagyeCore.Schema
+  use YagyeCore.Shared.Schema
   import Ecto.Changeset
 
   schema "screening_hits" do
-    belongs_to :merchant, YagyeCore.Merchants.Merchant
+    belongs_to :merchant, YagyeCore.Merchants.Schemas.Merchant
     field :subject_type, :string
     field :subject_id, Uniq.UUID
     field :list_type, :string

@@ -3,16 +3,17 @@ defmodule YagyeCore do
     deps: [Yagye],
     exports: [
       Merchants,
-      Merchants.Merchant,
-      Merchants.ApiKey,
+      Merchants.Schemas.Merchant,
+      Merchants.Schemas.ApiKey,
       Compliance,
-      Compliance.BeneficialOwner,
-      Compliance.KybDocument,
+      Compliance.Schemas.BeneficialOwner,
+      Compliance.Schemas.KybDocument,
       Idempotency,
-      ApiRequest,
-      RateLimiter,
+      Shared.ApiRequest,
+      Shared.RateLimiter,
+      Shared.Schema,
       Payments,
-      Payments.Payment
+      Payments.Schemas.Payment
     ]
 
   @moduledoc """

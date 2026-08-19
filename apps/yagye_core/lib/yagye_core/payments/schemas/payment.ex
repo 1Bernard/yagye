@@ -1,10 +1,10 @@
-defmodule YagyeCore.Payments.Payment do
+defmodule YagyeCore.Payments.Schemas.Payment do
   @moduledoc false
 
-  use YagyeCore.Schema
+  use YagyeCore.Shared.Schema
   import Ecto.Changeset
 
-  alias YagyeCore.Merchants.Merchant
+  alias YagyeCore.Merchants.Schemas.Merchant
 
   @valid_states ~w[created processing requires_action authorised succeeded failed cancelled indeterminate]
   @valid_rails  ~w[fiat_provider internal]

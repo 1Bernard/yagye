@@ -1,4 +1,4 @@
-defmodule YagyeCore.RateLimiter do
+defmodule YagyeCore.Shared.RateLimiter do
   @moduledoc false
 
   # Fixed-window rate limiter backed by a node-local ETS table.

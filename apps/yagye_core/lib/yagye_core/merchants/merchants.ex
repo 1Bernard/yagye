@@ -12,7 +12,7 @@ defmodule YagyeCore.Merchants do
     MerchantRegistered
   }
 
-  alias YagyeCore.Merchants.{ApiKey, Merchant, MerchantMode}
+  alias YagyeCore.Merchants.Schemas.{ApiKey, Merchant, MerchantMode}
   alias YagyeCore.Repo
 
   # ── Public API ───────────────────────────────────────────────────────────────

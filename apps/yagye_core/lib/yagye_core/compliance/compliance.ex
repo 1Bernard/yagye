@@ -16,8 +16,8 @@ defmodule YagyeCore.Compliance do
     ScreeningHitRaised
   }
 
-  alias YagyeCore.Compliance.{BeneficialOwner, KybDocument, ScreeningHit}
-  alias YagyeCore.Merchants.Merchant
+  alias YagyeCore.Compliance.Schemas.{BeneficialOwner, KybDocument, ScreeningHit}
+  alias YagyeCore.Merchants.Schemas.Merchant
   alias YagyeCore.Repo
 
   # ── Public API ───────────────────────────────────────────────────────────────

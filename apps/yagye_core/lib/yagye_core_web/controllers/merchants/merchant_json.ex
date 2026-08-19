@@ -1,7 +1,7 @@
 defmodule YagyeCoreWeb.Controllers.Merchants.MerchantJSON do
   @moduledoc false
 
-  alias YagyeCore.Merchants.Merchant
+  alias YagyeCore.Merchants.Schemas.Merchant
 
   def data(%Merchant{} = m) do
     %{

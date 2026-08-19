@@ -2,7 +2,7 @@ defmodule YagyeCore.RateLimiterTest do
   # No DB access — ETS only. async: true is safe.
   use ExUnit.Case, async: false
 
-  alias YagyeCore.RateLimiter
+  alias YagyeCore.Shared.RateLimiter
 
   # Use a very low limit so tests don't need to fire hundreds of requests.
   @limit 5
