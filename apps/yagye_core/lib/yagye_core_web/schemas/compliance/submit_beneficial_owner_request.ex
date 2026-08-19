@@ -1,4 +1,4 @@
-defmodule YagyeCoreWeb.Schemas.SubmitBeneficialOwnerRequest do
+defmodule YagyeCoreWeb.Schemas.Compliance.SubmitBeneficialOwnerRequest do
   @moduledoc false
 
   require OpenApiSpex

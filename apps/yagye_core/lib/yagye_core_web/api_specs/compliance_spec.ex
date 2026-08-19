@@ -2,8 +2,8 @@ defmodule YagyeCoreWeb.ApiSpecs.ComplianceSpec do
   @moduledoc false
 
   alias OpenApiSpex.{MediaType, Operation, Parameter, RequestBody, Response, Schema}
-  alias YagyeCoreWeb.Schemas.{ErrorResponse, SubmitOnboardingRequest,
-                               SubmitBeneficialOwnerRequest, UploadKybDocumentRequest}
+  alias YagyeCoreWeb.Schemas.ErrorResponse
+  alias YagyeCoreWeb.Schemas.Compliance.{SubmitOnboardingRequest, SubmitBeneficialOwnerRequest, UploadKybDocumentRequest}
 
   defp json(schema), do: %{"application/json" => %MediaType{schema: schema}}
 
