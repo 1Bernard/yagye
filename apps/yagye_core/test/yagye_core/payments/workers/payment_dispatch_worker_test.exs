@@ -13,12 +13,13 @@ defmodule YagyeCore.Payments.Workers.PaymentDispatchWorkerTest do
   setup do
     merchant = Fixtures.merchant_fixture()
     provider = Fixtures.simulator_provider_fixture()
+    _credential = Fixtures.simulator_credential_fixture(provider)
     payment = Fixtures.payment_fixture(merchant)
     %{merchant: merchant, provider: provider, payment: payment}
   end
 
-  test "transitions payment to processing and records an attempt on success", %{payment: payment} do
-    expect(MockProviderAdapter, :charge, fn _payment, _attempt ->
+  test "transitions payment to succeeded and records attempt on success", %{payment: payment} do
+    expect(MockProviderAdapter, :charge, fn _payment, _attempt, _credential ->
       {:ok, %{provider_reference: "gw_test_ref", auth_code: "AUTH123"}}
     end)
 
@@ -35,7 +36,7 @@ defmodule YagyeCore.Payments.Workers.PaymentDispatchWorkerTest do
   end
 
   test "transitions payment to failed on definite failure", %{payment: payment} do
-    expect(MockProviderAdapter, :charge, fn _payment, _attempt ->
+    expect(MockProviderAdapter, :charge, fn _payment, _attempt, _credential ->
       {:error, %{error_class: :definite_failure, response_code: "INSUFFICIENT_FUNDS", response_message: nil}}
     end)
 
@@ -51,7 +52,7 @@ defmodule YagyeCore.Payments.Workers.PaymentDispatchWorkerTest do
   end
 
   test "transitions payment to indeterminate on timeout", %{payment: payment} do
-    expect(MockProviderAdapter, :charge, fn _payment, _attempt ->
+    expect(MockProviderAdapter, :charge, fn _payment, _attempt, _credential ->
       {:error, %{error_class: :indeterminate, response_code: "timeout", response_message: nil}}
     end)
 
@@ -64,8 +65,8 @@ defmodule YagyeCore.Payments.Workers.PaymentDispatchWorkerTest do
     assert attempt.state == "timed_out"
   end
 
-  test "returns retryable error and Oban retries", %{payment: payment} do
-    expect(MockProviderAdapter, :charge, fn _payment, _attempt ->
+  test "returns retryable error for Oban retry", %{payment: payment} do
+    expect(MockProviderAdapter, :charge, fn _payment, _attempt, _credential ->
       {:error, %{error_class: :retryable_error, response_code: "GATEWAY_ERROR", response_message: nil}}
     end)
 

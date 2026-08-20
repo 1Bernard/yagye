@@ -7,7 +7,8 @@
 
 alias YagyeCore.Merchants
 alias YagyeCore.Merchants.Schemas.Merchant
-alias YagyeCore.Providers.Schemas.Provider
+alias YagyeCore.Providers.Schemas.{Provider, ProviderCredential}
+alias YagyeCore.Shared.Vault
 alias YagyeCore.Repo
 
 IO.puts("\n=== Yagye bootstrap ===\n")
@@ -32,7 +33,33 @@ case Repo.get_by(Provider, code: "simulator") do
     IO.puts("Simulator provider    : created (#{p.id})")
 end
 
-# ── 2. Admin merchant (live mode, platform ops) ────────────────────────────────
+# ── 2. Simulator platform credential ──────────────────────────────────────────
+
+simulator = Repo.get_by!(Provider, code: "simulator")
+
+case Repo.get_by(ProviderCredential, provider_id: simulator.id, mode: "simulation") do
+  %ProviderCredential{} = c ->
+    IO.puts("Simulator credential  : already exists (#{c.id})")
+
+  nil ->
+    payload = Vault.encrypt_map(%{"api_key" => "sim_dev_key"})
+
+    {:ok, c} =
+      %ProviderCredential{}
+      |> ProviderCredential.changeset(%{
+        provider_id: simulator.id,
+        merchant_id: nil,
+        mode: "simulation",
+        base_url: "http://localhost:4100",
+        encrypted_payload: payload,
+        active: true
+      })
+      |> Repo.insert()
+
+    IO.puts("Simulator credential  : created (#{c.id})")
+end
+
+# ── 4. Admin merchant (live mode, platform ops) ────────────────────────────────
 
 case Repo.get_by(Merchant, legal_name: "Yagye Admin") do
   %Merchant{} = m ->
@@ -72,7 +99,7 @@ case Repo.get_by(Merchant, legal_name: "Yagye Admin") do
     """)
 end
 
-# ── 3. Dev merchant (simulation mode, for local testing and K6) ───────────────
+# ── 5. Dev merchant (simulation mode, for local testing and K6) ───────────────
 
 case Repo.get_by(Merchant, legal_name: "Dev Merchant") do
   %Merchant{} = m ->

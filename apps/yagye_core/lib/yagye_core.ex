@@ -17,7 +17,10 @@ defmodule YagyeCore do
       Payments.Schemas.PaymentAttempt,
       Payments.Schemas.PaymentEvent,
       Providers,
-      Providers.Schemas.Provider
+      Providers.Schemas.Provider,
+      Providers.Schemas.ProviderCredential,
+      Providers.Schemas.MerchantProviderConnection,
+      Shared.Vault
     ]
 
   @moduledoc """

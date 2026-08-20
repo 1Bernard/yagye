@@ -2,7 +2,8 @@ defmodule YagyeCore.Fixtures do
   @moduledoc false
 
   alias YagyeCore.Merchants
-  alias YagyeCore.Providers.Schemas.Provider
+  alias YagyeCore.Providers.Schemas.{Provider, ProviderCredential}
+  alias YagyeCore.Shared.Vault
   alias YagyeCore.Repo
 
   def merchant_fixture(attrs \\ %{}) do
@@ -69,6 +70,32 @@ defmodule YagyeCore.Fixtures do
         })
         |> Repo.insert!()
     end
+  end
+
+  # Platform-level simulator credential (merchant_id = nil).
+  # Returns the decrypted credential map as the Providers context would deliver it.
+  def simulator_credential_fixture(provider) do
+    payload = %{"api_key" => "sim_test_key"}
+    base_url = "http://localhost:4100"
+
+    case Repo.get_by(ProviderCredential, provider_id: provider.id, mode: "simulation") do
+      %ProviderCredential{} ->
+        :ok
+
+      nil ->
+        %ProviderCredential{}
+        |> ProviderCredential.changeset(%{
+          provider_id: provider.id,
+          merchant_id: nil,
+          mode: "simulation",
+          base_url: base_url,
+          encrypted_payload: Vault.encrypt_map(payload),
+          active: true
+        })
+        |> Repo.insert!()
+    end
+
+    Map.put(payload, "base_url", base_url)
   end
 
   # Returns {api_key, raw_key}. raw_key is only available at creation.

@@ -43,8 +43,8 @@ config :phoenix, :json_library, Jason
 # testing: Oban.Testing is used in tests instead of running real queues.
 config :yagye_core,
   provider_adapter: YagyeCore.Payments.Adapters.SimulatorAdapter,
-  simulator_base_url: "http://localhost:4100",
-  simulator_api_key: "sim_dev_key"
+  # 32-byte hex key for AES-256-GCM credential encryption. Override in prod via env.
+  credential_encryption_key: "0000000000000000000000000000000000000000000000000000000000000001"
 
 config :yagye_core, Oban,
   repo: YagyeCore.Repo,

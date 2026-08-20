@@ -19,10 +19,12 @@ defmodule YagyeCore.Payments.ProviderAdapter do
     response_message: String.t() | nil
   }
 
-  @callback charge(Payment.t(), PaymentAttempt.t()) ::
+  # credential is a plain map of decrypted fields, always including "base_url".
+  # The adapter is responsible for extracting what it needs (api_key, secret, etc.).
+  @callback charge(Payment.t(), PaymentAttempt.t(), credential :: map()) ::
     {:ok, charge_ok()} | {:error, charge_error()}
 
-  @callback query_charge(PaymentAttempt.t()) ::
+  @callback query_charge(PaymentAttempt.t(), credential :: map()) ::
     {:ok, charge_ok()} | {:error, charge_error()}
 
   @doc "Returns the configured adapter module."

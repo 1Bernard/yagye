@@ -14,7 +14,8 @@ defmodule YagyeCore.Payments.ConcurrencyTest do
   setup :verify_on_exit!
 
   setup do
-    Fixtures.simulator_provider_fixture()
+    provider = Fixtures.simulator_provider_fixture()
+    Fixtures.simulator_credential_fixture(provider)
     :ok
   end
 
@@ -45,7 +46,7 @@ defmodule YagyeCore.Payments.ConcurrencyTest do
 
   describe "Oban queue drain — success path" do
     test "20 payments created concurrently all settle to succeeded" do
-      stub(MockProviderAdapter, :charge, fn _payment, _attempt ->
+      stub(MockProviderAdapter, :charge, fn _payment, _attempt, _credential ->
         ref = "gw_ref_#{System.unique_integer([:positive])}"
         {:ok, %{provider_reference: ref, auth_code: "AUTH"}}
       end)
@@ -81,7 +82,7 @@ defmodule YagyeCore.Payments.ConcurrencyTest do
       # Agent counter cycles 0,1,2 across concurrent charge calls — gives exact 7/7/7 split.
       {:ok, counter} = Agent.start_link(fn -> 0 end)
 
-      stub(MockProviderAdapter, :charge, fn _payment, _attempt ->
+      stub(MockProviderAdapter, :charge, fn _payment, _attempt, _cred ->
         n = Agent.get_and_update(counter, fn c -> {c, c + 1} end)
         case rem(n, 3) do
           0 -> {:ok, %{provider_reference: "gw_ok_#{n}", auth_code: "AUTH"}}
