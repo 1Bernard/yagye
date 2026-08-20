@@ -3,7 +3,12 @@ defmodule YagyeCore.Merchants do
 
   import Ecto.Query
 
-  alias YagyeCore.Merchants.Commands.{ApproveMerchant, IssueApiKey, RegisterMerchant, RevokeApiKey}
+  alias YagyeCore.Merchants.Commands.{
+    ApproveMerchant,
+    IssueApiKey,
+    RegisterMerchant,
+    RevokeApiKey
+  }
 
   alias YagyeCore.Merchants.Events.{
     ApiKeyIssued,
@@ -190,7 +195,8 @@ defmodule YagyeCore.Merchants do
              from(k in ApiKey,
                where: k.public_id == ^cmd.api_key_id,
                where: k.merchant_id == ^merchant.id,
-               where: is_nil(k.revoked_at)),
+               where: is_nil(k.revoked_at)
+             ),
            {:ok, api_key} <- one_or_error(query),
            {:ok, api_key} <-
              api_key |> Ecto.Changeset.change(revoked_at: DateTime.utc_now()) |> Repo.update() do

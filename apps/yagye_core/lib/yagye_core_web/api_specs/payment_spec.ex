@@ -33,7 +33,13 @@ defmodule YagyeCoreWeb.ApiSpecs.PaymentSpec do
       operationId: "PaymentController.show",
       security: [%{"bearer_auth" => []}],
       parameters: [
-        %Parameter{name: :id, in: :path, description: "Payment public ID", required: true, schema: %Schema{type: :string}}
+        %Parameter{
+          name: :id,
+          in: :path,
+          description: "Payment public ID",
+          required: true,
+          schema: %Schema{type: :string}
+        }
       ],
       responses: %{
         200 => %Response{description: "Payment retrieved", content: json(Payment)},
@@ -49,7 +55,13 @@ defmodule YagyeCoreWeb.ApiSpecs.PaymentSpec do
       operationId: "PaymentController.events",
       security: [%{"bearer_auth" => []}],
       parameters: [
-        %Parameter{name: :id, in: :path, description: "Payment public ID", required: true, schema: %Schema{type: :string}}
+        %Parameter{
+          name: :id,
+          in: :path,
+          description: "Payment public ID",
+          required: true,
+          schema: %Schema{type: :string}
+        }
       ],
       responses: %{
         200 => %Response{description: "Event list", content: json(%Schema{type: :object})},

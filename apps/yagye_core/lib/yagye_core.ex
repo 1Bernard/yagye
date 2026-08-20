@@ -20,7 +20,12 @@ defmodule YagyeCore do
       Providers.Schemas.Provider,
       Providers.Schemas.ProviderCredential,
       Providers.Schemas.MerchantProviderConnection,
-      Shared.Vault
+      Shared.Vault,
+      Ledger,
+      Ledger.Schemas.Account,
+      Ledger.Schemas.Entry,
+      Ledger.Schemas.Posting,
+      Ledger.Schemas.Balance
     ]
 
   @moduledoc """

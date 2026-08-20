@@ -42,7 +42,13 @@ defmodule YagyeCoreWeb.Controllers.Merchants.MerchantControllerTest do
 
       assert resp.status == 422
       body = Jason.decode!(resp.resp_body)
-      assert %{"error" => %{"type" => "invalid_request_error", "code" => "schema_validation_failed"}} = body
+
+      assert %{
+               "error" => %{
+                 "type" => "invalid_request_error",
+                 "code" => "schema_validation_failed"
+               }
+             } = body
     end
 
     test "returns 401 without an API key", %{conn: conn} do

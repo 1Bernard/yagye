@@ -3,9 +3,10 @@ defmodule YagyeCore.Payments do
 
   import Ecto.Query
 
+  alias YagyeCore.Ledger
+  alias YagyeCore.Merchants.Schemas.Merchant
   alias YagyeCore.Payments.Schemas.{Payment, PaymentAttempt, PaymentEvent}
   alias YagyeCore.Payments.Workers.PaymentDispatchWorker
-  alias YagyeCore.Merchants.Schemas.Merchant
   alias YagyeCore.Repo
 
   # ── Public API ───────────────────────────────────────────────────────────────
@@ -20,17 +21,9 @@ defmodule YagyeCore.Payments do
   def dispatch_payment(payment_id) do
     Repo.transaction(fn ->
       with {:ok, payment} <- get_payment_by_id(payment_id),
-           {:ok, payment, action} <- transition_to_processing(payment) do
-        case action do
-          :new ->
-            case insert_event(payment, "payment.processing", "created", "processing") do
-              {:ok, _} -> payment
-              {:error, reason} -> Repo.rollback(reason)
-            end
-
-          :existing ->
-            payment
-        end
+           {:ok, payment, action} <- transition_to_processing(payment),
+           :ok <- ensure_processing_event(payment, action) do
+        payment
       else
         {:error, reason} -> Repo.rollback(reason)
       end
@@ -64,9 +57,11 @@ defmodule YagyeCore.Payments do
              })
              |> Repo.update(),
            {:ok, payment} <- transition(payment, "authorised"),
-           {:ok, _event} <- insert_event(payment, "payment.authorised", "processing", "authorised"),
+           {:ok, _event} <-
+             insert_event(payment, "payment.authorised", "processing", "authorised"),
            {:ok, payment} <- transition(payment, "succeeded"),
-           {:ok, _event} <- insert_event(payment, "payment.succeeded", "authorised", "succeeded") do
+           {:ok, _event} <- insert_event(payment, "payment.succeeded", "authorised", "succeeded"),
+           {:ok, _entry} <- Ledger.post_payment_settled(payment, attempt) do
         payment
       else
         {:error, reason} -> Repo.rollback(reason)
@@ -74,7 +69,11 @@ defmodule YagyeCore.Payments do
     end)
   end
 
-  def handle_provider_response(payment, attempt, {:error, %{error_class: :definite_failure} = err}) do
+  def handle_provider_response(
+        payment,
+        attempt,
+        {:error, %{error_class: :definite_failure} = err}
+      ) do
     Repo.transaction(fn ->
       with {:ok, _attempt} <-
              attempt
@@ -122,7 +121,11 @@ defmodule YagyeCore.Payments do
     end
   end
 
-  def handle_provider_response(_payment, attempt, {:error, %{error_class: :retryable_error} = err}) do
+  def handle_provider_response(
+        _payment,
+        attempt,
+        {:error, %{error_class: :retryable_error} = err}
+      ) do
     attempt
     |> PaymentAttempt.result_changeset(%{
       state: "failed",
@@ -167,7 +170,14 @@ defmodule YagyeCore.Payments do
     end)
   end
 
-  defp transition_to_processing(%Payment{state: "processing"} = payment), do: {:ok, payment, :existing}
+  defp ensure_processing_event(_payment, :existing), do: :ok
+
+  defp ensure_processing_event(payment, :new) do
+    with {:ok, _} <- insert_event(payment, "payment.processing", "created", "processing"), do: :ok
+  end
+
+  defp transition_to_processing(%Payment{state: "processing"} = payment),
+    do: {:ok, payment, :existing}
 
   defp transition_to_processing(%Payment{state: "created"} = payment) do
     case payment |> Payment.transition_changeset("processing") |> Repo.update() do

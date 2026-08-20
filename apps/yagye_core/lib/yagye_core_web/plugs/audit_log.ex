@@ -30,8 +30,7 @@ defmodule YagyeCoreWeb.Plugs.AuditLog do
         mode: conn.assigns[:mode],
         method: conn.method,
         path: conn.request_path,
-        api_version:
-          get_req_header(conn, "x-api-version") |> List.first("2026-01-01"),
+        api_version: get_req_header(conn, "x-api-version") |> List.first("2026-01-01"),
         status: conn.status,
         duration_ms: duration_ms,
         correlation_id: conn.assigns[:correlation_id],

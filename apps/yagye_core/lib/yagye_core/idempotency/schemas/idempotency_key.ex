@@ -36,7 +36,14 @@ defmodule YagyeCore.Idempotency.Schemas.IdempotencyKey do
 
   def complete_changeset(idem_key, attrs) do
     idem_key
-    |> cast(attrs, [:state, :response_status, :response_body, :resource_type, :resource_id, :executed_at])
+    |> cast(attrs, [
+      :state,
+      :response_status,
+      :response_body,
+      :resource_type,
+      :resource_id,
+      :executed_at
+    ])
     |> validate_required([:state, :response_status, :executed_at])
     |> validate_inclusion(:state, @valid_states -- ["in_progress"])
   end

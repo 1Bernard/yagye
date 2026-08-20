@@ -112,7 +112,13 @@ defmodule YagyeCore.PaymentsTest do
 
     test "enforces unique merchant_reference per merchant" do
       merchant = Fixtures.merchant_fixture()
-      attrs = %{amount: 100, currency: "GHS", rail: "fiat_provider", merchant_reference: "ref_001"}
+
+      attrs = %{
+        amount: 100,
+        currency: "GHS",
+        rail: "fiat_provider",
+        merchant_reference: "ref_001"
+      }
 
       assert {:ok, _} = Payments.create_payment(merchant.id, attrs)
       assert {:error, changeset} = Payments.create_payment(merchant.id, attrs)
@@ -155,7 +161,10 @@ defmodule YagyeCore.PaymentsTest do
       %{payment: payment, attempt: attempt}
     end
 
-    test "transitions payment to succeeded and writes four events", %{payment: payment, attempt: attempt} do
+    test "transitions payment to succeeded and writes four events", %{
+      payment: payment,
+      attempt: attempt
+    } do
       result = {:ok, %{provider_reference: "gw_ref_123", auth_code: "AUTH"}}
 
       assert {:ok, updated} = Payments.handle_provider_response(payment, attempt, result)
@@ -167,7 +176,12 @@ defmodule YagyeCore.PaymentsTest do
       assert length(events) == 4
 
       assert Enum.map(events, & &1.event_type) ==
-               ["payment.created", "payment.processing", "payment.authorised", "payment.succeeded"]
+               [
+                 "payment.created",
+                 "payment.processing",
+                 "payment.authorised",
+                 "payment.succeeded"
+               ]
 
       assert Enum.map(events, &{&1.from_state, &1.to_state}) == [
                {nil, "created"},
@@ -189,23 +203,33 @@ defmodule YagyeCore.PaymentsTest do
     end
 
     test "transitions to failed on definite failure", %{payment: payment, attempt: attempt} do
-      result = {:error, %{error_class: :definite_failure, response_code: "DO_NOT_HONOR", response_message: nil}}
+      result =
+        {:error,
+         %{error_class: :definite_failure, response_code: "DO_NOT_HONOR", response_message: nil}}
 
       assert {:ok, updated} = Payments.handle_provider_response(payment, attempt, result)
       assert updated.state == "failed"
     end
 
     test "transitions to indeterminate on timeout", %{payment: payment, attempt: attempt} do
-      result = {:error, %{error_class: :indeterminate, response_code: "timeout", response_message: nil}}
+      result =
+        {:error, %{error_class: :indeterminate, response_code: "timeout", response_message: nil}}
 
       assert {:ok, updated} = Payments.handle_provider_response(payment, attempt, result)
       assert updated.state == "indeterminate"
     end
 
-    test "returns retryable error without changing payment state", %{payment: payment, attempt: attempt} do
-      result = {:error, %{error_class: :retryable_error, response_code: "GATEWAY_ERROR", response_message: nil}}
+    test "returns retryable error without changing payment state", %{
+      payment: payment,
+      attempt: attempt
+    } do
+      result =
+        {:error,
+         %{error_class: :retryable_error, response_code: "GATEWAY_ERROR", response_message: nil}}
 
-      assert {:error, :retryable_error} = Payments.handle_provider_response(payment, attempt, result)
+      assert {:error, :retryable_error} =
+               Payments.handle_provider_response(payment, attempt, result)
+
       assert {:ok, reloaded} = Payments.get_payment(payment.public_id)
       assert reloaded.state == "processing"
     end

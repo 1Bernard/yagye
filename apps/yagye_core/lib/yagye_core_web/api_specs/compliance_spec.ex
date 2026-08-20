@@ -3,7 +3,12 @@ defmodule YagyeCoreWeb.ApiSpecs.ComplianceSpec do
 
   alias OpenApiSpex.{MediaType, Operation, Parameter, RequestBody, Response, Schema}
   alias YagyeCoreWeb.Contracts.ErrorResponse
-  alias YagyeCoreWeb.Contracts.Compliance.{SubmitOnboardingRequest, SubmitBeneficialOwnerRequest, UploadKybDocumentRequest}
+
+  alias YagyeCoreWeb.Contracts.Compliance.{
+    SubmitBeneficialOwnerRequest,
+    SubmitOnboardingRequest,
+    UploadKybDocumentRequest
+  }
 
   defp json(schema), do: %{"application/json" => %MediaType{schema: schema}}
 
@@ -30,7 +35,9 @@ defmodule YagyeCoreWeb.ApiSpecs.ComplianceSpec do
         content: json(SubmitOnboardingRequest)
       },
       responses: %{
-        200 => %Response{description: "Onboarding submitted; merchant returned with updated state"},
+        200 => %Response{
+          description: "Onboarding submitted; merchant returned with updated state"
+        },
         422 => %Response{description: "Validation error", content: json(ErrorResponse)},
         404 => %Response{description: "Merchant not found", content: json(ErrorResponse)}
       }

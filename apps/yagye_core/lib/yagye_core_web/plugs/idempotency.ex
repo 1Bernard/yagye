@@ -53,16 +53,36 @@ defmodule YagyeCoreWeb.Plugs.Idempotency do
         |> halt()
 
       {:error, :in_progress} ->
-        halt_error(conn, 409, "idempotency_in_progress", "A request with this idempotency key is already in progress")
+        halt_error(
+          conn,
+          409,
+          "idempotency_in_progress",
+          "A request with this idempotency key is already in progress"
+        )
 
       {:error, :fingerprint_mismatch} ->
-        halt_error(conn, 422, "idempotency_key_reuse", "Idempotency key reused with a different request body")
+        halt_error(
+          conn,
+          422,
+          "idempotency_key_reuse",
+          "Idempotency key reused with a different request body"
+        )
 
       {:error, :previous_attempt_failed} ->
-        halt_error(conn, 422, "previous_attempt_failed", "Previous attempt failed — use a new idempotency key to retry")
+        halt_error(
+          conn,
+          422,
+          "previous_attempt_failed",
+          "Previous attempt failed — use a new idempotency key to retry"
+        )
 
       {:error, :lease_expired} ->
-        halt_error(conn, 409, "idempotency_lease_expired", "Previous request lease expired — safe to retry with the same key")
+        halt_error(
+          conn,
+          409,
+          "idempotency_lease_expired",
+          "Previous request lease expired — safe to retry with the same key"
+        )
     end
   end
 

@@ -3,8 +3,8 @@ defmodule YagyeCore.Fixtures do
 
   alias YagyeCore.Merchants
   alias YagyeCore.Providers.Schemas.{Provider, ProviderCredential}
-  alias YagyeCore.Shared.Vault
   alias YagyeCore.Repo
+  alias YagyeCore.Shared.Vault
 
   def merchant_fixture(attrs \\ %{}) do
     {:ok, {merchant, _}} =

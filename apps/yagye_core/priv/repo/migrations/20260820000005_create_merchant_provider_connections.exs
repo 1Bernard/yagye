@@ -18,16 +18,14 @@ defmodule YagyeCore.Repo.Migrations.CreateMerchantProviderConnections do
     end
 
     create constraint(:merchant_provider_connections, :valid_mode,
-      check: "mode IN ('simulation','sandbox','live')"
-    )
+             check: "mode IN ('simulation','sandbox','live')"
+           )
 
     create constraint(:merchant_provider_connections, :valid_status,
-      check: "status IN ('active','paused','disabled')"
-    )
+             check: "status IN ('active','paused','disabled')"
+           )
 
-    create constraint(:merchant_provider_connections, :positive_priority,
-      check: "priority >= 1"
-    )
+    create constraint(:merchant_provider_connections, :positive_priority, check: "priority >= 1")
 
     create unique_index(:merchant_provider_connections, [:merchant_id, :provider_id, :mode])
     create index(:merchant_provider_connections, [:merchant_id, :mode, :status, :priority])

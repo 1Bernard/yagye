@@ -17,7 +17,9 @@ defmodule YagyeCoreWeb.Response do
   def not_found(conn) do
     conn
     |> put_status(404)
-    |> json(%{error: %{type: "invalid_request_error", code: "not_found", message: "Resource not found"}})
+    |> json(%{
+      error: %{type: "invalid_request_error", code: "not_found", message: "Resource not found"}
+    })
   end
 
   def forbidden(conn, code, message) do

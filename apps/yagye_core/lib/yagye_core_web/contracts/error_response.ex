@@ -15,7 +15,11 @@ defmodule YagyeCoreWeb.Contracts.ErrorResponse do
           type: %Schema{type: :string, example: "invalid_request_error"},
           code: %Schema{type: :string, example: "validation_failed"},
           message: %Schema{type: :string, example: "Country must be a 2-letter ISO code"},
-          param: %Schema{type: :string, description: "Field that caused the error", example: "country"},
+          param: %Schema{
+            type: :string,
+            description: "Field that caused the error",
+            example: "country"
+          },
           details: %Schema{type: :object, description: "Field-level validation errors"}
         },
         required: [:type, :code, :message]

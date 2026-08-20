@@ -32,7 +32,13 @@ defmodule YagyeCoreWeb.ApiSpecs.MerchantSpec do
       operationId: "MerchantController.show",
       security: [%{"bearer_auth" => []}],
       parameters: [
-        %Parameter{name: :id, in: :path, description: "Merchant public ID", required: true, schema: %Schema{type: :string}}
+        %Parameter{
+          name: :id,
+          in: :path,
+          description: "Merchant public ID",
+          required: true,
+          schema: %Schema{type: :string}
+        }
       ],
       responses: %{
         200 => %Response{description: "Merchant retrieved", content: json(Merchant)},

@@ -20,8 +20,8 @@ defmodule YagyeCore.Repo.Migrations.CreateP1IdentityTables do
     end
 
     create constraint(:pii_vault, :valid_subject_kind,
-      check: "subject_kind IN ('customer', 'beneficial_owner', 'merchant_user')"
-    )
+             check: "subject_kind IN ('customer', 'beneficial_owner', 'merchant_user')"
+           )
 
     # The tenant boundary. Every money-bearing row in the system traces back here.
     create table(:merchants, primary_key: false) do
@@ -49,22 +49,24 @@ defmodule YagyeCore.Repo.Migrations.CreateP1IdentityTables do
     create unique_index(:merchants, [:public_id])
 
     create constraint(:merchants, :valid_status,
-      check: "status IN ('registered','under_review','approved','active','suspended','terminated','rejected')"
-    )
+             check:
+               "status IN ('registered','under_review','approved','active','suspended','terminated','rejected')"
+           )
 
     create constraint(:merchants, :valid_onboarding_state,
-      check: "onboarding_state IN ('registered','details_submitted','under_review','approved','rejected','more_info_required')"
-    )
+             check:
+               "onboarding_state IN ('registered','details_submitted','under_review','approved','rejected','more_info_required')"
+           )
 
     create constraint(:merchants, :valid_activity_state,
-      check: "activity_state IN ('active','quiet','dormant','inactive','blind')"
-    )
+             check: "activity_state IN ('active','quiet','dormant','inactive','blind')"
+           )
 
     # Which modes a merchant is permitted to use. A merchant is usable in a mode
     # only if a row exists here — no implicit defaults.
     create table(:merchant_modes, primary_key: false) do
       add :merchant_id, references(:merchants, type: :uuid, on_delete: :delete_all), null: false
-      add :mode, :"yagye_mode", null: false
+      add :mode, :yagye_mode, null: false
       add :enabled_at, :utc_datetime_usec, null: false
     end
 
@@ -78,7 +80,7 @@ defmodule YagyeCore.Repo.Migrations.CreateP1IdentityTables do
       add :id, :uuid, primary_key: true, default: fragment("gen_random_uuid()")
       add :public_id, :text, null: false
       add :merchant_id, references(:merchants, type: :uuid, on_delete: :restrict), null: false
-      add :mode, :"yagye_mode", null: false
+      add :mode, :yagye_mode, null: false
       add :kind, :text, null: false
       add :key_prefix, :text, null: false
       add :secret_hash, :text
@@ -94,17 +96,16 @@ defmodule YagyeCore.Repo.Migrations.CreateP1IdentityTables do
     create unique_index(:api_keys, [:merchant_id, :mode, :key_prefix])
 
     create index(:api_keys, [:key_prefix],
-      where: "revoked_at IS NULL",
-      name: :api_keys_lookup
-    )
+             where: "revoked_at IS NULL",
+             name: :api_keys_lookup
+           )
 
-    create constraint(:api_keys, :valid_kind,
-      check: "kind IN ('publishable', 'secret')"
-    )
+    create constraint(:api_keys, :valid_kind, check: "kind IN ('publishable', 'secret')")
 
     create constraint(:api_keys, :secret_hash_only_for_secret_keys,
-      check: "(kind = 'secret' AND secret_hash IS NOT NULL) OR (kind = 'publishable' AND secret_hash IS NULL)"
-    )
+             check:
+               "(kind = 'secret' AND secret_hash IS NOT NULL) OR (kind = 'publishable' AND secret_hash IS NULL)"
+           )
   end
 
   def down do

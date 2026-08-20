@@ -2,6 +2,7 @@ defmodule YagyeCore.IdempotencyTest do
   # async: false — spawned Tasks need shared sandbox access for the concurrency test
   use YagyeCore.DataCase, async: false
 
+  alias Ecto.Adapters.SQL.Sandbox
   alias YagyeCore.Fixtures
   alias YagyeCore.Idempotency
 
@@ -48,7 +49,9 @@ defmodule YagyeCore.IdempotencyTest do
       Idempotency.complete(idem_key.id, 200, %{}, "merchant", nil)
 
       different_fingerprint = Base.encode16(:crypto.hash(:sha256, "different-body"))
-      assert {:error, :fingerprint_mismatch} = Idempotency.claim(merchant.id, key, different_fingerprint)
+
+      assert {:error, :fingerprint_mismatch} =
+               Idempotency.claim(merchant.id, key, different_fingerprint)
     end
 
     test "returns :previous_attempt_failed after a failed key" do
@@ -58,7 +61,8 @@ defmodule YagyeCore.IdempotencyTest do
       {:ok, :claimed, idem_key} = Idempotency.claim(merchant.id, key, @fingerprint)
       Idempotency.fail(idem_key.id)
 
-      assert {:error, :previous_attempt_failed} = Idempotency.claim(merchant.id, key, @fingerprint)
+      assert {:error, :previous_attempt_failed} =
+               Idempotency.claim(merchant.id, key, @fingerprint)
     end
 
     test "different merchants can use the same key string independently" do
@@ -81,7 +85,7 @@ defmodule YagyeCore.IdempotencyTest do
         1..50
         |> Enum.map(fn _ ->
           Task.async(fn ->
-            Ecto.Adapters.SQL.Sandbox.allow(YagyeCore.Repo, parent, self())
+            Sandbox.allow(YagyeCore.Repo, parent, self())
             Idempotency.claim(merchant.id, key, @fingerprint)
           end)
         end)

@@ -7,21 +7,21 @@ defmodule YagyeCore.Payments.Schemas.Payment do
   alias YagyeCore.Merchants.Schemas.Merchant
 
   @valid_states ~w[created processing requires_action authorised succeeded failed cancelled indeterminate]
-  @valid_rails  ~w[fiat_provider internal]
-  @valid_modes  ~w[simulation live]
+  @valid_rails ~w[fiat_provider internal]
+  @valid_modes ~w[simulation live]
 
   schema "payments" do
-    field :public_id,          :string
-    field :mode,               :string
-    field :amount,             :integer
-    field :currency,           :string
-    field :state,              :string, default: "created"
-    field :rail,               :string
-    field :method,             :string
+    field :public_id, :string
+    field :mode, :string
+    field :amount, :integer
+    field :currency, :string
+    field :state, :string, default: "created"
+    field :rail, :string
+    field :method, :string
     field :merchant_reference, :string
-    field :description,        :string
-    field :version,            :integer, default: 0
-    field :metadata,           :map,     default: %{}
+    field :description, :string
+    field :version, :integer, default: 0
+    field :metadata, :map, default: %{}
 
     belongs_to :merchant, Merchant
 
@@ -30,8 +30,17 @@ defmodule YagyeCore.Payments.Schemas.Payment do
 
   def changeset(payment, attrs) do
     payment
-    |> cast(attrs, [:merchant_id, :mode, :amount, :currency, :rail, :method,
-                    :merchant_reference, :description, :metadata])
+    |> cast(attrs, [
+      :merchant_id,
+      :mode,
+      :amount,
+      :currency,
+      :rail,
+      :method,
+      :merchant_reference,
+      :description,
+      :metadata
+    ])
     |> validate_required([:merchant_id, :mode, :amount, :currency, :rail])
     |> validate_inclusion(:mode, @valid_modes)
     |> validate_inclusion(:rail, @valid_rails)
@@ -59,7 +68,7 @@ defmodule YagyeCore.Payments.Schemas.Payment do
   defp put_metadata_default(changeset) do
     case get_field(changeset, :metadata) do
       nil -> put_change(changeset, :metadata, %{})
-      _   -> changeset
+      _ -> changeset
     end
   end
 end

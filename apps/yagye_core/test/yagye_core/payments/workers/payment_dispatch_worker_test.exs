@@ -37,7 +37,12 @@ defmodule YagyeCore.Payments.Workers.PaymentDispatchWorkerTest do
 
   test "transitions payment to failed on definite failure", %{payment: payment} do
     expect(MockProviderAdapter, :charge, fn _payment, _attempt, _credential ->
-      {:error, %{error_class: :definite_failure, response_code: "INSUFFICIENT_FUNDS", response_message: nil}}
+      {:error,
+       %{
+         error_class: :definite_failure,
+         response_code: "INSUFFICIENT_FUNDS",
+         response_message: nil
+       }}
     end)
 
     assert {:ok, _} = perform_job(PaymentDispatchWorker, %{payment_id: payment.id}, [])
@@ -67,7 +72,8 @@ defmodule YagyeCore.Payments.Workers.PaymentDispatchWorkerTest do
 
   test "returns retryable error for Oban retry", %{payment: payment} do
     expect(MockProviderAdapter, :charge, fn _payment, _attempt, _credential ->
-      {:error, %{error_class: :retryable_error, response_code: "GATEWAY_ERROR", response_message: nil}}
+      {:error,
+       %{error_class: :retryable_error, response_code: "GATEWAY_ERROR", response_message: nil}}
     end)
 
     assert {:error, :retryable_error} =

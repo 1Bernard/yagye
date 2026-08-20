@@ -40,6 +40,7 @@ defmodule YagyeCore.ComplianceTest do
       merchant = Fixtures.merchant_fixture()
 
       import Ecto.Query
+
       YagyeCore.Repo.update_all(
         from(m in YagyeCore.Merchants.Schemas.Merchant, where: m.id == ^merchant.id),
         set: [onboarding_state: "under_review"]

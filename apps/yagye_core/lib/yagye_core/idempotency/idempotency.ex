@@ -52,7 +52,13 @@ defmodule YagyeCore.Idempotency do
   end
 
   # Marks a claimed key as completed and stores the response for future replays.
-  def complete(idem_key_id, response_status, response_body, resource_type \\ nil, resource_id \\ nil) do
+  def complete(
+        idem_key_id,
+        response_status,
+        response_body,
+        resource_type \\ nil,
+        resource_id \\ nil
+      ) do
     case Repo.get(IdempotencyKey, idem_key_id) do
       nil ->
         {:error, :not_found}

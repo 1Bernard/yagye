@@ -9,14 +9,40 @@ defmodule YagyeCoreWeb.Contracts.Merchants.Merchant do
     description: "A merchant account",
     type: :object,
     properties: %{
-      id: %Schema{type: :string, description: "Public merchant ID", example: "mch_019526ab3e7f7b4fa19b8be26eac7d14"},
+      id: %Schema{
+        type: :string,
+        description: "Public merchant ID",
+        example: "mch_019526ab3e7f7b4fa19b8be26eac7d14"
+      },
       object: %Schema{type: :string, enum: ["merchant"]},
       legal_name: %Schema{type: :string, example: "Acme Payments Ltd"},
       trading_name: %Schema{type: :string, example: "Acme Pay"},
-      country: %Schema{type: :string, description: "ISO 3166-1 alpha-2", minLength: 2, maxLength: 2, example: "GB"},
-      default_currency: %Schema{type: :string, description: "ISO 4217", minLength: 3, maxLength: 3, example: "GBP"},
+      country: %Schema{
+        type: :string,
+        description: "ISO 3166-1 alpha-2",
+        minLength: 2,
+        maxLength: 2,
+        example: "GB"
+      },
+      default_currency: %Schema{
+        type: :string,
+        description: "ISO 4217",
+        minLength: 3,
+        maxLength: 3,
+        example: "GBP"
+      },
       status: %Schema{type: :string, enum: ["registered", "approved", "suspended", "closed"]},
-      onboarding_state: %Schema{type: :string, enum: ["registered", "details_submitted", "under_review", "approved", "rejected", "more_info_required"]},
+      onboarding_state: %Schema{
+        type: :string,
+        enum: [
+          "registered",
+          "details_submitted",
+          "under_review",
+          "approved",
+          "rejected",
+          "more_info_required"
+        ]
+      },
       activity_state: %Schema{type: :string, enum: ["active", "dormant", "suspended"]},
       api_version: %Schema{type: :string, example: "2026-01-01"},
       inserted_at: %Schema{type: :string, format: :"date-time"}

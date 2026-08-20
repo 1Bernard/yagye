@@ -18,8 +18,8 @@ defmodule YagyeCore.Repo.Migrations.CreateProviderCredentials do
     end
 
     create constraint(:provider_credentials, :valid_mode,
-      check: "mode IN ('simulation','sandbox','live')"
-    )
+             check: "mode IN ('simulation','sandbox','live')"
+           )
 
     create unique_index(:provider_credentials, [:provider_id, :merchant_id, :mode])
   end

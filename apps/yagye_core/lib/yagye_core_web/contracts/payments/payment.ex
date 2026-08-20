@@ -15,8 +15,16 @@ defmodule YagyeCoreWeb.Contracts.Payments.Payment do
       currency: %Schema{type: :string, description: "ISO 4217 currency code"},
       state: %Schema{
         type: :string,
-        enum: ["created", "processing", "requires_action", "authorised",
-               "succeeded", "failed", "cancelled", "indeterminate"]
+        enum: [
+          "created",
+          "processing",
+          "requires_action",
+          "authorised",
+          "succeeded",
+          "failed",
+          "cancelled",
+          "indeterminate"
+        ]
       },
       rail: %Schema{type: :string, enum: ["fiat_provider", "internal"]},
       method: %Schema{type: :string, nullable: true},
@@ -29,7 +37,7 @@ defmodule YagyeCoreWeb.Contracts.Payments.Payment do
       "id" => "pay_01JXYZ",
       "object" => "payment",
       "mode" => "simulation",
-      "amount" => 10000,
+      "amount" => 10_000,
       "currency" => "GHS",
       "state" => "created",
       "rail" => "fiat_provider",

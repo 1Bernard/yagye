@@ -24,8 +24,9 @@ defmodule YagyeCore.Repo.Migrations.CreatePaymentAttempts do
 
     create unique_index(:payment_attempts, [:public_id])
     create unique_index(:payment_attempts, [:payment_id, :attempt_number])
+
     create unique_index(:payment_attempts, [:provider_id, :provider_reference],
-      where: "provider_reference IS NOT NULL"
-    )
+             where: "provider_reference IS NOT NULL"
+           )
   end
 end

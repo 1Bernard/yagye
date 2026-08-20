@@ -5,7 +5,10 @@ defmodule YagyeCoreWeb.Controllers.Compliance.ComplianceControllerTest do
 
   setup do
     merchant = Fixtures.merchant_fixture()
-    {_key, raw_key} = Fixtures.api_key_fixture(merchant, %{scopes: ["kyb:write"], mode: "simulation"})
+
+    {_key, raw_key} =
+      Fixtures.api_key_fixture(merchant, %{scopes: ["kyb:write"], mode: "simulation"})
+
     %{merchant: merchant, raw_key: raw_key}
   end
 
@@ -36,7 +39,11 @@ defmodule YagyeCoreWeb.Controllers.Compliance.ComplianceControllerTest do
       assert is_binary(body["onboarding_state"])
     end
 
-    test "returns 422 when business_type is missing", %{conn: conn, merchant: merchant, raw_key: raw_key} do
+    test "returns 422 when business_type is missing", %{
+      conn: conn,
+      merchant: merchant,
+      raw_key: raw_key
+    } do
       resp =
         json_post(conn, raw_key, "/v1/merchants/#{merchant.public_id}/onboarding", %{
           website_url: "https://example.com"
@@ -83,7 +90,11 @@ defmodule YagyeCoreWeb.Controllers.Compliance.ComplianceControllerTest do
   # POST /v1/merchants/:merchant_id/beneficial-owners
   # ──────────────────────────────────────────────────────────────────────────
   describe "POST /v1/merchants/:merchant_id/beneficial-owners" do
-    test "returns 201 with beneficial owner data", %{conn: conn, merchant: merchant, raw_key: raw_key} do
+    test "returns 201 with beneficial owner data", %{
+      conn: conn,
+      merchant: merchant,
+      raw_key: raw_key
+    } do
       subject_ref = Fixtures.pii_vault_fixture()
 
       resp =
@@ -100,7 +111,11 @@ defmodule YagyeCoreWeb.Controllers.Compliance.ComplianceControllerTest do
       assert body["ownership_bps"] == 5000
     end
 
-    test "returns 422 when required fields are missing", %{conn: conn, merchant: merchant, raw_key: raw_key} do
+    test "returns 422 when required fields are missing", %{
+      conn: conn,
+      merchant: merchant,
+      raw_key: raw_key
+    } do
       resp =
         json_post(conn, raw_key, "/v1/merchants/#{merchant.public_id}/beneficial-owners", %{
           ownership_bps: 1000
@@ -164,7 +179,11 @@ defmodule YagyeCoreWeb.Controllers.Compliance.ComplianceControllerTest do
       assert body["kind"] == "incorporation"
     end
 
-    test "returns 422 when required fields are missing", %{conn: conn, merchant: merchant, raw_key: raw_key} do
+    test "returns 422 when required fields are missing", %{
+      conn: conn,
+      merchant: merchant,
+      raw_key: raw_key
+    } do
       resp =
         json_post(conn, raw_key, "/v1/merchants/#{merchant.public_id}/documents", %{
           kind: "id"

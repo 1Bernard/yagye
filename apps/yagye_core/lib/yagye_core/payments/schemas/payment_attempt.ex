@@ -29,9 +29,19 @@ defmodule YagyeCore.Payments.Schemas.PaymentAttempt do
   def changeset(attempt, attrs) do
     attempt
     |> cast(attrs, [
-      :payment_id, :provider_id, :attempt_number, :method,
-      :state, :idempotency_token, :provider_reference, :response_code,
-      :response_message, :error_class, :latency_ms, :dispatched_at, :raw_response
+      :payment_id,
+      :provider_id,
+      :attempt_number,
+      :method,
+      :state,
+      :idempotency_token,
+      :provider_reference,
+      :response_code,
+      :response_message,
+      :error_class,
+      :latency_ms,
+      :dispatched_at,
+      :raw_response
     ])
     |> validate_required([:payment_id, :provider_id, :attempt_number, :idempotency_token])
     |> validate_inclusion(:state, @valid_states)
@@ -50,8 +60,15 @@ defmodule YagyeCore.Payments.Schemas.PaymentAttempt do
 
   def result_changeset(attempt, attrs) do
     attempt
-    |> cast(attrs, [:state, :provider_reference, :response_code, :response_message,
-                    :error_class, :latency_ms, :raw_response])
+    |> cast(attrs, [
+      :state,
+      :provider_reference,
+      :response_code,
+      :response_message,
+      :error_class,
+      :latency_ms,
+      :raw_response
+    ])
     |> validate_inclusion(:state, @valid_states)
   end
 end

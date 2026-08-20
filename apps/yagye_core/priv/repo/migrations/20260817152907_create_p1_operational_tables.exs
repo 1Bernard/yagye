@@ -25,8 +25,8 @@ defmodule YagyeCore.Repo.Migrations.CreateP1OperationalTables do
     create unique_index(:idempotency_keys, [:merchant_id, :key])
 
     create constraint(:idempotency_keys, :valid_state,
-      check: "state IN ('in_progress', 'completed', 'failed')"
-    )
+             check: "state IN ('in_progress', 'completed', 'failed')"
+           )
 
     # Append-only audit log for every inbound API call — including failures.
     # Partitioned monthly in production; the partition is an infrastructure
@@ -35,7 +35,7 @@ defmodule YagyeCore.Repo.Migrations.CreateP1OperationalTables do
       add :id, :uuid, primary_key: true, default: fragment("gen_random_uuid()")
       add :merchant_id, references(:merchants, type: :uuid, on_delete: :restrict)
       add :api_key_id, references(:api_keys, type: :uuid, on_delete: :restrict)
-      add :mode, :"yagye_mode"
+      add :mode, :yagye_mode
       add :method, :text, null: false
       add :path, :text, null: false
       add :api_version, :text
@@ -57,20 +57,23 @@ defmodule YagyeCore.Repo.Migrations.CreateP1OperationalTables do
     create table(:beneficial_owners, primary_key: false) do
       add :id, :uuid, primary_key: true, default: fragment("gen_random_uuid()")
       add :merchant_id, references(:merchants, type: :uuid, on_delete: :restrict), null: false
-      add :subject_ref, references(:pii_vault, column: :subject_ref, type: :uuid, on_delete: :restrict),
-        null: false
+
+      add :subject_ref,
+          references(:pii_vault, column: :subject_ref, type: :uuid, on_delete: :restrict),
+          null: false
+
       add :ownership_bps, :integer
       add :role, :text, null: false
       add :inserted_at, :utc_datetime_usec, null: false
     end
 
     create constraint(:beneficial_owners, :valid_role,
-      check: "role IN ('director', 'ubo', 'both')"
-    )
+             check: "role IN ('director', 'ubo', 'both')"
+           )
 
     create constraint(:beneficial_owners, :ownership_bps_range,
-      check: "ownership_bps IS NULL OR (ownership_bps >= 0 AND ownership_bps <= 10000)"
-    )
+             check: "ownership_bps IS NULL OR (ownership_bps >= 0 AND ownership_bps <= 10000)"
+           )
 
     # KYB documents. Stored in S3 with SSE-KMS; only the s3_key lives here.
     # Statutory AML retention measured from the END of the relationship.
@@ -86,8 +89,8 @@ defmodule YagyeCore.Repo.Migrations.CreateP1OperationalTables do
     end
 
     create constraint(:kyb_documents, :valid_kind,
-      check: "kind IN ('incorporation', 'id', 'proof_of_address', 'bank_confirmation')"
-    )
+             check: "kind IN ('incorporation', 'id', 'proof_of_address', 'bank_confirmation')"
+           )
 
     # Screening hits from sanctions, PEP and adverse media checks.
     # A sanctions match is an absolute bar — there is no code path to approve one.
@@ -113,23 +116,25 @@ defmodule YagyeCore.Repo.Migrations.CreateP1OperationalTables do
     create index(:screening_hits, [:merchant_id, :status])
 
     create constraint(:screening_hits, :valid_subject_type,
-      check: "subject_type IN ('entity', 'director', 'ubo')"
-    )
+             check: "subject_type IN ('entity', 'director', 'ubo')"
+           )
 
     create constraint(:screening_hits, :valid_list_type,
-      check: "list_type IN ('sanctions', 'pep', 'adverse_media')"
-    )
+             check: "list_type IN ('sanctions', 'pep', 'adverse_media')"
+           )
 
     create constraint(:screening_hits, :valid_status,
-      check: "status IN ('open', 'false_positive', 'true_match_cleared', 'true_match_blocked')"
-    )
+             check:
+               "status IN ('open', 'false_positive', 'true_match_cleared', 'true_match_blocked')"
+           )
 
     create constraint(:screening_hits, :disposition_requires_reason,
-      check: "status = 'open' OR disposition_reason IS NOT NULL"
-    )
+             check: "status = 'open' OR disposition_reason IS NOT NULL"
+           )
 
     create constraint(:screening_hits, :sanctions_cannot_be_cleared,
-      check: "list_type != 'sanctions' OR status NOT IN ('false_positive', 'true_match_cleared')"
-    )
+             check:
+               "list_type != 'sanctions' OR status NOT IN ('false_positive', 'true_match_cleared')"
+           )
   end
 end

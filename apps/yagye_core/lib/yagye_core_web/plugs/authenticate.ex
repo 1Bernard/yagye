@@ -47,7 +47,10 @@ defmodule YagyeCoreWeb.Plugs.Authenticate do
   defp halt_unauthorized(conn) do
     conn
     |> put_resp_content_type("application/json")
-    |> send_resp(401, Jason.encode!(%{error: %{code: "unauthorized", message: "Invalid or missing API key"}}))
+    |> send_resp(
+      401,
+      Jason.encode!(%{error: %{code: "unauthorized", message: "Invalid or missing API key"}})
+    )
     |> halt()
   end
 end

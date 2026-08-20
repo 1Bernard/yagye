@@ -29,7 +29,11 @@ defmodule YagyeCore.Payments.ConcurrencyTest do
         Task.async_stream(
           merchants,
           fn m ->
-            Payments.create_payment(m.id, %{amount: 10_000, currency: "GHS", rail: "fiat_provider"})
+            Payments.create_payment(m.id, %{
+              amount: 10_000,
+              currency: "GHS",
+              rail: "fiat_provider"
+            })
           end,
           max_concurrency: 30,
           timeout: 15_000
@@ -37,6 +41,7 @@ defmodule YagyeCore.Payments.ConcurrencyTest do
         |> Enum.to_list()
 
       assert length(results) == 30
+
       assert Enum.all?(results, &match?({:ok, {:ok, _}}, &1)),
              "Some concurrent inserts failed: #{inspect(Enum.reject(results, &match?({:ok, {:ok, _}}, &1)))}"
     end
@@ -54,8 +59,14 @@ defmodule YagyeCore.Payments.ConcurrencyTest do
       payments =
         for _ <- 1..20 do
           merchant = Fixtures.merchant_fixture()
+
           {:ok, {payment, _}} =
-            Payments.create_payment(merchant.id, %{amount: 5_000, currency: "GHS", rail: "fiat_provider"})
+            Payments.create_payment(merchant.id, %{
+              amount: 5_000,
+              currency: "GHS",
+              rail: "fiat_provider"
+            })
+
           payment
         end
 
@@ -63,14 +74,23 @@ defmodule YagyeCore.Payments.ConcurrencyTest do
 
       for payment <- payments do
         updated = Repo.get!(Payment, payment.id)
-        assert updated.state == "succeeded", "Expected succeeded, got #{updated.state} for #{payment.public_id}"
+
+        assert updated.state == "succeeded",
+               "Expected succeeded, got #{updated.state} for #{payment.public_id}"
+
         assert updated.version == 3
 
         {:ok, events} = Payments.list_events(payment.id)
         assert length(events) == 4
 
         event_types = Enum.map(events, & &1.event_type)
-        assert event_types == ["payment.created", "payment.processing", "payment.authorised", "payment.succeeded"]
+
+        assert event_types == [
+                 "payment.created",
+                 "payment.processing",
+                 "payment.authorised",
+                 "payment.succeeded"
+               ]
       end
     end
   end
@@ -84,18 +104,36 @@ defmodule YagyeCore.Payments.ConcurrencyTest do
 
       stub(MockProviderAdapter, :charge, fn _payment, _attempt, _cred ->
         n = Agent.get_and_update(counter, fn c -> {c, c + 1} end)
+
         case rem(n, 3) do
-          0 -> {:ok, %{provider_reference: "gw_ok_#{n}", auth_code: "AUTH"}}
-          1 -> {:error, %{error_class: :definite_failure, response_code: "DO_NOT_HONOR", response_message: nil}}
-          2 -> {:error, %{error_class: :indeterminate, response_code: "timeout", response_message: nil}}
+          0 ->
+            {:ok, %{provider_reference: "gw_ok_#{n}", auth_code: "AUTH"}}
+
+          1 ->
+            {:error,
+             %{
+               error_class: :definite_failure,
+               response_code: "DO_NOT_HONOR",
+               response_message: nil
+             }}
+
+          2 ->
+            {:error,
+             %{error_class: :indeterminate, response_code: "timeout", response_message: nil}}
         end
       end)
 
       payments =
         for _ <- 1..21 do
           merchant = Fixtures.merchant_fixture()
+
           {:ok, {payment, _}} =
-            Payments.create_payment(merchant.id, %{amount: 1_000, currency: "GHS", rail: "fiat_provider"})
+            Payments.create_payment(merchant.id, %{
+              amount: 1_000,
+              currency: "GHS",
+              rail: "fiat_provider"
+            })
+
           payment
         end
 
@@ -120,10 +158,19 @@ defmodule YagyeCore.Payments.ConcurrencyTest do
       payments_and_attempts =
         for _ <- 1..20 do
           merchant = Fixtures.merchant_fixture()
+
           {:ok, {payment, _}} =
-            Payments.create_payment(merchant.id, %{amount: 2_500, currency: "GHS", rail: "fiat_provider"})
+            Payments.create_payment(merchant.id, %{
+              amount: 2_500,
+              currency: "GHS",
+              rail: "fiat_provider"
+            })
+
           {:ok, payment} = Payments.dispatch_payment(payment.id)
-          {:ok, attempt} = Payments.create_attempt(payment, Fixtures.simulator_provider_fixture().id)
+
+          {:ok, attempt} =
+            Payments.create_attempt(payment, Fixtures.simulator_provider_fixture().id)
+
           {payment, attempt}
         end
 
@@ -153,14 +200,29 @@ defmodule YagyeCore.Payments.ConcurrencyTest do
       payments_and_attempts =
         for _ <- 1..20 do
           merchant = Fixtures.merchant_fixture()
+
           {:ok, {payment, _}} =
-            Payments.create_payment(merchant.id, %{amount: 2_500, currency: "GHS", rail: "fiat_provider"})
+            Payments.create_payment(merchant.id, %{
+              amount: 2_500,
+              currency: "GHS",
+              rail: "fiat_provider"
+            })
+
           {:ok, payment} = Payments.dispatch_payment(payment.id)
-          {:ok, attempt} = Payments.create_attempt(payment, Fixtures.simulator_provider_fixture().id)
+
+          {:ok, attempt} =
+            Payments.create_attempt(payment, Fixtures.simulator_provider_fixture().id)
+
           {payment, attempt}
         end
 
-      fail_result = {:error, %{error_class: :definite_failure, response_code: "INSUFFICIENT_FUNDS", response_message: nil}}
+      fail_result =
+        {:error,
+         %{
+           error_class: :definite_failure,
+           response_code: "INSUFFICIENT_FUNDS",
+           response_message: nil
+         }}
 
       results =
         Task.async_stream(

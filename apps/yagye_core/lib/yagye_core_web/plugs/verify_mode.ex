@@ -30,7 +30,10 @@ defmodule YagyeCoreWeb.Plugs.VerifyMode do
       |> send_resp(
         403,
         Jason.encode!(%{
-          error: %{code: "live_mode_not_enabled", message: "Live mode has not been enabled for this merchant"}
+          error: %{
+            code: "live_mode_not_enabled",
+            message: "Live mode has not been enabled for this merchant"
+          }
         })
       )
       |> halt()

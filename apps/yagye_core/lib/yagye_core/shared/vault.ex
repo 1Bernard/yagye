@@ -19,6 +19,7 @@ defmodule YagyeCore.Shared.Vault do
 
   def decrypt(<<iv::binary-12, tag::binary-16, ciphertext::binary>>) do
     key = encryption_key()
+
     case :crypto.crypto_one_time_aead(:aes_256_gcm, key, iv, ciphertext, @aad, tag, false) do
       :error -> {:error, :decryption_failed}
       plaintext -> {:ok, plaintext}
@@ -32,9 +33,8 @@ defmodule YagyeCore.Shared.Vault do
   end
 
   def decrypt_map(binary) do
-    with {:ok, json} <- decrypt(binary),
-         {:ok, map} <- Jason.decode(json) do
-      {:ok, map}
+    with {:ok, json} <- decrypt(binary) do
+      Jason.decode(json)
     end
   end
 

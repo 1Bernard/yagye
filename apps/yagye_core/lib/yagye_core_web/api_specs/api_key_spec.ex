@@ -2,8 +2,8 @@ defmodule YagyeCoreWeb.ApiSpecs.ApiKeySpec do
   @moduledoc false
 
   alias OpenApiSpex.{MediaType, Operation, Parameter, RequestBody, Response, Schema}
-  alias YagyeCoreWeb.Contracts.ErrorResponse
   alias YagyeCoreWeb.Contracts.ApiKeys.{ApiKey, IssueApiKeyRequest}
+  alias YagyeCoreWeb.Contracts.ErrorResponse
 
   defp json(schema), do: %{"application/json" => %MediaType{schema: schema}}
 

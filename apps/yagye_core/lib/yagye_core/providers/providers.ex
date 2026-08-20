@@ -4,8 +4,8 @@ defmodule YagyeCore.Providers do
   import Ecto.Query
 
   alias YagyeCore.Providers.Schemas.{MerchantProviderConnection, Provider, ProviderCredential}
-  alias YagyeCore.Shared.Vault
   alias YagyeCore.Repo
+  alias YagyeCore.Shared.Vault
 
   @simulator_code "simulator"
 
@@ -32,8 +32,8 @@ defmodule YagyeCore.Providers do
       from(c in MerchantProviderConnection,
         where:
           c.merchant_id == ^merchant_id and
-          c.mode == ^mode and
-          c.status == "active",
+            c.mode == ^mode and
+            c.status == "active",
         order_by: [asc: c.priority],
         limit: 1,
         preload: [:provider]
@@ -66,9 +66,9 @@ defmodule YagyeCore.Providers do
       from(c in ProviderCredential,
         where:
           c.provider_id == ^provider_id and
-          c.mode == ^mode and
-          c.active == true and
-          (c.merchant_id == ^merchant_id or is_nil(c.merchant_id)),
+            c.mode == ^mode and
+            c.active == true and
+            (c.merchant_id == ^merchant_id or is_nil(c.merchant_id)),
         order_by: [desc_nulls_last: c.merchant_id],
         limit: 1
       )
@@ -85,9 +85,9 @@ defmodule YagyeCore.Providers do
       from(c in ProviderCredential,
         where:
           c.provider_id == ^provider_id and
-          is_nil(c.merchant_id) and
-          c.mode == ^mode and
-          c.active == true
+            is_nil(c.merchant_id) and
+            c.mode == ^mode and
+            c.active == true
       )
       |> Repo.one()
 

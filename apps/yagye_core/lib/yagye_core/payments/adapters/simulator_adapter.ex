@@ -19,32 +19,42 @@ defmodule YagyeCore.Payments.Adapters.SimulatorAdapter do
       instrument_type: instrument_type(payment.method)
     }
 
-    case Req.post(url("/charges", credential), json: body, headers: auth_headers(credential), receive_timeout: 10_000) do
+    case Req.post(url("/charges", credential),
+           json: body,
+           headers: auth_headers(credential),
+           receive_timeout: 10_000
+         ) do
       {:ok, %Req.Response{status: 200, body: body}} ->
         translate_charge_response(body)
 
       {:ok, %Req.Response{status: status}} ->
-        {:error, %{error_class: :retryable_error, response_code: "http_#{status}", response_message: nil}}
+        {:error,
+         %{error_class: :retryable_error, response_code: "http_#{status}", response_message: nil}}
 
       {:error, %{reason: :timeout}} ->
         {:error, %{error_class: :indeterminate, response_code: "timeout", response_message: nil}}
 
       {:error, _} ->
-        {:error, %{error_class: :indeterminate, response_code: "network_error", response_message: nil}}
+        {:error,
+         %{error_class: :indeterminate, response_code: "network_error", response_message: nil}}
     end
   end
 
   @impl true
   def query_charge(%PaymentAttempt{} = attempt, credential) do
-    case Req.get(url("/charges/#{attempt.provider_reference}", credential), headers: auth_headers(credential)) do
+    case Req.get(url("/charges/#{attempt.provider_reference}", credential),
+           headers: auth_headers(credential)
+         ) do
       {:ok, %Req.Response{status: 200, body: body}} ->
         translate_charge_response(body)
 
       {:ok, %Req.Response{status: 404}} ->
-        {:error, %{error_class: :indeterminate, response_code: "not_found", response_message: nil}}
+        {:error,
+         %{error_class: :indeterminate, response_code: "not_found", response_message: nil}}
 
       {:error, _} ->
-        {:error, %{error_class: :indeterminate, response_code: "network_error", response_message: nil}}
+        {:error,
+         %{error_class: :indeterminate, response_code: "network_error", response_message: nil}}
     end
   end
 
@@ -53,11 +63,12 @@ defmodule YagyeCore.Payments.Adapters.SimulatorAdapter do
   end
 
   defp translate_charge_response(%{"state" => "DECLINED"} = body) do
-    {:error, %{
-      error_class: :definite_failure,
-      response_code: body["decline_code"],
-      response_message: nil
-    }}
+    {:error,
+     %{
+       error_class: :definite_failure,
+       response_code: body["decline_code"],
+       response_message: nil
+     }}
   end
 
   defp translate_charge_response(%{"state" => "PENDING_AUTH"}) do

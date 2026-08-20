@@ -5,7 +5,13 @@ defmodule YagyeCoreWeb.Controllers.Payments.PaymentControllerTest do
 
   setup do
     merchant = Fixtures.merchant_fixture()
-    {_key, raw_key} = Fixtures.api_key_fixture(merchant, %{scopes: ["payments:write", "payments:read"], mode: "simulation"})
+
+    {_key, raw_key} =
+      Fixtures.api_key_fixture(merchant, %{
+        scopes: ["payments:write", "payments:read"],
+        mode: "simulation"
+      })
+
     %{merchant: merchant, raw_key: raw_key}
   end
 
