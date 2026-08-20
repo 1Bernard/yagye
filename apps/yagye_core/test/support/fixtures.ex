@@ -2,6 +2,8 @@ defmodule YagyeCore.Fixtures do
   @moduledoc false
 
   alias YagyeCore.Merchants
+  alias YagyeCore.Providers.Schemas.Provider
+  alias YagyeCore.Repo
 
   def merchant_fixture(attrs \\ %{}) do
     {:ok, {merchant, _}} =
@@ -50,6 +52,23 @@ defmodule YagyeCore.Fixtures do
       )
 
     payment
+  end
+
+  def simulator_provider_fixture do
+    case Repo.get_by(Provider, code: "simulator") do
+      %Provider{} = p ->
+        p
+
+      nil ->
+        %Provider{}
+        |> Provider.changeset(%{
+          code: "simulator",
+          display_name: "Gateway Simulator",
+          adapter_module: "YagyeCore.Payments.Adapters.SimulatorAdapter",
+          active: true
+        })
+        |> Repo.insert!()
+    end
   end
 
   # Returns {api_key, raw_key}. raw_key is only available at creation.

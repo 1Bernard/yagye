@@ -41,6 +41,11 @@ config :phoenix, :json_library, Jason
 # Oban — PostgreSQL-backed job queue.
 # Queues are defined here; workers are added as they are introduced.
 # testing: Oban.Testing is used in tests instead of running real queues.
+config :yagye_core,
+  provider_adapter: YagyeCore.Payments.Adapters.SimulatorAdapter,
+  simulator_base_url: "http://localhost:4100",
+  simulator_api_key: "sim_dev_key"
+
 config :yagye_core, Oban,
   repo: YagyeCore.Repo,
   plugins: [Oban.Plugins.Pruner],

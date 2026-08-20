@@ -1,8 +1,12 @@
 defmodule YagyeCore.PaymentsTest do
   use YagyeCore.DataCase, async: true
 
+  import Mox
+
   alias YagyeCore.{Fixtures, Payments}
   alias YagyeCore.Payments.Workers.PaymentDispatchWorker
+
+  setup :verify_on_exit!
 
   describe "create_payment/2" do
     test "creates payment with valid attrs" do
@@ -127,47 +131,83 @@ defmodule YagyeCore.PaymentsTest do
       assert updated.version == 1
     end
 
+    test "is idempotent — returns ok if already processing" do
+      merchant = Fixtures.merchant_fixture()
+      payment = Fixtures.payment_fixture(merchant)
+      {:ok, _} = Payments.dispatch_payment(payment.id)
+
+      assert {:ok, updated} = Payments.dispatch_payment(payment.id)
+      assert updated.state == "processing"
+    end
+
     test "returns not_found for unknown payment id" do
       assert {:error, :not_found} = Payments.dispatch_payment(Uniq.UUID.uuid7())
     end
   end
 
-  describe "simulate_payment/1" do
-    test "transitions payment through authorised to succeeded" do
+  describe "handle_provider_response/3 — success" do
+    setup do
+      provider = Fixtures.simulator_provider_fixture()
       merchant = Fixtures.merchant_fixture()
       payment = Fixtures.payment_fixture(merchant)
-      {:ok, _} = Payments.dispatch_payment(payment.id)
+      {:ok, payment} = Payments.dispatch_payment(payment.id)
+      {:ok, attempt} = Payments.create_attempt(payment, provider.id)
+      %{payment: payment, attempt: attempt}
+    end
 
-      assert {:ok, updated} = Payments.simulate_payment(payment.id)
+    test "transitions payment to succeeded and writes four events", %{payment: payment, attempt: attempt} do
+      result = {:ok, %{provider_reference: "gw_ref_123", auth_code: "AUTH"}}
+
+      assert {:ok, updated} = Payments.handle_provider_response(payment, attempt, result)
 
       assert updated.state == "succeeded"
       assert updated.version == 3
-    end
-
-    test "writes four events covering the full lifecycle" do
-      merchant = Fixtures.merchant_fixture()
-      payment = Fixtures.payment_fixture(merchant)
-      {:ok, _} = Payments.dispatch_payment(payment.id)
-      {:ok, _} = Payments.simulate_payment(payment.id)
 
       assert {:ok, events} = Payments.list_events(payment.id)
-
       assert length(events) == 4
 
-      event_types = Enum.map(events, & &1.event_type)
-      assert event_types == ["payment.created", "payment.processing", "payment.authorised", "payment.succeeded"]
+      assert Enum.map(events, & &1.event_type) ==
+               ["payment.created", "payment.processing", "payment.authorised", "payment.succeeded"]
 
-      transitions = Enum.map(events, &{&1.from_state, &1.to_state})
-      assert transitions == [
-        {nil, "created"},
-        {"created", "processing"},
-        {"processing", "authorised"},
-        {"authorised", "succeeded"}
-      ]
+      assert Enum.map(events, &{&1.from_state, &1.to_state}) == [
+               {nil, "created"},
+               {"created", "processing"},
+               {"processing", "authorised"},
+               {"authorised", "succeeded"}
+             ]
+    end
+  end
+
+  describe "handle_provider_response/3 — failure" do
+    setup do
+      provider = Fixtures.simulator_provider_fixture()
+      merchant = Fixtures.merchant_fixture()
+      payment = Fixtures.payment_fixture(merchant)
+      {:ok, payment} = Payments.dispatch_payment(payment.id)
+      {:ok, attempt} = Payments.create_attempt(payment, provider.id)
+      %{payment: payment, attempt: attempt}
     end
 
-    test "returns not_found for unknown payment id" do
-      assert {:error, :not_found} = Payments.simulate_payment(Uniq.UUID.uuid7())
+    test "transitions to failed on definite failure", %{payment: payment, attempt: attempt} do
+      result = {:error, %{error_class: :definite_failure, response_code: "DO_NOT_HONOR", response_message: nil}}
+
+      assert {:ok, updated} = Payments.handle_provider_response(payment, attempt, result)
+      assert updated.state == "failed"
+    end
+
+    test "transitions to indeterminate on timeout", %{payment: payment, attempt: attempt} do
+      result = {:error, %{error_class: :indeterminate, response_code: "timeout", response_message: nil}}
+
+      assert {:ok, updated} = Payments.handle_provider_response(payment, attempt, result)
+      assert updated.state == "indeterminate"
+    end
+
+    test "returns retryable error without changing payment state", %{payment: payment, attempt: attempt} do
+      result = {:error, %{error_class: :retryable_error, response_code: "GATEWAY_ERROR", response_message: nil}}
+
+      assert {:error, :retryable_error} = Payments.handle_provider_response(payment, attempt, result)
+      assert {:ok, reloaded} = Payments.get_payment(payment.public_id)
+      assert reloaded.state == "processing"
     end
   end
 

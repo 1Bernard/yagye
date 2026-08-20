@@ -12,8 +12,12 @@ defmodule YagyeCore do
       Shared.RateLimiter,
       Shared.Schema,
       Payments,
+      Payments.ProviderAdapter,
       Payments.Schemas.Payment,
-      Payments.Schemas.PaymentEvent
+      Payments.Schemas.PaymentAttempt,
+      Payments.Schemas.PaymentEvent,
+      Providers,
+      Providers.Schemas.Provider
     ]
 
   @moduledoc """
