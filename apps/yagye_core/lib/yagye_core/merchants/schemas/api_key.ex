@@ -5,7 +5,7 @@ defmodule YagyeCore.Merchants.Schemas.ApiKey do
 
   schema "api_keys" do
     field :public_id, :string
-    field :mode, Yagye.Types.YagyeMode
+    field :mode, YagyeCore.Shared.Types.YagyeMode
     field :kind, :string
     field :key_prefix, :string
     field :secret_hash, :string

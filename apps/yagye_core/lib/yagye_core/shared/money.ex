@@ -1,4 +1,4 @@
-defmodule Yagye.Money do
+defmodule YagyeCore.Shared.Money do
   @moduledoc false
 
   @enforce_keys [:amount, :currency]
@@ -93,38 +93,4 @@ defmodule Yagye.Money do
   end
 
   def from_json(_), do: {:error, :invalid_money}
-end
-
-defmodule Yagye.Money.EctoType do
-  @moduledoc false
-
-  # Ecto.Type for Money stored as a JSONB column.
-  # For the standard two-column pattern (bigint + char(3)), declare two
-  # separate Ecto fields. This type is for JSONB storage and API casting.
-  use Ecto.Type
-
-  @impl true
-  def type, do: :map
-
-  @impl true
-  def cast(%Yagye.Money{} = money), do: {:ok, money}
-
-  def cast(%{"amount" => amount, "currency" => currency})
-      when is_integer(amount) and is_binary(currency) do
-    {:ok, Yagye.Money.new(amount, currency)}
-  end
-
-  def cast(_), do: :error
-
-  @impl true
-  def load(%{"amount" => amount, "currency" => currency})
-      when is_integer(amount) and is_binary(currency) do
-    {:ok, Yagye.Money.new(amount, currency)}
-  end
-
-  def load(_), do: :error
-
-  @impl true
-  def dump(%Yagye.Money{} = money), do: {:ok, Yagye.Money.to_json(money)}
-  def dump(_), do: :error
 end

@@ -317,6 +317,77 @@ Table portal_daily_metrics [headercolor: #1F6B4A] {
   Note: 'VOLUME counters — recomputed hourly from source rather than deduped. Proportionality: a wrong count self-corrects; a wrong amount is a misstatement.'
 }
 
+Table portal_merchants [headercolor: #1A2B4C] {
+  merchant_code text [pk, note: 'mch_01J…']
+  aggregate_version integer [not null]
+  status text [not null, note: 'mirrors core: registered|under_review|approved|active|suspended|terminated|rejected']
+  onboarding_state text [not null]
+  legal_name text [not null]
+  trading_name text [not null]
+  country char(2) [not null]
+  default_currency char(3) [not null]
+  risk_rating text
+  activity_state text [not null]
+  last_event_id text [not null]
+  last_applied_at timestamptz [not null]
+  Note: 'Ops onboarding triage and merchant status without a core API call per row.'
+}
+
+Table portal_disputes [headercolor: #9B3232] {
+  dispute_code text [pk, note: 'dsp_01J…']
+  payment_code text [not null]
+  merchant_code text [not null]
+  mode text [not null]
+  aggregate_version integer [not null]
+  state text [not null, note: 'mirrors core: received|under_review|evidence_submitted|won|lost|accepted|expired']
+  stage text
+  amount bigint [not null]
+  currency char(3) [not null]
+  scheme_reason_code text
+  evidence_due_at timestamptz [note: 'THE field — reminders at 72h/24h/4h; missed deadline is automatic loss']
+  evidence_submitted_at timestamptz
+  outcome text
+  last_event_id text [not null]
+  last_applied_at timestamptz [not null]
+  indexes { (state, evidence_due_at) [note: 'partial: WHERE state NOT IN (won, lost, accepted, expired) — the open dispute queue'] }
+  Note: 'Evidence-deadline queue. Turbo Stream broadcasts on state change.'
+}
+
+Table portal_payouts [headercolor: #1F6B4A] {
+  payout_code text [pk, note: 'pot_01J…']
+  merchant_code text [not null]
+  mode text [not null]
+  aggregate_version integer [not null]
+  state text [not null, note: 'mirrors core: scheduled|validating|reserving|submitted|paid|returned|failed|cancelled']
+  amount bigint [not null]
+  currency char(3) [not null]
+  destination_type text [not null]
+  destination_fingerprint text [not null]
+  scheduled_for date [not null]
+  failure_code text
+  last_event_id text [not null]
+  last_applied_at timestamptz [not null]
+  indexes { (merchant_code, scheduled_for) }
+  Note: 'Merchant payout visibility and ops investigation of failed or returned payouts.'
+}
+
+Table portal_refunds [headercolor: #1F6B4A] {
+  refund_code text [pk, note: 'rfd_01J…']
+  payment_code text [not null]
+  merchant_code text [not null]
+  mode text [not null]
+  aggregate_version integer [not null]
+  state text [not null, note: 'mirrors core: requested|processing|succeeded|failed|indeterminate']
+  amount bigint [not null]
+  currency char(3) [not null]
+  reason text
+  requested_by text [not null]
+  last_event_id text [not null]
+  last_applied_at timestamptz [not null]
+  indexes { (merchant_code, state) [note: 'partial: WHERE state IN (requested, processing) — in-flight refunds'] }
+  Note: 'Merchant refund tracking and ops visibility into stuck or failed refunds.'
+}
+
 Table processed_events [headercolor: #6B7A8D] {
   event_id text [pk]
   consumer text [pk]
@@ -362,9 +433,13 @@ TableGroup workflow_and_audit {
   impersonation_sessions
 }
 TableGroup read_models {
+  portal_merchants
   portal_payments
   portal_settlements
   portal_breaks
+  portal_disputes
+  portal_payouts
+  portal_refunds
   portal_merchant_balances
   portal_daily_metrics
   processed_events

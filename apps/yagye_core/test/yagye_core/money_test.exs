@@ -1,8 +1,8 @@
-defmodule Yagye.MoneyTest do
+defmodule YagyeCore.Shared.MoneyTest do
   use ExUnit.Case, async: true
   use ExUnitProperties
 
-  alias Yagye.Money
+  alias YagyeCore.Shared.Money
 
   # ---------------------------------------------------------------------------
   # Unit tests

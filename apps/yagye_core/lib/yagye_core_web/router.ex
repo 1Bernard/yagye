@@ -38,7 +38,9 @@ defmodule YagyeCoreWeb.Router do
   scope "/v1" do
     pipe_through :v1
 
-    resources "/payments", PaymentController, only: [:create, :show], param: "id"
+    resources "/payments", PaymentController, only: [:create, :show], param: "id" do
+      get "/events", PaymentController, :events
+    end
 
     resources "/merchants", MerchantController, only: [:create, :show] do
       post "/approve", MerchantController, :approve

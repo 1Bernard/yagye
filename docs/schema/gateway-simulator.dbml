@@ -191,6 +191,45 @@ Table gw_webhook_deliveries [headercolor: #9B3232] {
   Note: 'Every distributed-systems failure Yagye must survive is produced from this table on demand.'
 }
 
+Table gw_chargebacks [headercolor: #9B3232] {
+  id uuid [pk]
+  chargeback_ref text [unique, not null, note: 'CB_… — their reference, not ours']
+  charge_id uuid [not null]
+  account_id uuid [not null]
+  amount_minor bigint [not null]
+  currency char(3) [not null]
+  reason_code text [not null, note: 'FRAUD|NOT_RECEIVED|DUPLICATE|NOT_AS_DESCRIBED — the network taxonomy, not ours']
+  stage text [not null, note: 'RETRIEVAL|FIRST_CHARGEBACK|REPRESENTMENT|PRE_ARBITRATION']
+  state text [not null, note: 'RAISED|RESPONDED|WON|LOST']
+  evidence_due_at timestamptz [not null, note: 'the field that makes this dangerous — inject a tight deadline to test the reminder path']
+  outcome text [note: 'WON|LOST — NULL until final']
+  outcome_at timestamptz
+  injected_defect text [note: 'missed_deadline|short_deadline|duplicate_notification — which failure mode is under test']
+  created_at timestamptz [not null]
+  updated_at timestamptz [not null]
+  Note: 'Simulates the chargeback notification the provider sends. Without this table the core dispute lifecycle cannot be tested end-to-end.'
+}
+
+Table gw_disbursements [headercolor: #1F6B4A] {
+  id uuid [pk]
+  disbursement_ref text [unique, not null, note: 'DISB_… — their reference for the payout']
+  account_id uuid [not null]
+  amount_minor bigint [not null]
+  currency char(3) [not null]
+  destination_type text [not null, note: 'BANK|WALLET']
+  destination_ref text [not null, note: 'fake account/msisdn — scenario numbers only']
+  state text [not null, note: 'SUBMITTED|PAID|RETURNED|FAILED']
+  failure_code text [note: 'INVALID_ACCOUNT|LIMIT_EXCEEDED|ACCOUNT_CLOSED']
+  return_reason text [note: 'a payout can bounce DAYS after PAID — inject this to test the re-credit path']
+  paid_at timestamptz
+  returned_at timestamptz [note: 'deliberately settable after paid_at to simulate a delayed return']
+  confirmation_delay_ms integer [not null, note: 'the gap between SUBMITTED and PAID — tests the polling path']
+  injected_defect text [note: 'delayed_confirmation|return_after_paid|silent_failure — which failure mode is under test']
+  created_at timestamptz [not null]
+  updated_at timestamptz [not null]
+  Note: 'Simulates the money-out side. Without this the payout state machine (submitted → paid | returned | failed) cannot be tested against a fake provider.'
+}
+
 Table gw_scenarios [headercolor: #B4531F] {
   id uuid [pk]
   name text [unique, not null]
@@ -231,6 +270,9 @@ Ref: gw_wallet_prompts.charge_id > gw_charges.id
 Ref: gw_captures.charge_id > gw_charges.id
 Ref: gw_incremental_auths.charge_id > gw_charges.id
 Ref: gw_reversals.charge_id > gw_charges.id
+Ref: gw_chargebacks.charge_id > gw_charges.id
+Ref: gw_chargebacks.account_id > gw_accounts.id
+Ref: gw_disbursements.account_id > gw_accounts.id
 Ref: gw_settlement_files.account_id > gw_accounts.id
 Ref: gw_settlement_lines.file_id > gw_settlement_files.id
 Ref: gw_webhook_deliveries.account_id > gw_accounts.id
@@ -244,6 +286,8 @@ TableGroup provider_side {
   gw_captures
   gw_incremental_auths
   gw_reversals
+  gw_chargebacks
+  gw_disbursements
 }
 TableGroup instrument_detail {
   gw_card_data

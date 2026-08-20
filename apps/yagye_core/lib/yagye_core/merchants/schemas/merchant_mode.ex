@@ -7,7 +7,7 @@ defmodule YagyeCore.Merchants.Schemas.MerchantMode do
   @primary_key false
   schema "merchant_modes" do
     belongs_to :merchant, YagyeCore.Merchants.Schemas.Merchant
-    field :mode, Yagye.Types.YagyeMode
+    field :mode, YagyeCore.Shared.Types.YagyeMode
     field :enabled_at, :utc_datetime_usec
   end
 

@@ -2,6 +2,7 @@ defmodule YagyeCore.PaymentsTest do
   use YagyeCore.DataCase, async: true
 
   alias YagyeCore.{Fixtures, Payments}
+  alias YagyeCore.Payments.Workers.PaymentDispatchWorker
 
   describe "create_payment/2" do
     test "creates payment with valid attrs" do
@@ -22,6 +23,19 @@ defmodule YagyeCore.PaymentsTest do
       assert String.starts_with?(payment.public_id, "pay_")
       assert event.event_type == "payment.created"
       assert event.to_state == "created"
+    end
+
+    test "enqueues dispatch worker after creation" do
+      merchant = Fixtures.merchant_fixture()
+
+      assert {:ok, {payment, _event}} =
+               Payments.create_payment(merchant.id, %{
+                 amount: 10_000,
+                 currency: "GHS",
+                 rail: "fiat_provider"
+               })
+
+      assert_enqueued(worker: PaymentDispatchWorker, args: %{payment_id: payment.id})
     end
 
     test "accepts optional fields" do
@@ -99,6 +113,61 @@ defmodule YagyeCore.PaymentsTest do
       assert {:ok, _} = Payments.create_payment(merchant.id, attrs)
       assert {:error, changeset} = Payments.create_payment(merchant.id, attrs)
       assert %{merchant_id: _} = errors_on(changeset)
+    end
+  end
+
+  describe "dispatch_payment/1" do
+    test "transitions payment from created to processing" do
+      merchant = Fixtures.merchant_fixture()
+      payment = Fixtures.payment_fixture(merchant)
+
+      assert {:ok, updated} = Payments.dispatch_payment(payment.id)
+
+      assert updated.state == "processing"
+      assert updated.version == 1
+    end
+
+    test "returns not_found for unknown payment id" do
+      assert {:error, :not_found} = Payments.dispatch_payment(Uniq.UUID.uuid7())
+    end
+  end
+
+  describe "simulate_payment/1" do
+    test "transitions payment through authorised to succeeded" do
+      merchant = Fixtures.merchant_fixture()
+      payment = Fixtures.payment_fixture(merchant)
+      {:ok, _} = Payments.dispatch_payment(payment.id)
+
+      assert {:ok, updated} = Payments.simulate_payment(payment.id)
+
+      assert updated.state == "succeeded"
+      assert updated.version == 3
+    end
+
+    test "writes four events covering the full lifecycle" do
+      merchant = Fixtures.merchant_fixture()
+      payment = Fixtures.payment_fixture(merchant)
+      {:ok, _} = Payments.dispatch_payment(payment.id)
+      {:ok, _} = Payments.simulate_payment(payment.id)
+
+      assert {:ok, events} = Payments.list_events(payment.id)
+
+      assert length(events) == 4
+
+      event_types = Enum.map(events, & &1.event_type)
+      assert event_types == ["payment.created", "payment.processing", "payment.authorised", "payment.succeeded"]
+
+      transitions = Enum.map(events, &{&1.from_state, &1.to_state})
+      assert transitions == [
+        {nil, "created"},
+        {"created", "processing"},
+        {"processing", "authorised"},
+        {"authorised", "succeeded"}
+      ]
+    end
+
+    test "returns not_found for unknown payment id" do
+      assert {:error, :not_found} = Payments.simulate_payment(Uniq.UUID.uuid7())
     end
   end
 

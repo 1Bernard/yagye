@@ -1,6 +1,5 @@
 defmodule YagyeCore do
   use Boundary,
-    deps: [Yagye],
     exports: [
       Merchants,
       Merchants.Schemas.Merchant,
@@ -13,7 +12,8 @@ defmodule YagyeCore do
       Shared.RateLimiter,
       Shared.Schema,
       Payments,
-      Payments.Schemas.Payment
+      Payments.Schemas.Payment,
+      Payments.Schemas.PaymentEvent
     ]
 
   @moduledoc """

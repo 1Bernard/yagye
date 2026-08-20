@@ -15,24 +15,31 @@ defmodule YagyeCoreWeb.Plugs.Authorize do
   import Plug.Conn
 
   @impl Plug
-  def init(opts), do: Keyword.fetch!(opts, :scope)
+  def init(opts) do
+    {Keyword.fetch!(opts, :scope), Keyword.get(opts, :kind)}
+  end
 
   @impl Plug
-  def call(conn, required_scope) do
-    scopes = conn.assigns[:api_key].scopes || []
+  def call(conn, {required_scope, required_kind}) do
+    api_key = conn.assigns[:api_key]
+    scopes = api_key.scopes || []
 
-    if required_scope in scopes or "*" in scopes do
-      conn
-    else
-      conn
-      |> put_resp_content_type("application/json")
-      |> send_resp(
-        403,
-        Jason.encode!(%{
-          error: %{code: "forbidden", message: "API key does not have the required scope: #{required_scope}"}
-        })
-      )
-      |> halt()
+    cond do
+      required_scope not in scopes and "*" not in scopes ->
+        forbidden(conn, "API key does not have the required scope: #{required_scope}")
+
+      required_kind == :secret and api_key.kind != "secret" ->
+        forbidden(conn, "This operation requires a secret API key")
+
+      true ->
+        conn
     end
+  end
+
+  defp forbidden(conn, message) do
+    conn
+    |> put_resp_content_type("application/json")
+    |> send_resp(403, Jason.encode!(%{error: %{code: "forbidden", message: message}}))
+    |> halt()
   end
 end

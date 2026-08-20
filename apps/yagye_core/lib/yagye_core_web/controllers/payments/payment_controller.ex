@@ -14,7 +14,7 @@ defmodule YagyeCoreWeb.Controllers.Payments.PaymentController do
 
   plug CastAndValidate, render_error: ValidationErrorRenderer
   plug Authorize, [scope: "payments:write"] when action in [:create]
-  plug Authorize, [scope: "payments:read"] when action in [:show]
+  plug Authorize, [scope: "payments:read"] when action in [:show, :events]
 
   def open_api_operation(action), do: PaymentSpec.operation(action)
 
@@ -32,6 +32,13 @@ defmodule YagyeCoreWeb.Controllers.Payments.PaymentController do
   def show(conn, %{id: id}) do
     with {:ok, payment} <- Payments.get_payment(id) do
       Response.ok(conn, PaymentJSON.data(payment))
+    end
+  end
+
+  def events(conn, %{id: id}) do
+    with {:ok, payment} <- Payments.get_payment(id),
+         {:ok, events} <- Payments.list_events(payment.id) do
+      Response.ok(conn, PaymentJSON.event_list(events))
     end
   end
 

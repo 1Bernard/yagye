@@ -41,4 +41,20 @@ defmodule YagyeCoreWeb.ApiSpecs.PaymentSpec do
       }
     }
   end
+
+  def operation(:events) do
+    %Operation{
+      tags: ["Payments"],
+      summary: "List payment events",
+      operationId: "PaymentController.events",
+      security: [%{"bearer_auth" => []}],
+      parameters: [
+        %Parameter{name: :id, in: :path, description: "Payment public ID", required: true, schema: %Schema{type: :string}}
+      ],
+      responses: %{
+        200 => %Response{description: "Event list", content: json(%Schema{type: :object})},
+        404 => %Response{description: "Not found", content: json(ErrorResponse)}
+      }
+    }
+  end
 end

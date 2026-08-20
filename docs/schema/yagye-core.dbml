@@ -734,7 +734,7 @@ Table settlement_items [headercolor: #2E4A73] {
 
 Table aggregate_state_events [headercolor: #B4531F] {
   id uuid [pk]
-  aggregate_type text [not null, note: 'settlement|reconciliation_break|merchant|payout|dispute|refund']
+  aggregate_type text [not null, note: 'settlement|reconciliation_break|merchant|payout|dispute|refund|screening_hit|data_subject_request|payout_destination']
   aggregate_id uuid [not null]
   merchant_id uuid [note: 'denormalised — without it an audit query cannot be scoped to a tenant without joining per aggregate type']
   mode yagye_mode [not null]

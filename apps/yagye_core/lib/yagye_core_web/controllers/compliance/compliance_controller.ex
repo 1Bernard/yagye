@@ -13,7 +13,7 @@ defmodule YagyeCoreWeb.Controllers.Compliance.ComplianceController do
   action_fallback YagyeCoreWeb.FallbackController
 
   plug CastAndValidate, render_error: ValidationErrorRenderer
-  plug Authorize, [scope: "kyb:write"] when action in [:submit_onboarding, :add_beneficial_owner, :upload_document]
+  plug Authorize, [scope: "kyb:write", kind: :secret] when action in [:submit_onboarding, :add_beneficial_owner, :upload_document]
 
   def open_api_operation(action), do: ComplianceSpec.operation(action)
 

@@ -46,7 +46,7 @@ defmodule YagyeCore.Payments.Schemas.Payment do
 
   def transition_changeset(payment, to_state) when to_state in @valid_states do
     payment
-    |> change(state: to_state, version: payment.version + 1)
+    |> change(state: to_state)
     |> optimistic_lock(:version)
   end
 

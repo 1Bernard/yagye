@@ -26,6 +26,7 @@ defmodule YagyeCore.DataCase do
       import Ecto.Changeset
       import Ecto.Query
       import YagyeCore.DataCase
+      use Oban.Testing, repo: YagyeCore.Repo
     end
   end
 

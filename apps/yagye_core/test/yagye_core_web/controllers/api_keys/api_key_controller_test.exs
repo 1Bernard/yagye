@@ -53,6 +53,28 @@ defmodule YagyeCoreWeb.Controllers.ApiKeys.ApiKeyControllerTest do
       assert String.length(body["key"]) == 24
     end
 
+    test "returns 403 when a publishable key attempts to issue a key", %{
+      conn: conn,
+      merchant: merchant
+    } do
+      {_key, pub_raw_key} =
+        Fixtures.api_key_fixture(merchant, %{kind: "publishable", scopes: ["api_keys:write"]})
+
+      resp =
+        conn
+        |> with_auth(pub_raw_key)
+        |> put_req_header("content-type", "application/json")
+        |> post("/v1/merchants/#{merchant.public_id}/keys", %{
+          kind: "secret",
+          mode: "simulation",
+          scopes: []
+        })
+
+      assert resp.status == 403
+      body = Jason.decode!(resp.resp_body)
+      assert body["error"]["code"] == "forbidden"
+    end
+
     test "returns 401 without auth", %{conn: conn, merchant: merchant} do
       resp =
         conn

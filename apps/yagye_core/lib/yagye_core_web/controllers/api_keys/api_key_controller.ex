@@ -13,7 +13,7 @@ defmodule YagyeCoreWeb.Controllers.ApiKeys.ApiKeyController do
   action_fallback YagyeCoreWeb.FallbackController
 
   plug CastAndValidate, render_error: ValidationErrorRenderer
-  plug Authorize, [scope: "api_keys:write"] when action in [:create, :delete]
+  plug Authorize, [scope: "api_keys:write", kind: :secret] when action in [:create, :delete]
 
   def open_api_operation(action), do: ApiKeySpec.operation(action)
 

@@ -1,4 +1,4 @@
-defmodule Yagye.Types.YagyeMode do
+defmodule YagyeCore.Shared.Types.YagyeMode do
   @moduledoc false
   use Ecto.Type
 

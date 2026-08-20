@@ -8,7 +8,7 @@ defmodule YagyeCore.Shared.ApiRequest do
   schema "api_requests" do
     field :merchant_id, Uniq.UUID
     field :api_key_id, Uniq.UUID
-    field :mode, Yagye.Types.YagyeMode
+    field :mode, YagyeCore.Shared.Types.YagyeMode
     field :method, :string
     field :path, :string
     field :api_version, :string

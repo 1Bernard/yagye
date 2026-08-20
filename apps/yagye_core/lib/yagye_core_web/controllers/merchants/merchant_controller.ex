@@ -13,9 +13,9 @@ defmodule YagyeCoreWeb.Controllers.Merchants.MerchantController do
   action_fallback YagyeCoreWeb.FallbackController
 
   plug CastAndValidate, render_error: ValidationErrorRenderer
-  plug Authorize, [scope: "merchants:write"] when action in [:create]
-  plug Authorize, [scope: "merchants:read"] when action in [:show]
-  plug Authorize, [scope: "merchants:admin"] when action in [:approve]
+  plug Authorize, [scope: "merchants:write", kind: :secret] when action in [:create]
+  plug Authorize, [scope: "merchants:read",  kind: :secret] when action in [:show]
+  plug Authorize, [scope: "merchants:admin", kind: :secret] when action in [:approve]
 
   def open_api_operation(action), do: MerchantSpec.operation(action)
 

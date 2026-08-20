@@ -1,7 +1,7 @@
 defmodule YagyeCore.Application do
   @moduledoc false
 
-  use Boundary, top_level?: true, deps: [Yagye, YagyeCore, YagyeCoreWeb]
+  use Boundary, top_level?: true, deps: [YagyeCore, YagyeCoreWeb]
   use Application
 
   @impl true
