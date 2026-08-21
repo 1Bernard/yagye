@@ -21,6 +21,7 @@ defmodule YagyeCoreWeb.Router do
 
   alias YagyeCoreWeb.Controllers.ApiKeys.ApiKeyController
   alias YagyeCoreWeb.Controllers.Compliance.ComplianceController
+  alias YagyeCoreWeb.Controllers.Disputes.{DisputeController, RefundController}
   alias YagyeCoreWeb.Controllers.Merchants.MerchantController
   alias YagyeCoreWeb.Controllers.Payments.PaymentController
 
@@ -40,7 +41,12 @@ defmodule YagyeCoreWeb.Router do
 
     resources "/payments", PaymentController, only: [:create, :show], param: "id" do
       get "/events", PaymentController, :events
+      post "/disputes", DisputeController, :create
+      post "/refunds", RefundController, :create
     end
+
+    get "/disputes/:id", DisputeController, :show
+    get "/refunds/:id", RefundController, :show
 
     resources "/merchants", MerchantController, only: [:create, :show] do
       post "/approve", MerchantController, :approve

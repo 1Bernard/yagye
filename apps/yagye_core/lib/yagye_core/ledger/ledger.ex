@@ -3,6 +3,7 @@ defmodule YagyeCore.Ledger do
 
   import Ecto.Query
 
+  alias YagyeCore.Disputes.Schemas.Refund
   alias YagyeCore.Ledger.Schemas.{Account, Balance, Entry, Posting}
   alias YagyeCore.Payments.Schemas.{Payment, PaymentAttempt}
   alias YagyeCore.Repo
@@ -52,6 +53,53 @@ defmodule YagyeCore.Ledger do
     end
   end
 
+  @doc """
+  Posts the "refund_issued" reversal entry when a refund is processed.
+
+  Must be called within the Disputes.create_refund transaction.
+
+  Reverses the original payment_settled entry:
+    Debit  : merchant_payable   — reduce what we owe the merchant (liability ↓)
+    Credit : settlement_pending — reduce what we're owed from provider (asset ↓)
+  """
+  def post_refund(%Payment{} = payment, %PaymentAttempt{} = attempt, %Refund{} = refund) do
+    with {:ok, merchant_account} <-
+           get_or_create_account(%{
+             account_type: "merchant_payable",
+             normal_balance: "credit",
+             scope_type: "merchant",
+             scope_id: payment.merchant_id,
+             currency: payment.currency,
+             mode: payment.mode,
+             allows_negative: false
+           }),
+         {:ok, settlement_account} <-
+           get_or_create_account(%{
+             account_type: "settlement_pending",
+             normal_balance: "debit",
+             scope_type: "provider",
+             scope_id: attempt.provider_id,
+             currency: payment.currency,
+             mode: payment.mode,
+             allows_negative: false
+           }),
+         {:ok, entry} <- insert_refund_entry(payment, refund),
+         {:ok, debit} <-
+           insert_posting(entry, merchant_account, "debit", refund.amount, payment.merchant_id),
+         {:ok, credit} <-
+           insert_posting(
+             entry,
+             settlement_account,
+             "credit",
+             refund.amount,
+             payment.merchant_id
+           ) do
+      apply_balance(merchant_account.id, refund.amount, :debit, debit.id)
+      apply_balance(settlement_account.id, refund.amount, :credit, credit.id)
+      {:ok, entry}
+    end
+  end
+
   def get_balance(account_id) do
     case Repo.get(Balance, account_id) do
       nil -> {:ok, 0}
@@ -81,6 +129,38 @@ defmodule YagyeCore.Ledger do
          ) do
       {:ok, _} ->
         {:ok, Repo.get_by!(Account, code: code)}
+
+      {:error, _} = err ->
+        err
+    end
+  end
+
+  defp insert_refund_entry(%Payment{} = payment, %Refund{} = refund) do
+    now = DateTime.utc_now()
+
+    Entry.changeset(%Entry{}, %{
+      mode: payment.mode,
+      currency: payment.currency,
+      entry_type: "refund_issued",
+      source_type: "refund",
+      source_id: refund.id,
+      description: "Refund issued: #{refund.public_id} for #{payment.public_id}",
+      correlation_id: payment.public_id,
+      effective_at: now,
+      recorded_at: now
+    })
+    |> Repo.insert(
+      on_conflict: :nothing,
+      conflict_target: [:source_type, :source_id, :entry_type]
+    )
+    |> case do
+      {:ok, _} ->
+        {:ok,
+         Repo.get_by!(Entry,
+           source_type: "refund",
+           source_id: refund.id,
+           entry_type: "refund_issued"
+         )}
 
       {:error, _} = err ->
         err

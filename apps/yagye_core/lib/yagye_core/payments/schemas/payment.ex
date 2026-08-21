@@ -6,7 +6,7 @@ defmodule YagyeCore.Payments.Schemas.Payment do
 
   alias YagyeCore.Merchants.Schemas.Merchant
 
-  @valid_states ~w[created processing requires_action authorised succeeded failed cancelled indeterminate]
+  @valid_states ~w[created processing requires_action authorised succeeded failed cancelled indeterminate disputed refunded chargebacked]
   @valid_rails ~w[fiat_provider internal]
   @valid_modes ~w[simulation live]
 

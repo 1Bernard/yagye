@@ -23,7 +23,7 @@ Project yagye {
 
   Conventions
   - Internal PK: uuid (UUIDv7, generated in the application)
-  - Public id:   prefixed ULID, TEXT UNIQUE  (pay_ mch_ stl_ brk_ rfd_ pot_ cks_)
+  - Public id:   prefixed ULID, TEXT UNIQUE  (pay_ mch_ stl_ brk_ rfd_ pot_ cks_ ckt_)
   - Money:       BIGINT minor units + CHAR(3) ISO-4217, adjacent, never NUMERIC
   - Tenancy:     every money-bearing table carries merchant_id AND mode
   - Time:        occurred_at = domain time, recorded_at = system time (bitemporal)
@@ -532,6 +532,7 @@ Table checkout_sessions [headercolor: #1F6B4A] {
   locale text [not null]
   success_url text [not null, note: 'validated at creation — HTTPS in live, registered domain, no private ranges']
   cancel_url text [not null]
+  template_id uuid [note: 'snapshot reference to the published checkout_template at session-open time. NULL when the merchant has no published template — the LiveView checkout falls back to the Yagye default layout. Intentionally NOT updated if the merchant later republishes a different template: a session must render the layout the customer was shown when they arrived.']
   payment_link_id uuid [note: 'set when the session was opened from a link or invoice']
   payment_id uuid [note: 'NULL until the FIRST confirmed method selection']
   metadata jsonb [not null]
@@ -566,6 +567,36 @@ Table checkout_events [headercolor: #6B7A8D] {
   user_agent_hash text
   occurred_at timestamptz [not null]
   Note: 'Funnel telemetry, NOT a domain entity. Partitioned monthly, 12 month retention.'
+}
+
+Table checkout_templates [headercolor: #1F6B4A] {
+  id uuid [pk]
+  public_id text [unique, not null, note: 'ckt_01J...']
+  merchant_id uuid [not null]
+  mode yagye_mode [not null]
+  name text [not null, note: 'merchant-given label shown only in the Rails builder — never rendered to the customer']
+  status text [not null, note: 'draft|published|archived. INVARIANT: at most one published template per (merchant_id, mode) — enforced by partial unique index WHERE status = published. The builder enforces this at the application layer before writing.']
+  theme jsonb [not null, note: 'visual design tokens: {primary_color, background_color, text_color, border_radius, font_family, button_style}. Merged over merchant_checkout_configs.brand_colour at render time — template values win where both are defined. Stored here rather than as columns so the token set can evolve without a migration.']
+  inserted_at timestamptz [not null]
+  updated_at timestamptz [not null]
+  indexes {
+    (merchant_id, mode)
+    (merchant_id, mode, status) [unique, note: 'partial: WHERE status = published']
+  }
+  Note: 'A named layout definition authored in the Rails checkout builder. The LiveView checkout reads the merchant published template at session-open time and renders components in position order. Draft templates are invisible to customers — they can only be previewed via a signed preview token issued by the builder.'
+}
+
+Table checkout_template_components [headercolor: #2E4A73] {
+  id uuid [pk]
+  template_id uuid [not null]
+  component_type text [not null, note: 'order_summary|payment_methods|customer_fields|coupon_input|trust_badges|submit_button. The LiveView checkout renders the matching LiveComponent module for each type. Unknown types are skipped with a warning — forward-compatible.']
+  position integer [not null, note: '1-indexed display order. INVARIANT: positions are dense and unique per template — the builder re-sequences all positions on every drag-drop save, never leaving gaps.']
+  visible boolean [not null, note: 'hidden components are preserved in the template definition but skipped at render time. Allows a merchant to disable a section without losing its config — toggling visible back on restores it exactly as left.']
+  config jsonb [not null, note: 'component-specific overrides keyed by component_type: button copy, field labels, placeholder text, required-field toggles, provider allowlist for payment_methods. Validated against a per-type JSON Schema at write time — the builder rejects unknown keys.']
+  inserted_at timestamptz [not null]
+  updated_at timestamptz [not null]
+  indexes { (template_id, position) [unique] }
+  Note: 'INVARIANT: every published template must have exactly one submit_button component. Enforced at publish time in the application layer — a draft may be structurally incomplete. Deleting a component triggers a position re-sequence on the remaining rows.'
 }
 
 // ─── LEDGER ───────────────────────────────────────────────────────────────
@@ -1075,8 +1106,11 @@ Ref: refunds.payment_id > payments.id
 Ref: disputes.payment_id > payments.id
 Ref: checkout_sessions.merchant_id > merchants.id
 Ref: checkout_sessions.payment_id - payments.id
+Ref: checkout_sessions.template_id > checkout_templates.id
 Ref: checkout_line_items.session_id > checkout_sessions.id
 Ref: checkout_events.session_id > checkout_sessions.id
+Ref: checkout_templates.merchant_id > merchants.id
+Ref: checkout_template_components.template_id > checkout_templates.id [delete: cascade]
 Ref: ledger_postings.entry_id > ledger_entries.id
 Ref: ledger_postings.account_id > ledger_accounts.id
 Ref: ledger_balances.account_id - ledger_accounts.id
@@ -1145,6 +1179,8 @@ TableGroup checkout {
   checkout_sessions
   checkout_line_items
   checkout_events
+  checkout_templates
+  checkout_template_components
   merchant_checkout_configs
 }
 TableGroup ledger {

@@ -2,6 +2,7 @@ defmodule YagyeCore.Fixtures do
   @moduledoc false
 
   alias YagyeCore.Merchants
+  alias YagyeCore.Payments.Schemas.Payment
   alias YagyeCore.Providers.Schemas.{Provider, ProviderCredential}
   alias YagyeCore.Repo
   alias YagyeCore.Shared.Vault
@@ -52,6 +53,12 @@ defmodule YagyeCore.Fixtures do
         Map.merge(%{amount: 10_000, currency: "GHS", rail: "fiat_provider"}, attrs)
       )
 
+    payment
+  end
+
+  def succeeded_payment_fixture(merchant, attrs \\ %{}) do
+    payment = payment_fixture(merchant, attrs)
+    {:ok, payment} = payment |> Payment.transition_changeset("succeeded") |> Repo.update()
     payment
   end
 

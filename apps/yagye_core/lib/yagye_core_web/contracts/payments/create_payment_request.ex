@@ -39,7 +39,8 @@ defmodule YagyeCoreWeb.Contracts.Payments.CreatePaymentRequest do
       "rail" => "fiat_provider",
       "method" => "mobile_money",
       "merchant_reference" => "order_abc123",
-      "description" => "Payment for order #abc123"
+      "description" => "Payment for order #abc123",
+      "metadata" => %{"order_type" => "subscription", "customer_tier" => "gold"}
     }
   })
 end

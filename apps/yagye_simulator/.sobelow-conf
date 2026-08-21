@@ -1,0 +1,4 @@
+[
+  router: "lib/simulator/web/router.ex",
+  verbose: false
+]

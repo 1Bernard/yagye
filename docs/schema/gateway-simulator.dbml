@@ -22,16 +22,29 @@ Table gw_accounts [headercolor: #6B7A8D] {
   id uuid [pk]
   account_ref text [unique, not null, note: 'acct_… — what WE call the Yagye platform']
   display_name text [not null]
-  api_key_hash text [not null]
   webhook_url text [not null]
   webhook_secret text [not null, note: 'plaintext ON PURPOSE — this is the simulator pretending to be a provider, and it must be readable to sign test payloads. Never a pattern to copy.']
+  webhook_signing_algorithm text [not null, note: 'HS256|HS512|SHA256 — real providers differ; merchant integrations must not hardcode the algorithm']
   settlement_cadence text [not null, note: 'daily|t_plus_2|weekly']
   settlement_cutoff_time time [not null]
   settlement_timezone text [not null, note: 'THEIR timezone. The batch-boundary bug lives here.']
   currency char(3) [not null]
   fee_percentage_bps integer [not null]
   fee_fixed_minor bigint [not null]
+  default_scenario_id uuid [note: 'fallback scenario for charges that do not supply one; NULL uses built-in defaults']
   created_at timestamptz [not null]
+}
+
+// api_key_hash moved to gw_api_keys so teams can rotate keys without downtime.
+Table gw_api_keys [headercolor: #6B7A8D] {
+  id uuid [pk]
+  account_id uuid [not null]
+  key_hash text [not null, note: 'SHA-256 of the raw key — simulator only stores the hash']
+  label text [not null, note: 'e.g. "ci-pipeline", "alice-dev-machine" — identifies which key to revoke']
+  active boolean [not null]
+  created_at timestamptz [not null]
+  revoked_at timestamptz [note: 'NULL = active']
+  indexes { (account_id, key_hash) [unique] }
 }
 
 Table gw_charges [headercolor: #1A2B4C] {
@@ -106,9 +119,24 @@ Table gw_wallet_prompts [headercolor: #1F6B4A] {
   msisdn text [not null, note: 'FAKE NUMBERS ONLY — 024000000x scenario range. Not PII, and CI greps for anything outside the range.']
   prompt_state text [not null, note: 'SENT|APPROVED|DECLINED|EXPIRED']
   approval_delay_ms integer [not null, note: 'the "human presses a button" delay — 5s, 90s, or past the timeout']
-  account_name text [note: 'returned by a name enquiry']
+  account_name text [note: 'account name as returned by name enquiry — populated from gw_name_enquiries']
   sent_at timestamptz
   resolved_at timestamptz
+}
+
+// Name enquiry — required by MTN/Telecel/AirtelTigo before initiating a wallet payment.
+// Tests that the caller handles NOT_FOUND, TIMEOUT, and name-mismatch scenarios.
+Table gw_name_enquiries [headercolor: #1F6B4A] {
+  id uuid [pk]
+  charge_id uuid [note: 'NULL if enquiry is a standalone check before charge creation']
+  account_id uuid [not null]
+  network text [not null, note: 'MTN|TELECEL|AIRTELTIGO']
+  msisdn text [not null, note: 'FAKE NUMBERS ONLY — 024000000x range']
+  outcome text [not null, note: 'FOUND|NOT_FOUND|TIMEOUT|NETWORK_ERROR']
+  account_name text [note: 'NULL when outcome is not FOUND']
+  delay_ms integer [not null, note: 'simulates network round-trip; set high to trigger caller timeout handling']
+  queried_at timestamptz [not null]
+  indexes { (account_id, msisdn) }
 }
 
 Table gw_captures [headercolor: #1F6B4A] {
@@ -143,6 +171,25 @@ Table gw_reversals [headercolor: #1F6B4A] {
   currency char(3) [not null]
   state text [not null, note: 'REQUESTED|OK|FAILED']
   created_at timestamptz [not null]
+  Note: 'Pre-settlement void only — charge is AUTHORISED but not yet settled. No money moved; no fee. Do not confuse with gw_refunds, which apply after settlement.'
+}
+
+// Post-settlement refunds — money has already moved, a new credit is initiated.
+// Distinct from gw_reversals (which are pre-settlement voids with no fee).
+Table gw_refunds [headercolor: #1F6B4A] {
+  id uuid [pk]
+  refund_ref text [unique, not null, note: 'RF_… — their reference, not ours']
+  charge_id uuid [not null]
+  account_id uuid [not null]
+  amount_minor bigint [not null, note: 'may be less than charge amount — partial refund']
+  currency char(3) [not null]
+  state text [not null, note: 'REQUESTED|OK|PARTIAL|FAILED']
+  refund_arn text [note: 'ARN for the refund credit — different from the charge ARN; NULL until settlement confirms']
+  fee_minor bigint [not null, note: 'some providers charge a refund processing fee — set to 0 to simulate those that do not']
+  failure_code text [note: 'ORIGINAL_NOT_FOUND|ALREADY_REFUNDED|AMOUNT_EXCEEDS_ORIGINAL|WINDOW_EXPIRED']
+  injected_defect text [note: 'delayed_arn|fee_surprise|partial_only — which failure mode is under test']
+  created_at timestamptz [not null]
+  updated_at timestamptz [not null]
 }
 
 Table gw_settlement_files [headercolor: #2E4A73] {
@@ -199,7 +246,8 @@ Table gw_chargebacks [headercolor: #9B3232] {
   amount_minor bigint [not null]
   currency char(3) [not null]
   reason_code text [not null, note: 'FRAUD|NOT_RECEIVED|DUPLICATE|NOT_AS_DESCRIBED — the network taxonomy, not ours']
-  stage text [not null, note: 'RETRIEVAL|FIRST_CHARGEBACK|REPRESENTMENT|PRE_ARBITRATION']
+  instrument_type text [not null, note: 'CARD|WALLET|BANK — stage vocabulary differs by instrument']
+  stage text [not null, note: 'Card: RETRIEVAL|FIRST_CHARGEBACK|REPRESENTMENT|PRE_ARBITRATION. Wallet (MTN/Telecel/AirtelTigo): RAISED|RESPONDED|ESCALATED — simpler two-party process, no card-network arbitration tier. CARD stages must not be set for WALLET instruments; CI checks this.']
   state text [not null, note: 'RAISED|RESPONDED|WON|LOST']
   evidence_due_at timestamptz [not null, note: 'the field that makes this dangerous — inject a tight deadline to test the reminder path']
   outcome text [note: 'WON|LOST — NULL until final']
@@ -207,7 +255,7 @@ Table gw_chargebacks [headercolor: #9B3232] {
   injected_defect text [note: 'missed_deadline|short_deadline|duplicate_notification — which failure mode is under test']
   created_at timestamptz [not null]
   updated_at timestamptz [not null]
-  Note: 'Simulates the chargeback notification the provider sends. Without this table the core dispute lifecycle cannot be tested end-to-end.'
+  Note: 'Simulates the chargeback notification the provider sends. Card and wallet instruments use different stage vocabularies — do not conflate them.'
 }
 
 Table gw_disbursements [headercolor: #1F6B4A] {
@@ -257,6 +305,7 @@ Table gw_scenarios [headercolor: #B4531F] {
   settlement_discrepancy_rate "numeric(4,3)" [not null]
   settlement_missing_line_rate "numeric(4,3)" [not null]
   fee_drift_bps integer [not null, note: 'charge 1.6% while the plan expects 1.5% — the aggregate-pattern break']
+  is_default boolean [not null, default: false, note: 'exactly one row should be true — the fallback for charges and accounts with no explicit scenario_id. Enforced by a partial unique index: CREATE UNIQUE INDEX ON gw_scenarios (is_default) WHERE is_default = true.']
   created_at timestamptz [not null]
   updated_at timestamptz [not null]
   Note: 'The control plane, editable live from a LiveView admin page. This one table is why the chaos suite is demonstrable in a browser.'
@@ -270,6 +319,8 @@ Ref: gw_wallet_prompts.charge_id > gw_charges.id
 Ref: gw_captures.charge_id > gw_charges.id
 Ref: gw_incremental_auths.charge_id > gw_charges.id
 Ref: gw_reversals.charge_id > gw_charges.id
+Ref: gw_refunds.charge_id > gw_charges.id
+Ref: gw_refunds.account_id > gw_accounts.id
 Ref: gw_chargebacks.charge_id > gw_charges.id
 Ref: gw_chargebacks.account_id > gw_accounts.id
 Ref: gw_disbursements.account_id > gw_accounts.id
@@ -278,14 +329,20 @@ Ref: gw_settlement_lines.file_id > gw_settlement_files.id
 Ref: gw_webhook_deliveries.account_id > gw_accounts.id
 Ref: gw_webhook_deliveries.charge_id > gw_charges.id
 Ref: gw_charges.scenario_id > gw_scenarios.id
+Ref: gw_accounts.default_scenario_id > gw_scenarios.id
+Ref: gw_api_keys.account_id > gw_accounts.id
+Ref: gw_name_enquiries.charge_id > gw_charges.id
+Ref: gw_name_enquiries.account_id > gw_accounts.id
 
 TableGroup provider_side {
   gw_accounts
+  gw_api_keys
   gw_charges
   gw_charge_events
   gw_captures
   gw_incremental_auths
   gw_reversals
+  gw_refunds
   gw_chargebacks
   gw_disbursements
 }
@@ -293,6 +350,7 @@ TableGroup instrument_detail {
   gw_card_data
   gw_three_ds_sessions
   gw_wallet_prompts
+  gw_name_enquiries
 }
 TableGroup settlement_reporting {
   gw_settlement_files

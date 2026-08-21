@@ -14,6 +14,95 @@ defaults:
     working-directory: apps/yagye_core
 
 jobs:
+  commit-standards:
+    name: Commit Standards
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: .
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Lint commit messages (Conventional Commits)
+        run: |
+          # type(scope): description — scope optional, subject ≤ 72 chars
+          PATTERN="^(feat|fix|chore|docs|refactor|test|style|perf|ci|build|revert)(\([a-z0-9/._-]{1,40}\))?: .{1,72}$"
+
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            BASE="${{ github.event.pull_request.base.sha }}"
+            HEAD="${{ github.event.pull_request.head.sha }}"
+            COMMITS=$(git log --format="%s" "$BASE".."$HEAD")
+          else
+            BEFORE="${{ github.event.before }}"
+            AFTER="${{ github.sha }}"
+            if [ "$BEFORE" = "0000000000000000000000000000000000000000" ]; then
+              COMMITS=$(git log --format="%s" -1 "$AFTER")
+            else
+              COMMITS=$(git log --format="%s" "$BEFORE".."$AFTER")
+            fi
+          fi
+
+          FAILED=0
+          while IFS= read -r msg; do
+            [ -z "$msg" ] && continue
+            # Skip merge commits and revert auto-messages
+            echo "$msg" | grep -qE "^Merge (pull request|branch|remote)" && continue
+            if ! echo "$msg" | grep -qE "$PATTERN"; then
+              echo "  FAIL: \"$msg\""
+              echo "        Expected: type(scope): description (≤72 chars)"
+              echo "        Types:    feat|fix|chore|docs|refactor|test|style|perf|ci|build|revert"
+              FAILED=1
+            else
+              echo "  OK:   \"$msg\""
+            fi
+          done <<< "$COMMITS"
+
+          if [ "$FAILED" = "1" ]; then
+            echo ""
+            echo "Reference: https://www.conventionalcommits.org"
+            exit 1
+          fi
+
+      - name: Check for large files (> 500 KB)
+        run: |
+          MAX_BYTES=512000
+
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            BASE="${{ github.event.pull_request.base.sha }}"
+            HEAD="${{ github.event.pull_request.head.sha }}"
+            FILES=$(git diff --name-only --diff-filter=AM "$BASE".."$HEAD")
+          else
+            BEFORE="${{ github.event.before }}"
+            AFTER="${{ github.sha }}"
+            if [ "$BEFORE" = "0000000000000000000000000000000000000000" ]; then
+              FILES=$(git diff --name-only --diff-filter=AM HEAD~1..HEAD 2>/dev/null || git ls-files)
+            else
+              FILES=$(git diff --name-only --diff-filter=AM "$BEFORE".."$AFTER")
+            fi
+          fi
+
+          FAILED=0
+          while IFS= read -r file; do
+            [ -z "$file" ] || [ ! -f "$file" ] && continue
+            SIZE=$(wc -c < "$file")
+            if [ "$SIZE" -gt "$MAX_BYTES" ]; then
+              KB=$(( SIZE / 1024 ))
+              echo "  FAIL: $file (${KB} KB — limit is 500 KB)"
+              FAILED=1
+            else
+              echo "  OK:   $file"
+            fi
+          done <<< "$FILES"
+
+          if [ "$FAILED" = "1" ]; then
+            echo ""
+            echo "Large binaries and assets must use Git LFS."
+            echo "See: https://git-lfs.github.com"
+            exit 1
+          fi
+
   ci:
     name: Format · Credo · Sobelow · Dialyzer · Test
     runs-on: ubuntu-latest
