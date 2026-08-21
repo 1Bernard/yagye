@@ -6,6 +6,8 @@ defmodule YagyeCore.Payments.Schemas.PaymentAttempt do
 
   @valid_states ~w[created dispatched succeeded failed timed_out resolution_pending abandoned]
 
+  @type t :: %__MODULE__{}
+
   schema "payment_attempts" do
     field :public_id, :string
     field :attempt_number, :integer

@@ -10,6 +10,5 @@
 [
   ~r/ExUnit\.Callbacks\.__/,
   ~r/ExUnit\.CaseTemplate\.__/,
-  ~r/ExUnit\.Callbacks\.on_exit/,
-  ~r/deps\/phoenix\/lib\/phoenix\/router\.ex/
+  ~r/ExUnit\.Callbacks\.on_exit/
 ]

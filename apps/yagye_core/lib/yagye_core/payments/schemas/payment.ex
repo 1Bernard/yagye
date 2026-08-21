@@ -10,6 +10,8 @@ defmodule YagyeCore.Payments.Schemas.Payment do
   @valid_rails ~w[fiat_provider internal]
   @valid_modes ~w[simulation live]
 
+  @type t :: %__MODULE__{}
+
   schema "payments" do
     field :public_id, :string
     field :mode, :string
