@@ -40,6 +40,7 @@ defmodule Simulator.MixProject do
       {:oban, "~> 2.23"},
       {:req, "~> 0.5"},
       {:open_api_spex, "~> 3.21"},
+      {:logger_json, "~> 7.0"},
       {:credo, "~> 1.7", only: [:dev, :test], runtime: false},
       {:sobelow, "~> 0.14", only: [:dev, :test], runtime: false, warn_if_outdated: true}
     ]

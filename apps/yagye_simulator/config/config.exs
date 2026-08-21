@@ -21,9 +21,8 @@ config :simulator, Oban,
   repo: Simulator.Repo,
   queues: [webhooks: 5, wallet_prompts: 10]
 
-config :logger, :console,
-  format: "$time $metadata[$level] $message\n",
-  metadata: [:request_id]
+config :logger, :default_handler,
+  formatter: {LoggerJSON.Formatters.Basic, metadata: [:request_id]}
 
 config :phoenix, :json_library, Jason
 

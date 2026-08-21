@@ -11,7 +11,7 @@ defmodule Simulator.Web.Endpoint do
   socket "/live", Phoenix.LiveView.Socket, websocket: [connect_info: [session: @session_options]]
 
   plug Plug.RequestId
-  plug Plug.Logger
+  plug Simulator.Web.Plugs.CorrelationId
 
   plug Plug.Parsers,
     parsers: [:urlencoded, :multipart, :json],
