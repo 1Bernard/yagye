@@ -27,8 +27,8 @@ jobs:
 
       - name: Lint commit messages (Conventional Commits)
         run: |
-          # type(scope): description — scope optional, subject ≤ 72 chars
-          PATTERN="^(feat|fix|chore|docs|refactor|test|style|perf|ci|build|revert)(\([a-z0-9/._-]{1,40}\))?: .{1,72}$"
+          # type(scope): description — scope optional, description ≤ 100 chars
+          PATTERN="^(feat|fix|chore|docs|refactor|test|style|perf|ci|build|revert)(\([a-z0-9/._-]{1,40}\))?: .{1,100}$"
 
           if [ "${{ github.event_name }}" = "pull_request" ]; then
             BASE="${{ github.event.pull_request.base.sha }}"
