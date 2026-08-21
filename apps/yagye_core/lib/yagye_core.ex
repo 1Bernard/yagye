@@ -28,7 +28,8 @@ defmodule YagyeCore do
       Ledger.Schemas.Account,
       Ledger.Schemas.Entry,
       Ledger.Schemas.Posting,
-      Ledger.Schemas.Balance
+      Ledger.Schemas.Balance,
+      Repo
     ]
 
   @moduledoc """
