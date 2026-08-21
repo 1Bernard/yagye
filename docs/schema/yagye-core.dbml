@@ -279,6 +279,45 @@ Table merchant_provider_connections [headercolor: #6B7A8D] {
   indexes { (merchant_id, provider_id, mode) [unique] }
 }
 
+// ─── ROUTING RULES ────────────────────────────────────────────────────────
+
+Table routing_rules [headercolor: #2E4A73] {
+  id uuid [pk]
+  scope text [not null, note: 'platform|merchant. platform = Yagye ops-managed, merchant_id NULL, applies to all merchants without their own override. merchant = enterprise override, merchant_id set, only accessible when merchants.entitlements includes routing_rules_override:true.']
+  merchant_id uuid [note: 'NULL for platform-scope rules (managed by Yagye ops). Set for merchant-scope overrides — large enterprise accounts only, unlocked via entitlements.']
+  mode yagye_mode [not null]
+  name text [not null, note: 'label shown in the Yagye ops portal (platform scope) or the enterprise merchant portal (merchant scope)']
+  priority integer [not null, note: 'lower wins within scope. Platform rules are evaluated AFTER merchant-scope rules — a merchant override always wins.']
+  active boolean [not null]
+  inserted_at timestamptz [not null]
+  updated_at timestamptz [not null]
+  indexes {
+    (scope, merchant_id, mode, priority) [unique, note: 'platform rules: merchant_id IS NULL. merchant rules: merchant_id IS NOT NULL. NULLS DISTINCT keeps the two namespaces separate.']
+  }
+  Note: 'INTERNAL / ENTERPRISE ONLY. Standard merchants never see this — their accepted payment methods are configured via checkout_template_components.config.provider_allowlist (the simple toggle). This table is for Yagye ops configuring platform-wide routing policy, and for large enterprise merchants who have negotiated custom routing (e.g. prefer MTN for cost reasons). providers referenced here are Yagye direct integrations (MTN, Telecel, AirtelTigo, card acquirers) — never third-party PSPs.'
+}
+
+Table routing_rule_conditions [headercolor: #2E4A73] {
+  id uuid [pk]
+  rule_id uuid [not null]
+  field text [not null, note: 'method|currency|amount_min|amount_max|card_brand|card_funding|country|risk_score|customer_dispute_count|provider_health']
+  operator text [not null, note: 'eq|neq|gt|gte|lt|lte|in|not_in']
+  value jsonb [not null, note: 'scalar or array depending on operator. jsonb to support heterogeneous types without a columns explosion — a string eq and an amount gte live in the same table.']
+  position integer [not null, note: 'AND semantics — every condition in a rule must match. Ordered for display in the builder.']
+  inserted_at timestamptz [not null]
+  indexes { (rule_id, position) [unique] }
+}
+
+Table routing_rule_actions [headercolor: #2E4A73] {
+  id uuid [pk]
+  rule_id uuid [not null]
+  provider_id uuid [not null]
+  priority integer [not null, note: 'within-rule fallback ordering — if the first provider is degraded, try the next in sequence']
+  inserted_at timestamptz [not null]
+  indexes { (rule_id, priority) [unique] }
+  Note: 'Every rule names at least one provider. If ALL named providers are degraded the charge fails — it does NOT fall through to the next rule. Design an explicit catch-all rule if you want a true fallback.'
+}
+
 // ─── PAYMENTS ─────────────────────────────────────────────────────────────
 
 Table payments [headercolor: #1A2B4C] {
@@ -1090,6 +1129,10 @@ Ref: provider_credentials.provider_id > providers.id
 Ref: provider_credentials.merchant_id > merchants.id
 Ref: merchant_provider_connections.merchant_id > merchants.id
 Ref: merchant_provider_connections.provider_id > providers.id
+Ref: routing_rules.merchant_id > merchants.id
+Ref: routing_rule_conditions.rule_id > routing_rules.id
+Ref: routing_rule_actions.rule_id > routing_rules.id
+Ref: routing_rule_actions.provider_id > providers.id
 Ref: payments.merchant_id > merchants.id
 Ref: payments.customer_subject_ref > pii_vault.subject_ref
 Ref: payment_attempts.payment_id > payments.id
@@ -1157,6 +1200,9 @@ TableGroup providers_acl {
   providers
   provider_credentials
   merchant_provider_connections
+  routing_rules
+  routing_rule_conditions
+  routing_rule_actions
 }
 TableGroup payments_core {
   payments

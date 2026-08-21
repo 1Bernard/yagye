@@ -388,6 +388,111 @@ Table portal_refunds [headercolor: #1F6B4A] {
   Note: 'Merchant refund tracking and ops visibility into stuck or failed refunds.'
 }
 
+// ─── PLATFORM FINANCE (internal Yagye ops only — never merchant-visible) ──
+
+Table portal_platform_daily_metrics [headercolor: #9B3232] {
+  day date [pk]
+  currency char(3) [pk]
+  mode text [pk]
+  transaction_count integer [not null]
+  gross_volume bigint [not null, note: 'total customer-facing payment volume for the day']
+  platform_revenue bigint [not null, note: 'SUM of fee_records WHERE party = platform — what merchants paid us']
+  provider_cost bigint [not null, note: 'SUM of fee_records WHERE party = provider — what networks charged us']
+  gross_margin bigint [not null, note: 'platform_revenue - provider_cost. GENERATED column in practice; stored here as a denormalisation.']
+  refund_volume bigint [not null]
+  dispute_count integer [not null]
+  dispute_value bigint [not null]
+  chargeback_reserve_drawn bigint [not null, note: 'reserves consumed by chargebacks — reduces what we can pay out']
+  last_applied_at timestamptz [not null]
+  Note: 'Internal Yagye finance dashboard only. NOT exposed to merchants. Recomputed hourly from fee_records — same proportionality argument as portal_daily_metrics: a wrong count self-corrects, a wrong amount is a misstatement.'
+}
+
+Table portal_platform_provider_costs [headercolor: #9B3232] {
+  day date [pk]
+  provider_code text [pk]
+  currency char(3) [pk]
+  mode text [pk]
+  transaction_count integer [not null]
+  gross_volume bigint [not null]
+  provider_cost bigint [not null, note: 'what this specific network charged us today']
+  average_fee_bps integer [not null, note: 'effective rate in basis points — drift here signals a contract violation or a fee schedule change we have not been told about']
+  last_applied_at timestamptz [not null]
+  Note: 'Provider cost breakdown by network. Feeds the unit economics view — which network is most expensive relative to the volume it processes. Also the early-warning signal for provider fee schedule changes.'
+}
+
+Table portal_api_keys [headercolor: #2E4A73] {
+  key_id uuid [pk, note: 'mirrors api_keys.id in core — not a FK across databases, a reference']
+  merchant_code text [not null]
+  mode text [not null]
+  kind text [not null, note: 'publishable|secret']
+  key_prefix text [not null, note: 'first 24 chars — shown in UI. Never the raw key or its hash.']
+  scopes "text[]" [not null]
+  last_used_at timestamptz
+  revoked_at timestamptz
+  expires_at timestamptz
+  created_by text
+  last_event_id text [not null]
+  last_applied_at timestamptz [not null]
+  indexes { (merchant_code, mode) }
+  Note: 'Developer console: API key list without hitting core. Revocation is a command to core — the portal sends the mutation, not the portal_api_keys table.'
+}
+
+Table portal_webhook_endpoints [headercolor: #2E4A73] {
+  endpoint_id uuid [pk]
+  merchant_code text [not null]
+  mode text [not null]
+  url text [not null]
+  subscribed_events "text[]" [not null]
+  active boolean [not null]
+  consecutive_failures integer [not null]
+  disabled_at timestamptz [note: 'auto-disabled after 50 consecutive failures — shown as a banner in the developer console']
+  last_event_id text [not null]
+  last_applied_at timestamptz [not null]
+  indexes { (merchant_code, mode) }
+  Note: 'Developer console: webhook endpoint list. Endpoint registration and deletion are commands to core — portal renders the result.'
+}
+
+Table portal_webhook_deliveries [headercolor: #6B7A8D] {
+  delivery_id uuid [pk]
+  endpoint_id uuid [not null]
+  merchant_code text [not null]
+  event_type text [not null]
+  state text [not null, note: 'pending|delivering|delivered|failed|exhausted']
+  response_status integer
+  attempt integer [not null]
+  delivered_at timestamptz
+  last_applied_at timestamptz [not null]
+  indexes { (endpoint_id, last_applied_at) }
+  Note: 'Recent delivery log in the developer console. Aged out after 30 days — core is the record of truth. Turbo Stream broadcasts on state change so the merchant sees failures in real time.'
+}
+
+Table portal_kyb_documents [headercolor: #B4531F] {
+  doc_id uuid [pk, note: 'mirrors kyb_documents.id in core']
+  merchant_code text [not null]
+  kind text [not null, note: 'incorporation|id|proof_of_address|bank_confirmation']
+  uploaded_by text [not null]
+  scanned_at timestamptz [note: 'NULL = not yet virus-scanned; ops cannot view the document until this is set']
+  last_event_id text [not null]
+  last_applied_at timestamptz [not null]
+  indexes { (merchant_code) }
+  Note: 'Ops document review queue. The document body is in S3 — this is metadata only. Ops clicks through to a presigned URL issued by core.'
+}
+
+Table portal_screening_hits [headercolor: #9B3232] {
+  hit_id uuid [pk, note: 'mirrors screening_hits.id in core']
+  merchant_code text [not null]
+  subject_type text [not null, note: 'entity|director|ubo']
+  list_type text [not null, note: 'sanctions|pep|adverse_media']
+  matched_name text [not null, note: '[PII]']
+  match_score "numeric(4,3)" [not null]
+  status text [not null, note: 'open|false_positive|true_match_cleared|true_match_blocked']
+  dispositioned_at timestamptz
+  last_event_id text [not null]
+  last_applied_at timestamptz [not null]
+  indexes { (merchant_code, status) [note: 'partial: WHERE status = open — the open hits queue'] }
+  Note: 'Compliance review queue. A sanctions match is an absolute bar — the portal can display it but a disposition on a sanctions hit is a core command that must pass the same guard. Turbo Stream broadcasts on new hit so an ops manager is notified immediately.'
+}
+
 Table processed_events [headercolor: #6B7A8D] {
   event_id text [pk]
   consumer text [pk]
@@ -443,4 +548,17 @@ TableGroup read_models {
   portal_merchant_balances
   portal_daily_metrics
   processed_events
+}
+TableGroup platform_finance {
+  portal_platform_daily_metrics
+  portal_platform_provider_costs
+}
+TableGroup developer_console {
+  portal_api_keys
+  portal_webhook_endpoints
+  portal_webhook_deliveries
+}
+TableGroup compliance_review {
+  portal_kyb_documents
+  portal_screening_hits
 }
