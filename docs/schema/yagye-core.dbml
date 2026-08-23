@@ -979,7 +979,7 @@ Table settlements [headercolor: #1A2B4C] {
 Table settlement_items [headercolor: #2E4A73] {
   id uuid [pk]
   settlement_id uuid [not null]
-  source_type text [not null, note: 'payment_capture|refund|chargeback|adjustment|fee — settlement matches CAPTURES, not payments, because a partially captured payment settles for the captured amount only']
+  source_type text [not null, note: 'payment_attempt (P12 interim)|payment_capture (P16+)|refund|chargeback|adjustment|fee — settlement will match CAPTURES once P16 lands; until then payment_attempt is the source. A partially captured payment settles for the captured amount only.']
   source_id uuid [not null]
   gross_amount bigint [not null]
   provider_fee bigint [not null]
@@ -1030,6 +1030,28 @@ Table merchant_reserves [headercolor: #B4531F] {
   inserted_at timestamptz [not null]
   updated_at timestamptz [not null]
   Note: 'Released FIFO by hold date. Drawn BEFORE payable on a chargeback. Derived from risk_rating.'
+}
+
+Table reserve_holds [headercolor: #B4531F] {
+  id uuid [pk]
+  merchant_id uuid [not null]
+  reserve_id uuid [not null, note: 'which policy created this hold']
+  payment_id uuid [not null, note: 'the payment that triggered the hold']
+  amount bigint [not null, note: '[FIN] minor units held back from merchant_payable']
+  currency char(3) [not null]
+  mode yagye_mode [not null]
+  state text [not null, note: 'pending|released|drawn']
+  held_at timestamptz [not null]
+  release_at timestamptz [not null, note: 'held_at + hold_days. FIFO release scans this.']
+  released_at timestamptz
+  drawn_at timestamptz [note: 'set when a chargeback draws this hold before release_at']
+  draw_source_id uuid [note: 'dispute or chargeback that triggered draw']
+  inserted_at timestamptz [not null]
+  indexes {
+    (merchant_id, state, release_at) [note: 'the FIFO release worker scan']
+    (payment_id) [note: 'lookup holds for a given payment']
+  }
+  Note: 'One row per per-payment reserve hold. Enables FIFO release by release_at and chargeback draw against specific holds. The ledger carries the actual balance; this table is the release schedule.'
 }
 
 Table momo_float_balances [headercolor: #B4531F] {
@@ -1354,6 +1376,9 @@ Ref: settlements.reconciliation_run_id > reconciliation_runs.id
 Ref: settlement_items.settlement_id > settlements.id
 Ref: payouts.merchant_id > merchants.id
 Ref: merchant_reserves.merchant_id > merchants.id
+Ref: reserve_holds.merchant_id > merchants.id
+Ref: reserve_holds.reserve_id > merchant_reserves.id
+Ref: reserve_holds.payment_id > payments.id
 Ref: momo_float_balances.ledger_account_id > ledger_accounts.id
 Ref: provider_settlement_reports.provider_id > providers.id
 Ref: provider_report_lines.report_id > provider_settlement_reports.id
@@ -1443,7 +1468,9 @@ TableGroup settlement_and_payout {
   settlements
   settlement_items
   payouts
+  payout_destinations
   merchant_reserves
+  reserve_holds
   momo_float_balances
 }
 TableGroup reconciliation {
@@ -1593,7 +1620,7 @@ Table payout_destinations [headercolor: #9B3232] {
   mode yagye_mode [not null]
   kind text [not null, note: 'bank|mobile_money']
   currency char(3) [not null]
-  account_details_encrypted bytea [not null, note: '[SEC] KMS envelope']
+  account_details_encrypted bytea [not null, note: '[SEC] AES-256-GCM via Vault module (P12). KMS envelope deferred to P21 — migrate at that point.']
   fingerprint text [not null, note: 'hash of the account details — a CHANGE triggers a 24h payout hold and notifies every owner']
   account_name_verified text [note: 'from a name-enquiry or bank verification']
   verification_state text [not null, note: 'unverified|micro_deposit_sent|verified|failed']
