@@ -106,12 +106,13 @@ defmodule YagyeCore.Payments.PaymentsTest do
       assert %{rail: _} = errors_on(changeset)
     end
 
-    test "returns not_found when merchant does not exist" do
-      assert {:error, :not_found} =
+    test "returns error when merchant does not exist" do
+      assert {:error, :merchant_not_found} =
                Payments.create_payment(Uniq.UUID.uuid7(), %{
                  amount: 100,
                  currency: "GHS",
-                 rail: "fiat_provider"
+                 rail: "fiat_provider",
+                 method: "mobile_money"
                })
     end
 

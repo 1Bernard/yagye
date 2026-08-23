@@ -39,13 +39,11 @@ defmodule YagyeCore.Customers.VelocityChecker do
   # ── Private ──────────────────────────────────────────────────────────────────
 
   defp load_merchant_risk(merchant_id) do
-    risk =
-      from(m in Merchant, where: m.id == ^merchant_id, select: m.risk_rating)
-      |> Repo.one()
-
-    case risk do
+    from(m in Merchant, where: m.id == ^merchant_id, select: {m.id, m.risk_rating})
+    |> Repo.one()
+    |> case do
       nil -> {:error, :merchant_not_found}
-      r -> {:ok, r || "medium"}
+      {_id, risk} -> {:ok, risk || "medium"}
     end
   end
 

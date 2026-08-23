@@ -6,6 +6,8 @@ defmodule YagyeCore.Payments do
   import Ecto.Query
 
   alias Ecto.Multi
+  alias YagyeCore.Customers
+  alias YagyeCore.Customers.VelocityChecker
   alias YagyeCore.Ledger
   alias YagyeCore.Merchants.Schemas.Merchant
   alias YagyeCore.Outbox
@@ -17,7 +19,12 @@ defmodule YagyeCore.Payments do
   # ── Public API ───────────────────────────────────────────────────────────────
 
   def create_payment(merchant_id, attrs) do
-    with {:ok, {payment, event}} <- insert_payment(merchant_id, attrs),
+    customer_ref = Map.get(attrs, :customer_reference) || Map.get(attrs, "customer_reference")
+
+    with {:ok, customer_id} <- resolve_customer(merchant_id, customer_ref),
+         :ok <- check_velocity(merchant_id, customer_id, attrs),
+         {:ok, {payment, event}} <-
+           insert_payment(merchant_id, Map.put(attrs, :customer_id, customer_id)),
          {:ok, _job} <- PaymentDispatchWorker.new(%{payment_id: payment.id}) |> Oban.insert() do
       {:ok, {payment, event}}
     end
@@ -253,6 +260,22 @@ defmodule YagyeCore.Payments do
   end
 
   # ── Private ──────────────────────────────────────────────────────────────────
+
+  defp resolve_customer(_merchant_id, nil), do: {:ok, nil}
+
+  defp resolve_customer(merchant_id, customer_ref) do
+    case Customers.find_or_create(merchant_id, customer_ref, %{}) do
+      {:ok, customer} -> {:ok, customer.id}
+      error -> error
+    end
+  end
+
+  defp check_velocity(merchant_id, customer_id, attrs) do
+    amount = Map.get(attrs, :amount) || Map.get(attrs, "amount")
+    method = Map.get(attrs, :method) || Map.get(attrs, "method")
+    currency = Map.get(attrs, :currency) || Map.get(attrs, "currency")
+    VelocityChecker.check(merchant_id, customer_id, amount, method, currency)
+  end
 
   defp insert_payment(merchant_id, attrs) do
     Multi.new()

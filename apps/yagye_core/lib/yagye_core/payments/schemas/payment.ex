@@ -4,6 +4,7 @@ defmodule YagyeCore.Payments.Schemas.Payment do
   use YagyeCore.Shared.Schema
   import Ecto.Changeset
 
+  alias YagyeCore.Customers.Schemas.Customer
   alias YagyeCore.Merchants.Schemas.Merchant
 
   @valid_states ~w[created processing requires_action authorised succeeded failed cancelled indeterminate disputed refunded chargebacked]
@@ -27,6 +28,7 @@ defmodule YagyeCore.Payments.Schemas.Payment do
     field :settlement_batch_id, :binary_id
 
     belongs_to :merchant, Merchant
+    belongs_to :customer, Customer
 
     timestamps()
   end
@@ -35,6 +37,7 @@ defmodule YagyeCore.Payments.Schemas.Payment do
     payment
     |> cast(attrs, [
       :merchant_id,
+      :customer_id,
       :mode,
       :amount,
       :currency,
