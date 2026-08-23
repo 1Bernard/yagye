@@ -3,6 +3,7 @@ defmodule YagyeCore.Payments do
 
   import Ecto.Query
 
+  alias YagyeCore.Events
   alias YagyeCore.Ledger
   alias YagyeCore.Merchants.Schemas.Merchant
   alias YagyeCore.Payments.Schemas.{Payment, PaymentAttempt, PaymentEvent}
@@ -59,8 +60,16 @@ defmodule YagyeCore.Payments do
            {:ok, payment} <- transition(payment, "authorised"),
            {:ok, _event} <-
              insert_event(payment, "payment.authorised", "processing", "authorised"),
+           {:ok, _msg} <- Events.emit(payment, "payment.authorised", %{}),
            {:ok, payment} <- transition(payment, "succeeded"),
            {:ok, _event} <- insert_event(payment, "payment.succeeded", "authorised", "succeeded"),
+           {:ok, _msg} <-
+             Events.emit(payment, "payment.succeeded", %{
+               provider_code: result[:provider_code],
+               amount: payment.amount,
+               currency: payment.currency,
+               net_amount: payment.amount
+             }),
            {:ok, _entry} <- Ledger.post_payment_settled(payment, attempt) do
         payment
       else
@@ -85,7 +94,13 @@ defmodule YagyeCore.Payments do
              })
              |> Repo.update(),
            {:ok, payment} <- transition(payment, "failed"),
-           {:ok, _event} <- insert_event(payment, "payment.failed", "processing", "failed") do
+           {:ok, _event} <- insert_event(payment, "payment.failed", "processing", "failed"),
+           {:ok, _msg} <-
+             Events.emit(payment, "payment.failed", %{
+               error_class: Atom.to_string(err.error_class),
+               response_code: err.response_code,
+               currency: payment.currency
+             }) do
         payment
       else
         {:error, reason} -> Repo.rollback(reason)
@@ -109,7 +124,12 @@ defmodule YagyeCore.Payments do
              |> Repo.update(),
            {:ok, payment} <- transition(payment, "indeterminate"),
            {:ok, _event} <-
-             insert_event(payment, "payment.indeterminate", "processing", "indeterminate") do
+             insert_event(payment, "payment.indeterminate", "processing", "indeterminate"),
+           {:ok, _msg} <-
+             Events.emit(payment, "payment.indeterminate", %{
+               response_code: err.response_code,
+               currency: payment.currency
+             }) do
         payment
       else
         {:error, reason} -> Repo.rollback(reason)
@@ -162,7 +182,15 @@ defmodule YagyeCore.Payments do
       with {:ok, merchant} <- resolve_merchant(merchant_id),
            attrs = Map.merge(attrs, %{merchant_id: merchant.id, mode: current_mode(merchant)}),
            {:ok, payment} <- %Payment{} |> Payment.changeset(attrs) |> Repo.insert(),
-           {:ok, event} <- insert_event(payment, "payment.created", nil, "created") do
+           {:ok, event} <- insert_event(payment, "payment.created", nil, "created"),
+           {:ok, _msg} <-
+             Events.emit(payment, "payment.created", %{
+               method: payment.method,
+               amount: payment.amount,
+               currency: payment.currency,
+               merchant_reference: payment.merchant_reference,
+               customer_reference: Map.get(attrs, :customer_reference)
+             }) do
         {payment, event}
       else
         {:error, reason} -> Repo.rollback(reason)

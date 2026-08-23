@@ -48,9 +48,20 @@ config :yagye_core,
 
 config :yagye_core, Oban,
   repo: YagyeCore.Repo,
-  plugins: [Oban.Plugins.Pruner],
+  plugins: [
+    Oban.Plugins.Pruner,
+    {Oban.Plugins.Cron,
+     crontab: [
+       # Relay runs every minute; self-reschedules immediately on a full batch
+       {"* * * * *", YagyeCore.Events.Workers.OutboxRelayWorker},
+       # Daily metrics recomputed hourly
+       {"0 * * * *", YagyeCore.Projections.Workers.DailyMetricsWorker}
+     ]}
+  ],
   queues: [
-    payments: 10
+    payments: 10,
+    events: 5,
+    projections: 10
   ]
 
 # Import environment specific config. This must remain at the bottom
