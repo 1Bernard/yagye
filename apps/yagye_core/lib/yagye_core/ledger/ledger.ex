@@ -191,6 +191,59 @@ defmodule YagyeCore.Ledger do
     end
   end
 
+  @doc """
+  Posts a reconciliation correction entry.
+
+  `direction` in opts:
+    - `"credit_merchant"` — provider owes merchant more (debit suspense, credit payable)
+    - `"debit_merchant"` — merchant was overpaid (debit payable, credit suspense)
+  """
+  def post_correction(break, opts) do
+    alias YagyeCore.Reconciliation.Schemas.ReconciliationBreak
+
+    %ReconciliationBreak{} = break
+    amount = opts[:amount] || opts["amount"]
+    direction = opts[:direction] || opts["direction"] || "credit_merchant"
+
+    OpenTelemetry.Tracer.with_span "ledger.post_correction" do
+      with {:ok, suspense_account} <-
+             get_or_create_account(%{
+               account_type: "reconciliation_suspense",
+               normal_balance: "debit",
+               scope_type: "merchant",
+               scope_id: break.merchant_id,
+               currency: break.currency,
+               mode: break.mode,
+               allows_negative: true
+             }),
+           {:ok, payable_account} <-
+             get_or_create_account(%{
+               account_type: "merchant_payable",
+               normal_balance: "credit",
+               scope_type: "merchant",
+               scope_id: break.merchant_id,
+               currency: break.currency,
+               mode: break.mode,
+               allows_negative: false
+             }),
+           {:ok, entry} <- insert_correction_entry(break, amount) do
+        {debit_account, credit_account} =
+          if direction == "credit_merchant",
+            do: {suspense_account, payable_account},
+            else: {payable_account, suspense_account}
+
+        with {:ok, debit} <-
+               insert_posting(entry, debit_account, "debit", amount, break.merchant_id),
+             {:ok, credit} <-
+               insert_posting(entry, credit_account, "credit", amount, break.merchant_id) do
+          apply_balance(debit_account.id, amount, :debit, debit.id)
+          apply_balance(credit_account.id, amount, :credit, credit.id)
+          {:ok, entry}
+        end
+      end
+    end
+  end
+
   # ── Private ──────────────────────────────────────────────────────────────────
 
   defp get_or_create_account(attrs) do
@@ -303,6 +356,38 @@ defmodule YagyeCore.Ledger do
            source_type: "settlement_batch",
            source_id: batch.id,
            entry_type: "batch_approved"
+         )}
+
+      {:error, _} = err ->
+        err
+    end
+  end
+
+  defp insert_correction_entry(break, _amount) do
+    now = DateTime.utc_now()
+
+    Entry.changeset(%Entry{}, %{
+      mode: break.mode,
+      currency: break.currency,
+      entry_type: "reconciliation_correction",
+      source_type: "reconciliation_break",
+      source_id: break.id,
+      description: "Reconciliation correction: #{break.public_id}",
+      correlation_id: break.public_id,
+      effective_at: now,
+      recorded_at: now
+    })
+    |> Repo.insert(
+      on_conflict: :nothing,
+      conflict_target: [:source_type, :source_id, :entry_type]
+    )
+    |> case do
+      {:ok, _} ->
+        {:ok,
+         Repo.get_by!(Entry,
+           source_type: "reconciliation_break",
+           source_id: break.id,
+           entry_type: "reconciliation_correction"
          )}
 
       {:error, _} = err ->

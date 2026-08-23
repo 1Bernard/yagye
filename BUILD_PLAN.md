@@ -43,8 +43,8 @@ step is completed or a decision is made. Status values: `todo`, `in-progress`, `
 ### Act III — The Money Operations
 | Phase | Name | Status |
 |---|---|---|
-| P9 | Settlement | todo |
-| P10 | Reconciliation | todo |
+| P9 | Settlement | **done** |
+| P10 | Reconciliation | **done** |
 | P11 | Pricing, Fees & Unit Economics | todo |
 | P12 | Refunds, Disputes, Reserves, Payouts | todo |
 
@@ -175,23 +175,54 @@ Deferred items landing here:
   - `adjustment_approvals.CHECK (approved_by <> proposed_by)` SoD constraint — deferred from P5;
     add in this migration so reconciliation (P10) inherits the guard from day one
 
-- [ ] Step 1 — migration: `settlement_batches` table; `settlement_batch_id` FK on `payments`;
+- [x] Step 1 — migration: `settlement_batches` table; `settlement_batch_id` FK on `payments`;
                `providers.settlement_cadence` jsonb column
-               (SoD CHECK on `adjustment_approvals` moves to P10 Step 1 — table doesn't exist yet)
-- [ ] Step 2 — `SettlementBatch` schema + update `Payment` schema with `settlement_batch_id`
-- [ ] Step 3 — `Settlement` context: `create_batch/2` sweeps unsettled succeeded payments for a
-               merchant+currency into a new pending batch (idempotent guard: no open batch already exists)
-- [ ] Step 4 — `Ledger.post_batch_approved/2` — Debit `merchant_payable`, Credit `settlement_approved`,
-               both scoped to merchant; called atomically inside the batch processor transaction
-- [ ] Step 5 — `SettlementProcessorWorker` (Oban, queue: `:settlement`) — transitions batch
-               `pending → processing → settled`; posts ledger entry; stamps `settlement_batch_id` on
-               each payment; emits outbox events; idempotent via batch state guard
-- [ ] Step 6 — `SettlementSchedulerWorker` (Oban cron, daily) — fans out one `SettlementProcessorWorker`
-               per merchant+currency with unsettled payments; respects `provider.settlement_cadence` cutoff
-- [ ] Step 7 — outbox events: `settlement.batch.created`, `settlement.batch.settled` (wired into
-               existing `OutboxRelayWorker`)
-- [ ] Step 8 — tests: batch creation, ledger balance assertions, idempotency (no double-batch),
-               scheduler fanout, outbox emission
+- [x] Step 2 — `SettlementBatch` schema + update `Payment` schema with `settlement_batch_id`
+- [x] Step 3 — `Settlement` context: `create_batch/4` sweeps unsettled succeeded payments per
+               merchant+provider+currency+mode into a pending batch; Ecto.Multi; idempotent guard
+- [x] Step 4 — `Ledger.post_batch_approved/1` — Debit `merchant_payable`, Credit `settlement_approved`
+- [x] Step 5 — `SettlementProcessorWorker` (Oban, queue: `:settlement`) — pending → processing →
+               settled; ledger post; outbox; idempotent via state guard
+- [x] Step 6 — `SettlementSchedulerWorker` (Oban cron, hourly) — fans out per unsettled combo;
+               respects `provider.settlement_cadence` cutoff hour + IANA timezone (tzdata)
+- [x] Step 7 — outbox events: `settlement.batch.created`, `settlement.batch.settled`
+- [x] Step 8 — 266 tests, 0 failures. Batch creation, ledger assertions, idempotency,
+               scheduler fanout, outbox emission, Ecto.Multi convention throughout
+
+## Phase 10 — step-by-step log
+
+Scope: transaction reconciliation — match our succeeded `payment_attempts` against provider
+settlement report lines. Settlement and bank reconciliation come in P12 once real bank
+transfers exist. Three matching strategies in order: exact_reference → composite
+(amount + date window) → amount_window. Unmatched items become `reconciliation_breaks`.
+
+The SoD CHECK on `adjustment_approvals` (proposed_by ≠ approved_by) deferred from P9
+lands in Step 1's migration so the constraint is live from day one.
+
+- [x] Step 1 — migration: `provider_settlement_reports`, `provider_report_lines`,
+               `reconciliation_runs`, `reconciliation_matches`, `reconciliation_breaks`,
+               `adjustment_approvals`; ADD CHECK (approved_by IS NULL OR approved_by <> proposed_by)
+- [x] Step 2 — schemas: `ProviderSettlementReport`, `ProviderReportLine`, `ReconciliationRun`,
+               `ReconciliationMatch`, `ReconciliationBreak`, `AdjustmentApproval`
+- [x] Step 3 — `SimulatorReport.generate/3` — generates a report from our own DB for a given
+               provider + mode + date; used in tests and for manual QA (no HTTP endpoint needed)
+- [x] Step 4 — `Reconciliation.ingest_report/2` — idempotent ingestion (checksum dedup); parses
+               lines from the raw payload; quarantines bad lines without aborting the run;
+               emits `reconciliation.report.ingested` outbox event
+- [x] Step 5 — `ReconciliationRunWorker` (Oban, queue: `:reconciliation`) — creates a
+               `reconciliation_run`; runs exact_reference → composite → amount_window strategies
+               in order; stamps `provider_report_lines.match_state`; creates `reconciliation_matches`
+               and `reconciliation_breaks`; transitions run through `loading → matching →
+               classifying → completed`; emits `reconciliation.run.completed`
+- [x] Step 6 — `Reconciliation.classify_break/3` — CLOSED taxonomy with SLA assignment
+               (24h critical, 72h high, 7d medium); `Ledger.post_correction/2` with
+               reconciliation_suspense ↔ merchant_payable double-entry
+- [x] Step 7 — `AdjustmentApproval`: `propose_adjustment/3`, `approve_adjustment/2` —
+               SoD enforced at changeset level (approved_by ≠ proposed_by) AND by DB CHECK;
+               approval posts the correcting ledger entry atomically; resolves the break
+- [x] Step 8 — 13 tests, 0 failures: report ingestion idempotency, bad-line quarantine,
+               exact-reference matching, break detection (missing_on_left / missing_on_right),
+               SoD constraint (proposer cannot self-approve), correcting entry posted on approval
 
 ## Phase P21b — AML / PEP Screening
 

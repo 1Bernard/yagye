@@ -6,6 +6,7 @@ defmodule YagyeCore.Settlement.Schemas.SettlementBatch do
 
   alias YagyeCore.Merchants.Schemas.Merchant
   alias YagyeCore.Providers.Schemas.Provider
+  alias YagyeCore.Reconciliation.Schemas.ReconciliationRun
 
   @valid_states ~w[pending processing settled failed]
   @valid_modes ~w[simulation live]
@@ -25,6 +26,7 @@ defmodule YagyeCore.Settlement.Schemas.SettlementBatch do
 
     belongs_to :merchant, Merchant
     belongs_to :provider, Provider
+    belongs_to :reconciliation_run, ReconciliationRun
 
     timestamps(inserted_at: :inserted_at, updated_at: false)
   end
