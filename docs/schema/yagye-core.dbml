@@ -83,6 +83,8 @@ Table merchants [headercolor: #1A2B4C] {
   status text [not null, note: 'registered|under_review|approved|active|suspended|terminated|rejected']
   onboarding_state text [not null]
   risk_rating text [note: 'low|medium|high — drives reserve policy and payout schedule']
+  reviewed_by text [note: 'SoD: the compliance officer who reviewed KYB documents and recommended approval. Must differ from approved_by. Set when status → under_review.']
+  approved_by text [note: 'SoD: the second officer who formally approved the merchant. CHECK (approved_by IS NULL OR reviewed_by IS NULL OR approved_by <> reviewed_by). Set when status → approved.']
   settlement_schedule jsonb [not null]
   pricing_plan_id uuid
   activity_state text [not null, note: 'active|quiet|dormant|inactive|blind. BLIND is not a lifecycle state — it means WE cannot see their data and must say so on their dashboard.']
@@ -295,12 +297,13 @@ Table screening_hits [headercolor: #B4531F] {
   pep_tier integer [note: '1 = heads of state, senior ministers, top military/judicial/central bank; 2 = senior officials, MPs, ambassadors, state-owned enterprise execs; 3 = local/regional officials, lower government. NULL for non-PEP hits. Tier drives the EDD intensity.']
   rca_relationship text [note: 'NULL = direct hit on the named individual. spouse|child|parent|sibling|close_associate = Relative or Close Associate of a PEP. RCAs carry the same EDD obligation as direct PEP hits under FATF R.12.']
   status text [not null, note: 'open|false_positive|true_match_cleared|true_match_blocked']
+  raised_by text [note: 'SoD: who submitted this subject for screening (NULL = raised programmatically by the screening engine, no human SoD needed). Populated only for manually-triggered screens in P21b.']
   disposition_reason text [note: 'MANDATORY on disposition. "who cleared this and on what basis" is the entire audit question.']
-  dispositioned_by text
+  dispositioned_by text [note: 'SoD: CHECK (dispositioned_by IS NULL OR raised_by IS NULL OR dispositioned_by <> raised_by). A human who raised the screen cannot also disposition it.']
   dispositioned_at timestamptz
   inserted_at timestamptz [not null]
   updated_at timestamptz [not null]
-  Note: 'A sanctions match (true_match_blocked) is an absolute bar — there is no code path to approve one. FATF Recommendation 6 makes this non-negotiable. The disposition_changeset enforces this at the schema level. PEP hits (true_match_cleared) require Enhanced Due Diligence and ongoing monitoring at a higher frequency, NOT a block — a PEP who is legitimately running a business can be onboarded with EDD documented.'
+  Note: 'A sanctions match (true_match_blocked) is an absolute bar — there is no code path to approve one. FATF Recommendation 6 makes this non-negotiable. The disposition_changeset enforces this at the schema level. PEP hits (true_match_cleared) require Enhanced Due Diligence and ongoing monitoring at a higher frequency, NOT a block — a PEP who is legitimately running a business can be onboarded with EDD documented. SoD: raised_by <> dispositioned_by when both are non-NULL — enforced at migration time in P21b.'
 }
 
 Table pii_vault [headercolor: #9B3232] {
