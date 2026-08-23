@@ -1,4 +1,4 @@
-defmodule YagyeCore.ComplianceTest do
+defmodule YagyeCore.Compliance.ComplianceTest do
   use YagyeCore.DataCase, async: true
 
   alias YagyeCore.Compliance

@@ -1,4 +1,4 @@
-defmodule YagyeCore.DisputesTest do
+defmodule YagyeCore.Disputes.DisputesTest do
   use YagyeCore.DataCase, async: true
 
   alias YagyeCore.Disputes

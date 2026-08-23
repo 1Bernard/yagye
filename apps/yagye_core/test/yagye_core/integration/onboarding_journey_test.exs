@@ -1,4 +1,4 @@
-defmodule YagyeCore.OnboardingJourneyTest do
+defmodule YagyeCore.Integration.OnboardingJourneyTest do
   @moduledoc """
   Phase gate test for P1: Merchants, Onboarding & Access.
 

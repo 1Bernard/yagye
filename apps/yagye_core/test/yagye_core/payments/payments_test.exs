@@ -1,4 +1,4 @@
-defmodule YagyeCore.PaymentsTest do
+defmodule YagyeCore.Payments.PaymentsTest do
   use YagyeCore.DataCase, async: true
 
   import Mox

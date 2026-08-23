@@ -1,4 +1,4 @@
-defmodule Simulator.ChargesTest do
+defmodule Simulator.Charges.ChargesTest do
   use Simulator.DataCase, async: true
 
   alias Simulator.Charges

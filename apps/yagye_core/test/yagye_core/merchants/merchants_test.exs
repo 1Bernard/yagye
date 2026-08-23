@@ -1,4 +1,4 @@
-defmodule YagyeCore.MerchantsTest do
+defmodule YagyeCore.Merchants.MerchantsTest do
   use YagyeCore.DataCase, async: true
 
   alias YagyeCore.Fixtures

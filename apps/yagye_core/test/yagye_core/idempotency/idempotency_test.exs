@@ -1,4 +1,4 @@
-defmodule YagyeCore.IdempotencyTest do
+defmodule YagyeCore.Idempotency.IdempotencyTest do
   # async: false — spawned Tasks need shared sandbox access for the concurrency test
   use YagyeCore.DataCase, async: false
 

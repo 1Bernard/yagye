@@ -1,4 +1,4 @@
-defmodule Simulator.RefundsTest do
+defmodule Simulator.Refunds.RefundsTest do
   use Simulator.DataCase, async: true
 
   alias Simulator.Charges

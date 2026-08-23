@@ -1,4 +1,4 @@
-defmodule YagyeCore.RateLimiterTest do
+defmodule YagyeCore.Shared.RateLimiterTest do
   # No DB access — ETS only. async: true is safe.
   use ExUnit.Case, async: false
 
