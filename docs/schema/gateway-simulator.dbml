@@ -15,7 +15,24 @@
 
 Project gateway_simulator {
   database_type: 'PostgreSQL'
-  Note: 'Pretends to be an external payment provider. Permanent — it stays in CI forever, because no real provider will send you a duplicate webhook 40 seconds late on demand.'
+  Note: '''
+  Pretends to be Yagye native_rail providers (MTN, Telecel, AirtelTigo, local card acquirers).
+  Permanent — it stays in CI forever, because no real provider will send you a duplicate webhook
+  40 seconds late on demand.
+
+  Scope boundary
+  - native_rail providers only. The simulator is NOT a generic PSP mock.
+  - external_psp providers (Stripe, Flutterwave, Paystack) used in Model B orchestration have their
+    own vendor sandbox environments (Stripe test mode, Flutterwave test mode, etc.). The yagye_core
+    external_psp adapters call those vendor sandboxes directly. This simulator is not involved.
+  - Adding external_psp simulation here would duplicate what those vendors already provide and couple
+    the simulator to third-party API shapes it does not own.
+
+  Anti-corruption contract
+  - Vocabulary is deliberately NOT Yagye core vocabulary: charge_ref not payment_id, PENDING_AUTH
+    not requires_action, WALLET not mobile_money. If any of these simulator words appear inside
+    YagyeCore.Payments the anti-corruption layer has failed and CI must say so.
+  '''
 }
 
 Table gw_accounts [headercolor: #6B7A8D] {
@@ -122,6 +139,28 @@ Table gw_wallet_prompts [headercolor: #1F6B4A] {
   account_name text [note: 'account name as returned by name enquiry — populated from gw_name_enquiries']
   sent_at timestamptz
   resolved_at timestamptz
+}
+
+// Bank transfer simulation — async like wallet prompts, different shape.
+// Customer is shown a virtual account; the "transfer received" event arrives later.
+// Key failure modes: transfer never arrives (timeout), wrong amount, reference omitted,
+// payment arrives after session expiry, duplicate transfer for same virtual account.
+Table gw_bank_transfers [headercolor: #1F6B4A] {
+  id uuid [pk]
+  charge_id uuid [not null]
+  virtual_account_number text [not null, note: 'fake account number — FAKE_ prefix so CI greps catch any real account shapes']
+  bank_code text [not null, note: 'GH030100 (GCB), GH010100 (Ecobank) etc. — scenario numbers, not real accounts']
+  expected_amount_minor bigint [not null]
+  received_amount_minor bigint [note: 'NULL until transfer arrives. May differ from expected to simulate wrong-amount scenario.']
+  currency char(3) [not null]
+  transfer_state text [not null, note: 'WAITING|RECEIVED|WRONG_AMOUNT|EXPIRED|DUPLICATE']
+  reference_included boolean [not null, note: 'false = customer forgot the reference — triggers a manual-match scenario in reconciliation']
+  receipt_delay_ms integer [not null, note: 'simulated bank processing time. Set very high to force the session-expiry race.']
+  expires_at timestamptz [not null, note: 'virtual accounts are single-use and time-boxed — after this, the transfer is EXPIRED even if money arrives']
+  received_at timestamptz [note: 'NULL until transfer arrives']
+  injected_defect text [note: 'wrong_amount|no_reference|duplicate_transfer|arrives_after_expiry — which failure mode is under test']
+  created_at timestamptz [not null]
+  Note: 'Simulates the async bank transfer confirmation path. Without this, the "transfer never arrives" and "wrong amount transferred" failure modes cannot be tested against a fake provider.'
 }
 
 // Name enquiry — required by MTN/Telecel/AirtelTigo before initiating a wallet payment.
@@ -316,6 +355,7 @@ Ref: gw_charge_events.charge_id > gw_charges.id
 Ref: gw_card_data.charge_id - gw_charges.id
 Ref: gw_three_ds_sessions.charge_id > gw_charges.id
 Ref: gw_wallet_prompts.charge_id > gw_charges.id
+Ref: gw_bank_transfers.charge_id > gw_charges.id
 Ref: gw_captures.charge_id > gw_charges.id
 Ref: gw_incremental_auths.charge_id > gw_charges.id
 Ref: gw_reversals.charge_id > gw_charges.id
@@ -350,6 +390,7 @@ TableGroup instrument_detail {
   gw_card_data
   gw_three_ds_sessions
   gw_wallet_prompts
+  gw_bank_transfers
   gw_name_enquiries
 }
 TableGroup settlement_reporting {

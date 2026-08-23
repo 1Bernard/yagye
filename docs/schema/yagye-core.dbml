@@ -90,7 +90,8 @@ Table merchants [headercolor: #1A2B4C] {
   baseline_daily_volume bigint [note: 'their OWN trailing baseline. A merchant doing 3 payments a month is not dormant at day 10; one doing 500 a day is broken at hour 6.']
   quiet_since timestamptz
   api_version text [not null, note: 'DATE-BASED, pinned at first API call and never moved without opt-in. Add this in Phase 1 while there is one version — an afternoon now, a migration project after fifty merchants.']
-  entitlements jsonb [not null, note: 'what the plan lets them DO: enabled methods, rate limit, volume cap, feature flags, support tier. Distinct from pricing, which is what they PAY.']
+  entitlements jsonb [not null, note: 'what the plan lets them DO: enabled methods, rate limit, volume cap, feature flags, support tier. Distinct from pricing, which is what they PAY. Known flags: routing_rules_override:true (enterprise custom routing), orchestration_enabled:true (Model B — merchant can connect their own external PSP credentials and route through them via merchant_provider_connections).']
+  orchestration_billing_method text [note: 'NULL = not on Model B. cross_net|monthly_invoice|direct_debit. Determines how Yagye collects its orchestration fee when an external_psp settles directly to the merchant and Yagye never holds that money. cross_net: deducted from the next native_rail settlement (best when mobile money volume is significant). monthly_invoice: Yagye bills separately at month-end. direct_debit: Yagye pulls from merchant bank account under a mandate.']
   metadata jsonb [not null]
   inserted_at timestamptz [not null]
   updated_at timestamptz [not null]
@@ -238,6 +239,7 @@ Table providers [headercolor: #6B7A8D] {
   code text [unique, not null, note: 'simulator|provider_a']
   display_name text [not null]
   adapter_module text [not null]
+  kind text [not null, note: 'native_rail|external_psp. native_rail: Yagye holds the direct network agreement (MTN, Telecel, AirtelTigo, local acquirers) — Yagye processes natively, holds float, and settles. external_psp: third-party PSP used in Model B orchestration (Stripe, Flutterwave, Paystack) — merchant supplies their own credentials via provider_credentials where merchant_id IS NOT NULL; Yagye routes and charges an orchestration fee only, holds no float for these transactions.']
   updated_at timestamptz [not null]
   capabilities jsonb [not null, note: 'drives routing, checkout and validation. There is no `case provider do` in the domain.']
   settlement_cadence jsonb [not null, note: 'includes the CUTOFF TIMEZONE — batches are cut in theirs, not yours']
@@ -294,7 +296,7 @@ Table routing_rules [headercolor: #2E4A73] {
   indexes {
     (scope, merchant_id, mode, priority) [unique, note: 'platform rules: merchant_id IS NULL. merchant rules: merchant_id IS NOT NULL. NULLS DISTINCT keeps the two namespaces separate.']
   }
-  Note: 'INTERNAL / ENTERPRISE ONLY. Standard merchants never see this — their accepted payment methods are configured via checkout_template_components.config.provider_allowlist (the simple toggle). This table is for Yagye ops configuring platform-wide routing policy, and for large enterprise merchants who have negotiated custom routing (e.g. prefer MTN for cost reasons). providers referenced here are Yagye direct integrations (MTN, Telecel, AirtelTigo, card acquirers) — never third-party PSPs.'
+  Note: 'INTERNAL / ENTERPRISE ONLY. Standard merchants never see this — their accepted payment methods are configured via checkout_template_components.config.provider_allowlist (the simple toggle). This table is for Yagye ops configuring platform-wide routing policy, and for large enterprise merchants who have negotiated custom routing. Platform-scope rules (merchant_id IS NULL) may only reference native_rail providers (Yagye-owned agreements). Merchant-scope enterprise rules (merchant_id IS NOT NULL, entitlements.orchestration_enabled: true) may also reference external_psp providers where the merchant has active credentials in merchant_provider_connections — this is the Model B orchestration path.'
 }
 
 Table routing_rule_conditions [headercolor: #2E4A73] {
@@ -732,6 +734,7 @@ Table fee_records [headercolor: #B4531F] {
   merchant_id uuid [not null]
   mode yagye_mode [not null]
   party fee_party [not null, note: 'BOTH sides are modelled — revenue AND cost. Otherwise you cannot compute margin.']
+  fee_kind text [not null, note: 'psp_margin|orchestration_fee. psp_margin: Yagye processed natively via a native_rail provider — full PSP margin applies. orchestration_fee: Yagye routed through a merchant-owned external_psp in Model B — thin pass-through fee; a distinct pricing rule applies so margin analysis can separate the two revenue streams.']
   amount bigint [not null, note: '[FIN]']
   currency char(3) [not null]
   pricing_plan_id uuid
@@ -739,6 +742,29 @@ Table fee_records [headercolor: #B4531F] {
   computation jsonb [not null, note: 'the full arithmetic. A merchant will dispute a fee 18 months from now.']
   inserted_at timestamptz [not null]
   indexes { (source_type, source_id, party) [unique] }
+}
+
+Table platform_fee_invoices [headercolor: #B4531F] {
+  id uuid [pk]
+  public_id text [unique, not null, note: 'pfi_01J...']
+  merchant_id uuid [not null]
+  mode yagye_mode [not null]
+  period_start date [not null]
+  period_end date [not null]
+  currency char(3) [not null]
+  total_amount bigint [not null, note: '[FIN] SUM of fee_records WHERE fee_kind = orchestration_fee AND party = platform for this merchant and period']
+  collection_method text [not null, note: 'cross_net|monthly_invoice|direct_debit — copied from merchant.orchestration_billing_method at invoice creation so the record is self-contained even if the merchant later changes their method']
+  state text [not null, note: 'draft|issued|collecting|collected|overdue|written_off']
+  settled_against_settlement_id uuid [note: 'set when collection_method = cross_net — the native_rail settlement this orchestration fee was deducted from. The amount reduces that settlement expected_net.']
+  due_at timestamptz [note: 'NULL for cross_net — collection is synchronous with the native_rail settlement run']
+  collected_at timestamptz
+  collection_reference text [note: 'direct debit mandate reference or invoice payment reference']
+  inserted_at timestamptz [not null]
+  updated_at timestamptz [not null]
+  indexes {
+    (merchant_id, mode, period_start, period_end) [unique]
+  }
+  Note: '[FIN] The billing record for Yagye orchestration fees on Model B external_psp transactions. fee_records captures individual fee lines; this table is the collection cycle aggregate. cross_net: the settlements worker creates this row and deducts from the native_rail settlement in the same transaction — atomic, no separate billing run needed. monthly_invoice and direct_debit: created by a billing job at period close.'
 }
 
 Table fx_rates [headercolor: #2E4A73] {
@@ -1162,6 +1188,8 @@ Ref: pricing_rules.plan_id > pricing_plans.id
 Ref: fee_records.pricing_plan_id > pricing_plans.id
 Ref: fee_records.pricing_rule_id > pricing_rules.id
 Ref: merchants.pricing_plan_id > pricing_plans.id
+Ref: platform_fee_invoices.merchant_id > merchants.id
+Ref: platform_fee_invoices.settled_against_settlement_id > settlements.id
 Ref: settlements.merchant_id > merchants.id
 Ref: settlements.provider_id > providers.id
 Ref: settlements.reconciliation_run_id > reconciliation_runs.id
@@ -1239,6 +1267,7 @@ TableGroup pricing {
   pricing_plans
   pricing_rules
   fee_records
+  platform_fee_invoices
   fx_rates
 }
 TableGroup settlement_and_payout {

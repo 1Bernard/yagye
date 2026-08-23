@@ -396,15 +396,39 @@ Table portal_platform_daily_metrics [headercolor: #9B3232] {
   mode text [pk]
   transaction_count integer [not null]
   gross_volume bigint [not null, note: 'total customer-facing payment volume for the day']
-  platform_revenue bigint [not null, note: 'SUM of fee_records WHERE party = platform — what merchants paid us']
-  provider_cost bigint [not null, note: 'SUM of fee_records WHERE party = provider — what networks charged us']
+  platform_revenue bigint [not null, note: 'SUM of fee_records WHERE party = platform — what merchants paid us (psp_margin + orchestration_fee combined)']
+  psp_margin_revenue bigint [not null, note: 'SUM of fee_records WHERE party = platform AND fee_kind = psp_margin — native_rail processing revenue']
+  orchestration_revenue bigint [not null, note: 'SUM of fee_records WHERE party = platform AND fee_kind = orchestration_fee — Model B orchestration fee revenue. Zero until Model B is live.']
+  provider_cost bigint [not null, note: 'SUM of fee_records WHERE party = provider — what networks charged us (native_rail only; external_psp cost goes direct to merchant)']
   gross_margin bigint [not null, note: 'platform_revenue - provider_cost. GENERATED column in practice; stored here as a denormalisation.']
   refund_volume bigint [not null]
   dispute_count integer [not null]
   dispute_value bigint [not null]
   chargeback_reserve_drawn bigint [not null, note: 'reserves consumed by chargebacks — reduces what we can pay out']
   last_applied_at timestamptz [not null]
-  Note: 'Internal Yagye finance dashboard only. NOT exposed to merchants. Recomputed hourly from fee_records — same proportionality argument as portal_daily_metrics: a wrong count self-corrects, a wrong amount is a misstatement.'
+  Note: 'Internal Yagye finance dashboard only. NOT exposed to merchants. Recomputed hourly from fee_records — same proportionality argument as portal_daily_metrics: a wrong count self-corrects, a wrong amount is a misstatement. Revenue is split by fee_kind so Yagye can track PSP margin vs orchestration fee as separate P&L lines once Model B is live.'
+}
+
+Table portal_platform_fee_invoices [headercolor: #9B3232] {
+  invoice_id uuid [pk, note: 'mirrors platform_fee_invoices.id in core']
+  merchant_code text [not null]
+  mode text [not null]
+  period_start date [not null]
+  period_end date [not null]
+  currency char(3) [not null]
+  total_amount bigint [not null]
+  collection_method text [not null, note: 'cross_net|monthly_invoice|direct_debit']
+  state text [not null, note: 'draft|issued|collecting|collected|overdue|written_off']
+  settled_against_settlement_code text [note: 'set when cross_net — the native rail settlement the fee was netted against']
+  due_at timestamptz
+  collected_at timestamptz
+  last_event_id text [not null]
+  last_applied_at timestamptz [not null]
+  indexes {
+    (merchant_code, period_start, period_end)
+    (state) [note: 'partial: WHERE state IN (issued, collecting, overdue) — the open collection queue']
+  }
+  Note: 'Internal ops only. Tracks orchestration fee collection for Model B merchants. Overdue invoices trigger an ops task and may result in suspension of orchestration access until cleared.'
 }
 
 Table portal_platform_provider_costs [headercolor: #9B3232] {
@@ -493,6 +517,27 @@ Table portal_screening_hits [headercolor: #9B3232] {
   Note: 'Compliance review queue. A sanctions match is an absolute bar — the portal can display it but a disposition on a sanctions hit is a core command that must pass the same guard. Turbo Stream broadcasts on new hit so an ops manager is notified immediately.'
 }
 
+// ─── ORCHESTRATION CONSOLE (enterprise merchants, entitlements.orchestration_enabled: true) ──
+
+Table portal_provider_connections [headercolor: #6B7A8D] {
+  connection_id uuid [pk, note: 'mirrors merchant_provider_connections.id in core']
+  merchant_code text [not null]
+  provider_code text [not null]
+  provider_display_name text [not null]
+  provider_kind text [not null, note: 'native_rail|external_psp. native_rail connections are Yagye-managed; external_psp are merchant-owned Model B connections.']
+  mode text [not null]
+  status text [not null, note: 'active|paused|disabled']
+  health_state text [not null, note: 'updated by the circuit breaker in core — surfaced as a live status badge']
+  enabled_methods "text[]" [not null]
+  last_successful_sync_at timestamptz [note: 'NULL = never synced. A credential that has never been verified should not be active.']
+  credential_expires_at timestamptz [note: 'surfaced as a warning banner when within 14 days — a silent expiry is a live outage for the merchant']
+  heartbeat_at timestamptz [note: 'last no-op call that proved the credentials still work']
+  last_event_id text [not null]
+  last_applied_at timestamptz [not null]
+  indexes { (merchant_code, mode) }
+  Note: 'Enterprise orchestration console (Model B, entitlements.orchestration_enabled: true only). Shows which providers the merchant has connected — both Yagye-native rails and their own external PSP credentials — with live health and credential expiry. Connection setup, pause, and removal are commands to core; this table is the read model. NOT shown to standard merchants.'
+}
+
 Table processed_events [headercolor: #6B7A8D] {
   event_id text [pk]
   consumer text [pk]
@@ -552,11 +597,15 @@ TableGroup read_models {
 TableGroup platform_finance {
   portal_platform_daily_metrics
   portal_platform_provider_costs
+  portal_platform_fee_invoices
 }
 TableGroup developer_console {
   portal_api_keys
   portal_webhook_endpoints
   portal_webhook_deliveries
+}
+TableGroup orchestration_console {
+  portal_provider_connections
 }
 TableGroup compliance_review {
   portal_kyb_documents
