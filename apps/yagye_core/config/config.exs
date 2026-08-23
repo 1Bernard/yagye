@@ -59,7 +59,9 @@ config :yagye_core, Oban,
        # Daily metrics recomputed hourly
        {"0 * * * *", YagyeCore.Projections.Workers.DailyMetricsWorker},
        # Settlement scheduler runs hourly; cutoff check is inside the worker
-       {"0 * * * *", YagyeCore.Settlement.Workers.SettlementSchedulerWorker}
+       {"0 * * * *", YagyeCore.Settlement.Workers.SettlementSchedulerWorker},
+       # Reserve release runs every 6 hours; batches up to 200 holds per run
+       {"0 */6 * * *", YagyeCore.Reserves.Workers.ReserveReleaseWorker}
      ]}
   ],
   queues: [
@@ -68,7 +70,9 @@ config :yagye_core, Oban,
     projections: 10,
     webhooks: 5,
     settlement: 5,
-    reconciliation: 3
+    reconciliation: 3,
+    reserves: 3,
+    payouts: 5
   ]
 
 config :opentelemetry,

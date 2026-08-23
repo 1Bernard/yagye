@@ -8,8 +8,11 @@ defmodule YagyeCore.Ledger do
   alias YagyeCore.Disputes.Schemas.Refund
   alias YagyeCore.Ledger.Schemas.{Account, Balance, Entry, Posting}
   alias YagyeCore.Payments.Schemas.{Payment, PaymentAttempt}
+  alias YagyeCore.Payouts.Schemas.Payout
   alias YagyeCore.Pricing.Schemas.FeeRecord
+  alias YagyeCore.Providers.Schemas.Provider
   alias YagyeCore.Repo
+  alias YagyeCore.Reserves.Schemas.ReserveHold
   alias YagyeCore.Settlement.Schemas.SettlementBatch
 
   # ── Public API ───────────────────────────────────────────────────────────────
@@ -24,8 +27,20 @@ defmodule YagyeCore.Ledger do
   # Debit  : settlement_pending — we are owed funds from the provider (asset ↑)
   # Credit : merchant_payable   — we owe the merchant net funds (liability ↑)
   #
-  # Fee split is deferred to P11 (requires pricing_rules).
+  # For external_psp providers, Yagye never holds the settlement float — the
+  # external PSP settles directly to the merchant. Skip the settlement entry;
+  # the orchestration fee is captured separately via post_fee_deduction.
   def post_payment_settled(%Payment{} = payment, %PaymentAttempt{} = attempt) do
+    provider = Repo.get!(Provider, attempt.provider_id)
+
+    if provider.kind == "external_psp" do
+      {:ok, :no_settlement}
+    else
+      do_post_payment_settled(payment, attempt)
+    end
+  end
+
+  defp do_post_payment_settled(%Payment{} = payment, %PaymentAttempt{} = attempt) do
     OpenTelemetry.Tracer.with_span "ledger.post_settlement" do
       with {:ok, settlement_account} <-
              get_or_create_account(%{
@@ -300,6 +315,166 @@ defmodule YagyeCore.Ledger do
     end
   end
 
+  @doc """
+  Posts the "payout_committed" entry when a payout is being submitted to a provider.
+
+  Debit  : merchant_payable  — reduce the outstanding merchant payable (liability ↓)
+  Credit : payout_transit    — funds in-flight to merchant (liability ↑ until confirmed)
+  """
+  def post_payout_committed(%Payout{} = payout) do
+    OpenTelemetry.Tracer.with_span "ledger.post_payout_committed" do
+      with {:ok, payable_account} <-
+             get_or_create_account(%{
+               account_type: "merchant_payable",
+               normal_balance: "credit",
+               scope_type: "merchant",
+               scope_id: payout.merchant_id,
+               currency: payout.currency,
+               mode: payout.mode,
+               allows_negative: false
+             }),
+           {:ok, transit_account} <-
+             get_or_create_account(%{
+               account_type: "payout_transit",
+               normal_balance: "credit",
+               scope_type: "merchant",
+               scope_id: payout.merchant_id,
+               currency: payout.currency,
+               mode: payout.mode,
+               allows_negative: false
+             }),
+           {:ok, entry} <- insert_payout_committed_entry(payout),
+           {:ok, debit} <-
+             insert_posting(entry, payable_account, "debit", payout.amount, payout.merchant_id),
+           {:ok, credit} <-
+             insert_posting(entry, transit_account, "credit", payout.amount, payout.merchant_id) do
+        apply_balance(payable_account.id, payout.amount, :debit, debit.id)
+        apply_balance(transit_account.id, payout.amount, :credit, credit.id)
+        {:ok, entry}
+      end
+    end
+  end
+
+  @doc """
+  Posts the "reserve_held" entry when a reserve hold is created on payment success.
+
+  Debit  : merchant_payable  — reduce what we immediately owe the merchant
+  Credit : merchant_reserve  — funds held under reserve policy
+  """
+  def post_reserve_hold(%Payment{} = payment, %ReserveHold{} = hold) do
+    OpenTelemetry.Tracer.with_span "ledger.post_reserve_hold" do
+      with {:ok, payable_account} <-
+             get_or_create_account(%{
+               account_type: "merchant_payable",
+               normal_balance: "credit",
+               scope_type: "merchant",
+               scope_id: payment.merchant_id,
+               currency: hold.currency,
+               mode: hold.mode,
+               allows_negative: false
+             }),
+           {:ok, reserve_account} <-
+             get_or_create_account(%{
+               account_type: "merchant_reserve",
+               normal_balance: "credit",
+               scope_type: "merchant",
+               scope_id: payment.merchant_id,
+               currency: hold.currency,
+               mode: hold.mode,
+               allows_negative: false
+             }),
+           {:ok, entry} <- insert_reserve_hold_entry(hold),
+           {:ok, debit} <-
+             insert_posting(entry, payable_account, "debit", hold.amount, payment.merchant_id),
+           {:ok, credit} <-
+             insert_posting(entry, reserve_account, "credit", hold.amount, payment.merchant_id) do
+        apply_balance(payable_account.id, hold.amount, :debit, debit.id)
+        apply_balance(reserve_account.id, hold.amount, :credit, credit.id)
+        {:ok, entry}
+      end
+    end
+  end
+
+  @doc """
+  Posts the "reserve_released" entry when a hold's release_at date is reached.
+
+  Debit  : merchant_reserve  — reduce the reserve balance
+  Credit : merchant_payable  — restore owed funds to merchant
+  """
+  def post_reserve_release(%ReserveHold{} = hold) do
+    OpenTelemetry.Tracer.with_span "ledger.post_reserve_release" do
+      with {:ok, reserve_account} <-
+             get_or_create_account(%{
+               account_type: "merchant_reserve",
+               normal_balance: "credit",
+               scope_type: "merchant",
+               scope_id: hold.merchant_id,
+               currency: hold.currency,
+               mode: hold.mode,
+               allows_negative: false
+             }),
+           {:ok, payable_account} <-
+             get_or_create_account(%{
+               account_type: "merchant_payable",
+               normal_balance: "credit",
+               scope_type: "merchant",
+               scope_id: hold.merchant_id,
+               currency: hold.currency,
+               mode: hold.mode,
+               allows_negative: false
+             }),
+           {:ok, entry} <- insert_reserve_release_entry(hold),
+           {:ok, debit} <-
+             insert_posting(entry, reserve_account, "debit", hold.amount, hold.merchant_id),
+           {:ok, credit} <-
+             insert_posting(entry, payable_account, "credit", hold.amount, hold.merchant_id) do
+        apply_balance(reserve_account.id, hold.amount, :debit, debit.id)
+        apply_balance(payable_account.id, hold.amount, :credit, credit.id)
+        {:ok, entry}
+      end
+    end
+  end
+
+  @doc """
+  Posts the "reserve_drawn" entry when a hold is consumed to cover a chargeback.
+
+  Debit  : merchant_reserve    — reduce the reserve balance
+  Credit : reserve_recovery    — Yagye platform recovers funds (platform-scoped)
+  """
+  def post_reserve_draw(%ReserveHold{} = hold) do
+    OpenTelemetry.Tracer.with_span "ledger.post_reserve_draw" do
+      with {:ok, reserve_account} <-
+             get_or_create_account(%{
+               account_type: "merchant_reserve",
+               normal_balance: "credit",
+               scope_type: "merchant",
+               scope_id: hold.merchant_id,
+               currency: hold.currency,
+               mode: hold.mode,
+               allows_negative: false
+             }),
+           {:ok, recovery_account} <-
+             get_or_create_account(%{
+               account_type: "reserve_recovery",
+               normal_balance: "credit",
+               scope_type: "platform",
+               scope_id: nil,
+               currency: hold.currency,
+               mode: hold.mode,
+               allows_negative: false
+             }),
+           {:ok, entry} <- insert_reserve_draw_entry(hold),
+           {:ok, debit} <-
+             insert_posting(entry, reserve_account, "debit", hold.amount, hold.merchant_id),
+           {:ok, credit} <-
+             insert_posting(entry, recovery_account, "credit", hold.amount, hold.merchant_id) do
+        apply_balance(reserve_account.id, hold.amount, :debit, debit.id)
+        apply_balance(recovery_account.id, hold.amount, :credit, credit.id)
+        {:ok, entry}
+      end
+    end
+  end
+
   # ── Private ──────────────────────────────────────────────────────────────────
 
   defp get_or_create_account(attrs) do
@@ -477,6 +652,134 @@ defmodule YagyeCore.Ledger do
            source_type: "reconciliation_break",
            source_id: break.id,
            entry_type: "reconciliation_correction"
+         )}
+
+      {:error, _} = err ->
+        err
+    end
+  end
+
+  defp insert_payout_committed_entry(%Payout{} = payout) do
+    now = DateTime.utc_now()
+
+    Entry.changeset(%Entry{}, %{
+      mode: payout.mode,
+      currency: payout.currency,
+      entry_type: "payout_committed",
+      source_type: "payout",
+      source_id: payout.id,
+      description: "Payout committed: #{payout.public_id}",
+      correlation_id: payout.public_id,
+      effective_at: now,
+      recorded_at: now
+    })
+    |> Repo.insert(
+      on_conflict: :nothing,
+      conflict_target: [:source_type, :source_id, :entry_type]
+    )
+    |> case do
+      {:ok, _} ->
+        {:ok,
+         Repo.get_by!(Entry,
+           source_type: "payout",
+           source_id: payout.id,
+           entry_type: "payout_committed"
+         )}
+
+      {:error, _} = err ->
+        err
+    end
+  end
+
+  defp insert_reserve_hold_entry(%ReserveHold{} = hold) do
+    now = DateTime.utc_now()
+
+    Entry.changeset(%Entry{}, %{
+      mode: hold.mode,
+      currency: hold.currency,
+      entry_type: "reserve_held",
+      source_type: "reserve_hold",
+      source_id: hold.id,
+      description: "Reserve held for payment #{hold.payment_id}",
+      correlation_id: hold.payment_id,
+      effective_at: now,
+      recorded_at: now
+    })
+    |> Repo.insert(
+      on_conflict: :nothing,
+      conflict_target: [:source_type, :source_id, :entry_type]
+    )
+    |> case do
+      {:ok, _} ->
+        {:ok,
+         Repo.get_by!(Entry,
+           source_type: "reserve_hold",
+           source_id: hold.id,
+           entry_type: "reserve_held"
+         )}
+
+      {:error, _} = err ->
+        err
+    end
+  end
+
+  defp insert_reserve_release_entry(%ReserveHold{} = hold) do
+    now = DateTime.utc_now()
+
+    Entry.changeset(%Entry{}, %{
+      mode: hold.mode,
+      currency: hold.currency,
+      entry_type: "reserve_released",
+      source_type: "reserve_hold",
+      source_id: hold.id,
+      description: "Reserve released for payment #{hold.payment_id}",
+      correlation_id: hold.payment_id,
+      effective_at: now,
+      recorded_at: now
+    })
+    |> Repo.insert(
+      on_conflict: :nothing,
+      conflict_target: [:source_type, :source_id, :entry_type]
+    )
+    |> case do
+      {:ok, _} ->
+        {:ok,
+         Repo.get_by!(Entry,
+           source_type: "reserve_hold",
+           source_id: hold.id,
+           entry_type: "reserve_released"
+         )}
+
+      {:error, _} = err ->
+        err
+    end
+  end
+
+  defp insert_reserve_draw_entry(%ReserveHold{} = hold) do
+    now = DateTime.utc_now()
+
+    Entry.changeset(%Entry{}, %{
+      mode: hold.mode,
+      currency: hold.currency,
+      entry_type: "reserve_drawn",
+      source_type: "reserve_hold",
+      source_id: hold.id,
+      description: "Reserve drawn for chargeback on payment #{hold.payment_id}",
+      correlation_id: hold.payment_id,
+      effective_at: now,
+      recorded_at: now
+    })
+    |> Repo.insert(
+      on_conflict: :nothing,
+      conflict_target: [:source_type, :source_id, :entry_type]
+    )
+    |> case do
+      {:ok, _} ->
+        {:ok,
+         Repo.get_by!(Entry,
+           source_type: "reserve_hold",
+           source_id: hold.id,
+           entry_type: "reserve_drawn"
          )}
 
       {:error, _} = err ->

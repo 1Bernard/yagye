@@ -1,7 +1,10 @@
 defmodule YagyeCore.Customers do
   @moduledoc false
 
+  import Ecto.Query
+
   alias YagyeCore.Customers.Schemas.Customer
+  alias YagyeCore.Payments.Schemas.AccountVerification
   alias YagyeCore.Repo
 
   # ── Public API ───────────────────────────────────────────────────────────────
@@ -39,6 +42,17 @@ defmodule YagyeCore.Customers do
     end
   end
 
+  def list_customers(merchant_id, opts \\ []) do
+    limit = Keyword.get(opts, :limit, 50)
+
+    from(c in Customer,
+      where: c.merchant_id == ^merchant_id,
+      order_by: [desc: c.inserted_at],
+      limit: ^limit
+    )
+    |> Repo.all()
+  end
+
   @doc """
   Updates the KYC tier on a customer record, typically after a successful name enquiry.
   """
@@ -46,5 +60,25 @@ defmodule YagyeCore.Customers do
     customer
     |> Customer.update_kyc_tier_changeset(kyc_tier, verified_at)
     |> Repo.update()
+  end
+
+  # ── Account Verifications ─────────────────────────────────────────────────────
+
+  def get_account_verification(id) do
+    case Repo.get(AccountVerification, id) do
+      nil -> {:error, :not_found}
+      av -> {:ok, av}
+    end
+  end
+
+  def list_account_verifications(merchant_id, opts \\ []) do
+    limit = Keyword.get(opts, :limit, 50)
+
+    from(av in AccountVerification,
+      where: av.merchant_id == ^merchant_id,
+      order_by: [desc: av.inserted_at],
+      limit: ^limit
+    )
+    |> Repo.all()
   end
 end

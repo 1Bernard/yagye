@@ -1012,8 +1012,11 @@ Table payouts [headercolor: #1F6B4A] {
   failure_code text
   returned_at timestamptz [note: 'a payout can bounce back DAYS later. Re-credit exactly once.']
   saga_state jsonb [not null, note: 'the process manager must be resumable at every step']
+  requested_by text [note: 'SoD: opaque actor ref who requested this payout (NULL = system-scheduled). Must differ from approved_by when both non-NULL.']
+  approved_by text [note: 'SoD: CHECK (approved_by IS NULL OR requested_by IS NULL OR approved_by <> requested_by). Set by a second ops officer at P13+ when manual payout approval lands.']
   inserted_at timestamptz [not null]
   updated_at timestamptz [not null]
+  Note: 'SoD: requested_by <> approved_by when both non-NULL — DB CHECK enforced, changeset guard in approve_changeset/2. NULL on both = system-scheduled payout, no human SoD needed.'
 }
 
 Table merchant_reserves [headercolor: #B4531F] {
@@ -1027,9 +1030,11 @@ Table merchant_reserves [headercolor: #B4531F] {
   hold_days integer
   active boolean [not null]
   reason text
+  created_by text [note: 'SoD: opaque actor ref who created this policy (NULL = system-created). Must differ from approved_by when both non-NULL.']
+  approved_by text [note: 'SoD: CHECK (approved_by IS NULL OR created_by IS NULL OR approved_by <> created_by). Set by a second ops officer at P13+ when manual reserve management lands.']
   inserted_at timestamptz [not null]
   updated_at timestamptz [not null]
-  Note: 'Released FIFO by hold date. Drawn BEFORE payable on a chargeback. Derived from risk_rating.'
+  Note: 'Released FIFO by hold date. Drawn BEFORE payable on a chargeback. Derived from risk_rating. SoD: created_by <> approved_by when both non-NULL — DB CHECK enforced, changeset guard in approve_changeset/2.'
 }
 
 Table reserve_holds [headercolor: #B4531F] {
@@ -1627,9 +1632,12 @@ Table payout_destinations [headercolor: #9B3232] {
   is_default boolean [not null]
   active boolean [not null]
   hold_until timestamptz [note: 'set on change. Account-takeover cash-out runs through this table.']
+  added_by text [note: 'SoD: opaque actor ref who added this destination (NULL = merchant self-service via API). Must differ from verified_by when both non-NULL.']
+  verified_by text [note: 'SoD: CHECK (verified_by IS NULL OR added_by IS NULL OR verified_by <> added_by). Set by a second ops officer when verification_state → verified.']
   inserted_at timestamptz [not null]
   updated_at timestamptz [not null]
   indexes { (merchant_id, mode, fingerprint) [unique] }
+  Note: 'SoD: added_by <> verified_by when both non-NULL — classic insider fraud vector (add fraudulent account, self-verify). DB CHECK enforced, changeset guard in verify_changeset/2.'
 }
 
 // ═══════════════════════════════════════════════════════════════════════════

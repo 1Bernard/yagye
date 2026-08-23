@@ -21,9 +21,12 @@ defmodule YagyeCoreWeb.Router do
 
   alias YagyeCoreWeb.Controllers.ApiKeys.ApiKeyController
   alias YagyeCoreWeb.Controllers.Compliance.ComplianceController
+  alias YagyeCoreWeb.Controllers.Customers.CustomerController
   alias YagyeCoreWeb.Controllers.Disputes.{DisputeController, RefundController}
   alias YagyeCoreWeb.Controllers.Merchants.MerchantController
   alias YagyeCoreWeb.Controllers.Payments.PaymentController
+  alias YagyeCoreWeb.Controllers.Payouts.PayoutController
+  alias YagyeCoreWeb.Controllers.Settlement.SettlementController
   alias YagyeCoreWeb.Controllers.Webhooks.ProviderWebhookController
 
   # Provider-to-core inbound webhooks (no merchant auth, HMAC-verified in controller)
@@ -68,6 +71,28 @@ defmodule YagyeCoreWeb.Router do
       post "/beneficial-owners", ComplianceController, :add_beneficial_owner
       post "/documents", ComplianceController, :upload_document
     end
+
+    # P11 — Customers & Account Verifications
+    get "/customers", CustomerController, :index
+    get "/customers/:id", CustomerController, :show
+    get "/account-verifications", CustomerController, :verifications_index
+    get "/account-verifications/:id", CustomerController, :verifications_show
+
+    # P9 — Settlement Batches
+    get "/settlement-batches", SettlementController, :batch_index
+    get "/settlement-batches/:id", SettlementController, :batch_show
+
+    # P12 — Settlements & Payouts
+    get "/settlements", SettlementController, :index
+    get "/settlements/:id", SettlementController, :show
+
+    post "/payout-destinations", PayoutController, :create_destination
+    get "/payout-destinations", PayoutController, :destinations_index
+    get "/payout-destinations/:id", PayoutController, :destinations_show
+
+    post "/payouts", PayoutController, :create
+    get "/payouts", PayoutController, :index
+    get "/payouts/:id", PayoutController, :show
   end
 
   scope "/api", YagyeCoreWeb do

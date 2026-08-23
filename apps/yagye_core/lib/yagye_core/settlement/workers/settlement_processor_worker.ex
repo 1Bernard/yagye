@@ -9,6 +9,7 @@ defmodule YagyeCore.Settlement.Workers.SettlementProcessorWorker do
   alias YagyeCore.Ledger
   alias YagyeCore.Outbox
   alias YagyeCore.Repo
+  alias YagyeCore.Settlement
   alias YagyeCore.Settlement.Schemas.SettlementBatch
 
   @impl Oban.Worker
@@ -48,8 +49,15 @@ defmodule YagyeCore.Settlement.Workers.SettlementProcessorWorker do
       |> Repo.transaction()
 
     case result do
-      {:ok, %{settled: batch}} ->
-        {:ok, batch}
+      {:ok, %{settled: settled_batch}} ->
+        # Best-effort: create the Settlement + SettlementItems for reconciliation.
+        # Failure here does not roll back the batch settlement.
+        case Settlement.create_settlement_from_batch(settled_batch) do
+          {:ok, _} -> :ok
+          {:error, reason} -> {:warning, "settlement record creation failed: #{inspect(reason)}"}
+        end
+
+        {:ok, settled_batch}
 
       {:error, _step, reason, _changes} ->
         mark_failed(batch, reason)
