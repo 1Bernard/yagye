@@ -26,4 +26,9 @@ config :logger, :default_handler,
 
 config :phoenix, :json_library, Jason
 
+config :opentelemetry,
+  span_processor: :batch,
+  traces_exporter: :otlp,
+  resource: [service: [name: "yagye_simulator", version: "0.1.0"]]
+
 import_config "#{config_env()}.exs"

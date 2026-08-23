@@ -40,3 +40,5 @@ config :yagye_core, Oban, testing: :manual
 
 # Use Mox mock adapter in tests — no real HTTP calls
 config :yagye_core, :provider_adapter, YagyeCore.MockProviderAdapter
+
+config :opentelemetry, traces_exporter: :none

@@ -71,8 +71,8 @@ defmodule YagyeCore.Payments.Adapters.SimulatorAdapter do
      }}
   end
 
-  defp translate_charge_response(%{"state" => "PENDING_AUTH"}) do
-    {:error, %{error_class: :indeterminate, response_code: "pending_auth", response_message: nil}}
+  defp translate_charge_response(%{"state" => "PENDING_AUTH"} = body) do
+    {:pending, %{provider_reference: body["charge_ref"]}}
   end
 
   defp translate_charge_response(%{"state" => state}) do

@@ -12,6 +12,7 @@ defmodule YagyeCore.Payments.Schemas.PaymentEvent do
     field :payload, :map, default: %{}
     field :actor, :string
     field :correlation_id, :string
+    field :trace_id, :string
     field :occurred_at, :utc_datetime_usec
     field :recorded_at, :utc_datetime_usec
 
@@ -29,6 +30,7 @@ defmodule YagyeCore.Payments.Schemas.PaymentEvent do
       :payload,
       :actor,
       :correlation_id,
+      :trace_id,
       :occurred_at,
       :recorded_at
     ])

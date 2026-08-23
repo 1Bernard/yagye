@@ -24,6 +24,17 @@ defmodule YagyeCoreWeb.Router do
   alias YagyeCoreWeb.Controllers.Disputes.{DisputeController, RefundController}
   alias YagyeCoreWeb.Controllers.Merchants.MerchantController
   alias YagyeCoreWeb.Controllers.Payments.PaymentController
+  alias YagyeCoreWeb.Controllers.Webhooks.ProviderWebhookController
+
+  # Provider-to-core inbound webhooks (no merchant auth, HMAC-verified in controller)
+  pipeline :provider_webhooks do
+    plug :accepts, ["json"]
+  end
+
+  scope "/provider-webhooks" do
+    pipe_through :provider_webhooks
+    post "/:provider_code", ProviderWebhookController, :receive
+  end
 
   # Spec and interactive docs (unauthenticated)
   scope "/api" do

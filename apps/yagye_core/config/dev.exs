@@ -64,3 +64,7 @@ config :swoosh, :api_client, false
 
 # Disable OpenApiSpex spec cache in dev so changes are picked up on reload
 config :open_api_spex, :cache_adapter, OpenApiSpex.Plug.NoneCache
+
+config :opentelemetry_exporter,
+  otlp_protocol: :http_protobuf,
+  otlp_endpoint: "http://localhost:4318"

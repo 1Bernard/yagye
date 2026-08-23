@@ -61,8 +61,14 @@ config :yagye_core, Oban,
   queues: [
     payments: 10,
     events: 5,
-    projections: 10
+    projections: 10,
+    webhooks: 5
   ]
+
+config :opentelemetry,
+  span_processor: :batch,
+  traces_exporter: :otlp,
+  resource: [service: [name: "yagye_core", version: "0.1.0"]]
 
 # Import environment specific config. This must remain at the bottom
 # of this file so it overrides the configuration defined above.

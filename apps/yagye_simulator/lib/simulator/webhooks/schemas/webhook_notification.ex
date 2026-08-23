@@ -1,24 +1,39 @@
-# TODO(p6): Webhook notification schema — deferred to P6 (Inbound Webhooks & Asynchrony)
-#
-# Purpose: represents the signed payload the simulator POSTs to yagye_core after an
-# async outcome is determined (e.g. mobile money wallet prompt approved/rejected).
-#
-# Flow this enables:
-#   1. yagye_core sends POST /charges → simulator returns state: PENDING_AUTH
-#   2. Simulator enqueues a WebhookDeliveryWorker (Oban job, configurable delay_ms)
-#   3. Worker POSTs a signed WebhookNotification to yagye_core's inbound webhook endpoint
-#   4. yagye_core's inbox processes it, transitions the payment to succeeded/failed
-#
-# Fields to define here:
-#   - charge_ref       (links back to the charge)
-#   - event_type       ("charge.succeeded" | "charge.failed" | "charge.timed_out")
-#   - outcome          (maps to Simulator.OutcomeEngine result)
-#   - auth_code        (present on success)
-#   - decline_code     (present on failure)
-#   - occurred_at      (domain timestamp of the outcome)
-#   - signature        (HMAC-SHA256 of the payload, key from account.webhook_secret)
-#
-# Related:
-#   - lib/simulator/webhooks/webhook_delivery_worker.ex  (Oban worker, also TODO)
-#   - lib/simulator/charges/charges.ex                   (enqueues the worker on create)
-#   - yagye_core inbound webhook handler                 (the receiver, built in P6)
+defmodule Simulator.Webhooks.Schemas.WebhookNotification do
+  @moduledoc false
+
+  @derive Jason.Encoder
+  defstruct [:event_id, :event_type, :charge_ref, :occurred_at, :auth_code, :decline_code]
+
+  @type t :: %__MODULE__{
+          event_id: String.t(),
+          event_type: String.t(),
+          charge_ref: String.t(),
+          occurred_at: DateTime.t(),
+          auth_code: String.t() | nil,
+          decline_code: String.t() | nil
+        }
+
+  def build(charge, wallet_prompt) do
+    %__MODULE__{
+      event_id: Uniq.UUID.uuid7(),
+      event_type: event_type(wallet_prompt.prompt_state),
+      charge_ref: charge.charge_ref,
+      occurred_at: wallet_prompt.resolved_at || DateTime.utc_now(),
+      auth_code: auth_code_for(wallet_prompt.prompt_state),
+      decline_code: decline_code_for(wallet_prompt.prompt_state)
+    }
+  end
+
+  defp event_type("APPROVED"), do: "charge.succeeded"
+  defp event_type("DECLINED"), do: "charge.failed"
+  defp event_type("EXPIRED"), do: "charge.failed"
+
+  defp auth_code_for("APPROVED"),
+    do: ("AUTH" <> :crypto.strong_rand_bytes(4)) |> Base.encode16()
+
+  defp auth_code_for(_), do: nil
+
+  defp decline_code_for("DECLINED"), do: "DECLINED_BY_CUSTOMER"
+  defp decline_code_for("EXPIRED"), do: "PROMPT_EXPIRED"
+  defp decline_code_for(_), do: nil
+end

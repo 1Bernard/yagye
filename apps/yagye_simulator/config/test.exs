@@ -11,3 +11,5 @@ config :simulator, Simulator.Web.Endpoint,
 config :simulator, Oban, testing: :inline
 
 config :logger, level: :warning
+
+config :opentelemetry, traces_exporter: :none

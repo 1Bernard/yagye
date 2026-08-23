@@ -10,6 +10,8 @@ defmodule Simulator.OutcomeEngine do
   across the full test suite without being tied to a specific run.
   """
 
+  require OpenTelemetry.Tracer
+
   alias Simulator.Scenarios.Schemas.Scenario
 
   @type card_outcome :: :authorised | :declined | :timeout | :provider_error
@@ -17,33 +19,45 @@ defmodule Simulator.OutcomeEngine do
 
   @spec card_outcome(Scenario.t() | nil, integer() | nil) :: card_outcome()
   def card_outcome(scenario, seed) do
-    roll = roll(seed)
-    scenario = scenario || defaults()
+    OpenTelemetry.Tracer.with_span "simulator.outcome_engine.card" do
+      roll = roll(seed)
+      scenario = scenario || defaults()
 
-    decline = to_float(scenario.decline_rate)
-    timeout = to_float(scenario.timeout_rate)
-    error = to_float(scenario.provider_error_rate)
+      decline = to_float(scenario.decline_rate)
+      timeout = to_float(scenario.timeout_rate)
+      error = to_float(scenario.provider_error_rate)
 
-    cond do
-      roll < decline -> :declined
-      roll < decline + timeout -> :timeout
-      roll < decline + timeout + error -> :provider_error
-      true -> :authorised
+      outcome =
+        cond do
+          roll < decline -> :declined
+          roll < decline + timeout -> :timeout
+          roll < decline + timeout + error -> :provider_error
+          true -> :authorised
+        end
+
+      OpenTelemetry.Tracer.set_attributes([{"outcome", Atom.to_string(outcome)}])
+      outcome
     end
   end
 
   @spec wallet_outcome(Scenario.t() | nil, integer() | nil) :: wallet_outcome()
   def wallet_outcome(scenario, seed) do
-    roll = roll(seed)
-    scenario = scenario || defaults()
+    OpenTelemetry.Tracer.with_span "simulator.outcome_engine.wallet" do
+      roll = roll(seed)
+      scenario = scenario || defaults()
 
-    decline = to_float(scenario.decline_rate)
-    timeout = to_float(scenario.timeout_rate)
+      decline = to_float(scenario.decline_rate)
+      timeout = to_float(scenario.timeout_rate)
 
-    cond do
-      roll < decline -> :declined
-      roll < decline + timeout -> :expired
-      true -> :approved
+      outcome =
+        cond do
+          roll < decline -> :declined
+          roll < decline + timeout -> :expired
+          true -> :approved
+        end
+
+      OpenTelemetry.Tracer.set_attributes([{"outcome", Atom.to_string(outcome)}])
+      outcome
     end
   end
 

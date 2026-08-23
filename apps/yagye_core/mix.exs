@@ -68,6 +68,13 @@ defmodule YagyeCore.MixProject do
       {:argon2_elixir, "~> 4.0"},
       {:open_api_spex, "~> 3.21"},
       {:oban, "~> 2.23"},
+      {:opentelemetry_api, "~> 1.5"},
+      {:opentelemetry, "~> 1.7"},
+      {:opentelemetry_exporter, "~> 1.10"},
+      {:opentelemetry_phoenix, "~> 2.0.0-rc.2"},
+      {:opentelemetry_ecto, "~> 1.0"},
+      {:opentelemetry_req, "~> 1.0.0-beta.1"},
+      {:opentelemetry_oban, "~> 1.0"},
       {:ex_machina, "~> 2.8.2", only: :test},
       {:mox, "~> 1.0", only: :test}
     ]

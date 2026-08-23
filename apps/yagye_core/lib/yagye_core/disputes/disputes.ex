@@ -1,6 +1,8 @@
 defmodule YagyeCore.Disputes do
   @moduledoc false
 
+  require OpenTelemetry.Tracer
+
   alias Ecto.Multi
   alias YagyeCore.Disputes.Schemas.{Dispute, Refund}
   alias YagyeCore.Ledger
@@ -267,10 +269,26 @@ defmodule YagyeCore.Disputes do
       to_state: to_state,
       actor: "system",
       correlation_id: payment.public_id,
+      trace_id: current_trace_id(),
       occurred_at: now,
       recorded_at: now
     })
     |> Repo.insert()
+  end
+
+  defp current_trace_id do
+    case OpenTelemetry.Tracer.current_span_ctx() do
+      :undefined ->
+        nil
+
+      span_ctx ->
+        trace_id = :otel_span.trace_id(span_ctx)
+
+        if trace_id == 0,
+          do: nil,
+          else:
+            trace_id |> Integer.to_string(16) |> String.downcase() |> String.pad_leading(32, "0")
+    end
   end
 
   defp payment_state_for_outcome(:won), do: "succeeded"

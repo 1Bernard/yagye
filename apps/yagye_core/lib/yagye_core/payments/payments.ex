@@ -1,6 +1,8 @@
 defmodule YagyeCore.Payments do
   @moduledoc false
 
+  require OpenTelemetry.Tracer
+
   import Ecto.Query
 
   alias Ecto.Multi
@@ -175,6 +177,46 @@ defmodule YagyeCore.Payments do
     {:error, :retryable_error}
   end
 
+  def handle_pending_auth(payment, attempt, %{provider_reference: charge_ref}) do
+    attempt_cs =
+      attempt
+      |> PaymentAttempt.result_changeset(%{state: "dispatched", provider_reference: charge_ref})
+      |> Ecto.Changeset.put_change(:dispatched_at, DateTime.utc_now())
+
+    Multi.new()
+    |> Multi.update(:attempt, attempt_cs)
+    |> Multi.update(:payment, Payment.transition_changeset(payment, "requires_action"))
+    |> Multi.run(:event, fn _repo, %{payment: p} ->
+      insert_event(p, "payment.requires_action", "processing", "requires_action")
+    end)
+    |> Multi.insert(:outbox, fn %{payment: p} ->
+      Outbox.build_changeset(p, "payment.requires_action", %{
+        method: p.method,
+        amount: p.amount,
+        currency: p.currency
+      })
+    end)
+    |> Repo.transaction()
+    |> case do
+      {:ok, %{payment: payment}} -> {:ok, payment}
+      {:error, _step, reason, _changes} -> {:error, reason}
+    end
+  end
+
+  def get_attempt_by_provider_ref(provider_reference) do
+    case Repo.get_by(PaymentAttempt, provider_reference: provider_reference) do
+      nil -> {:error, :not_found}
+      attempt -> {:ok, attempt}
+    end
+  end
+
+  def get_payment_by_id(id) do
+    case Repo.get(Payment, id) do
+      nil -> {:error, :not_found}
+      payment -> {:ok, payment}
+    end
+  end
+
   def get_payment(public_id) do
     case Repo.get_by(Payment, public_id: public_id) do
       nil -> {:error, :not_found}
@@ -243,13 +285,6 @@ defmodule YagyeCore.Payments do
     count + 1
   end
 
-  defp get_payment_by_id(id) do
-    case Repo.get(Payment, id) do
-      nil -> {:error, :not_found}
-      payment -> {:ok, payment}
-    end
-  end
-
   defp resolve_merchant(merchant_id) do
     case Repo.get(Merchant, merchant_id) do
       nil -> {:error, :not_found}
@@ -276,9 +311,25 @@ defmodule YagyeCore.Payments do
       to_state: to_state,
       actor: "system",
       correlation_id: payment.public_id,
+      trace_id: current_trace_id(),
       occurred_at: now,
       recorded_at: now
     })
     |> Repo.insert()
+  end
+
+  defp current_trace_id do
+    case OpenTelemetry.Tracer.current_span_ctx() do
+      :undefined ->
+        nil
+
+      span_ctx ->
+        trace_id = :otel_span.trace_id(span_ctx)
+
+        if trace_id == 0,
+          do: nil,
+          else:
+            trace_id |> Integer.to_string(16) |> String.downcase() |> String.pad_leading(32, "0")
+    end
   end
 end

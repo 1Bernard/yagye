@@ -48,3 +48,7 @@ What did we decide? One clear statement.
 | [0009](0009-soft-revocation-no-hard-delete.md) | Soft revocation — no hard deletes for credentials | Accepted |
 | [0010](0010-stripe-style-error-envelope.md) | Stripe-style JSON error envelope | Accepted |
 | [0011](0011-bearer-auth-mode-aware-api-keys.md) | Bearer token auth with mode-aware API keys | Accepted |
+| [0012](0012-oban-for-background-jobs.md) | Oban for background job processing | Accepted |
+| [0013](0013-gateway-simulator-as-acl.md) | Permanent gateway simulator as the anti-corruption layer | Accepted |
+| [0014](0014-transactional-outbox.md) | Transactional outbox for domain event emission | Accepted |
+| [0015](0015-outbox-driven-projections.md) | Outbox-driven read-model projections | Accepted |

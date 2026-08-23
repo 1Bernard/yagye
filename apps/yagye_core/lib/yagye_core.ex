@@ -29,6 +29,8 @@ defmodule YagyeCore do
       Ledger.Schemas.Entry,
       Ledger.Schemas.Posting,
       Ledger.Schemas.Balance,
+      Webhooks,
+      Webhooks.Schemas.WebhookEvent,
       Repo
     ]
 

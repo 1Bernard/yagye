@@ -19,6 +19,18 @@ defmodule YagyeCore.Providers do
   # Sandbox/live: looks up merchant_provider_connections ordered by priority (lower wins).
   # The credential is fetched by (provider_id, merchant_id, mode) — merchant-level first,
   # then platform-level fallback.
+  # Returns the webhook_secret for a given provider code. The secret is stored
+  # in the provider's platform-level simulation credential encrypted_payload.
+  def get_webhook_secret(provider_code) do
+    with {:ok, provider} <- fetch_provider_by_code(provider_code),
+         {:ok, credential_map} <- fetch_platform_credential(provider.id, "simulation") do
+      case credential_map["webhook_secret"] do
+        nil -> {:error, :no_webhook_secret}
+        secret -> {:ok, secret}
+      end
+    end
+  end
+
   def get_provider_for_payment(%{mode: "simulation"}) do
     with {:ok, provider} <- fetch_provider_by_code(@simulator_code),
          {:ok, credential_map} <- fetch_platform_credential(provider.id, "simulation") do

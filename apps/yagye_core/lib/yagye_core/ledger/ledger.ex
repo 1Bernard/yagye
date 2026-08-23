@@ -1,6 +1,8 @@
 defmodule YagyeCore.Ledger do
   @moduledoc false
 
+  require OpenTelemetry.Tracer
+
   import Ecto.Query
 
   alias YagyeCore.Disputes.Schemas.Refund
@@ -22,34 +24,48 @@ defmodule YagyeCore.Ledger do
   #
   # Fee split is deferred to P8 (requires pricing_rules).
   def post_payment_settled(%Payment{} = payment, %PaymentAttempt{} = attempt) do
-    with {:ok, settlement_account} <-
-           get_or_create_account(%{
-             account_type: "settlement_pending",
-             normal_balance: "debit",
-             scope_type: "provider",
-             scope_id: attempt.provider_id,
-             currency: payment.currency,
-             mode: payment.mode,
-             allows_negative: false
-           }),
-         {:ok, merchant_account} <-
-           get_or_create_account(%{
-             account_type: "merchant_payable",
-             normal_balance: "credit",
-             scope_type: "merchant",
-             scope_id: payment.merchant_id,
-             currency: payment.currency,
-             mode: payment.mode,
-             allows_negative: false
-           }),
-         {:ok, entry} <- insert_entry(payment),
-         {:ok, debit} <-
-           insert_posting(entry, settlement_account, "debit", payment.amount, payment.merchant_id),
-         {:ok, credit} <-
-           insert_posting(entry, merchant_account, "credit", payment.amount, payment.merchant_id) do
-      apply_balance(settlement_account.id, payment.amount, :debit, debit.id)
-      apply_balance(merchant_account.id, payment.amount, :credit, credit.id)
-      {:ok, entry}
+    OpenTelemetry.Tracer.with_span "ledger.post_settlement" do
+      with {:ok, settlement_account} <-
+             get_or_create_account(%{
+               account_type: "settlement_pending",
+               normal_balance: "debit",
+               scope_type: "provider",
+               scope_id: attempt.provider_id,
+               currency: payment.currency,
+               mode: payment.mode,
+               allows_negative: false
+             }),
+           {:ok, merchant_account} <-
+             get_or_create_account(%{
+               account_type: "merchant_payable",
+               normal_balance: "credit",
+               scope_type: "merchant",
+               scope_id: payment.merchant_id,
+               currency: payment.currency,
+               mode: payment.mode,
+               allows_negative: false
+             }),
+           {:ok, entry} <- insert_entry(payment),
+           {:ok, debit} <-
+             insert_posting(
+               entry,
+               settlement_account,
+               "debit",
+               payment.amount,
+               payment.merchant_id
+             ),
+           {:ok, credit} <-
+             insert_posting(
+               entry,
+               merchant_account,
+               "credit",
+               payment.amount,
+               payment.merchant_id
+             ) do
+        apply_balance(settlement_account.id, payment.amount, :debit, debit.id)
+        apply_balance(merchant_account.id, payment.amount, :credit, credit.id)
+        {:ok, entry}
+      end
     end
   end
 
@@ -63,40 +79,42 @@ defmodule YagyeCore.Ledger do
     Credit : settlement_pending — reduce what we're owed from provider (asset ↓)
   """
   def post_refund(%Payment{} = payment, %PaymentAttempt{} = attempt, %Refund{} = refund) do
-    with {:ok, merchant_account} <-
-           get_or_create_account(%{
-             account_type: "merchant_payable",
-             normal_balance: "credit",
-             scope_type: "merchant",
-             scope_id: payment.merchant_id,
-             currency: payment.currency,
-             mode: payment.mode,
-             allows_negative: false
-           }),
-         {:ok, settlement_account} <-
-           get_or_create_account(%{
-             account_type: "settlement_pending",
-             normal_balance: "debit",
-             scope_type: "provider",
-             scope_id: attempt.provider_id,
-             currency: payment.currency,
-             mode: payment.mode,
-             allows_negative: false
-           }),
-         {:ok, entry} <- insert_refund_entry(payment, refund),
-         {:ok, debit} <-
-           insert_posting(entry, merchant_account, "debit", refund.amount, payment.merchant_id),
-         {:ok, credit} <-
-           insert_posting(
-             entry,
-             settlement_account,
-             "credit",
-             refund.amount,
-             payment.merchant_id
-           ) do
-      apply_balance(merchant_account.id, refund.amount, :debit, debit.id)
-      apply_balance(settlement_account.id, refund.amount, :credit, credit.id)
-      {:ok, entry}
+    OpenTelemetry.Tracer.with_span "ledger.post_refund" do
+      with {:ok, merchant_account} <-
+             get_or_create_account(%{
+               account_type: "merchant_payable",
+               normal_balance: "credit",
+               scope_type: "merchant",
+               scope_id: payment.merchant_id,
+               currency: payment.currency,
+               mode: payment.mode,
+               allows_negative: false
+             }),
+           {:ok, settlement_account} <-
+             get_or_create_account(%{
+               account_type: "settlement_pending",
+               normal_balance: "debit",
+               scope_type: "provider",
+               scope_id: attempt.provider_id,
+               currency: payment.currency,
+               mode: payment.mode,
+               allows_negative: false
+             }),
+           {:ok, entry} <- insert_refund_entry(payment, refund),
+           {:ok, debit} <-
+             insert_posting(entry, merchant_account, "debit", refund.amount, payment.merchant_id),
+           {:ok, credit} <-
+             insert_posting(
+               entry,
+               settlement_account,
+               "credit",
+               refund.amount,
+               payment.merchant_id
+             ) do
+        apply_balance(merchant_account.id, refund.amount, :debit, debit.id)
+        apply_balance(settlement_account.id, refund.amount, :credit, credit.id)
+        {:ok, entry}
+      end
     end
   end
 

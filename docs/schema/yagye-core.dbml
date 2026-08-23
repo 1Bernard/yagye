@@ -512,19 +512,18 @@ Table refunds [headercolor: #1F6B4A] {
   id uuid [pk]
   public_id text [unique, not null, note: 'rfd_01J...']
   payment_id uuid [not null]
+  dispute_id uuid [note: 'set when the refund is a retraction of an accepted dispute']
   merchant_id uuid [not null]
   mode yagye_mode [not null]
   amount bigint [not null, note: '[FIN]']
   currency char(3) [not null]
-  state text [not null, note: 'requested|processing|succeeded|failed|indeterminate']
-  reason text
-  provider_reference text
-  idempotency_token text [not null]
-  requested_by text [not null]
-  correlation_id text [not null]
+  reason text [not null, note: 'duplicate|fraudulent|customer_request|dispute_retracted']
+  state text [not null, note: 'requested|succeeded|failed']
+  failure_reason text
+  metadata jsonb [not null]
   inserted_at timestamptz [not null]
   updated_at timestamptz [not null]
-  Note: 'Invariant: SUM(refunds in processing|succeeded) <= payment.captured_amount, enforced under a row lock.'
+  Note: 'P5 simplified implementation. Full provider-integration, idempotency, and cross-settlement refund flows come in P12. Invariant: SUM(refunds in requested|succeeded) <= payment.captured_amount, enforced under a row lock.'
 }
 
 Table disputes [headercolor: #9B3232] {
@@ -535,17 +534,16 @@ Table disputes [headercolor: #9B3232] {
   mode yagye_mode [not null]
   amount bigint [not null, note: '[FIN]']
   currency char(3) [not null]
-  stage text [note: 'retrieval|first_chargeback|representment|pre_arbitration|arbitration']
-  scheme_reason_code text
-  state text [not null, note: 'received|under_review|evidence_submitted|won|lost|accepted|expired']
-  provider_reference text
+  network text [not null, note: 'card|mtn|telecel|airteltigo']
+  reason text [not null, note: 'fraudulent|not_received|duplicate|product_unacceptable|subscription_cancelled|other']
+  stage text [not null, note: 'opened|evidence_required|under_review|resolved']
+  outcome text [note: 'won|lost|retracted']
   evidence_due_at timestamptz [note: 'a missed deadline is an automatic loss — scheduled reminders at 72h/24h/4h']
-  evidence_submitted_at timestamptz
-  outcome text [note: 'won|lost']
-  outcome_at timestamptz
+  resolved_at timestamptz
+  metadata jsonb [not null]
   inserted_at timestamptz [not null]
   updated_at timestamptz [not null]
-  Note: 'Arrives 60-120 days after the payment. Also the LABEL for the fraud model.'
+  Note: 'P5 simplified implementation. Multi-stage chargeback lifecycle (retrieval, representment, pre-arbitration), scheme reason codes, and provider references come in P12. Arrives 60-120 days after the payment. Also the LABEL for the fraud model.'
 }
 
 // ─── CHECKOUT ─────────────────────────────────────────────────────────────
@@ -1172,6 +1170,7 @@ Ref: payment_mobile_money_details.payment_id - payments.id
 Ref: payment_bank_transfer_details.payment_id - payments.id
 Ref: card_declines.attempt_id - payment_attempts.id
 Ref: refunds.payment_id > payments.id
+Ref: refunds.dispute_id > disputes.id
 Ref: disputes.payment_id > payments.id
 Ref: checkout_sessions.merchant_id > merchants.id
 Ref: checkout_sessions.payment_id - payments.id

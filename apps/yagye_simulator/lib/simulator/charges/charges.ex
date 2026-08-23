@@ -7,6 +7,7 @@ defmodule Simulator.Charges do
   alias Simulator.OutcomeEngine
   alias Simulator.Repo
   alias Simulator.Scenarios
+  alias Simulator.Webhooks.WebhookDeliveryWorker
 
   # ── Public API ───────────────────────────────────────────────────────────────
 
@@ -72,6 +73,7 @@ defmodule Simulator.Charges do
   defp create_wallet_charge(account, attrs, scenario, seed) do
     outcome = OutcomeEngine.wallet_outcome(scenario, seed)
     now = DateTime.utc_now()
+    delay_ms = attrs[:approval_delay_ms] || 3_000
 
     charge_attrs =
       base_charge_attrs(account, attrs, scenario, seed)
@@ -80,7 +82,13 @@ defmodule Simulator.Charges do
     Repo.transaction(fn ->
       with {:ok, charge} <- insert_charge(charge_attrs),
            {:ok, _event} <- insert_charge_event(charge, "charge.created", nil, "PENDING_AUTH"),
-           {:ok, _prompt} <- insert_wallet_prompt(charge, attrs, outcome, now) do
+           {:ok, _prompt} <- insert_wallet_prompt(charge, attrs, outcome, now),
+           {:ok, _job} <-
+             WebhookDeliveryWorker.new(
+               %{account_id: account.id, charge_ref: charge.charge_ref},
+               schedule_in: max(div(delay_ms, 1000), 1)
+             )
+             |> Oban.insert() do
         charge
       else
         {:error, reason} -> Repo.rollback(reason)

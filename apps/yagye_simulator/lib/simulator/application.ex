@@ -5,6 +5,10 @@ defmodule Simulator.Application do
 
   @impl true
   def start(_type, _args) do
+    OpentelemetryPhoenix.setup(adapter: :bandit)
+    OpentelemetryEcto.setup([:simulator, :repo])
+    OpentelemetryOban.setup()
+
     children = [
       Simulator.Repo,
       {Oban, Application.fetch_env!(:simulator, Oban)},
