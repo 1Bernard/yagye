@@ -10,6 +10,8 @@ defmodule YagyeCore.Settlement.Schemas.SettlementBatch do
   @valid_states ~w[pending processing settled failed]
   @valid_modes ~w[simulation live]
 
+  @type t :: %__MODULE__{}
+
   schema "settlement_batches" do
     field :currency, :string
     field :mode, :string
