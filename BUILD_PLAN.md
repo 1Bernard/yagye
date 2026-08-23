@@ -51,7 +51,7 @@ step is completed or a decision is made. Status values: `todo`, `in-progress`, `
 ### Act IV — The Product Surface
 | Phase | Name | Status |
 |---|---|---|
-| P13 | The Rails Portal | todo |
+| P13 | The Rails Portal | todo | **Step 0 prerequisite before first orchestration merchant:** add `providers.kind` guard to ledger posting, settlement sweep, and reconciliation trigger — see "P13 dual-model prerequisites" section |
 | P14 | Kafka & the Event Backbone | todo |
 | P15 | RabbitMQ & Outbound Webhook Delivery | todo |
 | P16 | Hosted Checkout, Payment Methods, 3DS | todo |
@@ -223,6 +223,53 @@ lands in Step 1's migration so the constraint is live from day one.
 - [x] Step 8 — 13 tests, 0 failures: report ingestion idempotency, bad-line quarantine,
                exact-reference matching, break detection (missing_on_left / missing_on_right),
                SoD constraint (proposer cannot self-approve), correcting entry posted on approval
+
+## P13 dual-model prerequisites (Step 0 before any orchestration merchant is onboarded)
+
+These three gaps are safe to leave until P13 because there are currently zero `external_psp`
+providers in the system. They MUST land before the first Model B merchant goes live.
+Each fix is a narrow guard — no rewrites required.
+
+### Gap 1 — Ledger: `post_payment_settled` posts false assets for orchestration payments
+
+Current: always posts `settlement_pending ↔ merchant_payable` for every payment.
+Wrong for `external_psp`: Yagye never holds that money; posting `settlement_pending` would
+be a false asset on Yagye's books.
+
+Fix: in `Ledger.post_payment_settled`, resolve `attempt.provider_id → provider.kind`.
+- `native_rail` → current double-entry (unchanged)
+- `external_psp` → post only the orchestration fee entry:
+  Debit `orchestration_receivable`, Credit `orchestration_revenue` (fee amount only, not gross)
+
+### Gap 2 — Settlement: `create_batch` sweeps orchestration payments into Yagye batches
+
+Current: sweeps ALL `succeeded` payments for a provider.
+Wrong for `external_psp`: the external PSP already settled those directly to the merchant;
+Yagye must never re-settle them.
+
+Fix: add `JOIN providers ON providers.id = payment_attempts.provider_id WHERE providers.kind = 'native_rail'`
+to the sweep query in `Settlement.do_sweep/4`.
+
+### Gap 3 — Reconciliation trigger: fires for external_psp batches Yagye can't reconcile
+
+Current: `ReconciliationTriggerWorker` starts a run for every `settlement.batch.settled` event.
+Wrong for `external_psp`: Yagye never receives provider reports for Stripe/Flutterwave/Paystack —
+there is nothing to reconcile from Yagye's side.
+
+Fix: in `ReconciliationTriggerWorker.perform/1`, load the batch's provider and guard:
+`if provider.kind == "native_rail", do: Reconciliation.start_run(...), else: :ok`
+
+### Gap 4 — Credential resolution: no merchant-level credential lookup (not built yet)
+
+Current: payment dispatcher resolves platform-level credentials only
+(`provider_credentials WHERE merchant_id IS NULL`).
+`external_psp` credentials live at the merchant level in `merchant_provider_connections →
+provider_credentials WHERE merchant_id = X`.
+
+Fix: the payment dispatch path needs a two-step lookup:
+1. Check `merchant_provider_connections` for a merchant-level credential (orchestration mode)
+2. Fall back to platform-level credential (PSP mode)
+This seam belongs in whatever credential-resolution helper the dispatcher uses.
 
 ## Phase P21b — AML / PEP Screening
 
