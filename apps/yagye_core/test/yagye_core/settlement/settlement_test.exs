@@ -2,6 +2,7 @@ defmodule YagyeCore.Settlement.SettlementTest do
   use YagyeCore.DataCase, async: true
 
   alias YagyeCore.Fixtures
+  alias YagyeCore.Outbox.Schemas.OutboxMessage
   alias YagyeCore.Payments.Schemas.Payment
   alias YagyeCore.Payments.Schemas.PaymentAttempt
   alias YagyeCore.Providers.Schemas.Provider
@@ -71,6 +72,23 @@ defmodule YagyeCore.Settlement.SettlementTest do
       assert batch.mode == "simulation"
       assert batch.payment_count == 2
       assert batch.gross_amount == p1.amount + p2.amount
+    end
+
+    test "emits a settlement.batch.created outbox event",
+         %{merchant: merchant, provider: provider} do
+      succeeded_payment_with_attempt(merchant, provider)
+
+      {:ok, batch} = Settlement.create_batch(merchant.id, provider.id, "GHS", "simulation")
+
+      msg =
+        Repo.get_by(OutboxMessage,
+          aggregate_type: "settlementbatch",
+          aggregate_id: batch.id,
+          event_type: "settlement.batch.created"
+        )
+
+      assert msg != nil
+      assert msg.mode == "simulation"
     end
 
     test "sets period_start to the earliest payment's inserted_at",

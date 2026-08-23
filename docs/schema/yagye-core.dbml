@@ -644,8 +644,8 @@ Table checkout_template_components [headercolor: #2E4A73] {
 
 Table ledger_accounts [headercolor: #B4531F] {
   id uuid [pk]
-  code text [unique, not null, note: 'merchant_payable:mch_01J...:GHS']
-  account_type text [not null]
+  code text [unique, not null, note: '{type}:{scope_id}:{currency}:{mode} e.g. merchant_payable:mch_01J...:GHS:live or settlement_approved:mch_01J...:GHS:live']
+  account_type text [not null, note: 'merchant_payable (credit-normal, merchant-scoped — accumulated receivable from succeeded payments) | settlement_approved (credit-normal, merchant-scoped — amount swept into a settled batch, P9) | more types added per phase']
   normal_balance posting_direction [not null]
   scope_type text [not null, note: 'merchant|provider|platform']
   scope_id uuid
@@ -1062,7 +1062,7 @@ Table outbox_messages [headercolor: #B4531F] {
   aggregate_type text [not null]
   aggregate_id uuid [not null]
   aggregate_version integer [not null, note: 'the projection version fence']
-  event_type text [not null]
+  event_type text [not null, note: 'Known types: payment.succeeded | payment.failed | payment.attempt.* | settlement.batch.created (P9, emitted atomically in create_batch) | settlement.batch.settled (P9, emitted by SettlementProcessorWorker) | refund.* | dispute.*']
   event_version integer [not null]
   partition_key text [not null]
   merchant_id uuid [note: 'denormalised from the envelope — lets you retain, filter and purge by tenant without parsing JSONB']

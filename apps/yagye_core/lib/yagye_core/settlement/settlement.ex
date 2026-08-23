@@ -3,6 +3,7 @@ defmodule YagyeCore.Settlement do
 
   import Ecto.Query
 
+  alias YagyeCore.Outbox
   alias YagyeCore.Payments.Schemas.Payment
   alias YagyeCore.Payments.Schemas.PaymentAttempt
   alias YagyeCore.Repo
@@ -27,12 +28,14 @@ defmodule YagyeCore.Settlement do
         with :ok <- guard_no_open_batch(merchant_id, provider_id, currency, mode),
              [_ | _] = payments <- do_sweep(merchant_id, provider_id, currency, mode),
              {:ok, batch} <- insert_batch(merchant_id, provider_id, currency, mode, payments),
-             :ok <- stamp_payments(Enum.map(payments, & &1.id), batch.id) do
+             :ok <- stamp_payments(Enum.map(payments, & &1.id), batch.id),
+             {:ok, _} <- emit_created_event(batch) do
           batch
         else
           :error -> Repo.rollback(:batch_already_open)
           [] -> Repo.rollback(:no_payments)
-          {:error, cs} -> Repo.rollback({:changeset, cs})
+          {:error, cs} when is_struct(cs, Ecto.Changeset) -> Repo.rollback({:changeset, cs})
+          {:error, reason} -> Repo.rollback(reason)
         end
       end)
 
@@ -56,6 +59,17 @@ defmodule YagyeCore.Settlement do
     else
       {:error, :invalid_state}
     end
+  end
+
+  defp emit_created_event(%SettlementBatch{} = batch) do
+    Outbox.emit(batch, "settlement.batch.created", %{
+      batch_id: batch.id,
+      merchant_id: batch.merchant_id,
+      provider_id: batch.provider_id,
+      currency: batch.currency,
+      payment_count: batch.payment_count,
+      gross_amount: batch.gross_amount
+    })
   end
 
   defp insert_batch(merchant_id, provider_id, currency, mode, payments) do
