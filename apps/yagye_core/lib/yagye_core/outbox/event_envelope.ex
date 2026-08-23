@@ -1,4 +1,4 @@
-defmodule YagyeCore.Events.EventEnvelope do
+defmodule YagyeCore.Outbox.EventEnvelope do
   @moduledoc false
 
   # The normalized shape written into outbox_messages.envelope (jsonb).

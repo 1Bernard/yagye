@@ -3,6 +3,8 @@ defmodule YagyeCore.Merchants do
 
   import Ecto.Query
 
+  alias Ecto.Multi
+
   alias YagyeCore.Merchants.Commands.{
     ApproveMerchant,
     IssueApiKey,
@@ -18,6 +20,7 @@ defmodule YagyeCore.Merchants do
   }
 
   alias YagyeCore.Merchants.Schemas.{ApiKey, Merchant, MerchantMode}
+  alias YagyeCore.Outbox
   alias YagyeCore.Repo
 
   # ── Public API ───────────────────────────────────────────────────────────────
@@ -99,19 +102,32 @@ defmodule YagyeCore.Merchants do
   # ── Dispatch ─────────────────────────────────────────────────────────────────
 
   defp dispatch(%RegisterMerchant{} = cmd) do
-    Repo.transaction(fn ->
-      attrs = %{
-        public_id: "mch_#{Uniq.UUID.uuid7()}",
-        legal_name: cmd.legal_name,
-        trading_name: cmd.trading_name,
-        country: cmd.country && String.upcase(cmd.country),
-        default_currency: cmd.default_currency && String.upcase(cmd.default_currency),
-        api_version: "2026-01-01",
-        metadata: cmd.metadata || %{}
-      }
+    attrs = %{
+      public_id: "mch_#{Uniq.UUID.uuid7()}",
+      legal_name: cmd.legal_name,
+      trading_name: cmd.trading_name,
+      country: cmd.country && String.upcase(cmd.country),
+      default_currency: cmd.default_currency && String.upcase(cmd.default_currency),
+      api_version: "2026-01-01",
+      metadata: cmd.metadata || %{}
+    }
 
-      with {:ok, merchant} <- %Merchant{} |> Merchant.changeset(attrs) |> Repo.insert(),
-           {:ok, _} <- grant_mode(merchant.id, :simulation) do
+    Multi.new()
+    |> Multi.insert(:merchant, Merchant.changeset(%Merchant{}, attrs))
+    |> Multi.run(:mode, fn _repo, %{merchant: merchant} ->
+      grant_mode(merchant.id, :simulation)
+    end)
+    |> Multi.insert(:outbox, fn %{merchant: merchant} ->
+      Outbox.build_changeset(merchant, "merchant.registered", %{
+        legal_name: merchant.legal_name,
+        trading_name: merchant.trading_name,
+        country: merchant.country,
+        default_currency: merchant.default_currency
+      })
+    end)
+    |> Repo.transaction()
+    |> case do
+      {:ok, %{merchant: merchant}} ->
         event = %MerchantRegistered{
           merchant_id: merchant.id,
           public_id: merchant.public_id,
@@ -122,51 +138,78 @@ defmodule YagyeCore.Merchants do
           occurred_at: DateTime.utc_now()
         }
 
-        # P7: append event to outbox_messages in this same transaction
-        {merchant, event}
-      else
-        {:error, reason} -> Repo.rollback(reason)
-      end
-    end)
+        {:ok, {merchant, event}}
+
+      {:error, _step, reason, _changes} ->
+        {:error, reason}
+    end
   end
 
   defp dispatch(%ApproveMerchant{} = cmd) do
-    Repo.transaction(fn ->
-      with {:ok, merchant} <- fetch_approvable(cmd.merchant_id),
-           {:ok, merchant} <-
-             merchant |> Ecto.Changeset.change(status: "approved") |> Repo.update(),
-           {:ok, _} <- grant_mode(merchant.id, :live) do
+    Multi.new()
+    |> Multi.run(:merchant, fn _repo, _changes ->
+      fetch_approvable(cmd.merchant_id)
+    end)
+    |> Multi.update(:approved, fn %{merchant: merchant} ->
+      Ecto.Changeset.change(merchant, status: "approved")
+    end)
+    |> Multi.run(:mode, fn _repo, %{approved: merchant} ->
+      grant_mode(merchant.id, :live)
+    end)
+    |> Multi.insert(:outbox, fn %{approved: merchant} ->
+      Outbox.build_changeset(merchant, "merchant.approved", %{
+        approved_by: cmd.approved_by
+      })
+    end)
+    |> Repo.transaction()
+    |> case do
+      {:ok, %{approved: merchant}} ->
         event = %MerchantApproved{
           merchant_id: merchant.id,
           approved_by: cmd.approved_by,
           occurred_at: DateTime.utc_now()
         }
 
-        # P7: outbox
-        {merchant, event}
-      else
-        {:error, reason} -> Repo.rollback(reason)
-      end
-    end)
+        {:ok, {merchant, event}}
+
+      {:error, _step, reason, _changes} ->
+        {:error, reason}
+    end
   end
 
   defp dispatch(%IssueApiKey{} = cmd) do
-    Repo.transaction(fn ->
-      {raw_key, key_prefix, secret_hash} = generate_key_material(cmd.kind)
+    {raw_key, key_prefix, secret_hash} = generate_key_material(cmd.kind)
 
-      with {:ok, merchant} <- resolve_merchant(cmd.merchant_id),
-           attrs = %{
-             public_id: "key_#{Uniq.UUID.uuid7()}",
-             merchant_id: merchant.id,
-             mode: cmd.mode,
-             kind: to_string(cmd.kind),
-             key_prefix: key_prefix,
-             secret_hash: secret_hash,
-             scopes: cmd.scopes,
-             expires_at: cmd.expires_at,
-             created_by: cmd.created_by
-           },
-           {:ok, api_key} <- %ApiKey{} |> ApiKey.changeset(attrs) |> Repo.insert() do
+    Multi.new()
+    |> Multi.run(:merchant, fn _repo, _changes ->
+      resolve_merchant(cmd.merchant_id)
+    end)
+    |> Multi.insert(:api_key, fn %{merchant: merchant} ->
+      attrs = %{
+        public_id: "key_#{Uniq.UUID.uuid7()}",
+        merchant_id: merchant.id,
+        mode: cmd.mode,
+        kind: to_string(cmd.kind),
+        key_prefix: key_prefix,
+        secret_hash: secret_hash,
+        scopes: cmd.scopes,
+        expires_at: cmd.expires_at,
+        created_by: cmd.created_by
+      }
+
+      ApiKey.changeset(%ApiKey{}, attrs)
+    end)
+    |> Multi.insert(:outbox, fn %{api_key: api_key} ->
+      Outbox.build_changeset(api_key, "merchant.api_key_issued", %{
+        merchant_id: api_key.merchant_id,
+        mode: api_key.mode,
+        kind: api_key.kind,
+        scopes: api_key.scopes
+      })
+    end)
+    |> Repo.transaction()
+    |> case do
+      {:ok, %{api_key: api_key}} ->
         event = %ApiKeyIssued{
           api_key_id: api_key.id,
           public_id: api_key.public_id,
@@ -179,27 +222,41 @@ defmodule YagyeCore.Merchants do
           occurred_at: DateTime.utc_now()
         }
 
-        # P7: outbox
         # raw_key is returned here and ONLY here — never stored, never logged
-        {api_key, raw_key, event}
-      else
-        {:error, reason} -> Repo.rollback(reason)
-      end
-    end)
+        {:ok, {api_key, raw_key, event}}
+
+      {:error, _step, reason, _changes} ->
+        {:error, reason}
+    end
   end
 
   defp dispatch(%RevokeApiKey{} = cmd) do
-    Repo.transaction(fn ->
-      with {:ok, merchant} <- resolve_merchant(cmd.merchant_id),
-           query =
-             from(k in ApiKey,
-               where: k.public_id == ^cmd.api_key_id,
-               where: k.merchant_id == ^merchant.id,
-               where: is_nil(k.revoked_at)
-             ),
-           {:ok, api_key} <- one_or_error(query),
-           {:ok, api_key} <-
-             api_key |> Ecto.Changeset.change(revoked_at: DateTime.utc_now()) |> Repo.update() do
+    Multi.new()
+    |> Multi.run(:merchant, fn _repo, _changes ->
+      resolve_merchant(cmd.merchant_id)
+    end)
+    |> Multi.run(:api_key, fn _repo, %{merchant: merchant} ->
+      query =
+        from(k in ApiKey,
+          where: k.public_id == ^cmd.api_key_id,
+          where: k.merchant_id == ^merchant.id,
+          where: is_nil(k.revoked_at)
+        )
+
+      one_or_error(query)
+    end)
+    |> Multi.update(:revoked, fn %{api_key: api_key} ->
+      Ecto.Changeset.change(api_key, revoked_at: DateTime.utc_now())
+    end)
+    |> Multi.insert(:outbox, fn %{revoked: api_key} ->
+      Outbox.build_changeset(api_key, "merchant.api_key_revoked", %{
+        merchant_id: api_key.merchant_id,
+        revoked_by: cmd.revoked_by
+      })
+    end)
+    |> Repo.transaction()
+    |> case do
+      {:ok, %{revoked: api_key}} ->
         event = %ApiKeyRevoked{
           api_key_id: api_key.id,
           merchant_id: api_key.merchant_id,
@@ -207,12 +264,11 @@ defmodule YagyeCore.Merchants do
           occurred_at: DateTime.utc_now()
         }
 
-        # P7: outbox
-        {api_key, event}
-      else
-        {:error, reason} -> Repo.rollback(reason)
-      end
-    end)
+        {:ok, {api_key, event}}
+
+      {:error, _step, reason, _changes} ->
+        {:error, reason}
+    end
   end
 
   # ── Private helpers ──────────────────────────────────────────────────────────

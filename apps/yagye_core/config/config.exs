@@ -53,7 +53,7 @@ config :yagye_core, Oban,
     {Oban.Plugins.Cron,
      crontab: [
        # Relay runs every minute; self-reschedules immediately on a full batch
-       {"* * * * *", YagyeCore.Events.Workers.OutboxRelayWorker},
+       {"* * * * *", YagyeCore.Outbox.Workers.OutboxRelayWorker},
        # Daily metrics recomputed hourly
        {"0 * * * *", YagyeCore.Projections.Workers.DailyMetricsWorker}
      ]}

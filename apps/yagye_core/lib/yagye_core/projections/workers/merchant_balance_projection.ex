@@ -12,7 +12,7 @@ defmodule YagyeCore.Projections.Workers.MerchantBalanceProjection do
 
   import Ecto.Query
 
-  alias YagyeCore.Events.EventEnvelope
+  alias YagyeCore.Outbox.EventEnvelope
   alias YagyeCore.Projections.Schemas.MerchantBalance
   alias YagyeCore.Repo
 

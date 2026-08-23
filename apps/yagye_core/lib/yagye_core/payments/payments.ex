@@ -3,9 +3,10 @@ defmodule YagyeCore.Payments do
 
   import Ecto.Query
 
-  alias YagyeCore.Events
+  alias Ecto.Multi
   alias YagyeCore.Ledger
   alias YagyeCore.Merchants.Schemas.Merchant
+  alias YagyeCore.Outbox
   alias YagyeCore.Payments.Schemas.{Payment, PaymentAttempt, PaymentEvent}
   alias YagyeCore.Payments.Workers.PaymentDispatchWorker
   alias YagyeCore.Repo
@@ -20,15 +21,27 @@ defmodule YagyeCore.Payments do
   end
 
   def dispatch_payment(payment_id) do
-    Repo.transaction(fn ->
-      with {:ok, payment} <- get_payment_by_id(payment_id),
-           {:ok, payment, action} <- transition_to_processing(payment),
-           :ok <- ensure_processing_event(payment, action) do
-        payment
-      else
-        {:error, reason} -> Repo.rollback(reason)
+    Multi.new()
+    |> Multi.run(:payment, fn _repo, _changes ->
+      get_payment_by_id(payment_id)
+    end)
+    |> Multi.run(:transition, fn _repo, %{payment: payment} ->
+      case transition_to_processing(payment) do
+        {:ok, p, action} -> {:ok, {p, action}}
+        error -> error
       end
     end)
+    |> Multi.run(:event, fn _repo, %{transition: {payment, action}} ->
+      case action do
+        :existing -> {:ok, nil}
+        :new -> insert_event(payment, "payment.processing", "created", "processing")
+      end
+    end)
+    |> Repo.transaction()
+    |> case do
+      {:ok, %{transition: {payment, _action}}} -> {:ok, payment}
+      {:error, _step, reason, _changes} -> {:error, reason}
+    end
   end
 
   def create_attempt(payment, provider_id) do
@@ -46,36 +59,44 @@ defmodule YagyeCore.Payments do
   end
 
   def handle_provider_response(payment, attempt, {:ok, result}) do
-    Repo.transaction(fn ->
-      now = DateTime.utc_now()
-
-      with {:ok, _attempt} <-
-             attempt
-             |> PaymentAttempt.result_changeset(%{
-               state: "succeeded",
-               provider_reference: result.provider_reference,
-               dispatched_at: now
-             })
-             |> Repo.update(),
-           {:ok, payment} <- transition(payment, "authorised"),
-           {:ok, _event} <-
-             insert_event(payment, "payment.authorised", "processing", "authorised"),
-           {:ok, _msg} <- Events.emit(payment, "payment.authorised", %{}),
-           {:ok, payment} <- transition(payment, "succeeded"),
-           {:ok, _event} <- insert_event(payment, "payment.succeeded", "authorised", "succeeded"),
-           {:ok, _msg} <-
-             Events.emit(payment, "payment.succeeded", %{
-               provider_code: result[:provider_code],
-               amount: payment.amount,
-               currency: payment.currency,
-               net_amount: payment.amount
-             }),
-           {:ok, _entry} <- Ledger.post_payment_settled(payment, attempt) do
-        payment
-      else
-        {:error, reason} -> Repo.rollback(reason)
-      end
+    Multi.new()
+    |> Multi.update(
+      :attempt,
+      PaymentAttempt.result_changeset(attempt, %{
+        state: "succeeded",
+        provider_reference: result.provider_reference,
+        dispatched_at: DateTime.utc_now()
+      })
+    )
+    |> Multi.update(:authorised, Payment.transition_changeset(payment, "authorised"))
+    |> Multi.run(:authorised_event, fn _repo, %{authorised: p} ->
+      insert_event(p, "payment.authorised", "processing", "authorised")
     end)
+    |> Multi.insert(:authorised_outbox, fn %{authorised: p} ->
+      Outbox.build_changeset(p, "payment.authorised", %{})
+    end)
+    |> Multi.update(:succeeded, fn %{authorised: p} ->
+      Payment.transition_changeset(p, "succeeded")
+    end)
+    |> Multi.run(:succeeded_event, fn _repo, %{succeeded: p} ->
+      insert_event(p, "payment.succeeded", "authorised", "succeeded")
+    end)
+    |> Multi.insert(:succeeded_outbox, fn %{succeeded: p} ->
+      Outbox.build_changeset(p, "payment.succeeded", %{
+        provider_code: result[:provider_code],
+        amount: p.amount,
+        currency: p.currency,
+        net_amount: p.amount
+      })
+    end)
+    |> Multi.run(:ledger, fn _repo, %{succeeded: p} ->
+      Ledger.post_payment_settled(p, attempt)
+    end)
+    |> Repo.transaction()
+    |> case do
+      {:ok, %{succeeded: payment}} -> {:ok, payment}
+      {:error, _step, reason, _changes} -> {:error, reason}
+    end
   end
 
   def handle_provider_response(
@@ -83,61 +104,58 @@ defmodule YagyeCore.Payments do
         attempt,
         {:error, %{error_class: :definite_failure} = err}
       ) do
-    Repo.transaction(fn ->
-      with {:ok, _attempt} <-
-             attempt
-             |> PaymentAttempt.result_changeset(%{
-               state: "failed",
-               error_class: Atom.to_string(err.error_class),
-               response_code: err.response_code,
-               response_message: err.response_message
-             })
-             |> Repo.update(),
-           {:ok, payment} <- transition(payment, "failed"),
-           {:ok, _event} <- insert_event(payment, "payment.failed", "processing", "failed"),
-           {:ok, _msg} <-
-             Events.emit(payment, "payment.failed", %{
-               error_class: Atom.to_string(err.error_class),
-               response_code: err.response_code,
-               currency: payment.currency
-             }) do
-        payment
-      else
-        {:error, reason} -> Repo.rollback(reason)
-      end
+    Multi.new()
+    |> Multi.update(
+      :attempt,
+      PaymentAttempt.result_changeset(attempt, %{
+        state: "failed",
+        error_class: Atom.to_string(err.error_class),
+        response_code: err.response_code,
+        response_message: err.response_message
+      })
+    )
+    |> Multi.update(:payment, Payment.transition_changeset(payment, "failed"))
+    |> Multi.run(:event, fn _repo, %{payment: p} ->
+      insert_event(p, "payment.failed", "processing", "failed")
     end)
+    |> Multi.insert(:outbox, fn %{payment: p} ->
+      Outbox.build_changeset(p, "payment.failed", %{
+        error_class: Atom.to_string(err.error_class),
+        response_code: err.response_code,
+        currency: p.currency
+      })
+    end)
+    |> Repo.transaction()
     |> case do
-      {:ok, payment} -> {:ok, payment}
-      error -> error
+      {:ok, %{payment: payment}} -> {:ok, payment}
+      {:error, _step, reason, _changes} -> {:error, reason}
     end
   end
 
   def handle_provider_response(payment, attempt, {:error, %{error_class: :indeterminate} = err}) do
-    Repo.transaction(fn ->
-      with {:ok, _attempt} <-
-             attempt
-             |> PaymentAttempt.result_changeset(%{
-               state: "timed_out",
-               error_class: Atom.to_string(err.error_class),
-               response_code: err.response_code
-             })
-             |> Repo.update(),
-           {:ok, payment} <- transition(payment, "indeterminate"),
-           {:ok, _event} <-
-             insert_event(payment, "payment.indeterminate", "processing", "indeterminate"),
-           {:ok, _msg} <-
-             Events.emit(payment, "payment.indeterminate", %{
-               response_code: err.response_code,
-               currency: payment.currency
-             }) do
-        payment
-      else
-        {:error, reason} -> Repo.rollback(reason)
-      end
+    Multi.new()
+    |> Multi.update(
+      :attempt,
+      PaymentAttempt.result_changeset(attempt, %{
+        state: "timed_out",
+        error_class: Atom.to_string(err.error_class),
+        response_code: err.response_code
+      })
+    )
+    |> Multi.update(:payment, Payment.transition_changeset(payment, "indeterminate"))
+    |> Multi.run(:event, fn _repo, %{payment: p} ->
+      insert_event(p, "payment.indeterminate", "processing", "indeterminate")
     end)
+    |> Multi.insert(:outbox, fn %{payment: p} ->
+      Outbox.build_changeset(p, "payment.indeterminate", %{
+        response_code: err.response_code,
+        currency: p.currency
+      })
+    end)
+    |> Repo.transaction()
     |> case do
-      {:ok, payment} -> {:ok, payment}
-      error -> error
+      {:ok, %{payment: payment}} -> {:ok, payment}
+      {:error, _step, reason, _changes} -> {:error, reason}
     end
   end
 
@@ -178,30 +196,31 @@ defmodule YagyeCore.Payments do
   # ── Private ──────────────────────────────────────────────────────────────────
 
   defp insert_payment(merchant_id, attrs) do
-    Repo.transaction(fn ->
-      with {:ok, merchant} <- resolve_merchant(merchant_id),
-           attrs = Map.merge(attrs, %{merchant_id: merchant.id, mode: current_mode(merchant)}),
-           {:ok, payment} <- %Payment{} |> Payment.changeset(attrs) |> Repo.insert(),
-           {:ok, event} <- insert_event(payment, "payment.created", nil, "created"),
-           {:ok, _msg} <-
-             Events.emit(payment, "payment.created", %{
-               method: payment.method,
-               amount: payment.amount,
-               currency: payment.currency,
-               merchant_reference: payment.merchant_reference,
-               customer_reference: Map.get(attrs, :customer_reference)
-             }) do
-        {payment, event}
-      else
-        {:error, reason} -> Repo.rollback(reason)
-      end
+    Multi.new()
+    |> Multi.run(:merchant, fn _repo, _changes ->
+      resolve_merchant(merchant_id)
     end)
-  end
-
-  defp ensure_processing_event(_payment, :existing), do: :ok
-
-  defp ensure_processing_event(payment, :new) do
-    with {:ok, _} <- insert_event(payment, "payment.processing", "created", "processing"), do: :ok
+    |> Multi.insert(:payment, fn %{merchant: merchant} ->
+      merged = Map.merge(attrs, %{merchant_id: merchant.id, mode: current_mode(merchant)})
+      Payment.changeset(%Payment{}, merged)
+    end)
+    |> Multi.run(:event, fn _repo, %{payment: p} ->
+      insert_event(p, "payment.created", nil, "created")
+    end)
+    |> Multi.insert(:outbox, fn %{payment: p} ->
+      Outbox.build_changeset(p, "payment.created", %{
+        method: p.method,
+        amount: p.amount,
+        currency: p.currency,
+        merchant_reference: p.merchant_reference,
+        customer_reference: Map.get(attrs, :customer_reference)
+      })
+    end)
+    |> Repo.transaction()
+    |> case do
+      {:ok, %{payment: payment, event: event}} -> {:ok, {payment, event}}
+      {:error, _step, reason, _changes} -> {:error, reason}
+    end
   end
 
   defp transition_to_processing(%Payment{state: "processing"} = payment),
@@ -229,10 +248,6 @@ defmodule YagyeCore.Payments do
       nil -> {:error, :not_found}
       payment -> {:ok, payment}
     end
-  end
-
-  defp transition(payment, to_state) do
-    payment |> Payment.transition_changeset(to_state) |> Repo.update()
   end
 
   defp resolve_merchant(merchant_id) do

@@ -1,8 +1,10 @@
 defmodule YagyeCore.Disputes do
   @moduledoc false
 
+  alias Ecto.Multi
   alias YagyeCore.Disputes.Schemas.{Dispute, Refund}
   alias YagyeCore.Ledger
+  alias YagyeCore.Outbox
   alias YagyeCore.Payments.Schemas.{Payment, PaymentAttempt, PaymentEvent}
   alias YagyeCore.Repo
 
@@ -63,54 +65,88 @@ defmodule YagyeCore.Disputes do
   # ── Transaction bodies ───────────────────────────────────────────────────────
 
   defp do_create_dispute(payment, attrs) do
-    Repo.transaction(fn ->
-      with {:ok, dispute} <- insert_dispute(payment, attrs),
-           {:ok, payment} <- transition_payment(payment, "disputed"),
-           {:ok, _event} <-
-             insert_payment_event(payment, "payment.disputed", "succeeded", "disputed") do
-        {dispute, payment}
-      else
-        {:error, reason} -> Repo.rollback(reason)
-      end
+    Multi.new()
+    |> Multi.run(:dispute, fn _repo, _changes ->
+      insert_dispute(payment, attrs)
     end)
+    |> Multi.run(:payment, fn _repo, _changes ->
+      transition_payment(payment, "disputed")
+    end)
+    |> Multi.run(:event, fn _repo, %{payment: p} ->
+      insert_payment_event(p, "payment.disputed", "succeeded", "disputed")
+    end)
+    |> Repo.transaction()
+    |> case do
+      {:ok, %{dispute: dispute, payment: payment}} -> {:ok, {dispute, payment}}
+      {:error, _step, reason, _changes} -> {:error, reason}
+    end
   end
 
   defp do_resolve_dispute(dispute, outcome) do
     outcome_str = Atom.to_string(outcome)
     to_state = payment_state_for_outcome(outcome)
 
-    Repo.transaction(fn ->
-      payment = Repo.get!(Payment, dispute.payment_id)
-
-      with {:ok, dispute} <- dispute |> Dispute.resolve_changeset(outcome_str) |> Repo.update(),
-           {:ok, payment} <- transition_payment(payment, to_state),
-           {:ok, _event} <-
-             insert_payment_event(payment, "payment.#{to_state}", "disputed", to_state) do
-        {dispute, payment}
-      else
-        {:error, reason} -> Repo.rollback(reason)
-      end
+    Multi.new()
+    |> Multi.run(:payment, fn _repo, _changes ->
+      {:ok, Repo.get!(Payment, dispute.payment_id)}
     end)
+    |> Multi.run(:dispute, fn _repo, _changes ->
+      dispute |> Dispute.resolve_changeset(outcome_str) |> Repo.update()
+    end)
+    |> Multi.run(:transitioned_payment, fn _repo, %{payment: payment} ->
+      transition_payment(payment, to_state)
+    end)
+    |> Multi.run(:event, fn _repo, %{transitioned_payment: p} ->
+      insert_payment_event(p, "payment.#{to_state}", "disputed", to_state)
+    end)
+    |> Repo.transaction()
+    |> case do
+      {:ok, %{dispute: dispute, transitioned_payment: payment}} -> {:ok, {dispute, payment}}
+      {:error, _step, reason, _changes} -> {:error, reason}
+    end
   end
 
   defp do_create_refund(payment, attrs) do
     prior_state = payment.state
 
-    Repo.transaction(fn ->
+    Multi.new()
+    |> Multi.run(:dispute_or_nil, fn _repo, _changes ->
       dispute = if prior_state == "disputed", do: open_dispute_for(payment), else: nil
-
-      with {:ok, refund} <- insert_refund(payment, dispute, attrs),
-           {:ok, refund} <- refund |> Refund.settle_changeset() |> Repo.update(),
-           {:ok, _} <- maybe_retract_dispute(dispute),
-           {:ok, payment} <- transition_payment(payment, "refunded"),
-           {:ok, _event} <-
-             insert_payment_event(payment, "payment.refunded", prior_state, "refunded"),
-           :ok <- maybe_post_ledger_reversal(payment, refund) do
-        {Repo.preload(refund, :dispute), payment}
-      else
-        {:error, reason} -> Repo.rollback(reason)
-      end
+      {:ok, dispute}
     end)
+    |> Multi.run(:refund, fn _repo, %{dispute_or_nil: dispute} ->
+      insert_refund(payment, dispute, attrs)
+    end)
+    |> Multi.run(:settled_refund, fn _repo, %{refund: refund} ->
+      refund |> Refund.settle_changeset() |> Repo.update()
+    end)
+    |> Multi.run(:retract_dispute, fn _repo, %{dispute_or_nil: dispute} ->
+      maybe_retract_dispute(dispute)
+    end)
+    |> Multi.run(:payment, fn _repo, _changes ->
+      transition_payment(payment, "refunded")
+    end)
+    |> Multi.run(:event, fn _repo, %{payment: p} ->
+      insert_payment_event(p, "payment.refunded", prior_state, "refunded")
+    end)
+    |> Multi.run(:ledger, fn _repo, %{payment: p, settled_refund: r} ->
+      post_ledger_reversal_if_settled(p, r, prior_state)
+    end)
+    |> Multi.run(:outbox, fn _repo, %{payment: p} ->
+      Outbox.emit(p, "payment.refunded", %{
+        amount: attrs.amount,
+        currency: p.currency,
+        prior_state: prior_state
+      })
+    end)
+    |> Repo.transaction()
+    |> case do
+      {:ok, %{settled_refund: refund, payment: payment}} ->
+        {:ok, {Repo.preload(refund, :dispute), payment}}
+
+      {:error, _step, reason, _changes} ->
+        {:error, reason}
+    end
   end
 
   # ── Validation ───────────────────────────────────────────────────────────────
@@ -193,14 +229,16 @@ defmodule YagyeCore.Disputes do
     |> Repo.update()
   end
 
-  defp maybe_post_ledger_reversal(%Payment{state: "succeeded"} = payment, refund) do
+  # Prior state is used as the guard, not payment.state, because payment is already
+  # "refunded" at the point of this call (transitioned earlier in the same Multi).
+  defp post_ledger_reversal_if_settled(payment, refund, "succeeded") do
     case find_succeeded_attempt(payment.id) do
       {:ok, attempt} -> Ledger.post_refund(payment, attempt, refund)
-      {:error, :no_settled_attempt} -> :ok
+      {:error, :no_settled_attempt} -> {:ok, :skipped}
     end
   end
 
-  defp maybe_post_ledger_reversal(_payment, _refund), do: :ok
+  defp post_ledger_reversal_if_settled(_payment, _refund, _prior_state), do: {:ok, :skipped}
 
   defp find_succeeded_attempt(payment_id) do
     case Repo.one(

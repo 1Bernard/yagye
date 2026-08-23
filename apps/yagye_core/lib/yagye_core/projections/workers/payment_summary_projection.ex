@@ -8,7 +8,7 @@ defmodule YagyeCore.Projections.Workers.PaymentSummaryProjection do
 
   use Oban.Worker, queue: :projections, max_attempts: 5
 
-  alias YagyeCore.Events.EventEnvelope
+  alias YagyeCore.Outbox.EventEnvelope
   alias YagyeCore.Projections.Schemas.PaymentSummary
   alias YagyeCore.Repo
 

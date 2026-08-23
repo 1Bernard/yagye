@@ -1,4 +1,4 @@
-defmodule YagyeCore.Events.Workers.OutboxRelayWorker do
+defmodule YagyeCore.Outbox.Workers.OutboxRelayWorker do
   @moduledoc false
 
   # Reads undelivered outbox_messages in id order (guaranteed insertion order)
@@ -14,8 +14,8 @@ defmodule YagyeCore.Events.Workers.OutboxRelayWorker do
 
   import Ecto.Query
 
-  alias YagyeCore.Events.EventEnvelope
-  alias YagyeCore.Events.Schemas.OutboxMessage
+  alias YagyeCore.Outbox.EventEnvelope
+  alias YagyeCore.Outbox.Schemas.OutboxMessage
   alias YagyeCore.Projections.Workers.{MerchantBalanceProjection, PaymentSummaryProjection}
   alias YagyeCore.Repo
 

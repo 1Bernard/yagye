@@ -1,9 +1,9 @@
-defmodule YagyeCore.Events.EventsTest do
+defmodule YagyeCore.Outbox.OutboxTest do
   use YagyeCore.DataCase, async: true
 
-  alias YagyeCore.Events
-  alias YagyeCore.Events.Schemas.OutboxMessage
   alias YagyeCore.Fixtures
+  alias YagyeCore.Outbox
+  alias YagyeCore.Outbox.Schemas.OutboxMessage
   alias YagyeCore.Repo
 
   # Minimal aggregate struct that mimics a Payment for emit/3
@@ -24,7 +24,7 @@ defmodule YagyeCore.Events.EventsTest do
       payment = payment_fixture()
 
       Repo.transaction(fn ->
-        {:ok, msg} = Events.emit(payment, "payment.created", %{amount: 1000, currency: "GHS"})
+        {:ok, msg} = Outbox.emit(payment, "payment.created", %{amount: 1000, currency: "GHS"})
 
         assert msg.event_type == "payment.created"
         assert msg.aggregate_type == "payment"
@@ -40,7 +40,7 @@ defmodule YagyeCore.Events.EventsTest do
 
       {:ok, _} =
         Repo.transaction(fn ->
-          Events.emit(payment, "payment.succeeded", %{amount: 1000, currency: "GHS"})
+          Outbox.emit(payment, "payment.succeeded", %{amount: 1000, currency: "GHS"})
         end)
 
       count = Repo.aggregate(OutboxMessage, :count)
@@ -52,7 +52,7 @@ defmodule YagyeCore.Events.EventsTest do
       before_count = Repo.aggregate(OutboxMessage, :count)
 
       Repo.transaction(fn ->
-        {:ok, _} = Events.emit(payment, "payment.created", %{})
+        {:ok, _} = Outbox.emit(payment, "payment.created", %{})
         Repo.rollback(:intentional)
       end)
 
@@ -64,13 +64,13 @@ defmodule YagyeCore.Events.EventsTest do
 
       {:ok, msg1} =
         Repo.transaction(fn ->
-          {:ok, msg} = Events.emit(payment, "payment.created", %{})
+          {:ok, msg} = Outbox.emit(payment, "payment.created", %{})
           msg
         end)
 
       {:ok, msg2} =
         Repo.transaction(fn ->
-          {:ok, msg} = Events.emit(payment, "payment.succeeded", %{})
+          {:ok, msg} = Outbox.emit(payment, "payment.succeeded", %{})
           msg
         end)
 
@@ -82,7 +82,7 @@ defmodule YagyeCore.Events.EventsTest do
 
       {:ok, msg} =
         Repo.transaction(fn ->
-          {:ok, m} = Events.emit(payment, "payment.created", %{amount: 5000, currency: "GHS"})
+          {:ok, m} = Outbox.emit(payment, "payment.created", %{amount: 5000, currency: "GHS"})
           m
         end)
 
@@ -97,7 +97,7 @@ defmodule YagyeCore.Events.EventsTest do
 
       {:ok, msg} =
         Repo.transaction(fn ->
-          {:ok, m} = Events.emit(payment, "payment.created", %{})
+          {:ok, m} = Outbox.emit(payment, "payment.created", %{})
           m
         end)
 
@@ -109,11 +109,42 @@ defmodule YagyeCore.Events.EventsTest do
 
       Repo.transaction(fn ->
         {:error, changeset} =
-          Events.emit(payment, "payment.created", %{}, destination: "unknown:nowhere")
+          Outbox.emit(payment, "payment.created", %{}, destination: "unknown:nowhere")
 
         assert "is invalid" in errors_on(changeset).destination
         Repo.rollback(:expected)
       end)
+    end
+  end
+
+  describe "build_changeset/4" do
+    test "returns a valid changeset without inserting" do
+      payment = payment_fixture()
+      before_count = Repo.aggregate(OutboxMessage, :count)
+
+      changeset = Outbox.build_changeset(payment, "payment.created", %{amount: 1000})
+
+      assert changeset.valid?
+      assert Repo.aggregate(OutboxMessage, :count) == before_count
+    end
+
+    test "can be used with Ecto.Multi" do
+      payment = payment_fixture()
+
+      {:ok, %{outbox: msg}} =
+        Ecto.Multi.new()
+        |> Ecto.Multi.insert(
+          :outbox,
+          Outbox.build_changeset(payment, "payment.created", %{
+            amount: 500,
+            currency: "GHS"
+          })
+        )
+        |> Repo.transaction()
+
+      assert msg.event_type == "payment.created"
+      assert is_integer(msg.id)
+      assert msg.envelope["payload"]["amount"] == 500
     end
   end
 end

@@ -1,4 +1,4 @@
-defmodule YagyeCore.Events.Schemas.OutboxMessage do
+defmodule YagyeCore.Outbox.Schemas.OutboxMessage do
   @moduledoc false
 
   use Ecto.Schema
