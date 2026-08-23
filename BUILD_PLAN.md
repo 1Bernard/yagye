@@ -45,7 +45,7 @@ step is completed or a decision is made. Status values: `todo`, `in-progress`, `
 |---|---|---|
 | P9 | Settlement | **done** |
 | P10 | Reconciliation | **done** |
-| P11 | Pricing, Fees & Unit Economics | todo |
+| P11 | Pricing, Fees & Unit Economics | **done** |
 | P12 | Refunds, Disputes, Reserves, Payouts | todo |
 
 ### Act IV — The Product Surface
@@ -223,6 +223,41 @@ lands in Step 1's migration so the constraint is live from day one.
 - [x] Step 8 — 13 tests, 0 failures: report ingestion idempotency, bad-line quarantine,
                exact-reference matching, break detection (missing_on_left / missing_on_right),
                SoD constraint (proposer cannot self-approve), correcting entry posted on approval
+
+## Phase 11 — what was built
+
+Scope: pricing engine, customer KYC tiers, velocity limits, and account/wallet name enquiry.
+All fee arithmetic uses integer pesewas throughout; fee recording is non-fatal (no pricing
+plan configured → payment still succeeds).
+
+- Migration `20260823000010`: `pricing_plans`, `pricing_rules`, `fee_records`,
+  `platform_fee_invoices`, `customers`, `velocity_limits`, `account_verifications`
+- `PricingPlan` / `PricingRule` schemas — rules carry a precomputed `specificity` integer
+  (method=1, provider_code=2, card_brand=4, region=8, amount_range=16); highest wins
+- `Pricing.compute_fee/4` — resolves active plan, finds best rule, applies
+  `div(amount × bps, 10_000) + fixed` clamped to `[minimum_fee, maximum_fee]`
+- `Pricing.record_fee/5` — idempotent insert via `on_conflict: :nothing` + fetch; unique
+  on `(source_type, source_id, party)`
+- `FeeRecord` / `PlatformFeeInvoice` schemas — `fee_kind`: `psp_margin | orchestration_fee`;
+  invoice states: `draft → issued → collecting → collected | overdue | written_off`
+- `Customer` schema — `public_id` prefix `cus_`, `kyc_tier` (tier_1/2/3, BoG-mandated),
+  `find_or_create/3` idempotent via `on_conflict: :nothing` + fetch
+- `VelocityLimit` + `VelocityChecker` — two axes: merchant `risk_rating` (low/medium/high)
+  × customer `kyc_tier`; `default_limits/0` fallback keeps the system working before any
+  seed run; DB aggregate normalised through `to_integer/1` to handle `%Decimal{}` from
+  `coalesce(sum(...), 0)`
+- `AccountVerification` schema + `Payments.AccountVerification.enquire_name/6` — stores
+  HMAC-SHA256 of MSISDN (never raw), masks display as `XXX***XXXX`
+- `ProviderAdapter.name_enquiry/2` callback added to behaviour
+- `SimulatorAdapter.name_enquiry/2` — POSTs to `/name-enquiry`; derives KYC tier from last
+  digit of MSISDN (0–3 → tier_1, 4–6 → tier_2, 7–9 → tier_3)
+- `Ledger.post_fee_deduction/2` — debit `merchant_payable`, credit `processing_revenue`
+  (platform-scoped, `scope_id: nil`); `entry_type: "fee_deduction"`
+- `Payments.handle_provider_response/3` extended with three non-fatal Multi steps:
+  `:fee`, `:fee_record`, `:fee_ledger` — all return `{:ok, nil}` if no plan is configured
+- DBML updated: `customers`, `velocity_limits`, `account_verifications` tables + refs
+- 11 tests, 0 failures: `compute_fee`, `record_fee` idempotency, specificity resolution,
+  min/max clamping, velocity single-txn + DB-seeded limits + fallback defaults + risk tiers
 
 ## P13 dual-model prerequisites (Step 0 before any orchestration merchant is onboarded)
 

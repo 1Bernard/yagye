@@ -8,6 +8,7 @@ defmodule YagyeCore.Ledger do
   alias YagyeCore.Disputes.Schemas.Refund
   alias YagyeCore.Ledger.Schemas.{Account, Balance, Entry, Posting}
   alias YagyeCore.Payments.Schemas.{Payment, PaymentAttempt}
+  alias YagyeCore.Pricing.Schemas.FeeRecord
   alias YagyeCore.Repo
   alias YagyeCore.Settlement.Schemas.SettlementBatch
 
@@ -244,6 +245,61 @@ defmodule YagyeCore.Ledger do
     end
   end
 
+  @doc """
+  Posts the "fee_deduction" journal entry when a platform fee is computed.
+
+  Must be called in the same transaction as post_payment_settled so the fee
+  deduction is atomic with the payment settlement.
+
+  Debit  : merchant_payable    — reduce what we owe the merchant by the fee
+  Credit : processing_revenue  — Yagye earns the processing fee (platform-scoped)
+  """
+  def post_fee_deduction(%Payment{} = payment, %FeeRecord{} = fee_record) do
+    OpenTelemetry.Tracer.with_span "ledger.post_fee_deduction" do
+      with {:ok, payable_account} <-
+             get_or_create_account(%{
+               account_type: "merchant_payable",
+               normal_balance: "credit",
+               scope_type: "merchant",
+               scope_id: payment.merchant_id,
+               currency: payment.currency,
+               mode: payment.mode,
+               allows_negative: false
+             }),
+           {:ok, revenue_account} <-
+             get_or_create_account(%{
+               account_type: "processing_revenue",
+               normal_balance: "credit",
+               scope_type: "platform",
+               scope_id: nil,
+               currency: fee_record.currency,
+               mode: payment.mode,
+               allows_negative: false
+             }),
+           {:ok, entry} <- insert_fee_entry(payment, fee_record),
+           {:ok, debit} <-
+             insert_posting(
+               entry,
+               payable_account,
+               "debit",
+               fee_record.amount,
+               payment.merchant_id
+             ),
+           {:ok, credit} <-
+             insert_posting(
+               entry,
+               revenue_account,
+               "credit",
+               fee_record.amount,
+               payment.merchant_id
+             ) do
+        apply_balance(payable_account.id, fee_record.amount, :debit, debit.id)
+        apply_balance(revenue_account.id, fee_record.amount, :credit, credit.id)
+        {:ok, entry}
+      end
+    end
+  end
+
   # ── Private ──────────────────────────────────────────────────────────────────
 
   defp get_or_create_account(attrs) do
@@ -356,6 +412,39 @@ defmodule YagyeCore.Ledger do
            source_type: "settlement_batch",
            source_id: batch.id,
            entry_type: "batch_approved"
+         )}
+
+      {:error, _} = err ->
+        err
+    end
+  end
+
+  defp insert_fee_entry(%Payment{} = payment, %FeeRecord{} = fee_record) do
+    now = DateTime.utc_now()
+
+    Entry.changeset(%Entry{}, %{
+      mode: payment.mode,
+      currency: fee_record.currency,
+      entry_type: "fee_deduction",
+      source_type: "fee_record",
+      source_id: fee_record.id,
+      description:
+        "Fee deduction: #{fee_record.amount} #{fee_record.currency} for #{payment.public_id}",
+      correlation_id: payment.public_id,
+      effective_at: now,
+      recorded_at: now
+    })
+    |> Repo.insert(
+      on_conflict: :nothing,
+      conflict_target: [:source_type, :source_id, :entry_type]
+    )
+    |> case do
+      {:ok, _} ->
+        {:ok,
+         Repo.get_by!(Entry,
+           source_type: "fee_record",
+           source_id: fee_record.id,
+           entry_type: "fee_deduction"
          )}
 
       {:error, _} = err ->

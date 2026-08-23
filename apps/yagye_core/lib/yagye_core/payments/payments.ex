@@ -11,6 +11,7 @@ defmodule YagyeCore.Payments do
   alias YagyeCore.Outbox
   alias YagyeCore.Payments.Schemas.{Payment, PaymentAttempt, PaymentEvent}
   alias YagyeCore.Payments.Workers.PaymentDispatchWorker
+  alias YagyeCore.Pricing
   alias YagyeCore.Repo
 
   # ── Public API ───────────────────────────────────────────────────────────────
@@ -93,6 +94,22 @@ defmodule YagyeCore.Payments do
     end)
     |> Multi.run(:ledger, fn _repo, %{succeeded: p} ->
       Ledger.post_payment_settled(p, attempt)
+    end)
+    |> Multi.run(:fee, fn _repo, %{succeeded: p} ->
+      case Pricing.compute_fee(p.merchant_id, p.amount, p.method, nil) do
+        {:ok, fee} -> {:ok, fee}
+        {:error, _} -> {:ok, nil}
+      end
+    end)
+    |> Multi.run(:fee_record, fn _repo, %{succeeded: p, fee: fee} ->
+      if fee do
+        Pricing.record_fee("payment_attempt", attempt.id, p.merchant_id, fee, p.mode)
+      else
+        {:ok, nil}
+      end
+    end)
+    |> Multi.run(:fee_ledger, fn _repo, %{succeeded: p, fee_record: fr} ->
+      if fr, do: Ledger.post_fee_deduction(p, fr), else: {:ok, nil}
     end)
     |> Repo.transaction()
     |> case do

@@ -79,6 +79,44 @@ defmodule YagyeCore.Payments.Adapters.SimulatorAdapter do
     {:error, %{error_class: :retryable_error, response_code: state, response_message: nil}}
   end
 
+  @impl true
+  def name_enquiry(%{msisdn: msisdn, network: network}, credential) do
+    body = %{network: network, msisdn: msisdn}
+
+    case Req.post(url("/name-enquiry", credential),
+           json: body,
+           headers: auth_headers(credential),
+           receive_timeout: 10_000
+         ) do
+      {:ok, %Req.Response{status: 200, body: %{"outcome" => "found"} = body}} ->
+        {:ok, %{account_name: body["account_name"], kyc_tier: derive_kyc_tier(msisdn)}}
+
+      {:ok, %Req.Response{status: 200, body: %{"outcome" => "not_found"}}} ->
+        {:error, %{response_code: "account_not_found", response_message: nil}}
+
+      {:ok, %Req.Response{status: status}} ->
+        {:error, %{response_code: "http_#{status}", response_message: nil}}
+
+      {:error, %{reason: :timeout}} ->
+        {:error, %{response_code: "timeout", response_message: nil}}
+
+      {:error, _} ->
+        {:error, %{response_code: "network_error", response_message: nil}}
+    end
+  end
+
+  # Derive a simulated KYC tier from the last digit of the MSISDN.
+  # Real providers return the actual tier from their KYC database.
+  defp derive_kyc_tier(msisdn) do
+    last = msisdn |> String.replace(~r/\D/, "") |> String.last()
+
+    cond do
+      last in ~w[0 1 2 3] -> "tier_1"
+      last in ~w[4 5 6] -> "tier_2"
+      true -> "tier_3"
+    end
+  end
+
   defp instrument_type(nil), do: "CARD"
   defp instrument_type("card"), do: "CARD"
   defp instrument_type("mobile_money"), do: "WALLET"

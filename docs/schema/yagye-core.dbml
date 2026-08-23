@@ -777,6 +777,63 @@ Table ledger_balances [headercolor: #1F6B4A] {
   Note: 'A cache with a PROVABLE relationship to truth: balance = SUM(signed postings WHERE id <= last_posting_id). Verified nightly; disagreement is a P1.'
 }
 
+// ─── CUSTOMERS ────────────────────────────────────────────────────────────
+
+Table customers [headercolor: #1F6B4A] {
+  id uuid [pk]
+  public_id text [unique, not null, note: 'cus_01J...']
+  merchant_id uuid [not null]
+  merchant_customer_ref text [not null, note: 'the merchant\'s own customer id — never our id']
+  kyc_tier text [not null, note: 'tier_1|tier_2|tier_3 — BoG KYC mandate for mobile money; also used for card velocity. CHECK kyc_tier IN (tier_1, tier_2, tier_3).']
+  kyc_verified_at timestamptz [note: 'set when kyc_tier last updated from a successful name enquiry or ID verification']
+  inserted_at timestamptz [not null]
+  updated_at timestamptz [not null]
+  indexes {
+    (merchant_id, merchant_customer_ref) [unique]
+  }
+  Note: 'Payer record scoped to a merchant. KYC tier drives velocity limits on mobile money and card transactions. Tier 1 = phone only (lowest limits, BoG mandated). Tier 2 = phone + ID number unverified. Tier 3 = full KYC. Updated from name_enquiry results at checkout time.'
+}
+
+Table velocity_limits [headercolor: #1F6B4A] {
+  id uuid [pk]
+  entity_type text [not null, note: 'merchant|customer']
+  risk_tier text [not null, note: 'merchant: low|medium|high (from merchants.risk_rating). customer: tier_1|tier_2|tier_3 (from customers.kyc_tier).']
+  payment_method text [not null, note: 'card|mobile_money|bank_transfer|any. any = applies when no method-specific row exists.']
+  currency char(3) [not null]
+  max_single_txn bigint [note: 'NULL = no per-transaction limit']
+  max_daily bigint [note: 'NULL = no daily cap']
+  max_monthly bigint [note: 'NULL = no monthly cap. BoG Tier 1 MoMo: GHS 1,000/month. Amounts in minor units.']
+  inserted_at timestamptz [not null]
+  indexes {
+    (entity_type, risk_tier, payment_method, currency) [unique]
+  }
+  Note: 'Configurable limits seeded per environment. VelocityChecker falls back to hardcoded module defaults (VelocityLimit.default_limits/0) when no row exists — the system works without a seed run. Checked synchronously at payment intent creation via DB aggregate (P17 moves this to Redis counters).'
+}
+
+Table account_verifications [headercolor: #6B7A8D] {
+  id uuid [pk]
+  merchant_id uuid [not null]
+  payment_id uuid [note: 'NULL when verification happens before the payment exists (pre-checkout lookup)']
+  verification_type text [not null, note: 'mobile_money|bank_account']
+  provider_code text [not null, note: 'which adapter performed the enquiry']
+  account_hash text [not null, note: '[PII] HMAC-SHA256 of the raw MSISDN/account number — match without retaining the number']
+  account_masked text [not null, note: 'e.g. 024XXX0034 — display to operator, never the full number']
+  network text [note: 'mtn|telecel|airteltigo — for mobile_money verifications']
+  bank_code text [note: 'GhIPSS bank code — for bank_account verifications']
+  account_name_returned text [note: '[PII] name as returned by the provider — displayed to the payer for confirmation, never stored in full logs']
+  kyc_tier_returned text [note: 'tier_1|tier_2|tier_3 — MTN MoMo returns the wallet KYC tier on name enquiry. Drives velocity limit selection for this transaction.']
+  name_match_score "numeric(4,3)" [note: '0.000–1.000 — fuzzy match between returned name and expected name (for merchant payout destination verification)']
+  state text [not null, note: 'pending|verified|failed']
+  raw_response jsonb [note: '[EVD] full provider response — required for dispute and audit']
+  inserted_at timestamptz [not null]
+  indexes {
+    merchant_id
+    payment_id
+    account_hash [note: 'look up prior verifications for the same wallet without decrypting PII']
+  }
+  Note: 'Immutable audit log of every name enquiry. One row per call — retries create new rows. The kyc_tier_returned flows upstream to update customers.kyc_tier so subsequent velocity checks reflect the verified tier.'
+}
+
 // ─── PRICING ──────────────────────────────────────────────────────────────
 
 Table pricing_plans [headercolor: #2E4A73] {
@@ -1295,9 +1352,13 @@ Ref: ledger_postings.entry_id > ledger_entries.id
 Ref: ledger_postings.account_id > ledger_accounts.id
 Ref: ledger_balances.account_id - ledger_accounts.id
 Ref: ledger_entries.reverses_entry_id > ledger_entries.id
+Ref: customers.merchant_id > merchants.id
+Ref: account_verifications.merchant_id > merchants.id
+Ref: account_verifications.payment_id > payments.id
 Ref: pricing_rules.plan_id > pricing_plans.id
 Ref: fee_records.pricing_plan_id > pricing_plans.id
 Ref: fee_records.pricing_rule_id > pricing_rules.id
+Ref: fee_records.merchant_id > merchants.id
 Ref: merchants.pricing_plan_id > pricing_plans.id
 Ref: platform_fee_invoices.merchant_id > merchants.id
 Ref: platform_fee_invoices.settled_against_settlement_id > settlements.id
@@ -1381,6 +1442,12 @@ TableGroup ledger {
   ledger_postings
   ledger_balances
 }
+TableGroup customers {
+  customers
+  velocity_limits
+  account_verifications
+}
+
 TableGroup pricing {
   pricing_plans
   pricing_rules
