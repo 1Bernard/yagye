@@ -7,6 +7,8 @@
 # General application configuration
 import Config
 
+config :elixir, :time_zone_database, Tzdata.TimeZoneDatabase
+
 config :yagye_core,
   ecto_repos: [YagyeCore.Repo],
   generators: [timestamp_type: :utc_datetime, binary_id: true]
@@ -55,7 +57,9 @@ config :yagye_core, Oban,
        # Relay runs every minute; self-reschedules immediately on a full batch
        {"* * * * *", YagyeCore.Outbox.Workers.OutboxRelayWorker},
        # Daily metrics recomputed hourly
-       {"0 * * * *", YagyeCore.Projections.Workers.DailyMetricsWorker}
+       {"0 * * * *", YagyeCore.Projections.Workers.DailyMetricsWorker},
+       # Settlement scheduler runs hourly; cutoff check is inside the worker
+       {"0 * * * *", YagyeCore.Settlement.Workers.SettlementSchedulerWorker}
      ]}
   ],
   queues: [
