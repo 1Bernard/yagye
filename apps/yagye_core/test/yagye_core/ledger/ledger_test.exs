@@ -46,7 +46,9 @@ defmodule YagyeCore.LedgerTest do
       batch = batch_fixture(merchant)
       {:ok, entry} = Ledger.post_batch_approved(batch)
 
-      postings = Repo.all(from p in YagyeCore.Ledger.Schemas.Posting, where: p.entry_id == ^entry.id)
+      postings =
+        Repo.all(from p in YagyeCore.Ledger.Schemas.Posting, where: p.entry_id == ^entry.id)
+
       debit = Enum.find(postings, &(&1.direction == "debit"))
 
       assert debit != nil
@@ -62,7 +64,9 @@ defmodule YagyeCore.LedgerTest do
       batch = batch_fixture(merchant)
       {:ok, entry} = Ledger.post_batch_approved(batch)
 
-      postings = Repo.all(from p in YagyeCore.Ledger.Schemas.Posting, where: p.entry_id == ^entry.id)
+      postings =
+        Repo.all(from p in YagyeCore.Ledger.Schemas.Posting, where: p.entry_id == ^entry.id)
+
       credit = Enum.find(postings, &(&1.direction == "credit"))
 
       assert credit != nil

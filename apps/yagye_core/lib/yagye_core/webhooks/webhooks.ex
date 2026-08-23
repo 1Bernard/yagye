@@ -1,7 +1,7 @@
 defmodule YagyeCore.Webhooks do
   @moduledoc false
 
-  alias Ecto.Changeset
+  alias Ecto.Multi
   alias YagyeCore.Repo
   alias YagyeCore.Webhooks.Schemas.WebhookEvent
   alias YagyeCore.Webhooks.Workers.WebhookProcessorWorker
@@ -27,27 +27,17 @@ defmodule YagyeCore.Webhooks do
         attempt_count: Keyword.get(opts, :attempt_count, 1)
       })
 
-    Repo.transaction(fn -> insert_and_enqueue(changeset) end)
+    Multi.new()
+    |> Multi.insert(:webhook, changeset)
+    |> Multi.run(:job, fn _repo, %{webhook: webhook} ->
+      {:ok, WebhookProcessorWorker.new(%{webhook_event_id: webhook.id}) |> Oban.insert!()}
+    end)
+    |> Repo.transaction()
     |> case do
-      {:ok, webhook} -> {:ok, webhook}
-      {:error, :already_received} -> {:error, :already_received}
-      {:error, reason} -> {:error, reason}
+      {:ok, %{webhook: webhook}} -> {:ok, webhook}
+      {:error, :webhook, cs, _} -> {:error, unique_conflict_reason(cs)}
+      {:error, _step, reason, _} -> {:error, reason}
     end
-  end
-
-  defp insert_and_enqueue(changeset) do
-    case Repo.insert(changeset) do
-      {:ok, webhook} ->
-        WebhookProcessorWorker.new(%{webhook_event_id: webhook.id}) |> Oban.insert!()
-        webhook
-
-      {:error, %Changeset{} = cs} ->
-        Repo.rollback(rollback_reason(cs))
-    end
-  end
-
-  defp rollback_reason(cs) do
-    if unique_conflict?(cs), do: :already_received, else: cs
   end
 
   def mark_processed(%WebhookEvent{} = webhook) do
@@ -64,7 +54,9 @@ defmodule YagyeCore.Webhooks do
 
   # ── Private ──────────────────────────────────────────────────────────────────
 
-  defp unique_conflict?(%Changeset{errors: errors}) do
-    Enum.any?(errors, fn {_field, {_, opts}} -> opts[:constraint] == :unique end)
+  defp unique_conflict_reason(%Ecto.Changeset{errors: errors} = cs) do
+    if Enum.any?(errors, fn {_field, {_, opts}} -> opts[:constraint] == :unique end),
+      do: :already_received,
+      else: cs
   end
 end

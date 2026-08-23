@@ -155,7 +155,13 @@ defmodule YagyeCore.Ledger do
              }),
            {:ok, entry} <- insert_batch_entry(batch),
            {:ok, debit} <-
-             insert_posting(entry, payable_account, "debit", batch.gross_amount, batch.merchant_id),
+             insert_posting(
+               entry,
+               payable_account,
+               "debit",
+               batch.gross_amount,
+               batch.merchant_id
+             ),
            {:ok, credit} <-
              insert_posting(
                entry,
