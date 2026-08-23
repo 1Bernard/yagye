@@ -23,7 +23,7 @@ defmodule YagyeCoreWeb.Controllers.Compliance.ComplianceController do
   def submit_onboarding(conn, %{merchant_id: merchant_id}) do
     attrs = Map.from_struct(conn.body_params)
 
-    with {:ok, {merchant, _event}} <- Compliance.submit_onboarding(merchant_id, attrs) do
+    with {:ok, merchant} <- Compliance.submit_onboarding(merchant_id, attrs) do
       object = ComplianceJSON.onboarding_data(merchant)
       maybe_complete_idempotency(conn, 200, object, "merchant", merchant.id)
       Response.ok(conn, object)
@@ -33,7 +33,7 @@ defmodule YagyeCoreWeb.Controllers.Compliance.ComplianceController do
   def add_beneficial_owner(conn, %{merchant_id: merchant_id}) do
     attrs = Map.from_struct(conn.body_params)
 
-    with {:ok, {owner, _event}} <- Compliance.add_beneficial_owner(merchant_id, attrs) do
+    with {:ok, owner} <- Compliance.add_beneficial_owner(merchant_id, attrs) do
       object = ComplianceJSON.beneficial_owner_data(owner)
       maybe_complete_idempotency(conn, 201, object, "beneficial_owner", owner.id)
       Response.created(conn, object)
@@ -43,7 +43,7 @@ defmodule YagyeCoreWeb.Controllers.Compliance.ComplianceController do
   def upload_document(conn, %{merchant_id: merchant_id}) do
     attrs = Map.from_struct(conn.body_params)
 
-    with {:ok, {doc, _event}} <- Compliance.upload_document(merchant_id, attrs) do
+    with {:ok, doc} <- Compliance.upload_document(merchant_id, attrs) do
       object = ComplianceJSON.document_data(doc)
       maybe_complete_idempotency(conn, 201, object, "kyb_document", doc.id)
       Response.created(conn, object)

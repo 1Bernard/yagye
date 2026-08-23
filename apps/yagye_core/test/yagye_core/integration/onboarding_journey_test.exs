@@ -39,7 +39,7 @@ defmodule YagyeCore.Integration.OnboardingJourneyTest do
     assert "kyb:write" in api_key.scopes
 
     # Step 3 — onboarding details are submitted
-    assert {:ok, {after_submit, _}} =
+    assert {:ok, after_submit} =
              Compliance.submit_onboarding(merchant.public_id, %{
                business_type: "ecommerce",
                website_url: "https://acmepay.com",
@@ -51,7 +51,7 @@ defmodule YagyeCore.Integration.OnboardingJourneyTest do
     assert get_in(after_submit.metadata, [:onboarding, :business_type]) == "ecommerce"
 
     # Re-submission is idempotent (already in details_submitted, still allowed)
-    assert {:ok, {resubmit, _}} =
+    assert {:ok, resubmit} =
              Compliance.submit_onboarding(merchant.public_id, %{business_type: "saas"})
 
     assert resubmit.onboarding_state == "details_submitted"
@@ -59,7 +59,7 @@ defmodule YagyeCore.Integration.OnboardingJourneyTest do
     # Step 4 — a beneficial owner is added
     subject_ref = Fixtures.pii_vault_fixture()
 
-    assert {:ok, {owner, _}} =
+    assert {:ok, owner} =
              Compliance.add_beneficial_owner(merchant.public_id, %{
                subject_ref: subject_ref,
                role: "ubo",
@@ -70,7 +70,7 @@ defmodule YagyeCore.Integration.OnboardingJourneyTest do
     assert owner.ownership_bps == 10_000
 
     # Step 5 — a KYB document is uploaded
-    assert {:ok, {doc, _}} =
+    assert {:ok, doc} =
              Compliance.upload_document(merchant.public_id, %{
                kind: "incorporation",
                s3_key: "kyb/#{merchant.public_id}/cert_of_incorporation.pdf",

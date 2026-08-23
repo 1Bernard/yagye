@@ -3,15 +3,17 @@ defmodule YagyeCore.Compliance.ComplianceTest do
 
   alias YagyeCore.Compliance
   alias YagyeCore.Fixtures
+  alias YagyeCore.Outbox.Schemas.OutboxMessage
+  alias YagyeCore.Repo
 
   # ──────────────────────────────────────────────────────────────────────────
   # submit_onboarding/2
   # ──────────────────────────────────────────────────────────────────────────
   describe "submit_onboarding/2" do
-    test "updates onboarding_state and returns merchant + event" do
+    test "updates onboarding_state and returns the merchant" do
       merchant = Fixtures.merchant_fixture()
 
-      assert {:ok, {updated, event}} =
+      assert {:ok, updated} =
                Compliance.submit_onboarding(merchant.public_id, %{
                  business_type: "ecommerce",
                  website_url: "https://acmepay.com",
@@ -21,13 +23,26 @@ defmodule YagyeCore.Compliance.ComplianceTest do
 
       assert updated.id == merchant.id
       assert updated.onboarding_state == "details_submitted"
-      assert event.merchant_id == merchant.id
+    end
+
+    test "emits compliance.onboarding_submitted outbox event" do
+      merchant = Fixtures.merchant_fixture()
+      {:ok, updated} = Compliance.submit_onboarding(merchant.public_id, %{business_type: "saas"})
+
+      msg =
+        Repo.get_by(OutboxMessage,
+          aggregate_type: "merchant",
+          aggregate_id: updated.id,
+          event_type: "compliance.onboarding_submitted"
+        )
+
+      assert msg != nil
     end
 
     test "accepts minimal attrs (only business_type)" do
       merchant = Fixtures.merchant_fixture()
 
-      assert {:ok, {_updated, _event}} =
+      assert {:ok, _updated} =
                Compliance.submit_onboarding(merchant.public_id, %{business_type: "saas"})
     end
 
@@ -41,7 +56,7 @@ defmodule YagyeCore.Compliance.ComplianceTest do
 
       import Ecto.Query
 
-      YagyeCore.Repo.update_all(
+      Repo.update_all(
         from(m in YagyeCore.Merchants.Schemas.Merchant, where: m.id == ^merchant.id),
         set: [onboarding_state: "under_review"]
       )
@@ -59,10 +74,10 @@ defmodule YagyeCore.Compliance.ComplianceTest do
       %{merchant: Fixtures.merchant_fixture()}
     end
 
-    test "creates a beneficial owner and returns {owner, event}", %{merchant: merchant} do
+    test "creates a beneficial owner and returns it", %{merchant: merchant} do
       subject_ref = Fixtures.pii_vault_fixture()
 
-      assert {:ok, {owner, _event}} =
+      assert {:ok, owner} =
                Compliance.add_beneficial_owner(merchant.public_id, %{
                  subject_ref: subject_ref,
                  role: "ubo",
@@ -74,11 +89,30 @@ defmodule YagyeCore.Compliance.ComplianceTest do
       assert owner.ownership_bps == 5000
     end
 
+    test "emits compliance.beneficial_owner_added outbox event", %{merchant: merchant} do
+      subject_ref = Fixtures.pii_vault_fixture()
+
+      {:ok, owner} =
+        Compliance.add_beneficial_owner(merchant.public_id, %{
+          subject_ref: subject_ref,
+          role: "ubo"
+        })
+
+      msg =
+        Repo.get_by(OutboxMessage,
+          aggregate_type: "beneficialowner",
+          aggregate_id: owner.id,
+          event_type: "compliance.beneficial_owner_added"
+        )
+
+      assert msg != nil
+    end
+
     test "accepts all valid roles", %{merchant: merchant} do
       for role <- ["director", "ubo", "both"] do
         subject_ref = Fixtures.pii_vault_fixture()
 
-        assert {:ok, {owner, _event}} =
+        assert {:ok, owner} =
                  Compliance.add_beneficial_owner(merchant.public_id, %{
                    subject_ref: subject_ref,
                    role: role
@@ -117,8 +151,8 @@ defmodule YagyeCore.Compliance.ComplianceTest do
       %{merchant: Fixtures.merchant_fixture()}
     end
 
-    test "creates a KYB document record and returns {doc, event}", %{merchant: merchant} do
-      assert {:ok, {doc, _event}} =
+    test "creates a KYB document record and returns it", %{merchant: merchant} do
+      assert {:ok, doc} =
                Compliance.upload_document(merchant.public_id, %{
                  kind: "incorporation",
                  s3_key: "kyb/mch_abc/cert.pdf",
@@ -132,9 +166,28 @@ defmodule YagyeCore.Compliance.ComplianceTest do
       assert doc.checksum == "abc123def456"
     end
 
+    test "emits compliance.kyb_document_uploaded outbox event", %{merchant: merchant} do
+      {:ok, doc} =
+        Compliance.upload_document(merchant.public_id, %{
+          kind: "incorporation",
+          s3_key: "kyb/doc.pdf",
+          checksum: "csum",
+          uploaded_by: "user:usr_test"
+        })
+
+      msg =
+        Repo.get_by(OutboxMessage,
+          aggregate_type: "kybdocument",
+          aggregate_id: doc.id,
+          event_type: "compliance.kyb_document_uploaded"
+        )
+
+      assert msg != nil
+    end
+
     test "accepts all valid document kinds", %{merchant: merchant} do
       for kind <- ["incorporation", "id", "proof_of_address", "bank_confirmation"] do
-        assert {:ok, {doc, _event}} =
+        assert {:ok, doc} =
                  Compliance.upload_document(merchant.public_id, %{
                    kind: kind,
                    s3_key: "kyb/doc.pdf",

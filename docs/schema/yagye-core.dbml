@@ -203,23 +203,104 @@ Table kyb_documents [headercolor: #B4531F] {
   Note: 'Statutory AML retention, measured from the END of the relationship.'
 }
 
+// ─── AML / PEP SCREENING ──────────────────────────────────────────────────
+//
+//  Three-table model: subjects enrolled for screening, requests (each API
+//  call is one audit-evidence row), hits (individual matches that cleared
+//  the confidence threshold). Screening providers are abstracted like payment
+//  providers — a ScreeningAdapter behaviour + code-keyed table.
+//
+//  Global standard compliance requires:
+//    • PEP tiers 1-3 (heads of state → local officials)
+//    • RCA — Relatives and Close Associates of PEPs carry the same EDD obligation
+//    • Sanctions: OFAC SDN, EU Consolidated, UN SC, UK HMT/OFSI, BoG Watch List
+//    • Adverse media monitoring
+//    • Ongoing periodic rescreening (frequency driven by risk tier)
+//    • Full audit trail: every check has an immutable request row + raw response
+//
+//  Flow:
+//    BeneficialOwner added
+//      → compliance.beneficial_owner_added event
+//        → ScreeningWorker enqueued
+//          → create screening_request
+//            → call provider adapter
+//              → create screening_hits for each match above threshold
+//                → update screening_subject status
+//                  → compliance.screening_hit_raised event (if any hits)
+
+Table screening_providers [headercolor: #B4531F] {
+  code text [pk, note: 'stub|comply_advantage|world_check|lexisnexis — string key, not uuid, for the same reason as providers.code']
+  display_name text [not null]
+  adapter_module text [not null, note: 'YagyeCore.Compliance.Adapters.StubScreeningAdapter etc.']
+  supported_lists "text[]" [not null, note: 'which lists this provider can query']
+  default_lists "text[]" [not null, note: 'lists included in every request unless the caller overrides. At minimum: pep|sanctions_ofac|sanctions_eu|sanctions_un|sanctions_uk_hmt']
+  active boolean [not null]
+  inserted_at timestamptz [not null]
+  Note: 'Abstraction layer for PEP/sanctions data providers. A ScreeningAdapter behaviour defines the contract — only the adapter module changes when you switch providers. stub is used in test and simulation mode.'
+}
+
+Table screening_subjects [headercolor: #B4531F] {
+  id uuid [pk]
+  subject_type text [not null, note: 'entity (the merchant itself)|beneficial_owner|director|customer (KYC at transaction time for high-value payments)']
+  subject_id uuid [not null, note: 'points to merchants.id, beneficial_owners.id, or customers.id based on subject_type']
+  merchant_id uuid [not null, note: 'denormalised for tenant scoping — all compliance queries scope to merchant']
+  screening_status text [not null, note: 'pending (never screened)|clean|potential_match (hits open, under review)|confirmed_pep (EDD required, not a block)|confirmed_match_blocked (sanctions — absolute bar on the relationship)|cleared (reviewed, EDD documented)|suspended (relationship terminated)']
+  enrolled_at timestamptz [not null, note: 'when this subject was first added to the screening programme']
+  last_screened_at timestamptz
+  next_screening_at timestamptz [note: 'NULL = awaiting first screening. Drives the ScreeningSchedulerWorker partial index.']
+  screening_frequency_days integer [not null, note: '365=annual (clean), 180=semi-annual (PEP/RCA), 30=high-risk or confirmed_pep. Set automatically from screening_status; overridden by risk_override.']
+  risk_override text [note: 'NULL = derive frequency from screening_status. high (30d)|medium (90d)|low (365d) = explicit override by a compliance officer.']
+  inserted_at timestamptz [not null]
+  updated_at timestamptz [not null]
+  indexes {
+    (subject_type, subject_id) [unique, note: 'one enrolment record per subject — no duplicate screening schedules']
+    (next_screening_at) [note: 'partial: WHERE screening_status NOT IN (confirmed_match_blocked, suspended) — the scheduler only picks up active subjects']
+    merchant_id
+  }
+  Note: 'One row per screened subject. Created on onboarding; updated after each completed screening_request. A confirmed_match_blocked status must immediately propagate to the merchant risk_rating and block payouts — the compliance officer cannot manually override a sanctions match.'
+}
+
+Table screening_requests [headercolor: #B4531F] {
+  id uuid [pk]
+  subject_id uuid [not null]
+  provider_code text [not null, note: 'string key → screening_providers.code (not a FK — allows requests to be created before the provider row is hydrated in test)']
+  trigger text [not null, note: 'onboarding|periodic|manual|transaction_threshold — WHY this check was run. Required for audit and FATF examination.']
+  lists_checked "text[]" [not null, note: 'exact lists queried: pep|sanctions_ofac|sanctions_eu|sanctions_un|sanctions_uk_hmt|sanctions_bog|adverse_media. Stored verbatim so the audit trail survives a provider config change.']
+  search_ref text [note: 'the provider s own search/job ID — their audit anchor. Required for any dispute or regulatory examination.']
+  status text [not null, note: 'pending|completed|failed|timed_out']
+  match_count integer [note: 'total potential matches returned by the provider, including below-threshold noise']
+  hit_count integer [note: 'matches that crossed the confidence threshold and were stored as screening_hits']
+  raw_response jsonb [note: '[EVD] full provider response stored verbatim before any parsing. The regulators will ask for this. Never deleted, never mutated.']
+  error text [note: 'set on failed or timed_out — describes the failure for retry logic']
+  completed_at timestamptz
+  inserted_at timestamptz [not null]
+  indexes {
+    subject_id
+    (provider_code, search_ref) [unique, note: 'partial: WHERE search_ref IS NOT NULL — dedup on provider reference; a retry creates a NEW row, never updates the failed one']
+  }
+  Note: '[EVD] Immutable audit record of every API call to a screening provider. A failed or timed-out request is retried by creating a NEW row — the failed row stays as evidence that the attempt occurred. The audit question is always: "did you check, when, against which lists, using which provider, and what did they say?"'
+}
+
 Table screening_hits [headercolor: #B4531F] {
   id uuid [pk]
+  screening_request_id uuid [note: 'FK to screening_requests. NULL only for legacy hits created before this field was added.']
   merchant_id uuid [not null]
-  subject_type text [not null, note: 'entity|director|ubo']
+  subject_type text [not null, note: 'entity|beneficial_owner|director|customer']
   subject_id uuid [not null]
   list_type text [not null, note: 'sanctions|pep|adverse_media']
-  list_source text [not null]
+  list_source text [not null, note: 'sanctions: OFAC_SDN|EU_CONSOLIDATED|UN_SC|UK_HMT_OFSI|BOG_WATCH_LIST. pep: provider-specific. adverse_media: provider-specific.']
   matched_name text [not null, note: '[PII]']
-  match_score "numeric(4,3)" [not null]
+  match_score "numeric(4,3)" [not null, note: '0.000–1.000. Hits below the provider-configured threshold are discarded at the adapter layer and never stored.']
   matched_attributes "text[]"
+  pep_tier integer [note: '1 = heads of state, senior ministers, top military/judicial/central bank; 2 = senior officials, MPs, ambassadors, state-owned enterprise execs; 3 = local/regional officials, lower government. NULL for non-PEP hits. Tier drives the EDD intensity.']
+  rca_relationship text [note: 'NULL = direct hit on the named individual. spouse|child|parent|sibling|close_associate = Relative or Close Associate of a PEP. RCAs carry the same EDD obligation as direct PEP hits under FATF R.12.']
   status text [not null, note: 'open|false_positive|true_match_cleared|true_match_blocked']
-  disposition_reason text [note: 'MANDATORY on disposition. "who cleared this and on what basis" is the whole audit question.']
+  disposition_reason text [note: 'MANDATORY on disposition. "who cleared this and on what basis" is the entire audit question.']
   dispositioned_by text
   dispositioned_at timestamptz
   inserted_at timestamptz [not null]
   updated_at timestamptz [not null]
-  Note: 'A sanctions match is an absolute bar — there is no code path to approve one.'
+  Note: 'A sanctions match (true_match_blocked) is an absolute bar — there is no code path to approve one. FATF Recommendation 6 makes this non-negotiable. The disposition_changeset enforces this at the schema level. PEP hits (true_match_cleared) require Enhanced Due Diligence and ongoing monitoring at a higher frequency, NOT a block — a PEP who is legitimately running a business can be onboarded with EDD documented.'
 }
 
 Table pii_vault [headercolor: #9B3232] {
@@ -1172,6 +1253,10 @@ Ref: api_requests.api_key_id > api_keys.id
 Ref: beneficial_owners.merchant_id > merchants.id
 Ref: beneficial_owners.subject_ref > pii_vault.subject_ref
 Ref: kyb_documents.merchant_id > merchants.id
+Ref: screening_subjects.merchant_id > merchants.id
+Ref: screening_requests.subject_id > screening_subjects.id
+// screening_requests.provider_code is a string key, not FK — same pattern as webhook_events.provider_code
+Ref: screening_hits.screening_request_id > screening_requests.id
 Ref: screening_hits.merchant_id > merchants.id
 Ref: provider_credentials.provider_id > providers.id
 Ref: provider_credentials.merchant_id > merchants.id
@@ -1248,6 +1333,9 @@ TableGroup identity_and_access {
 TableGroup compliance {
   beneficial_owners
   kyb_documents
+  screening_providers
+  screening_subjects
+  screening_requests
   screening_hits
   pii_vault
 }

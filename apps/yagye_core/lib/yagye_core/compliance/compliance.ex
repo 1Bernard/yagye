@@ -1,6 +1,8 @@
 defmodule YagyeCore.Compliance do
   @moduledoc false
 
+  alias Ecto.Multi
+
   alias YagyeCore.Compliance.Commands.{
     DispositionScreeningHit,
     SubmitBeneficialOwner,
@@ -8,16 +10,9 @@ defmodule YagyeCore.Compliance do
     SubmitOnboardingDetails
   }
 
-  alias YagyeCore.Compliance.Events.{
-    BeneficialOwnerAdded,
-    KybDocumentUploaded,
-    OnboardingDetailsSubmitted,
-    ScreeningHitDispositioned,
-    ScreeningHitRaised
-  }
-
   alias YagyeCore.Compliance.Schemas.{BeneficialOwner, KybDocument, ScreeningHit}
   alias YagyeCore.Merchants.Schemas.Merchant
+  alias YagyeCore.Outbox
   alias YagyeCore.Repo
 
   # ── Public API ───────────────────────────────────────────────────────────────
@@ -73,32 +68,25 @@ defmodule YagyeCore.Compliance do
 
   # Internal — used by compliance tooling, not the merchant-facing API.
   def raise_screening_hit(attrs) do
-    hit =
-      %ScreeningHit{}
-      |> ScreeningHit.changeset(attrs)
+    changeset = ScreeningHit.changeset(%ScreeningHit{}, attrs)
 
-    Repo.transaction(fn ->
-      case Repo.insert(hit) do
-        {:ok, hit} ->
-          event = %ScreeningHitRaised{
-            screening_hit_id: hit.id,
-            merchant_id: hit.merchant_id,
-            subject_type: hit.subject_type,
-            subject_id: hit.subject_id,
-            list_type: hit.list_type,
-            list_source: hit.list_source,
-            matched_name: hit.matched_name,
-            match_score: hit.match_score,
-            occurred_at: DateTime.utc_now()
-          }
-
-          # P7: outbox
-          {hit, event}
-
-        {:error, reason} ->
-          Repo.rollback(reason)
-      end
+    Multi.new()
+    |> Multi.insert(:hit, changeset)
+    |> Multi.insert(:outbox, fn %{hit: hit} ->
+      Outbox.build_changeset(hit, "compliance.screening_hit_raised", %{
+        screening_hit_id: hit.id,
+        merchant_id: hit.merchant_id,
+        subject_type: hit.subject_type,
+        list_type: hit.list_type,
+        match_score: hit.match_score
+      })
     end)
+    |> Repo.transaction()
+    |> case do
+      {:ok, %{hit: hit}} -> {:ok, hit}
+      {:error, :hit, %Ecto.Changeset{} = cs, _} -> {:error, cs}
+      {:error, _step, reason, _} -> {:error, reason}
+    end
   end
 
   # ── Dispatch ─────────────────────────────────────────────────────────────────
@@ -111,113 +99,123 @@ defmodule YagyeCore.Compliance do
       expected_monthly_volume_currency: cmd.expected_monthly_volume_currency
     }
 
-    Repo.transaction(fn ->
-      with {:ok, merchant} <- fetch_submittable(cmd.merchant_id),
-           merged_meta = Map.merge(merchant.metadata || %{}, %{onboarding: onboarding_meta}),
-           {:ok, merchant} <-
-             merchant
-             |> Ecto.Changeset.change(
-               onboarding_state: "details_submitted",
-               metadata: merged_meta
-             )
-             |> Repo.update() do
-        event = %OnboardingDetailsSubmitted{
-          merchant_id: merchant.id,
-          business_type: cmd.business_type,
-          website_url: cmd.website_url,
-          occurred_at: DateTime.utc_now()
-        }
-
-        # P7: outbox
-        {merchant, event}
-      else
-        {:error, reason} -> Repo.rollback(reason)
-      end
+    Multi.new()
+    |> Multi.run(:merchant, fn _repo, _changes ->
+      fetch_submittable(cmd.merchant_id)
     end)
+    |> Multi.run(:updated, fn _repo, %{merchant: merchant} ->
+      merged_meta = Map.merge(merchant.metadata || %{}, %{onboarding: onboarding_meta})
+
+      merchant
+      |> Ecto.Changeset.change(onboarding_state: "details_submitted", metadata: merged_meta)
+      |> Repo.update()
+    end)
+    |> Multi.insert(:outbox, fn %{updated: merchant} ->
+      Outbox.build_changeset(merchant, "compliance.onboarding_submitted", %{
+        merchant_id: merchant.id,
+        business_type: cmd.business_type,
+        website_url: cmd.website_url
+      })
+    end)
+    |> Repo.transaction()
+    |> case do
+      {:ok, %{updated: merchant}} -> {:ok, merchant}
+      {:error, _step, %Ecto.Changeset{} = cs, _} -> {:error, cs}
+      {:error, _step, reason, _} -> {:error, reason}
+    end
   end
 
   defp dispatch(%SubmitBeneficialOwner{} = cmd) do
-    Repo.transaction(fn ->
-      with {:ok, merchant} <- resolve_merchant(cmd.merchant_id),
-           attrs = %{
-             merchant_id: merchant.id,
-             subject_ref: cmd.subject_ref,
-             role: cmd.role,
-             ownership_bps: cmd.ownership_bps
-           },
-           {:ok, owner} <- %BeneficialOwner{} |> BeneficialOwner.changeset(attrs) |> Repo.insert() do
-        event = %BeneficialOwnerAdded{
-          beneficial_owner_id: owner.id,
-          merchant_id: owner.merchant_id,
-          subject_ref: owner.subject_ref,
-          role: owner.role,
-          ownership_bps: owner.ownership_bps,
-          occurred_at: DateTime.utc_now()
-        }
-
-        # P7: outbox
-        {owner, event}
-      else
-        {:error, reason} -> Repo.rollback(reason)
-      end
+    Multi.new()
+    |> Multi.run(:merchant, fn _repo, _changes ->
+      resolve_merchant(cmd.merchant_id)
     end)
+    |> Multi.run(:owner, fn _repo, %{merchant: merchant} ->
+      attrs = %{
+        merchant_id: merchant.id,
+        subject_ref: cmd.subject_ref,
+        role: cmd.role,
+        ownership_bps: cmd.ownership_bps
+      }
+
+      %BeneficialOwner{} |> BeneficialOwner.changeset(attrs) |> Repo.insert()
+    end)
+    |> Multi.insert(:outbox, fn %{owner: owner} ->
+      Outbox.build_changeset(owner, "compliance.beneficial_owner_added", %{
+        beneficial_owner_id: owner.id,
+        merchant_id: owner.merchant_id,
+        role: owner.role,
+        ownership_bps: owner.ownership_bps
+      })
+    end)
+    |> Repo.transaction()
+    |> case do
+      {:ok, %{owner: owner}} -> {:ok, owner}
+      {:error, _step, %Ecto.Changeset{} = cs, _} -> {:error, cs}
+      {:error, _step, reason, _} -> {:error, reason}
+    end
   end
 
   defp dispatch(%SubmitKybDocument{} = cmd) do
-    Repo.transaction(fn ->
-      with {:ok, merchant} <- resolve_merchant(cmd.merchant_id),
-           attrs = %{
-             merchant_id: merchant.id,
-             kind: cmd.kind,
-             s3_key: cmd.s3_key,
-             checksum: cmd.checksum,
-             uploaded_by: cmd.uploaded_by
-           },
-           {:ok, doc} <- %KybDocument{} |> KybDocument.changeset(attrs) |> Repo.insert() do
-        event = %KybDocumentUploaded{
-          document_id: doc.id,
-          merchant_id: doc.merchant_id,
-          kind: doc.kind,
-          s3_key: doc.s3_key,
-          uploaded_by: doc.uploaded_by,
-          occurred_at: DateTime.utc_now()
-        }
-
-        # P7: outbox
-        {doc, event}
-      else
-        {:error, reason} -> Repo.rollback(reason)
-      end
+    Multi.new()
+    |> Multi.run(:merchant, fn _repo, _changes ->
+      resolve_merchant(cmd.merchant_id)
     end)
+    |> Multi.run(:doc, fn _repo, %{merchant: merchant} ->
+      attrs = %{
+        merchant_id: merchant.id,
+        kind: cmd.kind,
+        s3_key: cmd.s3_key,
+        checksum: cmd.checksum,
+        uploaded_by: cmd.uploaded_by
+      }
+
+      %KybDocument{} |> KybDocument.changeset(attrs) |> Repo.insert()
+    end)
+    |> Multi.insert(:outbox, fn %{doc: doc} ->
+      Outbox.build_changeset(doc, "compliance.kyb_document_uploaded", %{
+        document_id: doc.id,
+        merchant_id: doc.merchant_id,
+        kind: doc.kind
+      })
+    end)
+    |> Repo.transaction()
+    |> case do
+      {:ok, %{doc: doc}} -> {:ok, doc}
+      {:error, _step, %Ecto.Changeset{} = cs, _} -> {:error, cs}
+      {:error, _step, reason, _} -> {:error, reason}
+    end
   end
 
   defp dispatch(%DispositionScreeningHit{} = cmd) do
-    Repo.transaction(fn ->
-      with {:ok, hit} <- fetch_open_hit(cmd.screening_hit_id, cmd.merchant_id),
-           {:ok, hit} <-
-             hit
-             |> ScreeningHit.disposition_changeset(%{
-               status: cmd.status,
-               disposition_reason: cmd.disposition_reason,
-               dispositioned_by: cmd.dispositioned_by,
-               dispositioned_at: DateTime.utc_now()
-             })
-             |> Repo.update() do
-        event = %ScreeningHitDispositioned{
-          screening_hit_id: hit.id,
-          merchant_id: hit.merchant_id,
-          status: hit.status,
-          disposition_reason: hit.disposition_reason,
-          dispositioned_by: hit.dispositioned_by,
-          occurred_at: DateTime.utc_now()
-        }
-
-        # P7: outbox
-        {hit, event}
-      else
-        {:error, reason} -> Repo.rollback(reason)
-      end
+    Multi.new()
+    |> Multi.run(:hit, fn _repo, _changes ->
+      fetch_open_hit(cmd.screening_hit_id, cmd.merchant_id)
     end)
+    |> Multi.run(:updated, fn _repo, %{hit: hit} ->
+      hit
+      |> ScreeningHit.disposition_changeset(%{
+        status: cmd.status,
+        disposition_reason: cmd.disposition_reason,
+        dispositioned_by: cmd.dispositioned_by,
+        dispositioned_at: DateTime.utc_now()
+      })
+      |> Repo.update()
+    end)
+    |> Multi.insert(:outbox, fn %{updated: hit} ->
+      Outbox.build_changeset(hit, "compliance.screening_hit_dispositioned", %{
+        screening_hit_id: hit.id,
+        merchant_id: hit.merchant_id,
+        status: hit.status,
+        disposition_reason: hit.disposition_reason
+      })
+    end)
+    |> Repo.transaction()
+    |> case do
+      {:ok, %{updated: hit}} -> {:ok, hit}
+      {:error, _step, %Ecto.Changeset{} = cs, _} -> {:error, cs}
+      {:error, _step, reason, _} -> {:error, reason}
+    end
   end
 
   # ── Private helpers ──────────────────────────────────────────────────────────
