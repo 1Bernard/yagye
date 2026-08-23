@@ -993,23 +993,6 @@ Table settlement_items [headercolor: #2E4A73] {
   indexes { (settlement_id, source_type, source_id) [unique] }
 }
 
-Table aggregate_state_events [headercolor: #B4531F] {
-  id uuid [pk]
-  aggregate_type text [not null, note: 'settlement|reconciliation_break|merchant|payout|dispute|refund|screening_hit|data_subject_request|payout_destination']
-  aggregate_id uuid [not null]
-  merchant_id uuid [note: 'denormalised — without it an audit query cannot be scoped to a tenant without joining per aggregate type']
-  mode yagye_mode [not null]
-  from_state text
-  to_state text [not null]
-  cause text [note: 'why, where the domain has a reason vocabulary']
-  evidence jsonb [not null, note: 'the numbers that justified the transition — an analyst must not have to guess']
-  actor text [not null]
-  on_behalf_of text
-  correlation_id text [not null]
-  occurred_at timestamptz [not null]
-  indexes { (aggregate_type, aggregate_id, occurred_at) }
-  Note: 'ONE transition log for every LOW-VOLUME aggregate. payment_events stays separate because it is 5-10 rows per payment and needs its own partitioning — different volume, different table. Consolidating these three saved two tables and made the unified audit a single query.'
-}
 
 Table payouts [headercolor: #1F6B4A] {
   id uuid [pk]
@@ -1459,7 +1442,6 @@ TableGroup settlement_and_payout {
   settlement_batches
   settlements
   settlement_items
-  aggregate_state_events
   payouts
   merchant_reserves
   momo_float_balances
@@ -1660,16 +1642,9 @@ Table bank_statement_lines [headercolor: #6B7A8D] {
 //  MOBILE MONEY SUPPORT  —  referenced in Part XIX, was missing from the pack
 // ═══════════════════════════════════════════════════════════════════════════
 
-Table momo_name_enquiries [headercolor: #2E4A73] {
-  id uuid [pk]
-  merchant_id uuid
-  network text [not null]
-  msisdn_hash text [not null]
-  returned_name_subject_ref uuid [note: '[PII] masked in UI, never logged in full']
-  queried_at timestamptz [not null]
-  expires_at timestamptz [not null, note: 'short cache — this is a mild PII exposure, not a directory']
-  indexes { (network, msisdn_hash) [unique] }
-}
+// momo_name_enquiries removed — superseded by account_verifications (P11),
+// which covers both mobile money and bank account verification and stores
+// the MSISDN as an HMAC-SHA256 hash rather than a cacheable lookup.
 
 Table momo_network_config [headercolor: #1F6B4A] {
   network text [pk]
@@ -1735,12 +1710,12 @@ Ref: payments.customer_id > customers.id
 Ref: payout_destinations.merchant_id > merchants.id
 Ref: payouts.destination_id > payout_destinations.id
 Ref: bank_statement_lines.statement_id > bank_statements.id
-Ref: momo_name_enquiries.merchant_id > merchants.id
+Ref: account_verifications.merchant_id > merchants.id
 Ref: data_subject_requests.merchant_id > merchants.id
 Ref: data_subject_requests.subject_ref > pii_vault.subject_ref
 Ref: payment_card_details.cardholder_name_subject_ref > pii_vault.subject_ref
 Ref: payment_mobile_money_details.msisdn_subject_ref > pii_vault.subject_ref
-Ref: momo_name_enquiries.returned_name_subject_ref > pii_vault.subject_ref
+Ref: account_verifications.payment_id > payments.id
 Ref: checkout_sessions.customer_subject_ref > pii_vault.subject_ref
 
 TableGroup merchant_product {
@@ -1761,7 +1736,7 @@ TableGroup bank_reconciliation {
 }
 
 TableGroup mobile_money_support {
-  momo_name_enquiries
+  account_verifications
   momo_network_config
 }
 
