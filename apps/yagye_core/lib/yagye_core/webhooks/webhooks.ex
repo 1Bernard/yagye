@@ -16,13 +16,15 @@ defmodule YagyeCore.Webhooks do
 
   On duplicate receipt: returns {:error, :already_received}.
   """
-  def receive_webhook(provider_code, event_id, event_type, raw_body) do
+  def receive_webhook(provider_code, event_id, event_type, raw_body, opts \\ []) do
     changeset =
       WebhookEvent.changeset(%WebhookEvent{}, %{
         provider_code: provider_code,
         event_id: event_id,
         event_type: event_type,
-        raw_body: raw_body
+        raw_body: raw_body,
+        signature_valid: Keyword.get(opts, :signature_valid, true),
+        attempt_count: Keyword.get(opts, :attempt_count, 1)
       })
 
     Repo.transaction(fn -> insert_and_enqueue(changeset) end)

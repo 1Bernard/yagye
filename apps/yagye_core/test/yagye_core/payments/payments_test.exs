@@ -16,7 +16,8 @@ defmodule YagyeCore.Payments.PaymentsTest do
                Payments.create_payment(merchant.id, %{
                  amount: 10_000,
                  currency: "GHS",
-                 rail: "fiat_provider"
+                 rail: "fiat_provider",
+                 method: "mobile_money"
                })
 
       assert payment.amount == 10_000
@@ -36,7 +37,8 @@ defmodule YagyeCore.Payments.PaymentsTest do
                Payments.create_payment(merchant.id, %{
                  amount: 10_000,
                  currency: "GHS",
-                 rail: "fiat_provider"
+                 rail: "fiat_provider",
+                 method: "mobile_money"
                })
 
       assert_enqueued(worker: PaymentDispatchWorker, args: %{payment_id: payment.id})
@@ -69,7 +71,8 @@ defmodule YagyeCore.Payments.PaymentsTest do
                Payments.create_payment(merchant.id, %{
                  amount: 0,
                  currency: "GHS",
-                 rail: "fiat_provider"
+                 rail: "fiat_provider",
+                 method: "mobile_money"
                })
 
       assert %{amount: _} = errors_on(changeset)
@@ -82,7 +85,8 @@ defmodule YagyeCore.Payments.PaymentsTest do
                Payments.create_payment(merchant.id, %{
                  amount: 100,
                  currency: "GHSC",
-                 rail: "fiat_provider"
+                 rail: "fiat_provider",
+                 method: "mobile_money"
                })
 
       assert %{currency: _} = errors_on(changeset)
@@ -95,7 +99,8 @@ defmodule YagyeCore.Payments.PaymentsTest do
                Payments.create_payment(merchant.id, %{
                  amount: 100,
                  currency: "GHS",
-                 rail: "crypto"
+                 rail: "crypto",
+                 method: "mobile_money"
                })
 
       assert %{rail: _} = errors_on(changeset)
@@ -117,6 +122,7 @@ defmodule YagyeCore.Payments.PaymentsTest do
         amount: 100,
         currency: "GHS",
         rail: "fiat_provider",
+        method: "mobile_money",
         merchant_reference: "ref_001"
       }
 

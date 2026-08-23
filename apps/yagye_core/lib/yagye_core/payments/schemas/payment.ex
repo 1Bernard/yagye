@@ -24,6 +24,7 @@ defmodule YagyeCore.Payments.Schemas.Payment do
     field :description, :string
     field :version, :integer, default: 0
     field :metadata, :map, default: %{}
+    field :settlement_batch_id, :binary_id
 
     belongs_to :merchant, Merchant
 
@@ -43,7 +44,7 @@ defmodule YagyeCore.Payments.Schemas.Payment do
       :description,
       :metadata
     ])
-    |> validate_required([:merchant_id, :mode, :amount, :currency, :rail])
+    |> validate_required([:merchant_id, :mode, :amount, :currency, :rail, :method])
     |> validate_inclusion(:mode, @valid_modes)
     |> validate_inclusion(:rail, @valid_rails)
     |> validate_number(:amount, greater_than: 0)

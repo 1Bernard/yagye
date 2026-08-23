@@ -35,7 +35,7 @@ defmodule YagyeCore.Outbox do
     :destination    - delivery target (default: "internal:projections")
     :correlation_id - optional trace propagation string
   """
-  @spec build_changeset(struct(), String.t(), map(), keyword()) :: %Ecto.Changeset{}
+  @spec build_changeset(struct(), String.t(), map(), keyword()) :: Ecto.Changeset.t()
   def build_changeset(aggregate, event_type, payload, opts \\ []) do
     event_version = Keyword.get(opts, :event_version, 1)
     destination = Keyword.get(opts, :destination, "internal:projections")
@@ -78,7 +78,7 @@ defmodule YagyeCore.Outbox do
   blocks or in tests. For Ecto.Multi, prefer build_changeset/4 instead.
   """
   @spec emit(struct(), String.t(), map(), keyword()) ::
-          {:ok, struct()} | {:error, %Ecto.Changeset{}}
+          {:ok, struct()} | {:error, Ecto.Changeset.t()}
   def emit(aggregate, event_type, payload, opts \\ []) do
     build_changeset(aggregate, event_type, payload, opts) |> Repo.insert()
   end

@@ -242,7 +242,7 @@ Table providers [headercolor: #6B7A8D] {
   kind text [not null, note: 'native_rail|external_psp. native_rail: Yagye holds the direct network agreement (MTN, Telecel, AirtelTigo, local acquirers) — Yagye processes natively, holds float, and settles. external_psp: third-party PSP used in Model B orchestration (Stripe, Flutterwave, Paystack) — merchant supplies their own credentials via provider_credentials where merchant_id IS NOT NULL; Yagye routes and charges an orchestration fee only, holds no float for these transactions.']
   updated_at timestamptz [not null]
   capabilities jsonb [not null, note: 'drives routing, checkout and validation. There is no `case provider do` in the domain.']
-  settlement_cadence jsonb [not null, note: 'includes the CUTOFF TIMEZONE — batches are cut in theirs, not yours']
+  settlement_cadence jsonb [not null, note: '{} = platform default (23:00 Africa/Accra). Override: {"cutoff_hour": 0–23, "timezone": "Region/City"}. Validated on write via Provider.changeset.']
   active boolean [not null]
   inserted_at timestamptz [not null]
 }
@@ -350,6 +350,7 @@ Table payments [headercolor: #1A2B4C] {
   risk_score "numeric(5,4)"
   risk_decision text [note: 'allow|review|block']
   metadata jsonb [not null]
+  settlement_batch_id uuid [note: 'set when the payment is swept into a settlement batch (P9). NULL = unsettled.']
   expires_at timestamptz
   inserted_at timestamptz [not null]
   updated_at timestamptz [not null]
@@ -357,6 +358,7 @@ Table payments [headercolor: #1A2B4C] {
     (merchant_id, merchant_reference) [unique]
     (merchant_id, inserted_at) [note: 'DESC — the keyset pagination index']
     (state, updated_at) [note: 'partial: stuck payments']
+    settlement_batch_id [note: 'lookup payments in a batch']
   }
 }
 
@@ -780,6 +782,30 @@ Table fx_rates [headercolor: #2E4A73] {
 
 // ─── SETTLEMENT ───────────────────────────────────────────────────────────
 
+Table settlement_batches [headercolor: #1A2B4C] {
+  id uuid [pk]
+  merchant_id uuid [not null]
+  provider_id uuid [not null, note: 'Batch is provider-scoped: cadence is per-provider, settlement_pending ledger account is provider-scoped, and Yagye can only disburse from a provider pool it has actually received.']
+  currency char(3) [not null]
+  mode yagye_mode [not null]
+  period_start timestamptz [not null]
+  period_end timestamptz [not null]
+  payment_count integer [not null]
+  gross_amount bigint [not null, note: '[FIN] minor units — SUM of swept payment amounts before fees']
+  state text [not null, note: 'pending|processing|settled|failed']
+  error text [note: 'set on state=failed']
+  settled_at timestamptz
+  inserted_at timestamptz [not null]
+  indexes {
+    merchant_id
+    provider_id
+    state
+    (merchant_id, provider_id, currency, mode, state)
+    (merchant_id, provider_id, currency, mode, period_start, period_end) [unique, note: 'Idempotency guard: one batch per merchant+provider+currency+mode per period']
+  }
+  Note: 'P9 accounting-only settlement batch. Sweeps succeeded payments per merchant+provider+currency, posts ledger entries (merchant_payable → settlement_approved). No fee deduction (P11) and no bank transfer (P12). Partial index on payments covers the scheduler sweep: (merchant_id, currency, mode) WHERE settlement_batch_id IS NULL AND state = succeeded.'
+}
+
 Table settlements [headercolor: #1A2B4C] {
   id uuid [pk]
   public_id text [unique, not null, note: 'stl_01J...']
@@ -1015,21 +1041,19 @@ Table adjustment_approvals [headercolor: #9B3232] {
 
 Table webhook_events [headercolor: #2E4A73] {
   id uuid [pk]
-  provider_id uuid [not null]
-  mode yagye_mode [not null]
-  provider_event_id text [not null, note: 'THEIR id — the dedupe key']
-  event_type_raw text [not null]
-  normalised_type text
-  signature_valid boolean [not null, note: 'verified over the RAW body, constant-time, BEFORE parsing']
-  raw_headers jsonb [not null]
-  raw_body text [not null, note: '[EVD] 90 day retention']
-  received_at timestamptz [not null]
-  processing_state text [not null, note: 'received|processing|processed|duplicate|parked|failed|ignored']
+  provider_code text [not null, note: 'matches providers.code — string key rather than FK so the inbox can receive before the provider row exists and across provider environments']
+  event_id text [not null, note: 'THEIR id — the dedupe key. Together with provider_code this is THE INBOX unique constraint.']
+  event_type text [not null]
+  raw_body text [not null, note: '[EVD] stored before parsing; HMAC verified in the controller before insert']
+  headers jsonb [not null]
+  signature_valid boolean [not null, note: 'PSP/orchestration compliance: stamp HMAC verification result at ingestion even though controller rejects invalid ones. Required for PCI-DSS audit trail.']
+  attempt_count integer [not null, note: 'Incremented on each provider retry delivery. Orchestration layer uses this to detect stuck events (pending + high count) and rate-limit aggressive providers.']
+  state text [not null, note: 'pending|processed|failed']
+  error text [note: 'set on state=failed']
   processed_at timestamptz
-  attempts integer [not null]
-  last_error text
-  correlation_id text [not null]
-  indexes { (provider_id, provider_event_id) [unique, note: 'THE INBOX'] }
+  inserted_at timestamptz [not null]
+  indexes { (provider_code, event_id) [unique, note: 'THE INBOX — idempotent on duplicate delivery'] }
+  Note: 'Inbound webhook inbox. provider_code is a string key (not FK) so the inbox can receive from any provider including dynamically-registered ones — correct for both PSP and orchestration modes. signature_valid and attempt_count added for PCI-DSS compliance and orchestration-layer retry visibility.'
 }
 
 Table outbox_messages [headercolor: #B4531F] {
@@ -1189,6 +1213,9 @@ Ref: fee_records.pricing_rule_id > pricing_rules.id
 Ref: merchants.pricing_plan_id > pricing_plans.id
 Ref: platform_fee_invoices.merchant_id > merchants.id
 Ref: platform_fee_invoices.settled_against_settlement_id > settlements.id
+Ref: settlement_batches.merchant_id > merchants.id
+Ref: settlement_batches.provider_id > providers.id
+Ref: payments.settlement_batch_id > settlement_batches.id
 Ref: settlements.merchant_id > merchants.id
 Ref: settlements.provider_id > providers.id
 Ref: settlements.reconciliation_run_id > reconciliation_runs.id
@@ -1204,7 +1231,8 @@ Ref: reconciliation_matches.run_id > reconciliation_runs.id
 Ref: reconciliation_breaks.run_id > reconciliation_runs.id
 Ref: reconciliation_breaks.resolving_entry_id > ledger_entries.id
 Ref: adjustment_approvals.break_id > reconciliation_breaks.id
-Ref: webhook_events.provider_id > providers.id
+// webhook_events.provider_code is intentionally a string key, not a FK to providers.id
+// — the inbox must accept events from providers before the provider row exists (orchestration)
 Ref: merchant_webhook_endpoints.merchant_id > merchants.id
 Ref: merchant_webhook_deliveries.endpoint_id > merchant_webhook_endpoints.id
 
@@ -1270,6 +1298,7 @@ TableGroup pricing {
   fx_rates
 }
 TableGroup settlement_and_payout {
+  settlement_batches
   settlements
   settlement_items
   aggregate_state_events

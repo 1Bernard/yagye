@@ -32,7 +32,8 @@ defmodule YagyeCore.Payments.ConcurrencyTest do
             Payments.create_payment(m.id, %{
               amount: 10_000,
               currency: "GHS",
-              rail: "fiat_provider"
+              rail: "fiat_provider",
+              method: "mobile_money"
             })
           end,
           max_concurrency: 30,
@@ -64,7 +65,8 @@ defmodule YagyeCore.Payments.ConcurrencyTest do
             Payments.create_payment(merchant.id, %{
               amount: 5_000,
               currency: "GHS",
-              rail: "fiat_provider"
+              rail: "fiat_provider",
+              method: "mobile_money"
             })
 
           payment
@@ -131,7 +133,8 @@ defmodule YagyeCore.Payments.ConcurrencyTest do
             Payments.create_payment(merchant.id, %{
               amount: 1_000,
               currency: "GHS",
-              rail: "fiat_provider"
+              rail: "fiat_provider",
+              method: "mobile_money"
             })
 
           payment
@@ -163,7 +166,8 @@ defmodule YagyeCore.Payments.ConcurrencyTest do
             Payments.create_payment(merchant.id, %{
               amount: 2_500,
               currency: "GHS",
-              rail: "fiat_provider"
+              rail: "fiat_provider",
+              method: "mobile_money"
             })
 
           {:ok, payment} = Payments.dispatch_payment(payment.id)
@@ -205,7 +209,8 @@ defmodule YagyeCore.Payments.ConcurrencyTest do
             Payments.create_payment(merchant.id, %{
               amount: 2_500,
               currency: "GHS",
-              rail: "fiat_provider"
+              rail: "fiat_provider",
+              method: "mobile_money"
             })
 
           {:ok, payment} = Payments.dispatch_payment(payment.id)

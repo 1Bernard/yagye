@@ -50,7 +50,10 @@ defmodule YagyeCore.Fixtures do
     {:ok, {payment, _event}} =
       YagyeCore.Payments.create_payment(
         merchant.id,
-        Map.merge(%{amount: 10_000, currency: "GHS", rail: "fiat_provider"}, attrs)
+        Map.merge(
+          %{amount: 10_000, currency: "GHS", rail: "fiat_provider", method: "mobile_money"},
+          attrs
+        )
       )
 
     payment
@@ -103,6 +106,36 @@ defmodule YagyeCore.Fixtures do
     end
 
     Map.put(payload, "base_url", base_url)
+  end
+
+  # Creates a fresh provider (unique code) with a platform-level simulation credential
+  # that includes a webhook_secret. Returns {provider, secret}.
+  # Each call produces a distinct provider so async tests don't share state.
+  def webhook_provider_fixture(secret \\ "wh_test_secret_#{System.unique_integer([:positive])}") do
+    provider =
+      %Provider{}
+      |> Provider.changeset(%{
+        code: "wh_test_#{System.unique_integer([:positive])}",
+        display_name: "Webhook Test Provider",
+        adapter_module: "YagyeCore.Payments.Adapters.SimulatorAdapter",
+        active: true
+      })
+      |> Repo.insert!()
+
+    payload = %{"api_key" => "test_key", "webhook_secret" => secret}
+
+    %ProviderCredential{}
+    |> ProviderCredential.changeset(%{
+      provider_id: provider.id,
+      merchant_id: nil,
+      mode: "simulation",
+      base_url: "http://localhost:4100",
+      encrypted_payload: Vault.encrypt_map(payload),
+      active: true
+    })
+    |> Repo.insert!()
+
+    {provider, secret}
   end
 
   # Returns {api_key, raw_key}. raw_key is only available at creation.

@@ -22,7 +22,7 @@ defmodule YagyeCore.Ledger do
   # Debit  : settlement_pending — we are owed funds from the provider (asset ↑)
   # Credit : merchant_payable   — we owe the merchant net funds (liability ↑)
   #
-  # Fee split is deferred to P8 (requires pricing_rules).
+  # Fee split is deferred to P11 (requires pricing_rules).
   def post_payment_settled(%Payment{} = payment, %PaymentAttempt{} = attempt) do
     OpenTelemetry.Tracer.with_span "ledger.post_settlement" do
       with {:ok, settlement_account} <-

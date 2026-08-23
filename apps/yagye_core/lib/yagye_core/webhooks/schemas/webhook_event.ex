@@ -12,6 +12,8 @@ defmodule YagyeCore.Webhooks.Schemas.WebhookEvent do
     field :event_type, :string
     field :raw_body, :string
     field :headers, :map, default: %{}
+    field :signature_valid, :boolean, default: true
+    field :attempt_count, :integer, default: 1
     field :state, :string, default: "pending"
     field :error, :string
     field :processed_at, :utc_datetime_usec
@@ -27,6 +29,8 @@ defmodule YagyeCore.Webhooks.Schemas.WebhookEvent do
       :event_type,
       :raw_body,
       :headers,
+      :signature_valid,
+      :attempt_count,
       :state,
       :error,
       :processed_at
