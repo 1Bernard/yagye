@@ -62,7 +62,8 @@ config :yagye_core, Oban,
     payments: 10,
     events: 5,
     projections: 10,
-    webhooks: 5
+    webhooks: 5,
+    settlement: 5
   ]
 
 config :opentelemetry,
