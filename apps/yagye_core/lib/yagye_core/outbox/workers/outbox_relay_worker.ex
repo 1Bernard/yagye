@@ -17,6 +17,7 @@ defmodule YagyeCore.Outbox.Workers.OutboxRelayWorker do
   alias YagyeCore.Outbox.EventEnvelope
   alias YagyeCore.Outbox.Schemas.OutboxMessage
   alias YagyeCore.Projections.Workers.{MerchantBalanceProjection, PaymentSummaryProjection}
+  alias YagyeCore.Reconciliation.Workers.ReconciliationTriggerWorker
   alias YagyeCore.Repo
 
   @batch_size 50
@@ -77,6 +78,7 @@ defmodule YagyeCore.Outbox.Workers.OutboxRelayWorker do
       event_type in ~w[payment.succeeded payment.failed payment.refunded],
       MerchantBalanceProjection
     )
+    |> maybe_add(event_type == "settlement.batch.settled", ReconciliationTriggerWorker)
   end
 
   defp maybe_add(list, true, worker), do: [worker | list]

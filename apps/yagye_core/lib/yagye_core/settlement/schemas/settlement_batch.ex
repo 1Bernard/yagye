@@ -36,6 +36,7 @@ defmodule YagyeCore.Settlement.Schemas.SettlementBatch do
     |> cast(attrs, [
       :merchant_id,
       :provider_id,
+      :reconciliation_run_id,
       :currency,
       :mode,
       :period_start,
