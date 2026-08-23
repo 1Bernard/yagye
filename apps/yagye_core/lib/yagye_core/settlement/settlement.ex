@@ -3,6 +3,7 @@ defmodule YagyeCore.Settlement do
 
   import Ecto.Query
 
+  alias Ecto.Multi
   alias YagyeCore.Outbox
   alias YagyeCore.Payments.Schemas.Payment
   alias YagyeCore.Payments.Schemas.PaymentAttempt
@@ -23,26 +24,39 @@ defmodule YagyeCore.Settlement do
           {:ok, SettlementBatch.t()}
           | {:error, :no_payments | :batch_already_open | Ecto.Changeset.t()}
   def create_batch(merchant_id, provider_id, currency, mode) do
-    result =
-      Repo.transaction(fn ->
-        with :ok <- guard_no_open_batch(merchant_id, provider_id, currency, mode),
-             [_ | _] = payments <- do_sweep(merchant_id, provider_id, currency, mode),
-             {:ok, batch} <- insert_batch(merchant_id, provider_id, currency, mode, payments),
-             :ok <- stamp_payments(Enum.map(payments, & &1.id), batch.id),
-             {:ok, _} <- emit_created_event(batch) do
-          batch
-        else
-          :error -> Repo.rollback(:batch_already_open)
-          [] -> Repo.rollback(:no_payments)
-          {:error, cs} when is_struct(cs, Ecto.Changeset) -> Repo.rollback({:changeset, cs})
-          {:error, reason} -> Repo.rollback(reason)
-        end
-      end)
-
-    case result do
-      {:ok, batch} -> {:ok, batch}
-      {:error, {:changeset, cs}} -> {:error, cs}
-      {:error, reason} -> {:error, reason}
+    Multi.new()
+    |> Multi.run(:guard, fn _repo, _changes ->
+      guard_no_open_batch(merchant_id, provider_id, currency, mode)
+    end)
+    |> Multi.run(:payments, fn _repo, _changes ->
+      case do_sweep(merchant_id, provider_id, currency, mode) do
+        [] -> {:error, :no_payments}
+        payments -> {:ok, payments}
+      end
+    end)
+    |> Multi.run(:batch, fn _repo, %{payments: payments} ->
+      insert_batch(merchant_id, provider_id, currency, mode, payments)
+    end)
+    |> Multi.run(:stamp, fn _repo, %{payments: payments, batch: batch} ->
+      stamp_payments(Enum.map(payments, & &1.id), batch.id)
+    end)
+    |> Multi.insert(:outbox, fn %{batch: batch} ->
+      Outbox.build_changeset(batch, "settlement.batch.created", %{
+        batch_id: batch.id,
+        merchant_id: batch.merchant_id,
+        provider_id: batch.provider_id,
+        currency: batch.currency,
+        payment_count: batch.payment_count,
+        gross_amount: batch.gross_amount
+      })
+    end)
+    |> Repo.transaction()
+    |> case do
+      {:ok, %{batch: batch}} -> {:ok, batch}
+      {:error, :guard, :batch_already_open, _} -> {:error, :batch_already_open}
+      {:error, :payments, :no_payments, _} -> {:error, :no_payments}
+      {:error, _step, %Ecto.Changeset{} = cs, _} -> {:error, cs}
+      {:error, _step, reason, _} -> {:error, reason}
     end
   end
 
@@ -59,17 +73,6 @@ defmodule YagyeCore.Settlement do
     else
       {:error, :invalid_state}
     end
-  end
-
-  defp emit_created_event(%SettlementBatch{} = batch) do
-    Outbox.emit(batch, "settlement.batch.created", %{
-      batch_id: batch.id,
-      merchant_id: batch.merchant_id,
-      provider_id: batch.provider_id,
-      currency: batch.currency,
-      payment_count: batch.payment_count,
-      gross_amount: batch.gross_amount
-    })
   end
 
   defp insert_batch(merchant_id, provider_id, currency, mode, payments) do
@@ -91,7 +94,6 @@ defmodule YagyeCore.Settlement do
     Repo.insert(SettlementBatch.changeset(%SettlementBatch{}, attrs))
   end
 
-  # Stamps settlement_batch_id on all swept payments in one bulk UPDATE.
   defp stamp_payments(payment_ids, batch_id) do
     {_count, nil} =
       Repo.update_all(
@@ -99,10 +101,9 @@ defmodule YagyeCore.Settlement do
         set: [settlement_batch_id: batch_id]
       )
 
-    :ok
+    {:ok, :stamped}
   end
 
-  # Returns :ok when no pending/processing batch exists; :error otherwise.
   defp guard_no_open_batch(merchant_id, provider_id, currency, mode) do
     exists =
       from(b in SettlementBatch,
@@ -115,7 +116,7 @@ defmodule YagyeCore.Settlement do
       )
       |> Repo.exists?()
 
-    if exists, do: :error, else: :ok
+    if exists, do: {:error, :batch_already_open}, else: {:ok, :no_open_batch}
   end
 
   # Returns payments that succeeded via the given provider and have no batch yet.
