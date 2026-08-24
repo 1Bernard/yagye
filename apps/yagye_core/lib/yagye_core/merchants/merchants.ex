@@ -9,12 +9,18 @@ defmodule YagyeCore.Merchants do
     ApproveMerchant,
     IssueApiKey,
     RegisterMerchant,
-    RevokeApiKey
+    RevokeApiKey,
+    StartKybReview,
+    SubmitBasicInfo,
+    SubmitKybDocuments
   }
 
   alias YagyeCore.Merchants.Events.{
     ApiKeyIssued,
     ApiKeyRevoked,
+    KybBasicInfoSubmitted,
+    KybDocumentsSubmitted,
+    KybReviewStarted,
     MerchantApproved,
     MerchantRegistered
   }
@@ -35,8 +41,28 @@ defmodule YagyeCore.Merchants do
     })
   end
 
+  def submit_basic_info(merchant_id, submitted_by) do
+    dispatch(%SubmitBasicInfo{merchant_id: merchant_id, submitted_by: submitted_by})
+  end
+
+  def submit_documents(merchant_id, submitted_by) do
+    dispatch(%SubmitKybDocuments{merchant_id: merchant_id, submitted_by: submitted_by})
+  end
+
+  def start_review(merchant_id, reviewed_by) do
+    dispatch(%StartKybReview{merchant_id: merchant_id, reviewed_by: reviewed_by})
+  end
+
   def approve(merchant_id, approved_by) do
     dispatch(%ApproveMerchant{merchant_id: merchant_id, approved_by: approved_by})
+  end
+
+  def check_live_capable?(merchant_id) do
+    case Repo.get(Merchant, merchant_id) do
+      %Merchant{kyb_tier: tier} when tier >= 3 -> :ok
+      %Merchant{} -> {:error, :kyb_required}
+      nil -> {:error, :not_found}
+    end
   end
 
   def issue_api_key(merchant_id, attrs) do
@@ -145,13 +171,84 @@ defmodule YagyeCore.Merchants do
     end
   end
 
+  defp dispatch(%SubmitBasicInfo{} = cmd) do
+    transition(:basic_info_submitted, cmd.merchant_id, fn merchant ->
+      Merchant.onboarding_changeset(merchant, %{
+        onboarding_state: "basic_info_submitted",
+        kyb_tier: 1
+      })
+    end)
+    |> case do
+      {:ok, merchant} ->
+        event = %KybBasicInfoSubmitted{
+          merchant_id: merchant.id,
+          submitted_by: cmd.submitted_by,
+          occurred_at: DateTime.utc_now()
+        }
+
+        {:ok, {merchant, event}}
+
+      error ->
+        error
+    end
+  end
+
+  defp dispatch(%SubmitKybDocuments{} = cmd) do
+    transition(:documents_submitted, cmd.merchant_id, fn merchant ->
+      Merchant.onboarding_changeset(merchant, %{
+        onboarding_state: "documents_submitted",
+        kyb_tier: 2
+      })
+    end)
+    |> case do
+      {:ok, merchant} ->
+        event = %KybDocumentsSubmitted{
+          merchant_id: merchant.id,
+          submitted_by: cmd.submitted_by,
+          occurred_at: DateTime.utc_now()
+        }
+
+        {:ok, {merchant, event}}
+
+      error ->
+        error
+    end
+  end
+
+  defp dispatch(%StartKybReview{} = cmd) do
+    transition(:under_review, cmd.merchant_id, fn merchant ->
+      Merchant.onboarding_changeset(merchant, %{
+        onboarding_state: "under_review",
+        reviewed_by: cmd.reviewed_by
+      })
+    end)
+    |> case do
+      {:ok, merchant} ->
+        event = %KybReviewStarted{
+          merchant_id: merchant.id,
+          reviewed_by: cmd.reviewed_by,
+          occurred_at: DateTime.utc_now()
+        }
+
+        {:ok, {merchant, event}}
+
+      error ->
+        error
+    end
+  end
+
   defp dispatch(%ApproveMerchant{} = cmd) do
     Multi.new()
     |> Multi.run(:merchant, fn _repo, _changes ->
       fetch_approvable(cmd.merchant_id)
     end)
     |> Multi.update(:approved, fn %{merchant: merchant} ->
-      Ecto.Changeset.change(merchant, status: "approved")
+      Merchant.onboarding_changeset(merchant, %{
+        status: "approved",
+        onboarding_state: "approved",
+        kyb_tier: 3,
+        approved_by: cmd.approved_by
+      })
     end)
     |> Multi.run(:mode, fn _repo, %{approved: merchant} ->
       grant_mode(merchant.id, :live)
@@ -285,9 +382,31 @@ defmodule YagyeCore.Merchants do
 
   defp fetch_approvable(public_id) do
     case Repo.get_by(Merchant, public_id: public_id) do
-      %Merchant{status: "registered"} = m -> {:ok, m}
-      %Merchant{} -> {:error, :invalid_state}
+      %Merchant{status: "registered", onboarding_state: "under_review"} = m -> {:ok, m}
+      %Merchant{status: "approved"} -> {:error, :invalid_state}
+      %Merchant{} -> {:error, :not_kyb_ready}
       nil -> {:error, :not_found}
+    end
+  end
+
+  @onboarding_predecessors %{
+    "basic_info_submitted" => "registered",
+    "documents_submitted" => "basic_info_submitted",
+    "under_review" => "documents_submitted"
+  }
+
+  defp transition(name, public_id, changeset_fn) do
+    expected_predecessor = @onboarding_predecessors[to_string(name)]
+
+    case Repo.get_by(Merchant, public_id: public_id) do
+      %Merchant{onboarding_state: ^expected_predecessor} = merchant ->
+        merchant |> changeset_fn.() |> Repo.update()
+
+      %Merchant{} ->
+        {:error, :invalid_state}
+
+      nil ->
+        {:error, :not_found}
     end
   end
 

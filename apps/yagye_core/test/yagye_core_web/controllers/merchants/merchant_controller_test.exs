@@ -2,6 +2,7 @@ defmodule YagyeCoreWeb.Controllers.Merchants.MerchantControllerTest do
   use YagyeCoreWeb.ConnCase, async: true
 
   alias YagyeCore.Fixtures
+  alias YagyeCore.Merchants
 
   @valid_attrs %{
     legal_name: "Acme Payments Ltd",
@@ -100,8 +101,11 @@ defmodule YagyeCoreWeb.Controllers.Merchants.MerchantControllerTest do
   end
 
   describe "POST /v1/merchants/:merchant_id/approve" do
-    test "approves a registered merchant", %{conn: conn, raw_key: raw_key} do
+    test "approves a merchant that has completed KYB", %{conn: conn, raw_key: raw_key} do
       new_merchant = Fixtures.merchant_fixture()
+      {:ok, _} = Merchants.submit_basic_info(new_merchant.public_id, "user:owner")
+      {:ok, _} = Merchants.submit_documents(new_merchant.public_id, "user:owner")
+      {:ok, _} = Merchants.start_review(new_merchant.public_id, "user:reviewer_001")
 
       resp =
         conn
@@ -111,6 +115,19 @@ defmodule YagyeCoreWeb.Controllers.Merchants.MerchantControllerTest do
       assert resp.status == 200
       body = Jason.decode!(resp.resp_body)
       assert body["status"] == "approved"
+    end
+
+    test "returns 422 when KYB is incomplete", %{conn: conn, raw_key: raw_key} do
+      new_merchant = Fixtures.merchant_fixture()
+
+      resp =
+        conn
+        |> with_auth(raw_key)
+        |> post("/v1/merchants/#{new_merchant.public_id}/approve")
+
+      assert resp.status == 422
+      body = Jason.decode!(resp.resp_body)
+      assert body["error"]["code"] == "kyb_incomplete"
     end
 
     test "returns 422 when merchant is already approved", %{

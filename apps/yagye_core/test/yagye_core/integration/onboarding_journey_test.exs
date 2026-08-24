@@ -3,7 +3,7 @@ defmodule YagyeCore.Integration.OnboardingJourneyTest do
   Phase gate test for P1: Merchants, Onboarding & Access.
 
   Walks a merchant through the full KYB onboarding sequence in order and
-  asserts the final state is `details_submitted` — the prerequisite for a
+  asserts the final state is `basic_info_submitted` — the prerequisite for a
   compliance reviewer to move the merchant to `under_review`.
 
   If this test is green, Phase 1 is structurally complete.
@@ -13,7 +13,7 @@ defmodule YagyeCore.Integration.OnboardingJourneyTest do
 
   alias YagyeCore.{Compliance, Fixtures, Merchants}
 
-  test "full onboarding journey: register → issue key → submit details → add owner → upload doc → details_submitted" do
+  test "full onboarding journey: register → issue key → submit details → add owner → upload doc → basic_info_submitted" do
     # Step 1 — merchant is created in simulation mode
     assert {:ok, {merchant, _}} =
              Merchants.create_merchant(%{
@@ -47,14 +47,14 @@ defmodule YagyeCore.Integration.OnboardingJourneyTest do
                expected_monthly_volume_currency: "GBP"
              })
 
-    assert after_submit.onboarding_state == "details_submitted"
+    assert after_submit.onboarding_state == "basic_info_submitted"
     assert get_in(after_submit.metadata, [:onboarding, :business_type]) == "ecommerce"
 
-    # Re-submission is idempotent (already in details_submitted, still allowed)
+    # Re-submission is idempotent (already in basic_info_submitted, still allowed)
     assert {:ok, resubmit} =
              Compliance.submit_onboarding(merchant.public_id, %{business_type: "saas"})
 
-    assert resubmit.onboarding_state == "details_submitted"
+    assert resubmit.onboarding_state == "basic_info_submitted"
 
     # Step 4 — a beneficial owner is added
     subject_ref = Fixtures.pii_vault_fixture()
@@ -81,9 +81,9 @@ defmodule YagyeCore.Integration.OnboardingJourneyTest do
     assert doc.merchant_id == merchant.id
     assert doc.kind == "incorporation"
 
-    # Phase gate — merchant is now in details_submitted; a reviewer can move to under_review
+    # Phase gate — merchant is now in basic_info_submitted; a reviewer can move to under_review
     {:ok, final} = Merchants.get_merchant(merchant.public_id)
-    assert final.onboarding_state == "details_submitted"
+    assert final.onboarding_state == "basic_info_submitted"
     assert final.status == "registered"
 
     # Live mode is still locked — only enabled after merchant.approve/2

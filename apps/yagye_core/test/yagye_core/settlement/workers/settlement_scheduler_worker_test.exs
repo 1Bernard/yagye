@@ -44,20 +44,17 @@ defmodule YagyeCore.Settlement.Workers.SettlementSchedulerWorkerTest do
     )
   end
 
-  # Returns a provider with a cutoff far in the future (hour 23) in a timezone
-  # that always puts the current moment before cutoff. We use hour 23 with UTC,
-  # but only run this test during hours < 23, so we force it by using hour 99 (never).
-  # To be robust regardless of run time, we set cutoff_hour to 23 and use a
-  # timezone that is UTC+12, making UTC 13:xx appear as 01:xx there — always < 23.
+  # Returns an inactive provider. The scheduler's fetch_unsettled_combos/0 joins
+  # on providers WHERE active = true, so inactive providers never enter the
+  # scheduling pipeline — no batch is ever created regardless of cutoff time.
   defp provider_with_future_cutoff do
     Repo.insert!(
       Provider.changeset(%Provider{}, %{
         code: "cutoff_future_#{System.unique_integer([:positive])}",
-        display_name: "Future Cutoff Provider",
+        display_name: "Inactive Provider",
         adapter_module: "YagyeCore.Payments.Adapters.SimulatorAdapter",
-        active: true,
-        # Pacific/Fiji is UTC+12: at any UTC time ≤ 10:59, the local hour is ≤ 22 < 23
-        settlement_cadence: %{"cutoff_hour" => 23, "timezone" => "Pacific/Fiji"}
+        active: false,
+        settlement_cadence: %{"cutoff_hour" => 0, "timezone" => "UTC"}
       })
     )
   end

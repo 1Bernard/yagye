@@ -26,7 +26,12 @@ defmodule YagyeCore.Fixtures do
 
   def approved_merchant_fixture(attrs \\ %{}) do
     merchant = merchant_fixture(attrs)
-    {:ok, {merchant, _}} = Merchants.approve(merchant.public_id, merchant.id)
+    reviewer = "user:reviewer_#{System.unique_integer([:positive])}"
+    approver = "user:approver_#{System.unique_integer([:positive])}"
+    {:ok, {merchant, _}} = Merchants.submit_basic_info(merchant.public_id, "user:owner")
+    {:ok, {merchant, _}} = Merchants.submit_documents(merchant.public_id, "user:owner")
+    {:ok, {merchant, _}} = Merchants.start_review(merchant.public_id, reviewer)
+    {:ok, {merchant, _}} = Merchants.approve(merchant.public_id, approver)
     merchant
   end
 

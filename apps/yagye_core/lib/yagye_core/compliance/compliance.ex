@@ -107,7 +107,7 @@ defmodule YagyeCore.Compliance do
       merged_meta = Map.merge(merchant.metadata || %{}, %{onboarding: onboarding_meta})
 
       merchant
-      |> Ecto.Changeset.change(onboarding_state: "details_submitted", metadata: merged_meta)
+      |> Ecto.Changeset.change(onboarding_state: "basic_info_submitted", metadata: merged_meta)
       |> Repo.update()
     end)
     |> Multi.insert(:outbox, fn %{updated: merchant} ->
@@ -222,7 +222,8 @@ defmodule YagyeCore.Compliance do
 
   defp fetch_submittable(public_id) do
     case Repo.get_by(Merchant, public_id: public_id) do
-      %Merchant{onboarding_state: state} = m when state in ["registered", "details_submitted"] ->
+      %Merchant{onboarding_state: state} = m
+      when state in ["registered", "basic_info_submitted"] ->
         {:ok, m}
 
       %Merchant{} ->

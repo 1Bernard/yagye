@@ -38,10 +38,20 @@ defmodule YagyeCoreWeb.Controllers.Merchants.MerchantController do
   def approve(conn, %{merchant_id: merchant_id}) do
     approved_by = conn.assigns.merchant_id
 
-    with {:ok, {merchant, _event}} <- Merchants.approve(merchant_id, approved_by) do
-      object = MerchantJSON.data(merchant)
-      maybe_complete_idempotency(conn, 200, object, "merchant", merchant.id)
-      Response.ok(conn, object)
+    case Merchants.approve(merchant_id, approved_by) do
+      {:ok, {merchant, _event}} ->
+        object = MerchantJSON.data(merchant)
+        maybe_complete_idempotency(conn, 200, object, "merchant", merchant.id)
+        Response.ok(conn, object)
+
+      {:error, :not_found} ->
+        Response.not_found(conn)
+
+      {:error, :not_kyb_ready} ->
+        Response.unprocessable(conn, "kyb_incomplete", "KYB must be completed before approval")
+
+      {:error, :invalid_state} ->
+        Response.unprocessable(conn, "invalid_state", "Merchant is already approved")
     end
   end
 

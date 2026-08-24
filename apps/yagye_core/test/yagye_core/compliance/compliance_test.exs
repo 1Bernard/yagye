@@ -22,7 +22,7 @@ defmodule YagyeCore.Compliance.ComplianceTest do
                })
 
       assert updated.id == merchant.id
-      assert updated.onboarding_state == "details_submitted"
+      assert updated.onboarding_state == "basic_info_submitted"
     end
 
     test "emits compliance.onboarding_submitted outbox event" do

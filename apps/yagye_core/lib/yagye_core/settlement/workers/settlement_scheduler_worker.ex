@@ -59,6 +59,8 @@ defmodule YagyeCore.Settlement.Workers.SettlementSchedulerWorker do
       on:
         pa.payment_id == p.id and
           pa.state == "succeeded",
+      join: prov in Provider,
+      on: prov.id == type(pa.provider_id, :binary_id) and prov.active == true,
       where: p.state == "succeeded" and is_nil(p.settlement_batch_id),
       group_by: [p.merchant_id, pa.provider_id, p.currency, p.mode],
       select: %{

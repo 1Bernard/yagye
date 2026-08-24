@@ -11,6 +11,9 @@ defmodule YagyeCore.Merchants.Schemas.Merchant do
     field :default_currency, :string
     field :status, :string, default: "registered"
     field :onboarding_state, :string, default: "registered"
+    field :kyb_tier, :integer, default: 0
+    field :reviewed_by, :string
+    field :approved_by, :string
     field :risk_rating, :string
     field :settlement_schedule, :map, default: %{}
     field :pricing_plan_id, Uniq.UUID
@@ -38,5 +41,22 @@ defmodule YagyeCore.Merchants.Schemas.Merchant do
     |> validate_length(:country, is: 2)
     |> validate_length(:default_currency, is: 3)
     |> unique_constraint(:public_id)
+  end
+
+  def onboarding_changeset(merchant, attrs) do
+    merchant
+    |> cast(attrs, [:onboarding_state, :kyb_tier, :reviewed_by, :approved_by, :status])
+    |> validate_sod_actors()
+  end
+
+  defp validate_sod_actors(changeset) do
+    approved_by = get_field(changeset, :approved_by)
+    reviewed_by = get_field(changeset, :reviewed_by)
+
+    if approved_by != nil and approved_by == reviewed_by do
+      add_error(changeset, :approved_by, "must differ from reviewed_by")
+    else
+      changeset
+    end
   end
 end

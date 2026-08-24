@@ -42,24 +42,127 @@ defmodule YagyeCore.Merchants.MerchantsTest do
     end
   end
 
-  describe "approve/2" do
-    test "approves a registered merchant and enables live mode" do
+  describe "submit_basic_info/2" do
+    test "transitions onboarding_state to basic_info_submitted and sets tier 1" do
       merchant = Fixtures.merchant_fixture()
 
-      assert {:ok, {approved, _event}} = Merchants.approve(merchant.public_id, merchant.id)
+      assert {:ok, {updated, event}} =
+               Merchants.submit_basic_info(merchant.public_id, "user:owner_001")
+
+      assert updated.onboarding_state == "basic_info_submitted"
+      assert updated.kyb_tier == 1
+      assert event.merchant_id == merchant.id
+      assert event.submitted_by == "user:owner_001"
+    end
+
+    test "returns invalid_state when not in registered state" do
+      merchant = Fixtures.merchant_fixture()
+      {:ok, _} = Merchants.submit_basic_info(merchant.public_id, "user:owner_001")
+
+      assert {:error, :invalid_state} =
+               Merchants.submit_basic_info(merchant.public_id, "user:owner_001")
+    end
+
+    test "returns not_found for unknown merchant" do
+      assert {:error, :not_found} = Merchants.submit_basic_info("mch_ghost", "user:owner")
+    end
+  end
+
+  describe "submit_documents/2" do
+    test "transitions onboarding_state to documents_submitted and sets tier 2" do
+      merchant = Fixtures.merchant_fixture()
+      {:ok, {merchant, _}} = Merchants.submit_basic_info(merchant.public_id, "user:owner_001")
+
+      assert {:ok, {updated, event}} =
+               Merchants.submit_documents(merchant.public_id, "user:owner_001")
+
+      assert updated.onboarding_state == "documents_submitted"
+      assert updated.kyb_tier == 2
+      assert event.submitted_by == "user:owner_001"
+    end
+
+    test "returns invalid_state when basic info has not been submitted" do
+      merchant = Fixtures.merchant_fixture()
+
+      assert {:error, :invalid_state} =
+               Merchants.submit_documents(merchant.public_id, "user:owner_001")
+    end
+  end
+
+  describe "start_review/2" do
+    test "transitions onboarding_state to under_review and records reviewed_by" do
+      merchant = Fixtures.merchant_fixture()
+      {:ok, {merchant, _}} = Merchants.submit_basic_info(merchant.public_id, "user:owner_001")
+      {:ok, {merchant, _}} = Merchants.submit_documents(merchant.public_id, "user:owner_001")
+
+      assert {:ok, {updated, event}} =
+               Merchants.start_review(merchant.public_id, "user:compliance_001")
+
+      assert updated.onboarding_state == "under_review"
+      assert updated.reviewed_by == "user:compliance_001"
+      assert updated.kyb_tier == 2
+      assert event.reviewed_by == "user:compliance_001"
+    end
+
+    test "returns invalid_state when documents have not been submitted" do
+      merchant = Fixtures.merchant_fixture()
+      {:ok, {merchant, _}} = Merchants.submit_basic_info(merchant.public_id, "user:owner_001")
+
+      assert {:error, :invalid_state} =
+               Merchants.start_review(merchant.public_id, "user:compliance_001")
+    end
+  end
+
+  describe "approve/2" do
+    test "approves a merchant in under_review state and enables live mode" do
+      merchant = Fixtures.merchant_fixture()
+      {:ok, {merchant, _}} = Merchants.submit_basic_info(merchant.public_id, "user:owner_001")
+      {:ok, {merchant, _}} = Merchants.submit_documents(merchant.public_id, "user:owner_001")
+      {:ok, {merchant, _}} = Merchants.start_review(merchant.public_id, "user:compliance_001")
+
+      assert {:ok, {approved, _event}} =
+               Merchants.approve(merchant.public_id, "user:director_001")
 
       assert approved.status == "approved"
+      assert approved.onboarding_state == "approved"
+      assert approved.kyb_tier == 3
+      assert approved.approved_by == "user:director_001"
       assert Merchants.live_mode_enabled?(approved.id) == true
+    end
+
+    test "returns not_kyb_ready when KYB steps are incomplete" do
+      merchant = Fixtures.merchant_fixture()
+
+      assert {:error, :not_kyb_ready} = Merchants.approve(merchant.public_id, "user:director_001")
     end
 
     test "returns invalid_state when merchant is already approved" do
       merchant = Fixtures.approved_merchant_fixture()
 
-      assert {:error, :invalid_state} = Merchants.approve(merchant.public_id, merchant.id)
+      assert {:error, :invalid_state} = Merchants.approve(merchant.public_id, "user:director_001")
     end
 
     test "returns not_found for unknown public_id" do
-      assert {:error, :not_found} = Merchants.approve("mch_nonexistent", "some-id")
+      assert {:error, :not_found} = Merchants.approve("mch_nonexistent", "user:director_001")
+    end
+  end
+
+  describe "check_live_capable?/1" do
+    test "returns ok for a fully approved merchant" do
+      merchant = Fixtures.approved_merchant_fixture()
+
+      assert :ok = Merchants.check_live_capable?(merchant.id)
+    end
+
+    test "returns kyb_required for a merchant not yet approved" do
+      merchant = Fixtures.merchant_fixture()
+
+      assert {:error, :kyb_required} = Merchants.check_live_capable?(merchant.id)
+    end
+
+    test "returns not_found for an unknown merchant id" do
+      assert {:error, :not_found} =
+               Merchants.check_live_capable?(Uniq.UUID.uuid7())
     end
   end
 
