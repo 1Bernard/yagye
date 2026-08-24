@@ -22,6 +22,7 @@ defmodule YagyeCore.Merchants.Schemas.Merchant do
     field :baseline_daily_volume, :integer
     field :quiet_since, :utc_datetime_usec
     field :api_version, :string
+    field :orchestration_billing_method, :string
     field :entitlements, :map, default: %{}
     field :metadata, :map, default: %{}
 
@@ -32,7 +33,14 @@ defmodule YagyeCore.Merchants.Schemas.Merchant do
   end
 
   @required ~w[public_id legal_name trading_name country default_currency api_version]a
-  @optional ~w[risk_rating pricing_plan_id settlement_schedule entitlements metadata]a
+  @optional ~w[
+    orchestration_billing_method
+    risk_rating
+    pricing_plan_id
+    settlement_schedule
+    entitlements
+    metadata
+  ]a
 
   def changeset(merchant, attrs) do
     merchant

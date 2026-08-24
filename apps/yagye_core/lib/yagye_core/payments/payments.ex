@@ -18,6 +18,22 @@ defmodule YagyeCore.Payments do
 
   # ── Public API ───────────────────────────────────────────────────────────────
 
+  def list_payments(merchant_id, opts \\ []) do
+    limit = Keyword.get(opts, :limit, 50)
+    offset = Keyword.get(opts, :offset, 0)
+
+    payments =
+      from(p in Payment,
+        where: p.merchant_id == ^merchant_id,
+        order_by: [desc: p.inserted_at],
+        limit: ^limit,
+        offset: ^offset
+      )
+      |> Repo.all()
+
+    {:ok, payments}
+  end
+
   def create_payment(merchant_id, attrs) do
     customer_ref = Map.get(attrs, :customer_reference) || Map.get(attrs, "customer_reference")
 

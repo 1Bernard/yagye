@@ -11,6 +11,22 @@ defmodule YagyeCore.Reserves do
 
   # ── Public API ───────────────────────────────────────────────────────────────
 
+  def list_reserves(merchant_id, opts \\ []) do
+    limit = Keyword.get(opts, :limit, 50)
+    offset = Keyword.get(opts, :offset, 0)
+
+    reserves =
+      from(r in MerchantReserve,
+        where: r.merchant_id == ^merchant_id,
+        order_by: [desc: r.inserted_at],
+        limit: ^limit,
+        offset: ^offset
+      )
+      |> Repo.all()
+
+    {:ok, reserves}
+  end
+
   @doc """
   Returns the active reserve policy for a merchant+currency+mode, or nil.
   """

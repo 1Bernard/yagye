@@ -17,6 +17,8 @@ defmodule YagyeCore.Compliance do
 
   # ── Public API ───────────────────────────────────────────────────────────────
 
+  # Merchant-facing path: stores business metadata AND transitions onboarding_state to basic_info_submitted.
+  # For state-only transitions (ops tooling), use Merchants.submit_basic_info/2 instead.
   def submit_onboarding(merchant_id, attrs) do
     dispatch(%SubmitOnboardingDetails{
       merchant_id: merchant_id,

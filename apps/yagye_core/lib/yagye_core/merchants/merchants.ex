@@ -41,6 +41,7 @@ defmodule YagyeCore.Merchants do
     })
   end
 
+  # State-only transition for ops tooling. Business metadata is stored via Compliance.submit_onboarding/2.
   def submit_basic_info(merchant_id, submitted_by) do
     dispatch(%SubmitBasicInfo{merchant_id: merchant_id, submitted_by: submitted_by})
   end
@@ -116,6 +117,32 @@ defmodule YagyeCore.Merchants do
       nil -> {:error, :not_found}
       merchant -> {:ok, merchant}
     end
+  end
+
+  def list_merchants(opts \\ []) do
+    limit = Keyword.get(opts, :limit, 50)
+    offset = Keyword.get(opts, :offset, 0)
+
+    merchants =
+      from(m in Merchant,
+        order_by: [desc: m.inserted_at],
+        limit: ^limit,
+        offset: ^offset
+      )
+      |> Repo.all()
+
+    {:ok, merchants}
+  end
+
+  def list_api_keys(merchant_id) do
+    keys =
+      from(k in ApiKey,
+        where: k.merchant_id == ^merchant_id and is_nil(k.revoked_at),
+        order_by: [desc: k.inserted_at]
+      )
+      |> Repo.all()
+
+    {:ok, keys}
   end
 
   def live_mode_enabled?(merchant_id) do

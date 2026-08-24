@@ -16,6 +16,42 @@ defmodule YagyeCore.Reconciliation do
 
   alias YagyeCore.Repo
 
+  import Ecto.Query
+
+  # ── Public API ───────────────────────────────────────────────────────────────
+
+  def list_breaks(merchant_id, opts \\ []) do
+    limit = Keyword.get(opts, :limit, 50)
+    offset = Keyword.get(opts, :offset, 0)
+
+    breaks =
+      from(b in ReconciliationBreak,
+        where: b.merchant_id == ^merchant_id,
+        order_by: [desc: b.inserted_at],
+        limit: ^limit,
+        offset: ^offset
+      )
+      |> Repo.all()
+
+    {:ok, breaks}
+  end
+
+  def list_runs(merchant_id, opts \\ []) do
+    limit = Keyword.get(opts, :limit, 50)
+    offset = Keyword.get(opts, :offset, 0)
+
+    runs =
+      from(r in ReconciliationRun,
+        where: r.merchant_id == ^merchant_id,
+        order_by: [desc: r.inserted_at],
+        limit: ^limit,
+        offset: ^offset
+      )
+      |> Repo.all()
+
+    {:ok, runs}
+  end
+
   # ── Report ingestion ─────────────────────────────────────────────────────────
 
   @doc """

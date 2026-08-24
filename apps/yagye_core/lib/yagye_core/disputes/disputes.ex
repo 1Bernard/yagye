@@ -50,6 +50,38 @@ defmodule YagyeCore.Disputes do
     end
   end
 
+  def list_disputes(merchant_id, opts \\ []) do
+    limit = Keyword.get(opts, :limit, 50)
+    offset = Keyword.get(opts, :offset, 0)
+
+    disputes =
+      from(d in Dispute,
+        where: d.merchant_id == ^merchant_id,
+        order_by: [desc: d.inserted_at],
+        limit: ^limit,
+        offset: ^offset
+      )
+      |> Repo.all()
+
+    {:ok, disputes}
+  end
+
+  def list_refunds(merchant_id, opts \\ []) do
+    limit = Keyword.get(opts, :limit, 50)
+    offset = Keyword.get(opts, :offset, 0)
+
+    refunds =
+      from(r in Refund,
+        where: r.merchant_id == ^merchant_id,
+        order_by: [desc: r.inserted_at],
+        limit: ^limit,
+        offset: ^offset
+      )
+      |> Repo.all()
+
+    {:ok, refunds}
+  end
+
   def get_dispute(public_id) do
     case Repo.get_by(Dispute, public_id: public_id) do
       nil -> {:error, :not_found}

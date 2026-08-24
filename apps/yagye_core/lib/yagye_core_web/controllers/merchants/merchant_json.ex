@@ -13,6 +13,9 @@ defmodule YagyeCoreWeb.Controllers.Merchants.MerchantJSON do
       default_currency: m.default_currency,
       status: m.status,
       onboarding_state: m.onboarding_state,
+      kyb_tier: m.kyb_tier,
+      reviewed_by: m.reviewed_by,
+      approved_by: m.approved_by,
       activity_state: m.activity_state,
       api_version: m.api_version,
       inserted_at: m.inserted_at

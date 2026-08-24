@@ -85,6 +85,37 @@ defmodule YagyeCore.Pricing do
     end
   end
 
+  def list_fee_records(merchant_id, opts \\ []) do
+    limit = Keyword.get(opts, :limit, 50)
+    offset = Keyword.get(opts, :offset, 0)
+
+    records =
+      from(f in FeeRecord,
+        where: f.merchant_id == ^merchant_id,
+        order_by: [desc: f.inserted_at],
+        limit: ^limit,
+        offset: ^offset
+      )
+      |> Repo.all()
+
+    {:ok, records}
+  end
+
+  def list_plans(opts \\ []) do
+    limit = Keyword.get(opts, :limit, 50)
+    offset = Keyword.get(opts, :offset, 0)
+
+    plans =
+      from(p in PricingPlan,
+        order_by: [desc: p.inserted_at],
+        limit: ^limit,
+        offset: ^offset
+      )
+      |> Repo.all()
+
+    {:ok, plans}
+  end
+
   # ── Private ──────────────────────────────────────────────────────────────────
 
   defp resolve_plan(merchant_id) do
