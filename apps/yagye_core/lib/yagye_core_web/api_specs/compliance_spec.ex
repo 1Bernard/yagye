@@ -64,6 +64,20 @@ defmodule YagyeCoreWeb.ApiSpecs.ComplianceSpec do
     }
   end
 
+  def operation(:list_beneficial_owners) do
+    %Operation{
+      tags: ["Compliance / KYB"],
+      summary: "List beneficial owners",
+      operationId: "ComplianceController.list_beneficial_owners",
+      security: [%{"bearer_auth" => []}],
+      parameters: [merchant_id_param()],
+      responses: %{
+        200 => %Response{description: "List of beneficial owners"},
+        404 => %Response{description: "Merchant not found", content: json(ErrorResponse)}
+      }
+    }
+  end
+
   def operation(:upload_document) do
     %Operation{
       tags: ["Compliance / KYB"],
@@ -72,13 +86,42 @@ defmodule YagyeCoreWeb.ApiSpecs.ComplianceSpec do
       security: [%{"bearer_auth" => []}],
       parameters: [merchant_id_param()],
       requestBody: %RequestBody{
-        description: "Document metadata",
+        description:
+          "Document metadata. Omit s3_key to receive a platform-generated placeholder; provide it only when uploading directly to S3.",
         required: true,
         content: json(UploadKybDocumentRequest)
       },
       responses: %{
         201 => %Response{description: "Document record created"},
         422 => %Response{description: "Validation error", content: json(ErrorResponse)},
+        404 => %Response{description: "Merchant not found", content: json(ErrorResponse)}
+      }
+    }
+  end
+
+  def operation(:list_documents) do
+    %Operation{
+      tags: ["Compliance / KYB"],
+      summary: "List KYB documents",
+      operationId: "ComplianceController.list_documents",
+      security: [%{"bearer_auth" => []}],
+      parameters: [merchant_id_param()],
+      responses: %{
+        200 => %Response{description: "List of KYB documents"},
+        404 => %Response{description: "Merchant not found", content: json(ErrorResponse)}
+      }
+    }
+  end
+
+  def operation(:screening_status) do
+    %Operation{
+      tags: ["Compliance / KYB"],
+      summary: "Get AML screening status",
+      operationId: "ComplianceController.screening_status",
+      security: [%{"bearer_auth" => []}],
+      parameters: [merchant_id_param()],
+      responses: %{
+        200 => %Response{description: "Screening subjects and open hits for this merchant"},
         404 => %Response{description: "Merchant not found", content: json(ErrorResponse)}
       }
     }

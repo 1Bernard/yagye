@@ -1,6 +1,8 @@
 defmodule YagyeCore.Compliance do
   @moduledoc false
 
+  import Ecto.Query
+
   alias Ecto.Multi
 
   alias YagyeCore.Compliance.Commands.{
@@ -10,7 +12,14 @@ defmodule YagyeCore.Compliance do
     SubmitOnboardingDetails
   }
 
-  alias YagyeCore.Compliance.Schemas.{BeneficialOwner, KybDocument, ScreeningHit}
+  alias YagyeCore.Compliance.Schemas.{
+    BeneficialOwner,
+    KybDocument,
+    ScreeningHit,
+    ScreeningSubject
+  }
+
+  alias YagyeCore.Compliance.Workers.ScreeningWorker
   alias YagyeCore.Merchants.Schemas.Merchant
   alias YagyeCore.Outbox
   alias YagyeCore.Repo
@@ -68,6 +77,53 @@ defmodule YagyeCore.Compliance do
     })
   end
 
+  def list_beneficial_owners(merchant_id) do
+    with {:ok, merchant} <- resolve_merchant(merchant_id) do
+      owners =
+        from(b in BeneficialOwner,
+          where: b.merchant_id == ^merchant.id,
+          order_by: [asc: b.inserted_at]
+        )
+        |> Repo.all()
+
+      {:ok, owners}
+    end
+  end
+
+  def list_documents(merchant_id) do
+    with {:ok, merchant} <- resolve_merchant(merchant_id) do
+      docs =
+        from(d in KybDocument,
+          where: d.merchant_id == ^merchant.id,
+          order_by: [asc: d.inserted_at]
+        )
+        |> Repo.all()
+
+      {:ok, docs}
+    end
+  end
+
+  # Returns the merchant's screening subjects and any open hits across them.
+  def screening_status(merchant_id) do
+    with {:ok, merchant} <- resolve_merchant(merchant_id) do
+      subjects =
+        from(s in ScreeningSubject,
+          where: s.merchant_id == ^merchant.id,
+          order_by: [asc: s.enrolled_at]
+        )
+        |> Repo.all()
+
+      open_hits =
+        from(h in ScreeningHit,
+          where: h.merchant_id == ^merchant.id and h.status == "open",
+          order_by: [desc: h.inserted_at]
+        )
+        |> Repo.all()
+
+      {:ok, %{subjects: subjects, open_hits: open_hits}}
+    end
+  end
+
   # Internal — used by compliance tooling, not the merchant-facing API.
   def raise_screening_hit(attrs) do
     changeset = ScreeningHit.changeset(%ScreeningHit{}, attrs)
@@ -88,6 +144,33 @@ defmodule YagyeCore.Compliance do
       {:ok, %{hit: hit}} -> {:ok, hit}
       {:error, :hit, %Ecto.Changeset{} = cs, _} -> {:error, cs}
       {:error, _step, reason, _} -> {:error, reason}
+    end
+  end
+
+  # Returns true when all beneficial owners with ownership >= 25% have a
+  # non-pending, non-blocked screening status. Called by Merchants.approve/2.
+  def ubo_threshold_cleared?(merchant_id) do
+    qualifying_ids =
+      from(b in BeneficialOwner,
+        where: b.merchant_id == ^merchant_id and b.ownership_bps >= 2500,
+        select: b.id
+      )
+      |> Repo.all()
+
+    if qualifying_ids == [] do
+      true
+    else
+      unscreened_count =
+        from(s in ScreeningSubject,
+          where:
+            s.subject_type == "beneficial_owner" and
+              s.subject_id in ^qualifying_ids and
+              s.screening_status not in ["clean", "cleared", "confirmed_pep"],
+          select: count(s.id)
+        )
+        |> Repo.one()
+
+      unscreened_count == 0
     end
   end
 
@@ -128,6 +211,8 @@ defmodule YagyeCore.Compliance do
   end
 
   defp dispatch(%SubmitBeneficialOwner{} = cmd) do
+    now = DateTime.utc_now()
+
     Multi.new()
     |> Multi.run(:merchant, fn _repo, _changes ->
       resolve_merchant(cmd.merchant_id)
@@ -142,6 +227,19 @@ defmodule YagyeCore.Compliance do
 
       %BeneficialOwner{} |> BeneficialOwner.changeset(attrs) |> Repo.insert()
     end)
+    |> Multi.run(:subject, fn _repo, %{merchant: merchant, owner: owner} ->
+      attrs = %{
+        merchant_id: merchant.id,
+        subject_type: "beneficial_owner",
+        subject_id: owner.id,
+        screening_status: "pending",
+        enrolled_at: now,
+        next_screening_at: now,
+        screening_frequency_days: 365
+      }
+
+      %ScreeningSubject{} |> ScreeningSubject.changeset(attrs) |> Repo.insert()
+    end)
     |> Multi.insert(:outbox, fn %{owner: owner} ->
       Outbox.build_changeset(owner, "compliance.beneficial_owner_added", %{
         beneficial_owner_id: owner.id,
@@ -152,9 +250,15 @@ defmodule YagyeCore.Compliance do
     end)
     |> Repo.transaction()
     |> case do
-      {:ok, %{owner: owner}} -> {:ok, owner}
-      {:error, _step, %Ecto.Changeset{} = cs, _} -> {:error, cs}
-      {:error, _step, reason, _} -> {:error, reason}
+      {:ok, %{owner: owner, subject: subject}} ->
+        Oban.insert(ScreeningWorker.new(%{subject_id: subject.id}))
+        {:ok, owner}
+
+      {:error, _step, %Ecto.Changeset{} = cs, _} ->
+        {:error, cs}
+
+      {:error, _step, reason, _} ->
+        {:error, reason}
     end
   end
 
@@ -164,10 +268,12 @@ defmodule YagyeCore.Compliance do
       resolve_merchant(cmd.merchant_id)
     end)
     |> Multi.run(:doc, fn _repo, %{merchant: merchant} ->
+      s3_key = cmd.s3_key || "kyb/pending/#{merchant.id}/#{cmd.kind}/#{Uniq.UUID.uuid7()}"
+
       attrs = %{
         merchant_id: merchant.id,
         kind: cmd.kind,
-        s3_key: cmd.s3_key,
+        s3_key: s3_key,
         checksum: cmd.checksum,
         uploaded_by: cmd.uploaded_by
       }

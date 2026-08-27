@@ -5,6 +5,7 @@ defmodule YagyeCore.Compliance.Schemas.ScreeningHit do
 
   schema "screening_hits" do
     belongs_to :merchant, YagyeCore.Merchants.Schemas.Merchant
+    field :screening_request_id, Uniq.UUID
     field :subject_type, :string
     field :subject_id, Uniq.UUID
     field :list_type, :string
@@ -12,7 +13,10 @@ defmodule YagyeCore.Compliance.Schemas.ScreeningHit do
     field :matched_name, :string
     field :match_score, :decimal
     field :matched_attributes, {:array, :string}
+    field :pep_tier, :integer
+    field :rca_relationship, :string
     field :status, :string, default: "open"
+    field :raised_by, :string
     field :disposition_reason, :string
     field :dispositioned_by, :string
     field :dispositioned_at, :utc_datetime_usec
@@ -20,12 +24,12 @@ defmodule YagyeCore.Compliance.Schemas.ScreeningHit do
     timestamps()
   end
 
-  @valid_subject_types ~w[entity director ubo]
+  @valid_subject_types ~w[entity beneficial_owner director customer]
   @valid_list_types ~w[sanctions pep adverse_media]
   @valid_statuses ~w[open false_positive true_match_cleared true_match_blocked]
 
   @required ~w[merchant_id subject_type subject_id list_type list_source matched_name match_score]a
-  @optional ~w[matched_attributes disposition_reason dispositioned_by dispositioned_at]a
+  @optional ~w[screening_request_id matched_attributes pep_tier rca_relationship raised_by disposition_reason dispositioned_by dispositioned_at]a
 
   def changeset(hit, attrs) do
     hit

@@ -7,7 +7,7 @@ defmodule YagyeCoreWeb.Contracts.Compliance.UploadKybDocumentRequest do
   OpenApiSpex.schema(%{
     title: "UploadKybDocumentRequest",
     type: :object,
-    required: [:kind, :s3_key, :checksum, :uploaded_by],
+    required: [:kind, :checksum, :uploaded_by],
     properties: %{
       kind: %Schema{
         type: :string,
@@ -16,7 +16,8 @@ defmodule YagyeCoreWeb.Contracts.Compliance.UploadKybDocumentRequest do
       },
       s3_key: %Schema{
         type: :string,
-        description: "S3 object key for the uploaded document",
+        description:
+          "S3 object key — omit to have the platform generate a pending placeholder. Provide this only when you are uploading directly to S3 with your own presigned URL.",
         example: "kyb/mch_abc/incorporation/cert.pdf"
       },
       checksum: %Schema{
@@ -32,7 +33,6 @@ defmodule YagyeCoreWeb.Contracts.Compliance.UploadKybDocumentRequest do
     },
     example: %{
       "kind" => "incorporation",
-      "s3_key" => "kyb/mch_abc/incorporation/cert.pdf",
       "checksum" => "a3f5e8b2c1d4",
       "uploaded_by" => "user:usr_018e4a1b"
     }

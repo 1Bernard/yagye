@@ -72,7 +72,8 @@ config :yagye_core, Oban,
     settlement: 5,
     reconciliation: 3,
     reserves: 3,
-    payouts: 5
+    payouts: 5,
+    compliance: 5
   ]
 
 config :opentelemetry,

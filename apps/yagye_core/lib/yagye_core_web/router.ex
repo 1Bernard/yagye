@@ -69,7 +69,10 @@ defmodule YagyeCoreWeb.Router do
 
       post "/onboarding", ComplianceController, :submit_onboarding
       post "/beneficial-owners", ComplianceController, :add_beneficial_owner
+      get "/beneficial-owners", ComplianceController, :list_beneficial_owners
       post "/documents", ComplianceController, :upload_document
+      get "/documents", ComplianceController, :list_documents
+      get "/screening-status", ComplianceController, :screening_status
     end
 
     # P11 — Customers & Account Verifications

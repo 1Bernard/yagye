@@ -25,6 +25,7 @@ defmodule YagyeCore.Merchants do
     MerchantRegistered
   }
 
+  alias YagyeCore.Compliance
   alias YagyeCore.Merchants.Schemas.{ApiKey, Merchant, MerchantMode}
   alias YagyeCore.Outbox
   alias YagyeCore.Repo
@@ -268,6 +269,13 @@ defmodule YagyeCore.Merchants do
     Multi.new()
     |> Multi.run(:merchant, fn _repo, _changes ->
       fetch_approvable(cmd.merchant_id)
+    end)
+    |> Multi.run(:threshold_check, fn _repo, %{merchant: merchant} ->
+      if Compliance.ubo_threshold_cleared?(merchant.id) do
+        {:ok, :cleared}
+      else
+        {:error, :unscreened_ubos}
+      end
     end)
     |> Multi.update(:approved, fn %{merchant: merchant} ->
       Merchant.onboarding_changeset(merchant, %{

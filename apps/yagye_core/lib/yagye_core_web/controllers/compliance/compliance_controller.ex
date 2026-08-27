@@ -18,6 +18,10 @@ defmodule YagyeCoreWeb.Controllers.Compliance.ComplianceController do
        [scope: "kyb:write", kind: :secret]
        when action in [:submit_onboarding, :add_beneficial_owner, :upload_document]
 
+  plug Authorize,
+       [scope: "kyb:read", kind: :secret]
+       when action in [:list_beneficial_owners, :list_documents, :screening_status]
+
   def open_api_operation(action), do: ComplianceSpec.operation(action)
 
   def submit_onboarding(conn, %{merchant_id: merchant_id}) do
@@ -40,6 +44,12 @@ defmodule YagyeCoreWeb.Controllers.Compliance.ComplianceController do
     end
   end
 
+  def list_beneficial_owners(conn, %{merchant_id: merchant_id}) do
+    with {:ok, owners} <- Compliance.list_beneficial_owners(merchant_id) do
+      Response.ok(conn, ComplianceJSON.beneficial_owners_list_data(owners))
+    end
+  end
+
   def upload_document(conn, %{merchant_id: merchant_id}) do
     attrs = Map.from_struct(conn.body_params)
 
@@ -47,6 +57,18 @@ defmodule YagyeCoreWeb.Controllers.Compliance.ComplianceController do
       object = ComplianceJSON.document_data(doc)
       maybe_complete_idempotency(conn, 201, object, "kyb_document", doc.id)
       Response.created(conn, object)
+    end
+  end
+
+  def list_documents(conn, %{merchant_id: merchant_id}) do
+    with {:ok, docs} <- Compliance.list_documents(merchant_id) do
+      Response.ok(conn, ComplianceJSON.documents_list_data(docs))
+    end
+  end
+
+  def screening_status(conn, %{merchant_id: merchant_id}) do
+    with {:ok, status} <- Compliance.screening_status(merchant_id) do
+      Response.ok(conn, ComplianceJSON.screening_status_data(status))
     end
   end
 
