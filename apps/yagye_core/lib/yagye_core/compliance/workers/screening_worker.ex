@@ -2,11 +2,8 @@ defmodule YagyeCore.Compliance.Workers.ScreeningWorker do
   @moduledoc false
   use Oban.Worker, queue: :compliance, max_attempts: 5
 
-  alias YagyeCore.Compliance.Adapters.StubScreeningAdapter
-  alias YagyeCore.Compliance.Schemas.{ScreeningRequest, ScreeningSubject}
+  alias YagyeCore.Compliance.Schemas.{ScreeningProvider, ScreeningRequest, ScreeningSubject}
   alias YagyeCore.Repo
-
-  @stub_lists ~w[pep sanctions_ofac sanctions_eu sanctions_un sanctions_uk_hmt]
 
   @impl Oban.Worker
   def perform(%Oban.Job{args: %{"subject_id" => subject_id}}) do
@@ -15,16 +12,19 @@ defmodule YagyeCore.Compliance.Workers.ScreeningWorker do
     if subject.screening_status in ["confirmed_match_blocked", "suspended"] do
       :ok
     else
-      run_screening(subject)
+      with {:ok, provider} <- fetch_active_provider(),
+           {:ok, adapter} <- resolve_adapter(provider) do
+        run_screening(subject, provider, adapter)
+      end
     end
   end
 
-  defp run_screening(subject) do
+  defp run_screening(subject, provider, adapter) do
     request_attrs = %{
       subject_id: subject.id,
-      provider_code: "stub",
+      provider_code: provider.code,
       trigger: "onboarding",
-      lists_checked: @stub_lists,
+      lists_checked: provider.default_lists,
       status: "pending"
     }
 
@@ -32,7 +32,7 @@ defmodule YagyeCore.Compliance.Workers.ScreeningWorker do
            %ScreeningRequest{}
            |> ScreeningRequest.changeset(request_attrs)
            |> Repo.insert(),
-         {:ok, result} <- StubScreeningAdapter.screen(subject) do
+         {:ok, result} <- adapter.screen(subject) do
       request
       |> ScreeningRequest.complete_changeset(%{
         status: "completed",
@@ -53,8 +53,26 @@ defmodule YagyeCore.Compliance.Workers.ScreeningWorker do
 
       :ok
     else
-      {:error, reason} ->
-        {:error, reason}
+      {:error, reason} -> {:error, reason}
     end
+  end
+
+  defp fetch_active_provider do
+    case Repo.get_by(ScreeningProvider, active: true) do
+      nil -> {:error, :no_active_screening_provider}
+      provider -> {:ok, provider}
+    end
+  end
+
+  # Provider adapter modules are stored as fully-qualified string names
+  # (e.g. "Elixir.YagyeCore.Compliance.Adapters.StubScreeningAdapter").
+  # String.to_existing_atom/1 is safe here — all compiled modules are already
+  # atoms in the VM at boot time.
+  defp resolve_adapter(provider) do
+    module = String.to_existing_atom(provider.adapter_module)
+    {:ok, module}
+  rescue
+    ArgumentError ->
+      {:error, {:unknown_adapter_module, provider.adapter_module}}
   end
 end
