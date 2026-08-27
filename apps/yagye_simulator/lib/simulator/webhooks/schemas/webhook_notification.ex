@@ -20,7 +20,7 @@ defmodule Simulator.Webhooks.Schemas.WebhookNotification do
       charge_ref: charge.charge_ref,
       occurred_at: wallet_prompt.resolved_at || DateTime.utc_now(),
       auth_code: auth_code_for(wallet_prompt.prompt_state),
-      decline_code: decline_code_for(wallet_prompt.prompt_state)
+      decline_code: decline_code_for(wallet_prompt.prompt_state, wallet_prompt.decline_code)
     }
   end
 
@@ -33,7 +33,8 @@ defmodule Simulator.Webhooks.Schemas.WebhookNotification do
 
   defp auth_code_for(_), do: nil
 
-  defp decline_code_for("DECLINED"), do: "DECLINED_BY_CUSTOMER"
-  defp decline_code_for("EXPIRED"), do: "PROMPT_EXPIRED"
-  defp decline_code_for(_), do: nil
+  defp decline_code_for("DECLINED", code) when is_binary(code), do: code
+  defp decline_code_for("DECLINED", _), do: "DECLINED_BY_CUSTOMER"
+  defp decline_code_for("EXPIRED", _), do: "PROMPT_EXPIRED"
+  defp decline_code_for(_, _), do: nil
 end

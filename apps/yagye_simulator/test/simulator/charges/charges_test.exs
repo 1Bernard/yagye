@@ -112,6 +112,100 @@ defmodule Simulator.Charges.ChargesTest do
     end
   end
 
+  describe "fixed MSISDN outcomes — portal test credentials" do
+    import Ecto.Query
+    alias Simulator.Charges.Schemas.WalletPrompt
+    alias Simulator.Repo
+
+    defp wallet_prompt_for(charge) do
+      Repo.one!(from p in WalletPrompt, where: p.charge_id == ^charge.id)
+    end
+
+    test "0241000001 (MTN success) → APPROVED prompt" do
+      {account, _} = Fixtures.account_with_key_fixture()
+      {:ok, charge} = Charges.create_charge(account, wallet_attrs("MTN", "0241000001"))
+      assert wallet_prompt_for(charge).prompt_state == "APPROVED"
+    end
+
+    test "0241000002 (MTN insufficient funds) → DECLINED prompt with INSUFFICIENT_FUNDS" do
+      {account, _} = Fixtures.account_with_key_fixture()
+      {:ok, charge} = Charges.create_charge(account, wallet_attrs("MTN", "0241000002"))
+      prompt = wallet_prompt_for(charge)
+      assert prompt.prompt_state == "DECLINED"
+      assert prompt.decline_code == "INSUFFICIENT_FUNDS"
+    end
+
+    test "0241000003 (MTN timeout) → EXPIRED prompt" do
+      {account, _} = Fixtures.account_with_key_fixture()
+      {:ok, charge} = Charges.create_charge(account, wallet_attrs("MTN", "0241000003"))
+      assert wallet_prompt_for(charge).prompt_state == "EXPIRED"
+    end
+
+    test "0241000004 (MTN not registered) → DECLINED prompt with NOT_REGISTERED" do
+      {account, _} = Fixtures.account_with_key_fixture()
+      {:ok, charge} = Charges.create_charge(account, wallet_attrs("MTN", "0241000004"))
+      prompt = wallet_prompt_for(charge)
+      assert prompt.prompt_state == "DECLINED"
+      assert prompt.decline_code == "NOT_REGISTERED"
+    end
+
+    test "0501000001 (Telecel success) → APPROVED prompt" do
+      {account, _} = Fixtures.account_with_key_fixture()
+      {:ok, charge} = Charges.create_charge(account, wallet_attrs("TELECEL", "0501000001"))
+      assert wallet_prompt_for(charge).prompt_state == "APPROVED"
+    end
+
+    test "0501000002 (Telecel insufficient funds) → DECLINED with INSUFFICIENT_FUNDS" do
+      {account, _} = Fixtures.account_with_key_fixture()
+      {:ok, charge} = Charges.create_charge(account, wallet_attrs("TELECEL", "0501000002"))
+      prompt = wallet_prompt_for(charge)
+      assert prompt.prompt_state == "DECLINED"
+      assert prompt.decline_code == "INSUFFICIENT_FUNDS"
+    end
+
+    test "0571000001 (AirtelTigo success) → APPROVED prompt" do
+      {account, _} = Fixtures.account_with_key_fixture()
+      {:ok, charge} = Charges.create_charge(account, wallet_attrs("AIRTELTIGO", "0571000001"))
+      assert wallet_prompt_for(charge).prompt_state == "APPROVED"
+    end
+
+    test "0571000002 (AirtelTigo insufficient funds) → DECLINED with INSUFFICIENT_FUNDS" do
+      {account, _} = Fixtures.account_with_key_fixture()
+      {:ok, charge} = Charges.create_charge(account, wallet_attrs("AIRTELTIGO", "0571000002"))
+      prompt = wallet_prompt_for(charge)
+      assert prompt.prompt_state == "DECLINED"
+      assert prompt.decline_code == "INSUFFICIENT_FUNDS"
+    end
+
+    test "fixed outcomes are independent of scenario rates" do
+      scenario =
+        Fixtures.scenario_fixture(%{
+          decline_rate: Decimal.new("1.000"),
+          success_rate: Decimal.new("0.000"),
+          timeout_rate: Decimal.new("0.000"),
+          provider_error_rate: Decimal.new("0.000")
+        })
+
+      account = Fixtures.account_fixture(%{default_scenario_id: scenario.id})
+      {:ok, charge} = Charges.create_charge(account, wallet_attrs("MTN", "0241000001"))
+      assert wallet_prompt_for(charge).prompt_state == "APPROVED"
+    end
+
+    defp wallet_attrs(network, msisdn) do
+      %{amount_minor: 10_000, currency: "GHS", instrument_type: "WALLET",
+        network: network, msisdn: msisdn}
+    end
+  end
+
+  describe "name_enquiry/2 — fixed test numbers" do
+    test "0241000004 (not registered) → NOT_FOUND" do
+      {account, _} = Fixtures.account_with_key_fixture()
+      {:ok, enquiry} = Charges.name_enquiry(account, %{network: "MTN", msisdn: "0241000004"})
+      assert enquiry.outcome == "NOT_FOUND"
+      assert enquiry.account_name == nil
+    end
+  end
+
   describe "get_by_ref/1" do
     test "returns charge for valid ref" do
       {account, _key} = Fixtures.account_with_key_fixture()

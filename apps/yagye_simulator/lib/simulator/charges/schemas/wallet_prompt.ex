@@ -13,6 +13,7 @@ defmodule Simulator.Charges.Schemas.WalletPrompt do
     field :network, :string
     field :msisdn, :string
     field :prompt_state, :string, default: "SENT"
+    field :decline_code, :string
     field :approval_delay_ms, :integer, default: 3_000
     field :account_name, :string
     field :sent_at, :utc_datetime_usec
@@ -28,6 +29,7 @@ defmodule Simulator.Charges.Schemas.WalletPrompt do
       :network,
       :msisdn,
       :prompt_state,
+      :decline_code,
       :approval_delay_ms,
       :account_name,
       :sent_at,

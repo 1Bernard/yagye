@@ -71,7 +71,9 @@ defmodule Simulator.Charges do
   end
 
   defp create_wallet_charge(account, attrs, scenario, seed) do
-    outcome = OutcomeEngine.wallet_outcome(scenario, seed)
+    outcome =
+      OutcomeEngine.msisdn_wallet_outcome(attrs[:msisdn]) ||
+        OutcomeEngine.wallet_outcome(scenario, seed)
     now = DateTime.utc_now()
     delay_ms = attrs[:approval_delay_ms] || 3_000
 
@@ -161,11 +163,13 @@ defmodule Simulator.Charges do
   end
 
   defp insert_wallet_prompt(charge, attrs, outcome, now) do
-    prompt_state =
+    {prompt_state, decline_code} =
       case outcome do
-        :approved -> "APPROVED"
-        :declined -> "DECLINED"
-        :expired -> "EXPIRED"
+        :approved -> {"APPROVED", nil}
+        :declined -> {"DECLINED", "DECLINED_BY_CUSTOMER"}
+        :expired -> {"EXPIRED", nil}
+        :insufficient_funds -> {"DECLINED", "INSUFFICIENT_FUNDS"}
+        :not_registered -> {"DECLINED", "NOT_REGISTERED"}
       end
 
     %WalletPrompt{}
@@ -174,6 +178,7 @@ defmodule Simulator.Charges do
       network: attrs[:network] || "MTN",
       msisdn: attrs[:msisdn] || "0240000001",
       prompt_state: prompt_state,
+      decline_code: decline_code,
       approval_delay_ms: attrs[:approval_delay_ms] || 3_000,
       sent_at: now,
       resolved_at: now

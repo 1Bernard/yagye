@@ -15,7 +15,23 @@ defmodule Simulator.OutcomeEngine do
   alias Simulator.Scenarios.Schemas.Scenario
 
   @type card_outcome :: :authorised | :declined | :timeout | :provider_error
-  @type wallet_outcome :: :approved | :declined | :expired
+  @type wallet_outcome :: :approved | :declined | :expired | :insufficient_funds | :not_registered
+
+  @fixed_msisdn_outcomes %{
+    "0241000001" => :approved,
+    "0241000002" => :insufficient_funds,
+    "0241000003" => :expired,
+    "0241000004" => :not_registered,
+    "0501000001" => :approved,
+    "0501000002" => :insufficient_funds,
+    "0571000001" => :approved,
+    "0571000002" => :insufficient_funds
+  }
+
+  @spec msisdn_wallet_outcome(binary()) :: wallet_outcome() | nil
+  def msisdn_wallet_outcome(msisdn) do
+    Map.get(@fixed_msisdn_outcomes, msisdn)
+  end
 
   @spec card_outcome(Scenario.t() | nil, integer() | nil) :: card_outcome()
   def card_outcome(scenario, seed) do
@@ -63,8 +79,13 @@ defmodule Simulator.OutcomeEngine do
 
   @spec name_enquiry_outcome(binary()) :: :found | :not_found
   def name_enquiry_outcome(msisdn) do
-    # msisdn ending in 0 = NOT_FOUND scenario number; anything else = FOUND
-    if String.ends_with?(msisdn, "0"), do: :not_found, else: :found
+    cond do
+      # Fixed test number: always not registered
+      msisdn == "0241000004" -> :not_found
+      # General heuristic: MSISDN ending in 0 = NOT_FOUND scenario
+      String.ends_with?(msisdn, "0") -> :not_found
+      true -> :found
+    end
   end
 
   # ── Private ──────────────────────────────────────────────────────────────────

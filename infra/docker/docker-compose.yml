@@ -5,21 +5,82 @@ services:
     environment:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
-      POSTGRES_DB: yagye_core_dev
     ports:
       - "5432:5432"
     volumes:
-      - postgres_data:/var/lib/postgresql/data
+      - ./init:/docker-entrypoint-initdb.d
+      - postgres_data:/var/lib/postgresql
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres"]
       interval: 5s
       timeout: 5s
       retries: 5
 
+  # ---------------------------------------------------------------------------
+  # App services — add a Dockerfile at apps/<name>/Dockerfile to enable each.
+  # During active development, running apps natively is faster:
+  #   mix phx.server  (core on :4000, simulator on :4100)
+  #   rails server    (portal on :3000)
+  # Use `docker compose up db` to start only the database.
+  # ---------------------------------------------------------------------------
+
+  # yagye_core:
+  #   build:
+  #     context: ../../apps/yagye_core
+  #     dockerfile: Dockerfile
+  #   restart: unless-stopped
+  #   environment:
+  #     PGHOST: db
+  #     PGUSER: postgres
+  #     PGPASSWORD: postgres
+  #     SECRET_KEY_BASE: dev_secret_replace_in_production
+  #     PORT: "4000"
+  #   ports:
+  #     - "4000:4000"
+  #   depends_on:
+  #     db:
+  #       condition: service_healthy
+
+  # yagye_simulator:
+  #   build:
+  #     context: ../../apps/yagye_simulator
+  #     dockerfile: Dockerfile
+  #   restart: unless-stopped
+  #   environment:
+  #     PGHOST: db
+  #     PGUSER: postgres
+  #     PGPASSWORD: postgres
+  #     SECRET_KEY_BASE: dev_secret_replace_in_production
+  #     PORT: "4100"
+  #     CORE_API_URL: http://yagye_core:4000
+  #   ports:
+  #     - "4100:4100"
+  #   depends_on:
+  #     db:
+  #       condition: service_healthy
+
+  # yagye_portal — uncomment after `rails new yagye_portal` in apps/yagye_portal/
+  # yagye_portal:
+  #   build:
+  #     context: ../../apps/yagye_portal
+  #     dockerfile: Dockerfile
+  #   restart: unless-stopped
+  #   environment:
+  #     DATABASE_URL: postgres://postgres:postgres@db/yagye_portal_dev
+  #     RAILS_ENV: development
+  #     SECRET_KEY_BASE: dev_secret_replace_in_production
+  #     CORE_API_URL: http://yagye_core:4000
+  #   ports:
+  #     - "3000:3000"
+  #   depends_on:
+  #     db:
+  #       condition: service_healthy
+
 # Services added in later phases:
-#   redis      — P17 (distributed rate limiting, session store)
 #   redpanda   — P14 (Kafka-compatible event backbone)
 #   rabbitmq   — P15 (outbound webhook delivery)
+#   redis      — P17 (distributed rate limiting, session store)
+#   localstack — P21 (local AWS emulator; S3 + KMS for KYB documents)
 
 volumes:
   postgres_data:
