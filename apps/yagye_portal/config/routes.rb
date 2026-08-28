@@ -1,11 +1,13 @@
 Rails.application.routes.draw do
-  devise_for :users
+  devise_for :users, controllers: { sessions: "users/sessions" }
 
   authenticated :user do
     root "dashboard#index", as: :authenticated_root
   end
 
   devise_scope :user do
+    get  "users/otp-challenge", to: "users/sessions#otp_challenge", as: :users_otp_challenge
+    post "users/otp-challenge", to: "users/sessions#verify_otp",    as: :users_verify_otp
     root "devise/sessions#new"
   end
 

@@ -51,26 +51,6 @@ module Auth
             )
           end
 
-          div do
-            label for: "user_otp_attempt", class: "#{UI::Theme::FORM_LABEL} mb-1.5" do
-              plain "Authenticator code"
-            end
-            input(
-              type: :text,
-              id: "user_otp_attempt",
-              name: "user[otp_attempt]",
-              inputmode: "numeric",
-              pattern: "[0-9]*",
-              maxlength: "6",
-              autocomplete: "one-time-code",
-              placeholder: "6-digit code",
-              class: "#{UI::Theme::INPUT} w-full font-mono tracking-widest text-center"
-            )
-            p class: "mt-1 #{UI::Theme::FORM_MUTED}" do
-              plain "Required once you've set up two-factor authentication."
-            end
-          end
-
           label class: "flex items-center gap-2.5 cursor-pointer" do
             input(
               type: :checkbox,

@@ -9,7 +9,7 @@ module Auth
         title: "Two-factor verification",
         subtitle: "Enter the 6-digit code from your authenticator app."
       ) do
-        form action: user_two_factor_authentication_path,
+        form action: users_verify_otp_path,
              method: :post,
              class: "space-y-5" do
           input type: :hidden, name: :authenticity_token, value: @csrf_token
