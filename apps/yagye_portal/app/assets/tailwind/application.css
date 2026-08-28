@@ -1,0 +1,63 @@
+@import "tailwindcss";
+
+/* ── Design tokens (from LunarDesk-inspired system) ───────────────────── */
+@theme {
+  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+
+  --color-primary-50:  #f0fdfa;
+  --color-primary-100: #ccfbf1;
+  --color-primary-400: #2dd4bf;
+  --color-primary-500: #14b8a6;
+  --color-primary-600: #0d9488;
+  --color-primary-700: #0f766e;
+}
+
+/* ── Base ──────────────────────────────────────────────────────────────── */
+body {
+  font-family: var(--font-sans);
+  background-color: #f9fafb;
+  color: #111827;
+}
+
+/* ── Tabular numbers for financial data ─────────────────────────────── */
+.tabular-nums {
+  font-variant-numeric: tabular-nums;
+}
+
+/* ── Scrollbar ─────────────────────────────────────────────────────── */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: #e5e7eb;
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #d1d5db;
+}
+
+/* ── Sidebar navigation active state ──────────────────────────────── */
+.nav-active {
+  background-color: var(--color-primary-50);
+  color: var(--color-primary-700);
+  font-weight: 500;
+}
+
+/* ── Table sort arrows ─────────────────────────────────────────────── */
+.sortable::after {
+  content: " ↕";
+  opacity: 0.4;
+  font-size: 0.65rem;
+}
+
+/* ── Flash auto-dismiss ────────────────────────────────────────────── */
+[data-controller="flash"] {
+  animation: fadeout 0.5s ease 3s forwards;
+}
+@keyframes fadeout {
+  to { opacity: 0; pointer-events: none; }
+}
