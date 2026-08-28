@@ -2,7 +2,9 @@
 
 class DeviseCreateUsers < ActiveRecord::Migration[8.1]
   def change
-    create_table :users do |t|
+    enable_extension "pgcrypto" unless extension_enabled?("pgcrypto")
+
+    create_table :users, id: :uuid, default: -> { "gen_random_uuid()" } do |t|
       ## Database authenticatable
       t.string :email,              null: false, default: ""
       t.string :encrypted_password, null: false, default: ""
@@ -31,13 +33,9 @@ class DeviseCreateUsers < ActiveRecord::Migration[8.1]
       t.integer :consumed_timestep
       t.boolean :otp_required_for_login, default: false, null: false
 
-      ## Profile & role
+      ## Profile
       t.string :first_name
       t.string :last_name
-      t.string :role, null: false, default: "merchant_read_only"
-
-      ## Merchant scoping (nil for ops users)
-      t.string :merchant_public_id
 
       t.timestamps null: false
     end
@@ -45,7 +43,5 @@ class DeviseCreateUsers < ActiveRecord::Migration[8.1]
     add_index :users, :email,                unique: true
     add_index :users, :reset_password_token, unique: true
     add_index :users, :unlock_token,         unique: true
-    add_index :users, :merchant_public_id
-    add_index :users, :role
   end
 end

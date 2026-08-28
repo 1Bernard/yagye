@@ -13,18 +13,19 @@
 ActiveRecord::Schema[8.1].define(version: 2026_08_28_152054) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
+  enable_extension "pgcrypto"
 
-  create_table "merchant_memberships", force: :cascade do |t|
+  create_table "merchant_memberships", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
     t.datetime "accepted_at"
     t.datetime "created_at", null: false
     t.datetime "invitation_expires_at"
     t.text "invitation_token_digest"
-    t.bigint "invited_by_id"
+    t.uuid "invited_by_id"
     t.text "merchant_code", null: false
     t.text "merchant_name", null: false
     t.text "state", default: "invited", null: false
     t.datetime "updated_at", null: false
-    t.bigint "user_id", null: false
+    t.uuid "user_id", null: false
     t.index ["invited_by_id"], name: "index_merchant_memberships_on_invited_by_id"
     t.index ["user_id", "merchant_code"], name: "merchant_memberships_one_active_per_user", unique: true, where: "(state = 'active'::text)"
     t.index ["user_id"], name: "index_merchant_memberships_on_user_id"
@@ -54,22 +55,22 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_28_152054) do
     t.check_constraint "scope = ANY (ARRAY['merchant'::text, 'internal'::text])", name: "valid_role_scope"
   end
 
-  create_table "user_roles", force: :cascade do |t|
+  create_table "user_roles", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
     t.datetime "created_at", null: false
     t.datetime "expires_at"
     t.datetime "granted_at", null: false
-    t.bigint "granted_by_id"
+    t.uuid "granted_by_id"
     t.text "merchant_code"
     t.datetime "revoked_at"
     t.text "role_key", null: false
     t.datetime "updated_at", null: false
-    t.bigint "user_id", null: false
+    t.uuid "user_id", null: false
     t.index ["granted_by_id"], name: "index_user_roles_on_granted_by_id"
     t.index ["user_id", "role_key", "merchant_code"], name: "user_roles_active_unique", unique: true, where: "(revoked_at IS NULL)"
     t.index ["user_id"], name: "index_user_roles_on_user_id"
   end
 
-  create_table "users", force: :cascade do |t|
+  create_table "users", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
     t.integer "consumed_timestep"
     t.datetime "created_at", null: false
     t.datetime "current_sign_in_at"
