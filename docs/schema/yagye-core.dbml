@@ -234,7 +234,7 @@ Table kyb_documents [headercolor: #B4531F] {
 Table screening_providers [headercolor: #B4531F] {
   code text [pk, note: 'stub|comply_advantage|world_check|lexisnexis — string key, not uuid, for the same reason as providers.code']
   display_name text [not null]
-  adapter_module text [not null, note: 'YagyeCore.Compliance.Adapters.StubScreeningAdapter etc.']
+  adapter_module text [not null, note: 'Full atom string including Elixir. prefix: Elixir.YagyeCore.Compliance.Adapters.StubScreeningAdapter. String.to_existing_atom/1 resolves this at runtime — safe because all compiled modules are atoms at boot.']
   supported_lists "text[]" [not null, note: 'which lists this provider can query']
   default_lists "text[]" [not null, note: 'lists included in every request unless the caller overrides. At minimum: pep|sanctions_ofac|sanctions_eu|sanctions_un|sanctions_uk_hmt']
   active boolean [not null]
