@@ -21,7 +21,7 @@ class User < ApplicationRecord
   validates :kind, inclusion: { in: %w[merchant_user internal_staff] }
 
   def full_name
-    [first_name, last_name].compact.join(" ").presence || email
+    [ first_name, last_name ].compact.join(" ").presence || email
   end
 
   def internal_staff?

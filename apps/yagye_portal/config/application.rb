@@ -37,7 +37,7 @@ module YagyePortal
     # config.eager_load_paths << Rails.root.join("extras")
 
     # Phlex components live in app/components — Zeitwerk handles the rest
-    config.autoload_paths += [Rails.root.join("app/components")]
+    config.autoload_paths += [ Rails.root.join("app/components") ]
 
     # Don't generate system test files.
     config.generators.system_tests = nil

@@ -17,7 +17,7 @@ module UI
       "pending"        => "⚑",
       "under_review"   => "⚑",
       "potential_match" => "⚑",
-      "suspended"      => "⚑",
+      "suspended"      => "⚑"
     }.freeze
 
     def initialize(status, label: nil)

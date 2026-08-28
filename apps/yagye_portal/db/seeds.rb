@@ -9,7 +9,7 @@ ROLE_DEFS = [
   { key: "ops_analyst",        name: "Ops Analyst",          scope: "internal", description: "Yagye ops read access — view payments, merchants, KYB, and settlements." },
   { key: "ops_manager",        name: "Ops Manager",          scope: "internal", description: "Full ops access including merchant approvals, suspensions, and platform finance." },
   { key: "compliance_analyst", name: "Compliance Analyst",   scope: "internal", description: "AML screening review, KYB document review, merchant profile read access." },
-  { key: "compliance_manager", name: "Compliance Manager",   scope: "internal", description: "Full compliance access including hit dispositions and KYB approvals." },
+  { key: "compliance_manager", name: "Compliance Manager",   scope: "internal", description: "Full compliance access including hit dispositions and KYB approvals." }
 ].freeze
 
 ROLE_DEFS.each do |attrs|
@@ -25,7 +25,7 @@ end
 PERMISSION_DEFS = [
   # payments
   { key: "payments.view",             resource: "payments",        action: "view",             description: "View payment list and individual payment details." },
-  { key: "payments.view_customer_pii",resource: "payments",        action: "view_customer_pii",description: "View unmasked customer MSISDN and email on payment records." },
+  { key: "payments.view_customer_pii", resource: "payments",        action: "view_customer_pii", description: "View unmasked customer MSISDN and email on payment records." },
   { key: "payments.refund",           resource: "payments",        action: "refund",            description: "Initiate a refund on a completed payment." },
   { key: "payments.export",           resource: "payments",        action: "export",            description: "Export payment data as CSV." },
   # disputes
@@ -46,13 +46,13 @@ PERMISSION_DEFS = [
   { key: "kyb.approve_merchant",      resource: "kyb",             action: "approve_merchant",  description: "Approve a merchant's KYB application after review." },
   # developers
   { key: "developers.view_api_keys",  resource: "developers",      action: "view_api_keys",     description: "View API key list (prefix only, never the full key)." },
-  { key: "developers.manage_api_keys",resource: "developers",      action: "manage_api_keys",   description: "Create and revoke API keys." },
-  { key: "developers.manage_webhooks",resource: "developers",      action: "manage_webhooks",   description: "Create, update, and delete webhook endpoints." },
+  { key: "developers.manage_api_keys", resource: "developers",      action: "manage_api_keys",   description: "Create and revoke API keys." },
+  { key: "developers.manage_webhooks", resource: "developers",      action: "manage_webhooks",   description: "Create, update, and delete webhook endpoints." },
   # team
   { key: "team.view",                 resource: "team",            action: "view",              description: "View team member list and their roles." },
   { key: "team.manage",               resource: "team",            action: "manage",            description: "Invite new members, update roles, and remove members." },
   # platform finance (Yagye ops only)
-  { key: "platform_finance.view",     resource: "platform_finance",action: "view",              description: "View Yagye P&L dashboard, provider costs, and fee invoices." },
+  { key: "platform_finance.view",     resource: "platform_finance", action: "view",              description: "View Yagye P&L dashboard, provider costs, and fee invoices." }
 ].freeze
 
 PERMISSION_DEFS.each do |attrs|
@@ -120,7 +120,7 @@ GRANT_MATRIX = {
     payments.view payments.view_customer_pii
     merchants.view merchants.approve merchants.suspend
     kyb.view kyb.disposition kyb.approve_merchant
-  ],
+  ]
 }.freeze
 
 GRANT_MATRIX.each do |role_key, permission_keys|

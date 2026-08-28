@@ -29,7 +29,7 @@ class CreatePortalRbac < ActiveRecord::Migration[8.1]
     end
 
     # ── Grant matrix ──────────────────────────────────────────────────────────
-    create_table :role_permissions, primary_key: [:role_key, :permission_key] do |t|
+    create_table :role_permissions, primary_key: [ :role_key, :permission_key ] do |t|
       t.text :role_key, null: false
       t.text :permission_key, null: false
       t.datetime :granted_at, null: false
@@ -51,7 +51,7 @@ class CreatePortalRbac < ActiveRecord::Migration[8.1]
     end
 
     add_foreign_key :user_roles, :roles, column: :role_key, primary_key: :key
-    add_index :user_roles, [:user_id, :role_key, :merchant_code],
+    add_index :user_roles, [ :user_id, :role_key, :merchant_code ],
               unique: true, where: "revoked_at IS NULL",
               name: :user_roles_active_unique
 
@@ -69,7 +69,7 @@ class CreatePortalRbac < ActiveRecord::Migration[8.1]
     end
 
     execute "ALTER TABLE merchant_memberships ADD CONSTRAINT valid_membership_state CHECK (state IN ('invited', 'active', 'suspended', 'removed'))"
-    add_index :merchant_memberships, [:user_id, :merchant_code],
+    add_index :merchant_memberships, [ :user_id, :merchant_code ],
               unique: true, where: "state = 'active'",
               name: :merchant_memberships_one_active_per_user
   end

@@ -6,7 +6,7 @@ module Layout
         items: [
           { key: :dashboard,  icon: :home,         label: "Dashboard", path: :authenticated_root_path },
           { key: :payments,   icon: :credit_card,  label: "Payments",  path: :payments_path },
-          { key: :disputes,   icon: :flag,         label: "Disputes",  path: :disputes_path },
+          { key: :disputes,   icon: :flag,         label: "Disputes",  path: :disputes_path }
         ]
       },
       {
@@ -14,7 +14,7 @@ module Layout
         internal_only: true,
         items: [
           { key: :merchants,   icon: :building,     label: "Merchants",  path: :merchants_path },
-          { key: :kyb_reviews, icon: :shield_check, label: "KYB Review", path: :kyb_reviews_path },
+          { key: :kyb_reviews, icon: :shield_check, label: "KYB Review", path: :kyb_reviews_path }
         ]
       },
       {
@@ -22,7 +22,7 @@ module Layout
         items: [
           { key: :api_keys, icon: :key,      label: "API Keys",    path: :api_keys_path },
           { key: :settings, icon: :settings, label: "Settings",    path: :settings_path },
-          { key: :help,     icon: :help,     label: "Help & Support", path: :help_path },
+          { key: :help,     icon: :help,     label: "Help & Support", path: :help_path }
         ]
       }
     ].freeze

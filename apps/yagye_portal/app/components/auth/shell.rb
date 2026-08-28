@@ -20,11 +20,11 @@ module Auth
 
         div class: "#{UI::Theme::CARD} w-full max-w-sm px-8 py-10" do
           div class: "mb-6 text-center" do
-            h1 class: "text-xl font-semibold text-gray-900 mb-1" do
+            h1 class: "#{UI::Theme::AUTH_TITLE} mb-1" do
               plain @title
             end
             if @subtitle
-              p class: "text-sm text-gray-500 mt-1" do
+              p class: "#{UI::Theme::PAGE_SUBTITLE} mt-1" do
                 plain @subtitle
               end
             end
@@ -32,13 +32,13 @@ module Auth
           yield
         end
 
-        p class: "mt-6 text-xs text-gray-400 text-center" do
+        p class: "mt-6 #{UI::Theme::FORM_MUTED} text-center" do
           plain "© #{Time.current.year} Yagye · "
-          a href: "#", class: "hover:text-gray-600 transition-colors" do
+          a href: "#", class: UI::Theme::LINK_MUTED do
             plain "Privacy"
           end
           plain " · "
-          a href: "#", class: "hover:text-gray-600 transition-colors" do
+          a href: "#", class: UI::Theme::LINK_MUTED do
             plain "Terms"
           end
         end

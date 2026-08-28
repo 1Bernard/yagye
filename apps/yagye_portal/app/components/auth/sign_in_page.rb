@@ -10,14 +10,13 @@ module Auth
         title: "Welcome back",
         subtitle: "Sign in to your Yagye account"
       ) do
-        error_summary if @resource.errors.any?
+        render UI::ErrorSummary.new(errors: @resource.errors)
 
         form action: user_session_path, method: :post, class: "space-y-5" do
           input type: :hidden, name: :authenticity_token, value: @csrf_token
 
           div do
-            label for: "user_email",
-                  class: "block text-sm font-medium text-gray-700 mb-1.5" do
+            label for: "user_email", class: "#{UI::Theme::FORM_LABEL} mb-1.5" do
               plain "Email address"
             end
             input(
@@ -34,12 +33,11 @@ module Auth
 
           div do
             div class: "flex items-center justify-between mb-1.5" do
-              label for: "user_password",
-                    class: "block text-sm font-medium text-gray-700" do
+              label for: "user_password", class: UI::Theme::FORM_LABEL do
                 plain "Password"
               end
               a href: new_user_password_path,
-                class: "text-xs font-medium text-teal-600 hover:text-teal-700 transition-colors" do
+                class: "text-xs #{UI::Theme::LINK_PRIMARY}" do
                 plain "Forgot password?"
               end
             end
@@ -53,10 +51,8 @@ module Auth
             )
           end
 
-          # OTP code — required for users with 2FA enrolled; ignored otherwise
           div do
-            label for: "user_otp_attempt",
-                  class: "block text-sm font-medium text-gray-700 mb-1.5" do
+            label for: "user_otp_attempt", class: "#{UI::Theme::FORM_LABEL} mb-1.5" do
               plain "Authenticator code"
             end
             input(
@@ -70,7 +66,7 @@ module Auth
               placeholder: "6-digit code",
               class: "#{UI::Theme::INPUT} w-full font-mono tracking-widest text-center"
             )
-            p class: "mt-1 text-xs text-gray-400" do
+            p class: "mt-1 #{UI::Theme::FORM_MUTED}" do
               plain "Required once you've set up two-factor authentication."
             end
           end
@@ -80,9 +76,9 @@ module Auth
               type: :checkbox,
               name: "user[remember_me]",
               value: "1",
-              class: "h-4 w-4 rounded border-gray-300 text-teal-500 focus:ring-teal-400"
+              class: UI::Theme::CHECKBOX
             )
-            span class: "text-sm text-gray-600" do
+            span class: UI::Theme::BODY do
               plain "Stay signed in for 30 days"
             end
           end
@@ -92,18 +88,6 @@ module Auth
             class: "#{UI::Theme::BUTTON_PRIMARY} w-full justify-center py-2.5"
           ) do
             plain "Sign in"
-          end
-        end
-      end
-    end
-
-    private
-
-    def error_summary
-      div class: "mb-5 p-3 bg-red-50 border border-red-200 rounded-lg" do
-        ul class: "text-xs text-red-600 space-y-0.5 list-disc list-inside" do
-          @resource.errors.each do |error|
-            li { plain error.full_message }
           end
         end
       end

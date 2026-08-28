@@ -26,7 +26,7 @@ module UI
     NAV_ICON_ON    = "text-teal-600"
     NAV_ICON_OFF   = "text-gray-400"
 
-    # ── Typography ─────────────────────────────────────────────────────────
+    # ── Typography ─────────────────────────────────────────────────────────────
     PAGE_TITLE     = "text-lg font-semibold text-gray-900"
     PAGE_SUBTITLE  = "text-sm text-gray-500"
     SECTION_TITLE  = "text-sm font-semibold text-gray-700"
@@ -34,6 +34,14 @@ module UI
     MUTED          = "text-sm text-gray-500"
     BODY           = "text-sm text-gray-700"
     HEADING        = "font-semibold text-gray-900"
+    AUTH_TITLE     = "text-xl font-semibold text-gray-900"
+    FORM_LABEL     = "block text-sm font-medium text-gray-700"
+    FORM_HINT      = "text-xs text-gray-500"
+    FORM_MUTED     = "text-xs text-gray-400"
+
+    # ── Links ──────────────────────────────────────────────────────────────────
+    LINK_PRIMARY   = "font-medium text-teal-600 hover:text-teal-700 transition-colors"
+    LINK_MUTED     = "text-gray-400 hover:text-gray-600 transition-colors"
 
     # ── Table ──────────────────────────────────────────────────────────────
     TH = "text-xs font-medium text-gray-500 px-4 py-3 text-left select-none"
@@ -54,6 +62,11 @@ module UI
                        "px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors"
 
     ICON_BUTTON = "rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-50 transition-colors"
+    CHECKBOX    = "h-4 w-4 rounded border-gray-300 text-teal-500 focus:ring-teal-400"
+
+    # ── Feedback ───────────────────────────────────────────────────────────────
+    ERROR_BANNER = "p-3 bg-red-50 border border-red-200 rounded-lg"
+    ERROR_ITEM   = "text-xs text-red-600 space-y-0.5 list-disc list-inside"
 
     # ── Status semantic colours (badge background + text) ──────────────────
     STATUS_SUCCESS = "bg-green-100 text-green-700"
@@ -95,7 +108,7 @@ module UI
       "refunded"         => STATUS_WARNING,
       "suspended"        => STATUS_WARNING,
       "overdue"          => STATUS_WARNING,
-      "cleared"          => STATUS_WARNING,
+      "cleared"          => STATUS_WARNING
     }.freeze
 
     def self.status_classes(status)
