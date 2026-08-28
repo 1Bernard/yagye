@@ -1,6 +1,11 @@
-#!/usr/bin/env ruby
-require_relative "../config/boot"
-require "active_support/continuous_integration"
+#!/usr/bin/env bash
+set -e
 
-CI = ActiveSupport::ContinuousIntegration
-require_relative "../config/ci.rb"
+echo "==> RuboCop"
+bundle exec rubocop
+
+echo "==> Brakeman"
+bundle exec brakeman --no-pager -q
+
+echo "==> Tests"
+bundle exec rails test --warnings

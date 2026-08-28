@@ -181,3 +181,115 @@ jobs:
           echo "=== Last 50 lines of mix test output ==="
           mix test 2>&1 | tail -50 || true
         working-directory: apps/yagye_core
+
+  portal:
+    name: RuboCop · Brakeman · Test (Portal)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/yagye_portal
+
+    services:
+      db:
+        image: postgres:18
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: yagye_portal_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 5
+
+    env:
+      DATABASE_URL: postgres://postgres:postgres@localhost:5432/yagye_portal_test
+      RAILS_ENV: test
+      RAILS_MASTER_KEY: ${{ secrets.RAILS_MASTER_KEY }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Ruby
+        uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: "3.4.7"
+          bundler-cache: true
+          working-directory: apps/yagye_portal
+
+      - name: Run RuboCop
+        run: bundle exec rubocop
+
+      - name: Run Brakeman
+        run: bundle exec brakeman --no-pager -q --exit-on-warn
+
+      - name: Set up database
+        run: bundle exec rails db:create db:migrate
+
+      - name: Run tests
+        run: bundle exec rails test --warnings
+
+  simulator:
+    name: Format · Credo · Sobelow · Test (Simulator)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/yagye_simulator
+
+    services:
+      db:
+        image: postgres:18
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: gateway_simulator_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Elixir
+        uses: erlef/setup-beam@v1
+        with:
+          elixir-version: "1.19.5"
+          otp-version: "28.1"
+
+      - name: Cache deps
+        uses: actions/cache@v4
+        with:
+          path: apps/yagye_simulator/deps
+          key: sim-deps-${{ runner.os }}-${{ hashFiles('apps/yagye_simulator/mix.lock') }}
+          restore-keys: sim-deps-${{ runner.os }}-
+
+      - name: Cache build
+        uses: actions/cache@v4
+        with:
+          path: apps/yagye_simulator/_build
+          key: sim-build-${{ runner.os }}-${{ hashFiles('apps/yagye_simulator/mix.lock') }}
+          restore-keys: sim-build-${{ runner.os }}-
+
+      - name: Install dependencies
+        run: mix deps.get
+
+      - name: Check formatting
+        run: mix format --check-formatted
+
+      - name: Run Credo
+        run: mix credo --strict
+
+      - name: Run Sobelow
+        run: mix sobelow --config --exit Low
+
+      - name: Compile (warnings as errors)
+        run: mix compile --warnings-as-errors
+
+      - name: Run tests
+        run: mix test --warnings-as-errors
