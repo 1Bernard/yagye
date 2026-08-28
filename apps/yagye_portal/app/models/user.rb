@@ -1,11 +1,14 @@
 class User < ApplicationRecord
   devise :database_authenticatable,
+         :two_factor_authenticatable,
          :recoverable,
          :rememberable,
          :validatable,
          :trackable,
          :lockable,
          :timeoutable
+
+  encrypts :otp_secret
 
   before_create :generate_user_code
 
