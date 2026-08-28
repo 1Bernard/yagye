@@ -5,7 +5,9 @@ Rails.application.routes.draw do
     root "dashboard#index", as: :authenticated_root
   end
 
-  root "devise/sessions#new"
+  devise_scope :user do
+    root "devise/sessions#new"
+  end
 
   get "up" => "rails/health#show", as: :rails_health_check
 
