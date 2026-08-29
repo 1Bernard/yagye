@@ -241,7 +241,7 @@ module Dashboard
     # ── Recent payments table ─────────────────────────────────────────────────
 
     def recent_table
-      div(style: "background:#fff;border:1px solid #{BORDER};border-radius:16px;overflow:hidden") do
+      div(class: TABLE_CARD) do
         table_action_bar
         if @recent_payments.empty?
           table_empty_state
