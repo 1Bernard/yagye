@@ -69,18 +69,26 @@ module Developers
 
         test_mode_notice unless live
 
-        div(style: "background:#fff;border:1px solid #{BORDER};border-radius:20px;overflow:hidden") do
-          div(style: "padding:20px 24px;border-bottom:1px solid #{BORDER}") do
-            div(style: "display:flex;align-items:center;justify-content:space-between") do
+        render UI::Datatable.new(records: @api_keys,
+                                 empty_message: "No API keys yet. Generate your first key to start integrating.") do |t|
+          t.header do
+            div do
               p(style: TYPE_TITLE) { "#{live ? 'Live' : 'Test'} API keys" }
-              p(style: TYPE_CAPTION) { "Keys are shown once at creation. Store them securely." }
+              p(style: "#{TYPE_CAPTION};margin-top:2px") { "Keys are shown once at creation. Store them securely." }
             end
           end
 
-          if @api_keys.empty?
-            empty_keys_state
-          else
-            keys_table
+          t.column("Name")      { |k| span(style: TYPE_BODY_MD) { k.label.presence || k.kind.capitalize } }
+          t.column("Key prefix") { |k| code(style: TYPE_MONO) { k.key_prefix + "..." } }
+          t.column("Created")   { |k| span(style: TYPE_CAPTION) { k.created_at.strftime("%d %b %Y") } }
+          t.column("Last used") { |k| span(style: TYPE_CAPTION) { k.last_used_at&.strftime("%d %b %Y") || "Never" } }
+          t.column("Status")    { |k| render UI::StatusBadge.new(status: k.active ? "active" : "revoked") }
+
+          t.actions do |k|
+            button(type: "button", class: DROPDOWN_ITEM) do
+              render UI::Icon.new(:x, class: ICON_SM)
+              "Revoke"
+            end
           end
         end
       end
@@ -102,54 +110,6 @@ module Developers
       end
     end
 
-    def empty_keys_state
-      div(style: "padding:56px 24px;text-align:center") do
-        div(style: "width:48px;height:48px;border-radius:16px;background:#f3f4f6;" \
-                   "display:flex;align-items:center;justify-content:center;margin:0 auto 16px") do
-          span(style: "display:flex;width:22px;height:22px;color:#{SUBTLE_TEXT}") do
-            render UI::Icon.new(:key, class: "w-full h-full")
-          end
-        end
-        p(style: "#{TYPE_BODY_MD};margin-bottom:6px") { "No API keys yet" }
-        p(style: "#{TYPE_CAPTION};margin-bottom:20px") do
-          "Generate your first #{Current.mode == 'live' ? 'live' : 'test'} key to start integrating with Yagye."
-        end
-        button(type: "button", class: BTN_PRIMARY, style: "cursor:not-allowed;opacity:0.6", disabled: true) do
-          render UI::Icon.new(:plus, class: ICON_SM)
-          "Generate Key"
-        end
-      end
-    end
-
-    def keys_table
-      table(style: "width:100%;border-collapse:collapse") do
-        thead do
-          tr do
-            %w[Name Key\ prefix Created Last\ used Status Actions].each do |h|
-              th(style: "#{TABLE_TH}") { h }
-            end
-          end
-        end
-        tbody do
-          @api_keys.each do |key|
-            tr(style: "border-top:1px solid #{BORDER}") do
-              td(style: TABLE_CELL) { span(style: TYPE_BODY_MD) { key.label.presence || key.kind.capitalize } }
-              td(style: TABLE_CELL) { code(style: TYPE_MONO) { key.key_prefix + "..." } }
-              td(style: TABLE_CELL) { span(style: TYPE_CAPTION) { key.created_at.strftime("%d %b %Y") } }
-              td(style: TABLE_CELL) { span(style: TYPE_CAPTION) { key.last_used_at&.strftime("%d %b %Y") || "Never" } }
-              td(style: TABLE_CELL) { render UI::StatusBadge.new(status: key.active ? "active" : "revoked") }
-              td(style: TABLE_CELL) do
-                button(type: "button", class: DROPDOWN_ITEM) do
-                  render UI::Icon.new(:x, class: ICON_SM)
-                  "Revoke"
-                end
-              end
-            end
-          end
-        end
-      end
-    end
-
     # ── Webhooks panel ────────────────────────────────────────────────────────
 
     def webhooks_panel
@@ -165,56 +125,26 @@ module Developers
           end
         end
 
-        div(style: "background:#fff;border:1px solid #{BORDER};border-radius:20px;overflow:hidden") do
-          if @webhooks.empty?
-            empty_webhooks_state
-          else
-            webhooks_table
+        render UI::Datatable.new(records: @webhooks,
+                                 empty_message: "No webhook endpoints. Add one to receive real-time payment events.") do |t|
+          t.header do
+            p(style: TYPE_TITLE) { "Endpoints" }
+          end
+
+          t.column("URL")     { |wh| code(style: TYPE_MONO) { wh.url } }
+          t.column("Events")  { |wh| span(style: TYPE_CAPTION) { "#{Array(wh.subscribed_events).size} events" } }
+          t.column("Status")  { |wh| render UI::StatusBadge.new(status: wh.active ? "active" : "suspended") }
+          t.column("Created") { |wh| span(style: TYPE_CAPTION) { wh.created_at.strftime("%d %b %Y") } }
+
+          t.actions do |wh|
+            a(href: "#", class: DROPDOWN_ITEM) do
+              render UI::Icon.new(:edit, class: ICON_SM)
+              "Edit"
+            end
           end
         end
 
         signing_secret_info
-      end
-    end
-
-    def empty_webhooks_state
-      div(style: "padding:56px 24px;text-align:center") do
-        div(style: "width:48px;height:48px;border-radius:16px;background:#f3f4f6;" \
-                   "display:flex;align-items:center;justify-content:center;margin:0 auto 16px") do
-          span(style: "display:flex;width:22px;height:22px;color:#{SUBTLE_TEXT}") do
-            render UI::Icon.new(:globe, class: "w-full h-full")
-          end
-        end
-        p(style: "#{TYPE_BODY_MD};margin-bottom:6px") { "No webhook endpoints" }
-        p(style: TYPE_CAPTION) { "Add an endpoint to receive real-time payment events." }
-      end
-    end
-
-    def webhooks_table
-      table(style: "width:100%;border-collapse:collapse") do
-        thead do
-          tr do
-            %w[Endpoint\ URL Events Status Created Actions].each do |h|
-              th(style: "#{TABLE_TH}") { h }
-            end
-          end
-        end
-        tbody do
-          @webhooks.each do |wh|
-            tr(style: "border-top:1px solid #{BORDER}") do
-              td(style: TABLE_CELL) { code(style: TYPE_MONO) { wh.url } }
-              td(style: TABLE_CELL) { span(style: TYPE_CAPTION) { "#{Array(wh.subscribed_events).size} events" } }
-              td(style: TABLE_CELL) { render UI::StatusBadge.new(status: wh.active ? "active" : "suspended") }
-              td(style: TABLE_CELL) { span(style: TYPE_CAPTION) { wh.created_at.strftime("%d %b %Y") } }
-              td(style: TABLE_CELL) do
-                a(href: "#", class: DROPDOWN_ITEM) do
-                  render UI::Icon.new(:edit, class: ICON_SM)
-                  "Edit"
-                end
-              end
-            end
-          end
-        end
       end
     end
 

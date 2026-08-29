@@ -68,19 +68,21 @@ module Team
         internal_roles  = @roles.select { |r| r.scope == "internal" }
 
         div(style: "display:grid;grid-template-columns:1fr 1fr;gap:24px;margin-bottom:32px") do
-          role_scope_section("Merchant roles", merchant_roles, "#f3f4f6", MUTED_TEXT)
-          role_scope_section("Yagye staff roles", internal_roles, "#dbeafe", "#1d4ed8")
+          role_scope_section("Merchant roles",    merchant_roles, "merchant")
+          role_scope_section("Yagye staff roles", internal_roles, "internal")
         end
       end
 
-      def role_scope_section(title, roles, badge_bg, badge_fg)
+      def role_scope_section(title, roles, scope)
+        badge_bg = scope == "internal" ? "#dbeafe" : "#f3f4f6"
+        badge_fg = scope == "internal" ? "#1d4ed8"  : MUTED_TEXT
+        label    = scope == "internal" ? "Staff"     : "Merchant"
+
         div(style: "background:#fff;border:1px solid #{BORDER};border-radius:20px;overflow:hidden") do
           div(style: "padding:16px 20px;border-bottom:1px solid #{BORDER};display:flex;" \
                      "align-items:center;gap:8px") do
             span(style: "font-size:11px;font-weight:600;padding:2px 9px;border-radius:20px;" \
-                        "background:#{badge_bg};color:#{badge_fg}") do
-              badge_fg == "#1d4ed8" ? "Staff" : "Merchant"
-            end
+                        "background:#{badge_bg};color:#{badge_fg}") { label }
             p(style: TYPE_TITLE) { title }
           end
           div(style: "padding:16px 20px;display:flex;flex-direction:column;gap:12px") do

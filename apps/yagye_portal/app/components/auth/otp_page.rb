@@ -1,5 +1,7 @@
 module Auth
   class OtpPage < ApplicationComponent
+    FIELD_LABEL = "block text-[10px] font-semibold uppercase tracking-[0.1em] text-gray-600 mb-1.5"
+
     def initialize(csrf_token:)
       @csrf_token = csrf_token
     end
@@ -15,7 +17,7 @@ module Auth
           input type: :hidden, name: :authenticity_token, value: @csrf_token
 
           div class: "flex flex-col items-center" do
-            label for: "user_otp_attempt", class: "#{UI::Theme::FORM_LABEL} mb-3" do
+            label for: "user_otp_attempt", class: "#{FIELD_LABEL} mb-3" do
               plain "Verification code"
             end
             input(
@@ -29,18 +31,20 @@ module Auth
               autofocus: true,
               required: true,
               placeholder: "000 000",
-              class: "w-44 text-center text-3xl font-mono tracking-[0.4em] rounded-lg " \
-                     "border border-gray-200 px-4 py-3 text-gray-900 placeholder:text-gray-300 " \
-                     "focus:outline-none focus:ring-2 focus:ring-teal-400"
+              class: "w-44 text-center text-3xl font-mono tracking-[0.4em] rounded-xl " \
+                     "border border-gray-200 bg-gray-50 px-4 py-3 text-gray-900 placeholder:text-gray-300 " \
+                     "focus:outline-none focus:bg-white focus:border-blue-400 focus:ring-2 focus:ring-blue-500/10 transition-all"
             )
-            p class: "mt-2 #{UI::Theme::FORM_MUTED}" do
+            p class: "mt-2 text-[11px] text-gray-400" do
               plain "Code refreshes every 30 seconds"
             end
           end
 
           button(
             type: :submit,
-            class: "#{UI::Theme::BUTTON_BRAND} w-full"
+            class: "w-full inline-flex items-center justify-center rounded-xl px-4 py-3 " \
+                   "text-[13.5px] font-semibold text-white transition-opacity hover:opacity-90 shadow-md",
+            style: "background-color: #3D47F5"
           ) do
             plain "Verify"
           end

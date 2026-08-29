@@ -48,14 +48,6 @@ module Merchants
       end
     end
 
-    def stat_cell(label, value, color: INK)
-      div(class: STAT_CELL) do
-        p(style: TYPE_MICRO) { label }
-        p(style: "font-size:28px;font-weight:700;color:#{color};font-variant-numeric:tabular-nums;" \
-                  "line-height:1;margin-top:6px") { value }
-      end
-    end
-
     def filter_bar_section
       render UI::FilterBar.new(action: merchants_path) do |f|
         f.search_field name: "q", value: @query, placeholder: "Search business name or code..."
@@ -111,14 +103,5 @@ module Merchants
       end
     end
 
-    def merchant_name_cell(merchant)
-      div(style: "display:flex;align-items:center;gap:10px") do
-        render UI::Avatar.new(merchant.legal_name&.first(2)&.upcase || "??", size: :sm)
-        div do
-          p(style: TYPE_BODY_MD) { merchant.legal_name }
-          p(style: TYPE_CAPTION) { merchant.submitted_by_email }
-        end
-      end
-    end
   end
 end

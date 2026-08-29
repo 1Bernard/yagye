@@ -55,14 +55,6 @@ module Disputes
       end
     end
 
-    def stat_cell(label, value, color: INK)
-      div(class: STAT_CELL) do
-        p(style: TYPE_MICRO) { label }
-        p(style: "font-size:28px;font-weight:700;color:#{color};font-variant-numeric:tabular-nums;" \
-                  "line-height:1;margin-top:6px") { value }
-      end
-    end
-
     def tab_bar
       render UI::Tabs.new do |t|
         TABS.each do |tab|
@@ -112,10 +104,6 @@ module Disputes
           end
         end
       end
-    end
-
-    def sla_badge(dispute)
-      span(style: "font-size:12px;font-weight:600;color:#dc2626") { "Overdue" }
     end
 
     def empty_message

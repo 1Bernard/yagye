@@ -56,14 +56,6 @@ module KybReviews
       end
     end
 
-    def stat_cell(label, value, color: INK)
-      div(class: STAT_CELL) do
-        p(style: TYPE_MICRO) { label }
-        p(style: "font-size:28px;font-weight:700;color:#{color};font-variant-numeric:tabular-nums;" \
-                  "line-height:1;margin-top:6px") { value }
-      end
-    end
-
     def tab_bar
       render UI::Tabs.new do |t|
         TABS.each do |tab|
@@ -115,20 +107,6 @@ module KybReviews
           end
         end
       end
-    end
-
-    def applicant_cell(app)
-      div(style: "display:flex;align-items:center;gap:10px") do
-        render UI::Avatar.new(app.legal_name&.first(2)&.upcase || "??", size: :sm)
-        div do
-          p(style: TYPE_BODY_MD) { app.legal_name }
-          p(style: TYPE_CAPTION) { app.merchant_code }
-        end
-      end
-    end
-
-    def unassigned_chip
-      span(style: "font-size:11.5px;color:#{SUBTLE_TEXT}") { "Unassigned" }
     end
 
     def empty_message

@@ -56,14 +56,6 @@ module Team
         end
       end
 
-      def stat_cell(label, value, color: INK)
-        div(class: STAT_CELL) do
-          p(style: TYPE_MICRO) { label }
-          p(style: "font-size:28px;font-weight:700;color:#{color};font-variant-numeric:tabular-nums;" \
-                    "line-height:1;margin-top:6px") { value }
-        end
-      end
-
       def filter_bar_section
         render UI::FilterBar.new(action: team_users_path) do |f|
           f.search_field name: "q", value: nil, placeholder: "Search by name or email..."

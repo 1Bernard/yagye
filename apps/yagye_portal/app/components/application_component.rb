@@ -45,6 +45,14 @@ class ApplicationComponent < Phlex::HTML
     raw safe(content.to_s)
   end
 
+  def stat_cell(label, value, color: UI::Theme::INK)
+    div(class: UI::Theme::STAT_CELL) do
+      p(style: UI::Theme::TYPE_MICRO) { label }
+      p(style: "font-size:28px;font-weight:700;color:#{color};" \
+                "font-variant-numeric:tabular-nums;line-height:1;margin-top:6px") { value }
+    end
+  end
+
   def i18n_scope
     @i18n_scope ||= self.class.name.underscore.tr("/", ".")
   end

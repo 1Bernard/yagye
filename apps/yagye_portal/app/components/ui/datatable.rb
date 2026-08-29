@@ -37,6 +37,11 @@ module UI
           render_table
           render UI::Pagination.new(pagy: @pagy, class: PAGINATION_TFOOT)
         end
+      elsif @header_block
+        div(class: TABLE_CARD) do
+          card_header
+          render_table
+        end
       else
         render_table
       end

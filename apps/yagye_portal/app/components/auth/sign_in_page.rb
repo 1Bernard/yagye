@@ -1,33 +1,5 @@
 module Auth
   class SignInPage < ApplicationComponent
-    ENVELOPE_SVG = <<~SVG.freeze
-      <svg class="w-4 h-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
-        <rect x="1.5" y="3.5" width="13" height="9" rx="1.5"/>
-        <path d="M1.5 5.5l6.5 4.5 6.5-4.5"/>
-      </svg>
-    SVG
-
-    LOCK_SVG = <<~SVG.freeze
-      <svg class="w-4 h-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
-        <rect x="3" y="7" width="10" height="7.5" rx="1.5"/>
-        <path d="M5.5 7V5.5a2.5 2.5 0 0 1 5 0V7"/>
-      </svg>
-    SVG
-
-    ARROW_SVG = <<~SVG.freeze
-      <svg class="w-4 h-4 ml-1" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-        <path d="M3 8h10"/>
-        <path d="M9 4l4 4-4 4"/>
-      </svg>
-    SVG
-
-    SHIELD_SVG = <<~SVG.freeze
-      <svg class="w-3.5 h-3.5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
-        <path d="M8 1.5L2.5 4v4.5C2.5 12 5 14 8 15.5c3-1.5 5.5-3.5 5.5-7V4L8 1.5z"/>
-        <polyline points="5.5 8.5 7 10 10.5 6.5"/>
-      </svg>
-    SVG
-
     ICON_INPUT = "w-full rounded-xl border border-gray-200 bg-gray-50 pl-9 pr-3 py-3 text-[13.5px] " \
                  "text-gray-900 placeholder:text-gray-400 " \
                  "focus:outline-none focus:bg-white focus:border-blue-400 focus:ring-2 focus:ring-blue-500/10 transition-all"
@@ -56,7 +28,7 @@ module Auth
             end
             div class: "relative" do
               div class: "absolute inset-y-0 left-3 flex items-center pointer-events-none text-gray-500" do
-                raw safe(ENVELOPE_SVG)
+                render UI::Icon.new(:mail, class: "w-4 h-4")
               end
               input(
                 type: :email,
@@ -75,7 +47,7 @@ module Auth
           # ── Password ───────────────────────────────────────────────────────
           div do
             div class: "flex items-center justify-between mb-1.5" do
-              label for: "user_password", class: "block text-[10px] font-semibold uppercase tracking-[0.1em] text-gray-600" do
+              label for: "user_password", class: FIELD_LABEL do
                 plain "Password"
               end
               a href: new_user_password_path,
@@ -85,7 +57,7 @@ module Auth
             end
             div class: "relative" do
               div class: "absolute inset-y-0 left-3 flex items-center pointer-events-none text-gray-500" do
-                raw safe(LOCK_SVG)
+                render UI::Icon.new(:lock, class: "w-4 h-4")
               end
               input(
                 type: :password,
@@ -121,11 +93,11 @@ module Auth
               style: "background-color: #3D47F5"
             ) do
               plain "Sign in"
-              raw safe(ARROW_SVG)
+              render UI::Icon.new(:arrow_right, class: "w-4 h-4 ml-1")
             end
 
             div class: "flex items-center justify-center gap-1.5 mt-3.5 text-gray-500" do
-              raw safe(SHIELD_SVG)
+              render UI::Icon.new(:shield, class: "w-3.5 h-3.5")
               span class: "text-[11px]" do
                 plain "Secured with 256-bit TLS encryption"
               end
