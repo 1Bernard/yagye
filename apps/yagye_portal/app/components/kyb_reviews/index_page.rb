@@ -75,23 +75,39 @@ module KybReviews
     end
 
     def applications_table
+      tab = @tab
+
       render UI::Datatable.new(records: @applications, pagy: @pagy,
                                empty_message: empty_message) do |t|
         t.header do
           p(style: TYPE_TITLE) { "#{@tab.humanize} applications" }
         end
 
-        t.column("Business")    { |a| applicant_cell(a) }
-        t.column("Submitted")   { |a| a.last_applied_at&.strftime("%d %b %Y") || "—" }
-        t.column("Reviewer")    { |a| a.reviewed_by.presence || unassigned_chip }
-        t.column("Status")      { |a| render UI::StatusBadge.new(status: a.status) }
+        t.column("Business") do |a|
+          div(style: "display:flex;align-items:center;gap:10px") do
+            render UI::Avatar.new(a.legal_name&.first(2)&.upcase || "??", size: :sm)
+            div do
+              p(style: TYPE_BODY_MD) { a.legal_name }
+              p(style: TYPE_CAPTION) { a.merchant_code }
+            end
+          end
+        end
+        t.column("Submitted") { |a| a.last_applied_at&.strftime("%d %b %Y") || "—" }
+        t.column("Reviewer") do |a|
+          if a.reviewed_by.present?
+            plain a.reviewed_by
+          else
+            span(style: "font-size:11.5px;color:#{SUBTLE_TEXT}") { "Unassigned" }
+          end
+        end
+        t.column("Status") { |a| render UI::StatusBadge.new(status: a.status) }
 
         t.actions do |a|
           a(href: kyb_review_path(a), class: DROPDOWN_ITEM) do
             render UI::Icon.new(:eye, class: ICON_SM)
             "Review"
           end
-          if @tab == "pending"
+          if tab == "pending"
             button(type: "button", class: DROPDOWN_ITEM) do
               render UI::Icon.new(:user, class: ICON_SM)
               "Assign to me"

@@ -65,18 +65,23 @@ module Payments
     end
 
     def payments_table
+      can_view_pii  = @can_view_pii
+      can_export    = @can_export
+      status_filter = @status_filter
+      query         = @query
+
       render UI::Datatable.new(records: @payments, pagy: @pagy, empty_message: empty_message) do |t|
         t.header do
           h2(class: UI::Theme::TEXT_H2) { "Payments" }
-          a(href: payments_path(format: :csv, status: @status_filter, q: @query),
+          a(href: payments_path(format: :csv, status: status_filter, q: query),
             class: UI::Theme::BTN_SECONDARY) do
             render UI::Icon.new(:download, class: UI::Theme::ICON_SM)
             plain "Export"
-          end if @can_export
+          end if can_export
         end
 
         t.column("Reference") { |p| p.reference.presence || p.core_payment_id&.first(12) }
-        t.column("Customer")  { |p| @can_view_pii ? (p.customer_msisdn || "—") : p.masked_msisdn }
+        t.column("Customer")  { |p| can_view_pii ? (p.customer_msisdn || "—") : p.masked_msisdn }
         t.column("Amount", class: "text-right tabular-nums font-medium") { |p| p.formatted_amount }
         t.column("Status")   { |p| render UI::StatusBadge.new(status: p.status) }
         t.column("Provider") { |p| p.provider_label }

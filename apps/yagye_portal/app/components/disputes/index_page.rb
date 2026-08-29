@@ -102,7 +102,7 @@ module Disputes
         t.column("Amount")      { |d| d.formatted_amount }
         t.column("Reason")      { |d| d.reason.humanize }
         t.column("Status")      { |d| render UI::StatusBadge.new(status: d.status) }
-        t.column("SLA")         { |d| sla_badge(d) }
+        t.column("SLA")         { |d| span(style: "font-size:12px;font-weight:600;color:#dc2626") { "Overdue" } }
         t.column("Opened")      { |d| d.created_at.strftime("%d %b %Y") }
 
         t.actions do |d|

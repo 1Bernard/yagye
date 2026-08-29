@@ -85,24 +85,65 @@ module Team
       end
 
       def users_table
+        can_invite = @can_invite
+
         render UI::Datatable.new(records: @users,
                                  empty_message: "No team members found. Invite someone to get started.") do |t|
           t.header do
             p(style: TYPE_TITLE) { "All members" }
           end
 
-          t.column("Member")       { |u| member_cell(u) }
-          t.column("Role")         { |u| roles_cell(u) }
-          t.column("Type")         { |u| kind_badge(u.kind) }
-          t.column("Last active")  { |u| last_active(u) }
-          t.column("Joined")       { |u| u.created_at.strftime("%d %b %Y") }
+          t.column("Member") do |u|
+            initials = u.full_name.split.map { |w| w[0] }.first(2).join.upcase
+            div(style: "display:flex;align-items:center;gap:10px") do
+              render UI::Avatar.new(initials, size: :sm)
+              div do
+                p(style: TYPE_BODY_MD) { u.full_name }
+                p(style: TYPE_CAPTION) { u.email }
+              end
+            end
+          end
+
+          t.column("Role") do |u|
+            roles = u.roles
+            if roles.empty?
+              span(style: TYPE_CAPTION) { "No role" }
+            else
+              div(style: "display:flex;flex-wrap:wrap;gap:4px") do
+                roles.first(2).each do |role|
+                  bg = role.scope == "internal" ? "#dbeafe" : "#f3f4f6"
+                  fg = role.scope == "internal" ? "#1d4ed8" : MUTED_TEXT
+                  span(style: "font-size:11px;font-weight:600;padding:2px 8px;border-radius:20px;" \
+                              "background:#{bg};color:#{fg}") { role.name }
+                end
+                span(style: "font-size:11px;color:#{MUTED_TEXT}") { "+#{roles.size - 2}" } if roles.size > 2
+              end
+            end
+          end
+
+          t.column("Type") do |u|
+            if u.kind == "internal_staff"
+              span(style: "font-size:11px;font-weight:600;padding:2px 9px;border-radius:20px;" \
+                          "background:#dbeafe;color:#1d4ed8") { "Staff" }
+            else
+              span(style: "font-size:11px;font-weight:600;padding:2px 9px;border-radius:20px;" \
+                          "background:#f3f4f6;color:#{MUTED_TEXT}") { "Merchant" }
+            end
+          end
+
+          t.column("Last active") do |u|
+            ts = u.last_sign_in_at
+            span(style: TYPE_CAPTION) { ts ? ts.strftime("%d %b %Y") : "Never" }
+          end
+
+          t.column("Joined") { |u| u.created_at.strftime("%d %b %Y") }
 
           t.actions do |u|
             a(href: team_user_path(u), class: DROPDOWN_ITEM) do
               render UI::Icon.new(:eye, class: ICON_SM)
               "View"
             end
-            if @can_invite
+            if can_invite
               div(class: DROPDOWN_SEP)
               button(type: "button", class: DROPDOWN_ITEM_DANGER) do
                 render UI::Icon.new(:archive, class: ICON_SM)
@@ -111,63 +152,6 @@ module Team
             end
           end
         end
-      end
-
-      def member_cell(user)
-        div(style: "display:flex;align-items:center;gap:10px") do
-          render UI::Avatar.new(initials(user), size: :sm)
-          div do
-            p(style: TYPE_BODY_MD) { user.full_name }
-            p(style: TYPE_CAPTION) { user.email }
-          end
-        end
-      end
-
-      def roles_cell(user)
-        roles = user.roles
-        if roles.empty?
-          span(style: TYPE_CAPTION) { "No role" }
-        else
-          div(style: "display:flex;flex-wrap:wrap;gap:4px") do
-            roles.first(2).each do |role|
-              span(style: "font-size:11px;font-weight:600;padding:2px 8px;border-radius:20px;" \
-                          "background:#{role_bg(role.scope)};color:#{role_fg(role.scope)}") do
-                role.name
-              end
-            end
-            if roles.size > 2
-              span(style: "font-size:11px;color:#{MUTED_TEXT}") { "+#{roles.size - 2}" }
-            end
-          end
-        end
-      end
-
-      def kind_badge(kind)
-        if kind == "internal_staff"
-          span(style: "font-size:11px;font-weight:600;padding:2px 9px;border-radius:20px;" \
-                      "background:#dbeafe;color:#1d4ed8") { "Staff" }
-        else
-          span(style: "font-size:11px;font-weight:600;padding:2px 9px;border-radius:20px;" \
-                      "background:#f3f4f6;color:#{MUTED_TEXT}") { "Merchant" }
-        end
-      end
-
-      def role_bg(scope)
-        scope == "internal" ? "#dbeafe" : "#f3f4f6"
-      end
-
-      def role_fg(scope)
-        scope == "internal" ? "#1d4ed8" : MUTED_TEXT
-      end
-
-      def last_active(user)
-        ts = user.last_sign_in_at
-        return span(style: TYPE_CAPTION) { "Never" } unless ts
-        span(style: TYPE_CAPTION) { ts.strftime("%d %b %Y") }
-      end
-
-      def initials(user)
-        user.full_name.split.map { |w| w[0] }.first(2).join.upcase
       end
     end
   end

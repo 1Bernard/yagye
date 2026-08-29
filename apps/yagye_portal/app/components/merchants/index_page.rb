@@ -87,7 +87,15 @@ module Merchants
           p(style: TYPE_TITLE) { "All merchants" }
         end
 
-        t.column("Business")     { |m| merchant_name_cell(m) }
+        t.column("Business") do |m|
+          div(style: "display:flex;align-items:center;gap:10px") do
+            render UI::Avatar.new(m.legal_name&.first(2)&.upcase || "??", size: :sm)
+            div do
+              p(style: TYPE_BODY_MD) { m.legal_name }
+              p(style: TYPE_CAPTION) { m.submitted_by_email }
+            end
+          end
+        end
         t.column("Code")         { |m| span(style: TYPE_MONO) { m.merchant_code } }
         t.column("Country")      { |m| m.country }
         t.column("KYB Status")   { |m| render UI::StatusBadge.new(status: m.status) }
