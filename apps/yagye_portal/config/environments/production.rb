@@ -87,4 +87,15 @@ Rails.application.configure do
   #
   # Skip DNS rebinding protection for the default health check endpoint.
   # config.host_authorization = { exclude: ->(request) { request.path == "/up" } }
+
+  # Structured JSON request logs — one line per request, machine-readable.
+  config.lograge.enabled = true
+  config.lograge.formatter = Lograge::Formatters::Json.new
+  config.lograge.custom_options = lambda do |event|
+    {
+      correlation_id: CorrelationId.current,
+      user_id:        event.payload[:user_id],
+      merchant_code:  event.payload[:merchant_code]
+    }.compact
+  end
 end

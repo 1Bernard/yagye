@@ -39,8 +39,16 @@ module YagyePortal
     config.autoload_paths += [
       Rails.root.join("app/components"),
       Rails.root.join("app/queries"),
-      Rails.root.join("app/services")
+      Rails.root.join("app/services"),
+      Rails.root.join("app/middleware")
     ]
+
+    # Correlation ID + structured logging middleware (runs before Devise/auth).
+    # Explicit require because application.rb runs before Zeitwerk is active.
+    require_relative "../app/models/concerns/correlation_id"
+    require_relative "../app/middleware/correlation_id_middleware"
+    config.middleware.use CorrelationIdMiddleware
+    config.middleware.use RequestStore::Middleware
 
     # Don't generate system test files.
     config.generators.system_tests = nil

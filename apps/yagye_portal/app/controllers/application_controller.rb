@@ -8,6 +8,7 @@ class ApplicationController < ActionController::Base
   before_action :authenticate_user!
   before_action :set_current_user
   before_action :set_locale
+  before_action :set_paper_trail_whodunnit
 
   after_action :verify_authorized, unless: :devise_controller?
 
@@ -24,6 +25,19 @@ class ApplicationController < ActionController::Base
     Current.request_id   = request.request_id
     Current.ip_address   = request.remote_ip
     Current.user_agent   = request.user_agent
+  end
+
+  # Stamps lograge JSON lines with user/merchant context so log entries
+  # can be joined to audit_logs by user_id or merchant_code.
+  def append_info_to_payload(payload)
+    super
+    payload[:user_id]       = current_user&.id
+    payload[:merchant_code] = current_user&.merchant_code
+  end
+
+  # PaperTrail — records the current user's email as the change author.
+  def user_for_paper_trail
+    current_user&.email
   end
 
   def user_not_authorized

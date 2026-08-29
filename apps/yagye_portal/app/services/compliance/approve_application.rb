@@ -2,11 +2,14 @@
 
 module Compliance
   class ApproveApplication
+    include Auditable
+
     Result = Struct.new(:success?, :application, :error, keyword_init: true)
 
-    def initialize(application:, approved_by:)
+    def initialize(application:, approved_by:, request: nil)
       @application = application
       @approved_by = approved_by
+      @request     = request
     end
 
     def call
@@ -22,8 +25,13 @@ module Compliance
 
       # TODO P13: publish MerchantKybApproved event → Core via Outbox/Kafka
 
+      audit_log(action: "kyb.disposition_approved", resource_type: "PortalMerchantApplication",
+                resource_code: @application.application_code, outcome: "succeeded")
       Result.new(success?: true, application: @application)
     rescue ActiveRecord::RecordInvalid => e
+      audit_log(action: "kyb.disposition_approved", resource_type: "PortalMerchantApplication",
+                resource_code: @application.application_code, outcome: "failed",
+                metadata: { error: e.message })
       Result.new(success?: false, error: e.message)
     end
   end

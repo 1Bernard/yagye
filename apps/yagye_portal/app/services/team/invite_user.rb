@@ -2,10 +2,12 @@
 
 module Team
   class InviteUser
+    include Auditable
+
     Result = Struct.new(:success?, :user, :error, keyword_init: true)
 
     def initialize(email:, first_name:, last_name:, role_key:,
-                   merchant_code:, merchant_name:, invited_by:)
+                   merchant_code:, merchant_name:, invited_by:, request: nil)
       @email         = email.strip.downcase
       @first_name    = first_name.strip
       @last_name     = last_name.strip
@@ -13,6 +15,7 @@ module Team
       @merchant_code = merchant_code
       @merchant_name = merchant_name
       @invited_by    = invited_by
+      @request       = request
     end
 
     def call
@@ -51,8 +54,13 @@ module Team
 
       # TODO P13: enqueue UserMailer::invitation_instructions
 
+      audit_log(action: "team.user_invited", resource_type: "User",
+                resource_code: user.id, merchant_code: @merchant_code, outcome: "succeeded")
       Result.new(success?: true, user: user)
     rescue ActiveRecord::RecordInvalid => e
+      audit_log(action: "team.user_invited", resource_type: "User",
+                merchant_code: @merchant_code, outcome: "failed",
+                metadata: { error: e.message })
       Result.new(success?: false, error: e.message)
     end
   end
