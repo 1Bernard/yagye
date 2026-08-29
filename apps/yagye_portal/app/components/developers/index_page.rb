@@ -10,9 +10,8 @@ module Developers
       { key: "logs",      label: "Event Logs" }
     ].freeze
 
-    def initialize(tab: "api_keys", env: "sandbox", api_keys: [], webhooks: [])
+    def initialize(tab: "api_keys", api_keys: [], webhooks: [])
       @tab      = tab
-      @env      = env
       @api_keys = api_keys
       @webhooks = webhooks
     end
@@ -57,9 +56,10 @@ module Developers
     # ── API Keys panel ───────────────────────────────────────────────────────
 
     def api_keys_panel
+      live = Current.mode == "live"
+
       div do
-        div(style: "display:flex;align-items:center;justify-content:space-between;margin-bottom:20px") do
-          env_toggle
+        div(style: "display:flex;align-items:center;justify-content:flex-end;margin-bottom:20px") do
           button(type: "button", class: BTN_PRIMARY,
                  style: "cursor:not-allowed;opacity:0.6", disabled: true) do
             render UI::Icon.new(:plus, class: ICON_SM)
@@ -67,12 +67,12 @@ module Developers
           end
         end
 
-        sandbox_notice if @env == "sandbox"
+        test_mode_notice unless live
 
         div(style: "background:#fff;border:1px solid #{BORDER};border-radius:20px;overflow:hidden") do
           div(style: "padding:20px 24px;border-bottom:1px solid #{BORDER}") do
             div(style: "display:flex;align-items:center;justify-content:space-between") do
-              p(style: TYPE_TITLE) { "#{@env == 'live' ? 'Live' : 'Sandbox'} API keys" }
+              p(style: TYPE_TITLE) { "#{live ? 'Live' : 'Test'} API keys" }
               p(style: TYPE_CAPTION) { "Keys are shown once at creation. Store them securely." }
             end
           end
@@ -86,32 +86,17 @@ module Developers
       end
     end
 
-    def env_toggle
-      div(style: "display:flex;border:1px solid #{BORDER_MED};border-radius:12px;overflow:hidden;background:#fff") do
-        %w[sandbox live].each do |env|
-          active = @env == env
-          a(href: developers_path(tab: "api_keys", env: env),
-            style: "padding:7px 16px;font-size:13px;font-weight:#{active ? '600' : '400'};" \
-                   "color:#{active ? '#fff' : MUTED_TEXT};" \
-                   "background:#{active ? BRAND : 'transparent'};" \
-                   "text-decoration:none;transition:all 150ms") do
-            env.capitalize
-          end
-        end
-      end
-    end
-
-    def sandbox_notice
-      div(style: "background:#eff6ff;border:1px solid #bfdbfe;border-radius:12px;padding:14px 18px;" \
+    def test_mode_notice
+      div(style: "background:#fffbeb;border:1px solid #fde68a;border-radius:12px;padding:14px 18px;" \
                  "margin-bottom:16px;display:flex;gap:10px;align-items:flex-start") do
-        span(style: "display:flex;width:16px;height:16px;color:#3b82f6;flex-shrink:0;margin-top:1px") do
+        span(style: "display:flex;width:16px;height:16px;color:#d97706;flex-shrink:0;margin-top:1px") do
           render UI::Icon.new(:info_circle, class: "w-full h-full")
         end
         div do
-          p(style: "font-size:13px;font-weight:600;color:#1d4ed8;margin-bottom:2px") { "Sandbox mode" }
-          p(style: "#{TYPE_CAPTION};color:#3b82f6") do
-            "Sandbox keys are for development and testing. No real money moves. " \
-            "Switch to Live keys to process real payments."
+          p(style: "font-size:13px;font-weight:600;color:#92400e;margin-bottom:2px") { "Test mode" }
+          p(style: "#{TYPE_CAPTION};color:#b45309") do
+            "Test keys are for development only. No real money moves. " \
+            "Switch to Live mode using the toggle in the sidebar to access live keys."
           end
         end
       end
@@ -127,7 +112,7 @@ module Developers
         end
         p(style: "#{TYPE_BODY_MD};margin-bottom:6px") { "No API keys yet" }
         p(style: "#{TYPE_CAPTION};margin-bottom:20px") do
-          "Generate your first #{@env} key to start integrating with Yagye."
+          "Generate your first #{Current.mode == 'live' ? 'live' : 'test'} key to start integrating with Yagye."
         end
         button(type: "button", class: BTN_PRIMARY, style: "cursor:not-allowed;opacity:0.6", disabled: true) do
           render UI::Icon.new(:plus, class: ICON_SM)
@@ -148,7 +133,7 @@ module Developers
         tbody do
           @api_keys.each do |key|
             tr(style: "border-top:1px solid #{BORDER}") do
-              td(style: TABLE_CELL) { span(style: TYPE_BODY_MD) { key.name } }
+              td(style: TABLE_CELL) { span(style: TYPE_BODY_MD) { key.label.presence || key.kind.capitalize } }
               td(style: TABLE_CELL) { code(style: TYPE_MONO) { key.key_prefix + "..." } }
               td(style: TABLE_CELL) { span(style: TYPE_CAPTION) { key.created_at.strftime("%d %b %Y") } }
               td(style: TABLE_CELL) { span(style: TYPE_CAPTION) { key.last_used_at&.strftime("%d %b %Y") || "Never" } }
@@ -218,7 +203,7 @@ module Developers
           @webhooks.each do |wh|
             tr(style: "border-top:1px solid #{BORDER}") do
               td(style: TABLE_CELL) { code(style: TYPE_MONO) { wh.url } }
-              td(style: TABLE_CELL) { span(style: TYPE_CAPTION) { "#{wh.events_count} events" } }
+              td(style: TABLE_CELL) { span(style: TYPE_CAPTION) { "#{Array(wh.subscribed_events).size} events" } }
               td(style: TABLE_CELL) { render UI::StatusBadge.new(status: wh.active ? "active" : "suspended") }
               td(style: TABLE_CELL) { span(style: TYPE_CAPTION) { wh.created_at.strftime("%d %b %Y") } }
               td(style: TABLE_CELL) do

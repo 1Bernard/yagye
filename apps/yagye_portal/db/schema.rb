@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_08_29_160002) do
+ActiveRecord::Schema[8.1].define(version: 2026_08_29_170001) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pgcrypto"
@@ -58,6 +58,25 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_29_160002) do
     t.datetime "created_at", null: false
     t.text "description", null: false
     t.text "resource", null: false
+  end
+
+  create_table "portal_api_keys", primary_key: "key_id", id: :uuid, default: nil, force: :cascade do |t|
+    t.datetime "created_at", default: -> { "now()" }, null: false
+    t.text "created_by"
+    t.datetime "expires_at"
+    t.text "key_prefix", null: false
+    t.text "kind", null: false
+    t.text "label", default: "", null: false
+    t.datetime "last_applied_at", default: -> { "now()" }, null: false
+    t.text "last_event_id", default: "", null: false
+    t.datetime "last_used_at"
+    t.text "merchant_code", null: false
+    t.text "mode", null: false
+    t.datetime "revoked_at"
+    t.text "scopes", default: [], null: false, array: true
+    t.index ["merchant_code", "mode"], name: "index_portal_api_keys_on_merchant_code_and_mode"
+    t.index ["merchant_code"], name: "index_portal_api_keys_on_merchant_code"
+    t.index ["revoked_at"], name: "index_portal_api_keys_on_revoked_at"
   end
 
   create_table "portal_merchant_applications", primary_key: "application_code", id: :text, force: :cascade do |t|
@@ -118,6 +137,35 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_29_160002) do
     t.index ["mode"], name: "index_portal_payments_on_mode"
     t.index ["reference"], name: "index_portal_payments_on_reference"
     t.index ["status"], name: "index_portal_payments_on_status"
+  end
+
+  create_table "portal_webhook_deliveries", primary_key: "delivery_id", id: :uuid, default: nil, force: :cascade do |t|
+    t.integer "attempt", default: 1, null: false
+    t.datetime "delivered_at"
+    t.uuid "endpoint_id", null: false
+    t.text "event_type", null: false
+    t.datetime "last_applied_at", default: -> { "now()" }, null: false
+    t.text "merchant_code", null: false
+    t.integer "response_status"
+    t.text "state", null: false
+    t.index ["endpoint_id", "last_applied_at"], name: "idx_on_endpoint_id_last_applied_at_5426289cd1"
+    t.index ["endpoint_id"], name: "index_portal_webhook_deliveries_on_endpoint_id"
+    t.index ["merchant_code"], name: "index_portal_webhook_deliveries_on_merchant_code"
+  end
+
+  create_table "portal_webhook_endpoints", primary_key: "endpoint_id", id: :uuid, default: nil, force: :cascade do |t|
+    t.boolean "active", default: true, null: false
+    t.integer "consecutive_failures", default: 0, null: false
+    t.datetime "created_at", default: -> { "now()" }, null: false
+    t.datetime "disabled_at"
+    t.datetime "last_applied_at", default: -> { "now()" }, null: false
+    t.text "last_event_id", default: "", null: false
+    t.text "merchant_code", null: false
+    t.text "mode", null: false
+    t.text "subscribed_events", default: [], null: false, array: true
+    t.text "url", null: false
+    t.index ["merchant_code", "mode"], name: "index_portal_webhook_endpoints_on_merchant_code_and_mode"
+    t.index ["merchant_code"], name: "index_portal_webhook_endpoints_on_merchant_code"
   end
 
   create_table "role_permissions", primary_key: ["role_key", "permission_key"], force: :cascade do |t|
