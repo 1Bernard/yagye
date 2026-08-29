@@ -1,6 +1,7 @@
 class ApplicationController < ActionController::Base
   include Pundit::Authorization
   include Pagy::Method
+  include PaperTrail::Controller
 
   allow_browser versions: :modern
   stale_when_importmap_changes
