@@ -54,6 +54,7 @@ module Layout
           end
         end
         tier_card if show_tier_card?
+        mode_toggle if show_mode_toggle?
         user_row
       end
     end
@@ -199,6 +200,47 @@ module Layout
           badge_bg: "rgba(217,119,6,0.12)", badge_text: "#b45309",
           cta_color: "#d97706"
         }
+      end
+    end
+
+    # ── Mode toggle ─────────────────────────────────────────────────────────────
+
+    def show_mode_toggle?
+      Current.user&.merchant_user?
+    rescue
+      false
+    end
+
+    def mode_toggle
+      live   = Current.mode == "live"
+      label  = live ? "LIVE" : "TEST"
+      target = live ? "test" : "live"
+      bg     = live ? "rgba(22,163,74,0.10)" : "rgba(245,158,11,0.10)"
+      border = live ? "rgba(22,163,74,0.25)" : "rgba(245,158,11,0.25)"
+      color  = live ? "#15803d" : "#92400e"
+      dot    = live ? "#16a34a" : "#d97706"
+
+      div(style: "margin:0 10px 8px;flex-shrink:0") do
+        form(action: helpers.portal_mode_path, method: :post,
+             data: { turbo: false }) do
+          input(type: "hidden", name: "_method",                value: "post")
+          input(type: "hidden", name: "authenticity_token",     value: helpers.form_authenticity_token)
+          input(type: "hidden", name: "mode",                   value: target)
+
+          button(type: "submit",
+                 title: "Switch to #{target} mode",
+                 style: "width:100%;display:flex;align-items:center;justify-content:space-between;" \
+                        "padding:7px 10px;border-radius:9px;border:1px solid #{border};" \
+                        "background:#{bg};cursor:pointer;gap:8px") do
+            div(style: "display:flex;align-items:center;gap:6px") do
+              span(style: "width:7px;height:7px;border-radius:50%;background:#{dot};flex-shrink:0")
+              span(class: "sidebar-nav-label",
+                   style: "font-size:11px;font-weight:700;letter-spacing:0.08em;color:#{color}") { label }
+            end
+            span(class: "sidebar-nav-label",
+                 style: "font-size:10px;color:#{color};opacity:0.7") { "Switch" }
+          end
+        end
       end
     end
 

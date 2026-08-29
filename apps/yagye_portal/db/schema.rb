@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_08_29_150741) do
+ActiveRecord::Schema[8.1].define(version: 2026_08_29_160002) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pgcrypto"
@@ -79,6 +79,22 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_29_150741) do
     t.index ["status"], name: "index_portal_merchant_applications_on_status"
   end
 
+  create_table "portal_merchants", id: false, force: :cascade do |t|
+    t.text "activity_state", default: "inactive", null: false
+    t.integer "aggregate_version", default: 0, null: false
+    t.text "country", default: "", null: false
+    t.text "default_currency", default: "GHS", null: false
+    t.datetime "last_applied_at", default: -> { "now()" }, null: false
+    t.text "last_event_id", default: "", null: false
+    t.text "legal_name", default: "", null: false
+    t.boolean "live_mode_enabled", default: false, null: false
+    t.text "merchant_code", null: false
+    t.text "onboarding_state", default: "not_started", null: false
+    t.text "risk_rating"
+    t.text "status", default: "registered", null: false
+    t.text "trading_name", default: "", null: false
+  end
+
   create_table "portal_payments", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
     t.bigint "amount_cents", null: false
     t.text "core_payment_id", null: false
@@ -89,6 +105,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_29_150741) do
     t.text "description"
     t.text "merchant_code", null: false
     t.jsonb "metadata", default: {}, null: false
+    t.text "mode", default: "test", null: false
     t.datetime "paid_at"
     t.text "provider"
     t.text "reference"
@@ -96,7 +113,9 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_29_150741) do
     t.datetime "updated_at", null: false
     t.index ["core_payment_id"], name: "index_portal_payments_on_core_payment_id", unique: true
     t.index ["merchant_code", "created_at"], name: "index_portal_payments_on_merchant_code_and_created_at"
+    t.index ["merchant_code", "mode"], name: "index_portal_payments_on_merchant_code_and_mode"
     t.index ["merchant_code"], name: "index_portal_payments_on_merchant_code"
+    t.index ["mode"], name: "index_portal_payments_on_mode"
     t.index ["reference"], name: "index_portal_payments_on_reference"
     t.index ["status"], name: "index_portal_payments_on_status"
   end

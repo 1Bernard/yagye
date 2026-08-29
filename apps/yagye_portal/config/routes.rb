@@ -11,8 +11,9 @@ Rails.application.routes.draw do
     root "devise/sessions#new"
   end
 
-  get "up" => "rails/health#show", as: :rails_health_check
-  get "locale", to: "locale#set", as: :locale
+  get  "up" => "rails/health#show", as: :rails_health_check
+  get  "locale", to: "locale#set",         as: :locale
+  post "portal/mode", to: "portal/mode#update", as: :portal_mode
 
   # ── Payments domain ──────────────────────────────────────────────────────
   scope module: "payments" do

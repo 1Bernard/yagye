@@ -328,6 +328,7 @@ Table portal_merchants [headercolor: #1A2B4C] {
   default_currency char(3) [not null]
   risk_rating text
   activity_state text [not null]
+  live_mode_enabled boolean [not null, default: false, note: 'Mirrors Core merchant_modes.live. Guards the portal mode toggle — merchant cannot switch to live until Core grants it.']
   last_event_id text [not null]
   last_applied_at timestamptz [not null]
   Note: 'Ops onboarding triage and merchant status dashboard without a core API call per row.'

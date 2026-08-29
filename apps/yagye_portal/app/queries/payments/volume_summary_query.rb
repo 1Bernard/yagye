@@ -19,6 +19,8 @@ module Payments
     end
 
     def call
+      @relation = @relation.where(mode: Current.mode) if Current.mode.present?
+
       now        = Time.current
       mtd_start  = now.beginning_of_month
       prev_start = mtd_start.prev_month

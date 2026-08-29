@@ -4,4 +4,5 @@ class Current < ActiveSupport::CurrentAttributes
   attribute :request_id
   attribute :user_agent
   attribute :ip_address
+  attribute :mode         # "test" | "live" | nil (nil = ops sees all modes)
 end

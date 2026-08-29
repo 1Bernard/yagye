@@ -8,6 +8,7 @@ class ApplicationController < ActionController::Base
 
   before_action :authenticate_user!
   before_action :set_current_user
+  before_action :set_portal_mode
   before_action :set_locale
   before_action :set_paper_trail_whodunnit
 
@@ -26,6 +27,19 @@ class ApplicationController < ActionController::Base
     Current.request_id   = request.request_id
     Current.ip_address   = request.remote_ip
     Current.user_agent   = request.user_agent
+  end
+
+  # Ops/internal_staff users see all modes (Current.mode = nil → no mode scope).
+  # Merchant users are mode-scoped: session defaults to "test" on first visit.
+  def set_portal_mode
+    return unless current_user
+
+    if current_user.internal_staff?
+      Current.mode = nil
+    else
+      Current.mode = session[:portal_mode].presence_in(%w[test live]) || "test"
+      session[:portal_mode] = Current.mode
+    end
   end
 
   # Stamps lograge JSON lines with user/merchant context so log entries
