@@ -36,7 +36,7 @@ module Settings
     private
 
     def page_header
-      div(style: "display:flex;align-items:center;justify-content:space-between;margin-bottom:24px") do
+      div(style: "display:flex;align-items:center;justify-content:space-between;margin-bottom:20px") do
         div do
           p(style: "#{TYPE_CAPTION};margin-bottom:2px") { "Account" }
           h1(style: TYPE_DISPLAY) { "Settings" }
@@ -64,7 +64,7 @@ module Settings
     end
 
     def profile_form_card
-      div(style: "background:#fff;border:1px solid #{BORDER};border-radius:20px;overflow:hidden") do
+      div(style: "background:#fff;border:1px solid #{BORDER};border-radius:16px;overflow:hidden") do
         div(style: "padding:20px 24px;border-bottom:1px solid #{BORDER}") do
           p(style: TYPE_TITLE) { "Personal information" }
           p(style: "#{TYPE_CAPTION};margin-top:3px") { "Update your name and contact details." }
@@ -88,7 +88,7 @@ module Settings
     end
 
     def avatar_card
-      div(style: "background:#fff;border:1px solid #{BORDER};border-radius:20px;padding:24px") do
+      div(style: "background:#fff;border:1px solid #{BORDER};border-radius:16px;padding:24px") do
         p(style: "#{TYPE_TITLE};margin-bottom:16px") { "Profile photo" }
         div(style: "display:flex;flex-direction:column;align-items:center;gap:14px") do
           render UI::Avatar.new(initials, size: :xl)
@@ -117,7 +117,7 @@ module Settings
     end
 
     def password_card
-      div(style: "background:#fff;border:1px solid #{BORDER};border-radius:20px;overflow:hidden") do
+      div(style: "background:#fff;border:1px solid #{BORDER};border-radius:16px;overflow:hidden") do
         div(style: "padding:20px 24px;border-bottom:1px solid #{BORDER}") do
           p(style: TYPE_TITLE) { "Password" }
           p(style: "#{TYPE_CAPTION};margin-top:3px") { "Use a strong, unique password for your account." }
@@ -136,7 +136,7 @@ module Settings
     def totp_card
       totp_on = @current_user&.otp_required_for_login
 
-      div(style: "background:#fff;border:1px solid #{BORDER};border-radius:20px;padding:20px 24px") do
+      div(style: "background:#fff;border:1px solid #{BORDER};border-radius:16px;padding:20px 24px") do
         div(style: "display:flex;align-items:flex-start;justify-content:space-between;gap:16px") do
           div do
             p(style: TYPE_TITLE) { "Two-factor authentication" }
@@ -157,7 +157,7 @@ module Settings
     end
 
     def sessions_card
-      div(style: "background:#fff;border:1px solid #{BORDER};border-radius:20px;overflow:hidden") do
+      div(style: "background:#fff;border:1px solid #{BORDER};border-radius:16px;overflow:hidden") do
         div(style: "padding:20px 24px;border-bottom:1px solid #{BORDER}") do
           div(style: "display:flex;align-items:center;justify-content:space-between") do
             p(style: TYPE_TITLE) { "Active sessions" }
@@ -174,7 +174,7 @@ module Settings
               p(style: TYPE_BODY_MD) { "Current session" }
               p(style: TYPE_CAPTION) { "This device · #{Time.current.strftime('%d %b %Y')}" }
             end
-            span(style: "font-size:11px;font-weight:600;color:#16a34a;background:#dcfce7;padding:3px 10px;border-radius:20px") { "Active" }
+            span(style: "font-size:11px;font-weight:600;color:#16a34a;background:#dcfce7;padding:3px 10px;border-radius:16px") { "Active" }
           end
         end
       end
@@ -183,7 +183,7 @@ module Settings
     # ── Notifications tab ─────────────────────────────────────────────────────
 
     def notifications_panel
-      div(style: "background:#fff;border:1px solid #{BORDER};border-radius:20px;overflow:hidden") do
+      div(style: "background:#fff;border:1px solid #{BORDER};border-radius:16px;overflow:hidden") do
         div(style: "padding:20px 24px;border-bottom:1px solid #{BORDER}") do
           p(style: TYPE_TITLE) { "Notification preferences" }
           p(style: "#{TYPE_CAPTION};margin-top:3px") { "Choose how you receive alerts for key events." }
@@ -257,7 +257,7 @@ module Settings
     end
 
     def ip_allowlist_card
-      div(style: "background:#fff;border:1px solid #{BORDER};border-radius:20px;overflow:hidden") do
+      div(style: "background:#fff;border:1px solid #{BORDER};border-radius:16px;overflow:hidden") do
         div(style: "padding:20px 24px;border-bottom:1px solid #{BORDER}") do
           div(style: "display:flex;align-items:center;justify-content:space-between") do
             div do
@@ -283,7 +283,7 @@ module Settings
     end
 
     def msisdn_allowlist_card
-      div(style: "background:#fff;border:1px solid #{BORDER};border-radius:20px;overflow:hidden") do
+      div(style: "background:#fff;border:1px solid #{BORDER};border-radius:16px;overflow:hidden") do
         div(style: "padding:20px 24px;border-bottom:1px solid #{BORDER}") do
           div(style: "display:flex;align-items:center;justify-content:space-between") do
             div do

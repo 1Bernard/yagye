@@ -46,7 +46,7 @@ module Payments
     # ── Amount / hero card ────────────────────────────────────────────────────
 
     def amount_card
-      div(style: "background:#fff;border:1px solid #{BORDER};border-radius:20px;padding:28px 32px") do
+      div(style: "background:#fff;border:1px solid #{BORDER};border-radius:16px;padding:28px 32px") do
         div(style: "display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:20px") do
           div do
             p(style: "#{TYPE_CAPTION};margin-bottom:4px") { "Transaction amount" }
@@ -67,7 +67,7 @@ module Payments
     # ── Payment details card ──────────────────────────────────────────────────
 
     def details_card
-      div(style: "background:#fff;border:1px solid #{BORDER};border-radius:20px;overflow:hidden") do
+      div(style: "background:#fff;border:1px solid #{BORDER};border-radius:16px;overflow:hidden") do
         div(style: "padding:20px 24px;border-bottom:1px solid #{BORDER}") do
           p(style: TYPE_TITLE) { "Payment details" }
         end
@@ -86,7 +86,7 @@ module Payments
     # ── Metadata card ─────────────────────────────────────────────────────────
 
     def metadata_card
-      div(style: "background:#fff;border:1px solid #{BORDER};border-radius:20px;overflow:hidden") do
+      div(style: "background:#fff;border:1px solid #{BORDER};border-radius:16px;overflow:hidden") do
         div(style: "padding:20px 24px;border-bottom:1px solid #{BORDER}") do
           p(style: TYPE_TITLE) { "Metadata" }
         end
@@ -102,7 +102,7 @@ module Payments
     # ── Timeline card ─────────────────────────────────────────────────────────
 
     def timeline_card
-      div(style: "background:#fff;border:1px solid #{BORDER};border-radius:20px;overflow:hidden") do
+      div(style: "background:#fff;border:1px solid #{BORDER};border-radius:16px;overflow:hidden") do
         div(style: "padding:20px 24px;border-bottom:1px solid #{BORDER}") do
           p(style: TYPE_TITLE) { "Activity timeline" }
         end
@@ -117,7 +117,7 @@ module Payments
     # ── Actions card ──────────────────────────────────────────────────────────
 
     def actions_card
-      div(style: "background:#fff;border:1px solid #{BORDER};border-radius:20px;overflow:hidden") do
+      div(style: "background:#fff;border:1px solid #{BORDER};border-radius:16px;overflow:hidden") do
         div(style: "padding:20px 24px;border-bottom:1px solid #{BORDER}") do
           p(style: TYPE_TITLE) { "Actions" }
         end

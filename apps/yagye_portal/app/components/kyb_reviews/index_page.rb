@@ -33,7 +33,7 @@ module KybReviews
     private
 
     def page_header
-      div(style: "display:flex;align-items:center;justify-content:space-between;margin-bottom:24px") do
+      div(style: "display:flex;align-items:center;justify-content:space-between;margin-bottom:20px") do
         div do
           p(style: "#{TYPE_CAPTION};margin-bottom:2px") { "Compliance" }
           h1(style: TYPE_DISPLAY) { "KYB Review Queue" }
@@ -48,11 +48,11 @@ module KybReviews
     end
 
     def stat_band
-      div(class: "#{STAT_BAND} mb-6") do
-        stat_cell("Pending Review", "0", color: "#f59e0b")
-        stat_cell("In Review",      "0", color: "#6366f1")
-        stat_cell("Approved (30d)", "0", color: "#16a34a")
-        stat_cell("Rejected (30d)", "0", color: "#dc2626")
+      div(style: "display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-bottom:20px") do
+        stat_cell("Pending Review", "0", icon: :clock,        color: "#d97706", tint: "rgba(217,119,6,0.08)")
+        stat_cell("In Review",      "0", icon: :eye,          color: "#6d28d9", tint: "rgba(109,40,217,0.08)")
+        stat_cell("Approved (30d)", "0", icon: :check_circle, color: "#16a34a", tint: "rgba(22,163,74,0.08)")
+        stat_cell("Rejected (30d)", "0", icon: :alert_circle, color: "#dc2626", tint: "rgba(220,38,38,0.08)")
       end
     end
 

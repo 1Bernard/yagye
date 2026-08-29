@@ -29,7 +29,7 @@ module Team
       private
 
       def page_header
-        div(style: "display:flex;align-items:center;justify-content:space-between;margin-bottom:24px") do
+        div(style: "display:flex;align-items:center;justify-content:space-between;margin-bottom:20px") do
           div do
             p(style: "#{TYPE_CAPTION};margin-bottom:2px") { "Team" }
             h1(style: TYPE_DISPLAY) { "Team members" }
@@ -48,11 +48,11 @@ module Team
         active  = @users.count { |u| u.kind == "merchant_user" || u.kind == "internal_staff" }
         pending = 0
 
-        div(class: "#{STAT_BAND} mb-6") do
-          stat_cell("Total members",   total.to_s)
-          stat_cell("Active",          active.to_s,  color: "#16a34a")
-          stat_cell("Pending invite",  pending.to_s, color: "#f59e0b")
-          stat_cell("Roles defined",   "8")
+        div(style: "display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-bottom:20px") do
+          stat_cell("Total members",  total.to_s,   icon: :users,       color: "#3D47F5", tint: "rgba(61,71,245,0.08)")
+          stat_cell("Active",         active.to_s,  icon: :check_circle, color: "#16a34a", tint: "rgba(22,163,74,0.08)")
+          stat_cell("Pending invite", pending.to_s, icon: :clock,        color: "#d97706", tint: "rgba(217,119,6,0.08)")
+          stat_cell("Roles defined",  "8",          icon: :key,          color: "#6d28d9", tint: "rgba(109,40,217,0.08)")
         end
       end
 

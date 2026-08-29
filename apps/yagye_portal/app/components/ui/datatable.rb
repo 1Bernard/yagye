@@ -18,11 +18,13 @@ module UI
   class Datatable < ApplicationComponent
     include UI::Theme
 
-    def initialize(records:, selectable: false, pagy: nil, empty_message: "No records found.")
+    def initialize(records:, selectable: false, pagy: nil,
+                   empty_message: "No records found.", empty_icon: :layers)
       @records       = records
       @selectable    = selectable
       @pagy          = pagy
       @empty_message = empty_message
+      @empty_icon    = empty_icon
       @columns       = []
       @actions       = nil
       @header_block  = nil
@@ -65,7 +67,7 @@ module UI
     private
 
     def card_header
-      div(class: "flex items-center justify-between px-6 py-4 border-b border-gray-100") do
+      div(class: "flex items-center justify-between px-5 py-4 border-b border-gray-100") do
         @header_block.call
       end
     end
@@ -73,13 +75,26 @@ module UI
     def render_table
       div(class: "overflow-x-auto", data_controller: (@selectable ? "datatable" : nil)) do
         if @records.empty?
-          div(class: "py-16 text-center text-sm text-gray-400") { @empty_message }
+          empty_state
         else
           table(class: "w-full border-collapse") do
             thead { render_header }
             tbody { render_body }
           end
         end
+      end
+    end
+
+    def empty_state
+      div(style: "padding:56px 20px;display:flex;flex-direction:column;align-items:center;" \
+                 "justify-content:center;gap:10px;text-align:center") do
+        div(style: "width:44px;height:44px;border-radius:12px;background:#f9fafb;" \
+                   "display:flex;align-items:center;justify-content:center;margin-bottom:4px") do
+          span(style: "color:#{FAINT_TEXT};display:flex;width:22px;height:22px") do
+            render UI::Icon.new(@empty_icon, class: "w-full h-full")
+          end
+        end
+        p(style: TYPE_BODY_MD) { @empty_message }
       end
     end
 
@@ -91,7 +106,14 @@ module UI
                   data: { datatable_target: "selectAll", action: "change->datatable#selectAll" })
           end
         end
-        @columns.each { |col| th(class: "#{TABLE_TH} #{col[:cls]}") { col[:name] } }
+        @columns.each do |col|
+          th(class: "#{TABLE_TH} #{col[:cls]}") do
+            div(style: "display:inline-flex;align-items:center;gap:3px") do
+              plain col[:name]
+              span(style: "color:#{FAINT_TEXT};font-size:10px;line-height:1") { "↕" }
+            end
+          end
+        end
         th(class: "#{TABLE_TH} w-10") if @actions
       end
     end
@@ -122,11 +144,11 @@ module UI
     end
 
     def action_cell(record, index)
-      td(class: "#{TABLE_CELL} text-right pr-6") do
+      td(class: "#{TABLE_CELL} text-right pr-5") do
         div(class: "relative inline-block", data_controller: "dropdown") do
           button(type: "button", class: ROWBTN,
                  data: { action: "click->dropdown#toggle" }) do
-            render UI::Icon.new(:dots, class: ICON_SM)
+            render UI::Icon.new(:dots_vertical, class: ICON_SM)
           end
           div(class: "#{DROPDOWN_MENU} top-full mt-1 right-0", data_dropdown_target: "menu") do
             instance_exec(record, &@actions)

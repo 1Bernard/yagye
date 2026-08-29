@@ -27,7 +27,7 @@ module Merchants
     private
 
     def page_header
-      div(style: "display:flex;align-items:center;justify-content:space-between;margin-bottom:24px") do
+      div(style: "display:flex;align-items:center;justify-content:space-between;margin-bottom:20px") do
         div do
           p(style: "#{TYPE_CAPTION};margin-bottom:2px") { "Operations" }
           h1(style: TYPE_DISPLAY) { "Merchants" }
@@ -40,11 +40,11 @@ module Merchants
     end
 
     def stat_band
-      div(class: "#{STAT_BAND} mb-6") do
-        stat_cell("Active Merchants",   "0", color: "#16a34a")
-        stat_cell("Pending KYB",        "0", color: "#f59e0b")
-        stat_cell("Suspended",          "0", color: "#dc2626")
-        stat_cell("Onboarded (30d)",    "0")
+      div(style: "display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-bottom:20px") do
+        stat_cell("Active Merchants", "0", icon: :check_circle, color: "#16a34a", tint: "rgba(22,163,74,0.08)")
+        stat_cell("Pending KYB",      "0", icon: :clock,        color: "#d97706", tint: "rgba(217,119,6,0.08)")
+        stat_cell("Suspended",        "0", icon: :alert_circle, color: "#dc2626", tint: "rgba(220,38,38,0.08)")
+        stat_cell("Onboarded (30d)",  "0", icon: :trending_up,  color: "#3D47F5", tint: "rgba(61,71,245,0.08)")
       end
     end
 

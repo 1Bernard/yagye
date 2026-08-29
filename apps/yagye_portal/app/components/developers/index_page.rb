@@ -37,7 +37,7 @@ module Developers
     private
 
     def page_header
-      div(style: "display:flex;align-items:center;justify-content:space-between;margin-bottom:24px") do
+      div(style: "display:flex;align-items:center;justify-content:space-between;margin-bottom:20px") do
         div do
           p(style: "#{TYPE_CAPTION};margin-bottom:2px") { "Account" }
           h1(style: TYPE_DISPLAY) { "Developer Tools" }
@@ -218,7 +218,7 @@ module Developers
       bg    = code.between?(200, 299) ? "#f0fdf4" : "#fef2f2"
 
       span(style: "font-size:11.5px;font-weight:600;color:#{color};background:#{bg};" \
-                  "padding:2px 8px;border-radius:20px;font-family:ui-monospace,monospace") do
+                  "padding:2px 8px;border-radius:16px;font-family:ui-monospace,monospace") do
         code.to_s
       end
     end

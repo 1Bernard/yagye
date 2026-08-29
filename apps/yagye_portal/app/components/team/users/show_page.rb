@@ -48,7 +48,7 @@ module Team
       # ── Profile card ──────────────────────────────────────────────────────────
 
       def profile_card
-        div(style: "background:#fff;border:1px solid #{BORDER};border-radius:20px;padding:24px") do
+        div(style: "background:#fff;border:1px solid #{BORDER};border-radius:16px;padding:24px") do
           div(style: "display:flex;flex-direction:column;align-items:center;gap:12px;margin-bottom:20px;" \
                      "padding-bottom:20px;border-bottom:1px solid #{BORDER}") do
             render UI::Avatar.new(initials, size: :xl)
@@ -76,14 +76,14 @@ module Team
 
       def kind_badge
         if @user.internal_staff?
-          span(style: "font-size:11px;font-weight:600;padding:3px 12px;border-radius:20px;background:#dbeafe;color:#1d4ed8") { "Yagye Staff" }
+          span(style: "font-size:11px;font-weight:600;padding:3px 12px;border-radius:16px;background:#dbeafe;color:#1d4ed8") { "Yagye Staff" }
         else
-          span(style: "font-size:11px;font-weight:600;padding:3px 12px;border-radius:20px;background:#f3f4f6;color:#{MUTED_TEXT}") { "Merchant user" }
+          span(style: "font-size:11px;font-weight:600;padding:3px 12px;border-radius:16px;background:#f3f4f6;color:#{MUTED_TEXT}") { "Merchant user" }
         end
       end
 
       def danger_zone
-        div(style: "background:#fff;border:1px solid #fca5a5;border-radius:20px;padding:20px 24px") do
+        div(style: "background:#fff;border:1px solid #fca5a5;border-radius:16px;padding:20px 24px") do
           p(style: "font-size:13px;font-weight:600;color:#dc2626;margin-bottom:12px") { "Danger zone" }
           div(style: "display:flex;flex-direction:column;gap:8px") do
             button(type: "button", class: BTN_DANGER, style: "width:100%;justify-content:center") do
@@ -101,7 +101,7 @@ module Team
       # ── Roles card ────────────────────────────────────────────────────────────
 
       def roles_card
-        div(style: "background:#fff;border:1px solid #{BORDER};border-radius:20px;overflow:hidden") do
+        div(style: "background:#fff;border:1px solid #{BORDER};border-radius:16px;overflow:hidden") do
           div(style: "padding:20px 24px;border-bottom:1px solid #{BORDER};display:flex;" \
                      "align-items:center;justify-content:space-between") do
             p(style: TYPE_TITLE) { "Assigned roles" }
@@ -129,7 +129,7 @@ module Team
         div(style: "display:flex;align-items:center;justify-content:space-between;padding:12px 14px;" \
                    "background:#{SURFACE};border-radius:12px;border:1px solid #{BORDER}") do
           div(style: "display:flex;align-items:center;gap:10px") do
-            span(style: "font-size:11px;font-weight:600;padding:2px 9px;border-radius:20px;" \
+            span(style: "font-size:11px;font-weight:600;padding:2px 9px;border-radius:16px;" \
                         "background:#{scope_bg};color:#{scope_color}") { role.scope.capitalize }
             p(style: TYPE_BODY_MD) { role.name }
           end
@@ -142,7 +142,7 @@ module Team
       def permissions_card
         all_perms = @roles.flat_map(&:permissions).uniq
 
-        div(style: "background:#fff;border:1px solid #{BORDER};border-radius:20px;overflow:hidden") do
+        div(style: "background:#fff;border:1px solid #{BORDER};border-radius:16px;overflow:hidden") do
           div(style: "padding:20px 24px;border-bottom:1px solid #{BORDER}") do
             div(style: "display:flex;align-items:center;justify-content:space-between") do
               p(style: TYPE_TITLE) { "Effective permissions" }
@@ -183,7 +183,7 @@ module Team
       # ── Activity card ─────────────────────────────────────────────────────────
 
       def activity_card
-        div(style: "background:#fff;border:1px solid #{BORDER};border-radius:20px;overflow:hidden") do
+        div(style: "background:#fff;border:1px solid #{BORDER};border-radius:16px;overflow:hidden") do
           div(style: "padding:20px 24px;border-bottom:1px solid #{BORDER}") do
             p(style: TYPE_TITLE) { "Recent activity" }
           end

@@ -29,7 +29,7 @@ module Help
     private
 
     def page_header
-      div(style: "display:flex;align-items:center;justify-content:space-between;margin-bottom:24px") do
+      div(style: "display:flex;align-items:center;justify-content:space-between;margin-bottom:20px") do
         div do
           p(style: "#{TYPE_CAPTION};margin-bottom:2px") { "Account" }
           h1(style: TYPE_DISPLAY) { "Help & Support" }
@@ -95,7 +95,7 @@ module Help
     end
 
     def email_support_card
-      div(style: "background:#fff;border:1px solid #{BORDER};border-radius:20px;padding:24px") do
+      div(style: "background:#fff;border:1px solid #{BORDER};border-radius:16px;padding:24px") do
         div(style: "display:flex;align-items:center;gap:12px;margin-bottom:16px") do
           div(style: "width:40px;height:40px;border-radius:12px;background:#eff6ff;" \
                      "display:flex;align-items:center;justify-content:center;flex-shrink:0") do
@@ -116,7 +116,7 @@ module Help
     end
 
     def sla_card
-      div(style: "background:#fff;border:1px solid #{BORDER};border-radius:20px;padding:24px") do
+      div(style: "background:#fff;border:1px solid #{BORDER};border-radius:16px;padding:24px") do
         div(style: "display:flex;align-items:center;gap:12px;margin-bottom:16px") do
           div(style: "width:40px;height:40px;border-radius:12px;background:#fef9c3;" \
                      "display:flex;align-items:center;justify-content:middle;flex-shrink:0") do

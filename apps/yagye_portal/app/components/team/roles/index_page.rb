@@ -39,7 +39,7 @@ module Team
       private
 
       def page_header
-        div(style: "display:flex;align-items:center;justify-content:space-between;margin-bottom:24px") do
+        div(style: "display:flex;align-items:center;justify-content:space-between;margin-bottom:20px") do
           div do
             p(style: "#{TYPE_CAPTION};margin-bottom:2px") { "Team" }
             h1(style: TYPE_DISPLAY) { "Roles & Permissions" }
@@ -78,10 +78,10 @@ module Team
         badge_fg = scope == "internal" ? "#1d4ed8"  : MUTED_TEXT
         label    = scope == "internal" ? "Staff"     : "Merchant"
 
-        div(style: "background:#fff;border:1px solid #{BORDER};border-radius:20px;overflow:hidden") do
+        div(style: "background:#fff;border:1px solid #{BORDER};border-radius:16px;overflow:hidden") do
           div(style: "padding:16px 20px;border-bottom:1px solid #{BORDER};display:flex;" \
                      "align-items:center;gap:8px") do
-            span(style: "font-size:11px;font-weight:600;padding:2px 9px;border-radius:20px;" \
+            span(style: "font-size:11px;font-weight:600;padding:2px 9px;border-radius:16px;" \
                         "background:#{badge_bg};color:#{badge_fg}") { label }
             p(style: TYPE_TITLE) { title }
           end
@@ -124,7 +124,7 @@ module Team
 
         grouped = all_perms.group_by { |p| p.key.split(".").first }
 
-        div(style: "background:#fff;border:1px solid #{BORDER};border-radius:20px;overflow:hidden") do
+        div(style: "background:#fff;border:1px solid #{BORDER};border-radius:16px;overflow:hidden") do
           div(style: "padding:20px 24px;border-bottom:1px solid #{BORDER}") do
             p(style: TYPE_TITLE) { "Permission matrix" }
             p(style: "#{TYPE_CAPTION};margin-top:3px") do

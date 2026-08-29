@@ -171,10 +171,10 @@ module UI
 
     # ── Tables ─────────────────────────────────────────────────────────────
     TABLE_HEADER = "border-b border-gray-100"
-    TABLE_ROW    = "border-b border-gray-50 hover:bg-gray-50 transition-colors"
-    TABLE_CELL   = "px-4 py-4 text-sm text-gray-700 first:pl-6"
-    TABLE_TH     = "px-4 py-3.5 text-left text-[10px] font-semibold uppercase tracking-[0.16em] " \
-                   "text-gray-400 whitespace-nowrap first:pl-6"
+    TABLE_ROW    = "border-b border-gray-50 hover:bg-gray-50 transition-colors cursor-pointer"
+    TABLE_CELL   = "px-3.5 py-3 text-sm text-gray-700 first:pl-5"
+    TABLE_TH     = "px-3.5 py-2.5 text-left text-[10px] font-semibold uppercase tracking-[0.16em] " \
+                   "text-gray-400 whitespace-nowrap first:pl-5"
     TABLE_CARD   = "bg-white border border-gray-100 rounded-2xl shadow-sm overflow-hidden"
 
     # Legacy table aliases

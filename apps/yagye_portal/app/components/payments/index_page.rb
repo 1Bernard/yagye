@@ -29,11 +29,11 @@ module Payments
     private
 
     def stat_band
-      div(class: "#{STAT_BAND} mb-6") do
-        stat_cell("Volume (MTD)",         "GHS 0.00")
-        stat_cell("Transactions (MTD)",   "0")
-        stat_cell("Pending",              "0", color: "#f59e0b")
-        stat_cell("Failed",               "0", color: "#dc2626")
+      div(style: "display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-bottom:20px") do
+        stat_cell("Volume (MTD)",       "GHS 0.00", icon: :trending_up,  color: "#3D47F5", tint: "rgba(61,71,245,0.08)")
+        stat_cell("Transactions (MTD)", "0",         icon: :layers,       color: "#6d28d9", tint: "rgba(109,40,217,0.08)")
+        stat_cell("Pending",            "0",         icon: :clock,        color: "#d97706", tint: "rgba(217,119,6,0.08)")
+        stat_cell("Failed",             "0",         icon: :alert_circle, color: "#dc2626", tint: "rgba(220,38,38,0.08)")
       end
     end
 

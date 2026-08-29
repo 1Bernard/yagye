@@ -118,7 +118,7 @@ module Developers
       bg    = @delivery.success? ? "#f0fdf4" : "#fef2f2"
 
       span(style: "font-size:12px;font-weight:600;color:#{color};background:#{bg};" \
-                  "padding:2px 9px;border-radius:20px") do
+                  "padding:2px 9px;border-radius:16px") do
         @delivery.response_status.to_s
       end
     end
