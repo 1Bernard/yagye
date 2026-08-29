@@ -7,17 +7,25 @@ defmodule YagyeCore.Merchants do
 
   alias YagyeCore.Merchants.Commands.{
     ApproveMerchant,
+    ApproveMerchantApplication,
     IssueApiKey,
     RegisterMerchant,
+    RejectMerchantApplication,
     RevokeApiKey,
+    StartApplicationReview,
     StartKybReview,
     SubmitBasicInfo,
-    SubmitKybDocuments
+    SubmitKybDocuments,
+    SubmitMerchantApplication
   }
 
   alias YagyeCore.Merchants.Events.{
     ApiKeyIssued,
     ApiKeyRevoked,
+    ApplicationApproved,
+    ApplicationRejected,
+    ApplicationReviewStarted,
+    ApplicationSubmitted,
     KybBasicInfoSubmitted,
     KybDocumentsSubmitted,
     KybReviewStarted,
@@ -26,11 +34,55 @@ defmodule YagyeCore.Merchants do
   }
 
   alias YagyeCore.Compliance
-  alias YagyeCore.Merchants.Schemas.{ApiKey, Merchant, MerchantMode}
+  alias YagyeCore.Merchants.Schemas.{ApiKey, Merchant, MerchantApplication, MerchantMode}
   alias YagyeCore.Outbox
   alias YagyeCore.Repo
 
   # ── Public API ───────────────────────────────────────────────────────────────
+
+  def submit_application(attrs) do
+    dispatch(%SubmitMerchantApplication{
+      first_name: Map.get(attrs, :first_name, attrs["first_name"]),
+      last_name: Map.get(attrs, :last_name, attrs["last_name"]),
+      email: Map.get(attrs, :email, attrs["email"]),
+      phone_number: Map.get(attrs, :phone_number, attrs["phone_number"]),
+      job_title: Map.get(attrs, :job_title, attrs["job_title"]),
+      legal_name: Map.get(attrs, :legal_name, attrs["legal_name"]),
+      trading_name: Map.get(attrs, :trading_name, attrs["trading_name"]),
+      country: Map.get(attrs, :country, attrs["country"]),
+      default_currency: Map.get(attrs, :default_currency, attrs["default_currency"]),
+      industry: Map.get(attrs, :industry, attrs["industry"]),
+      employee_range: Map.get(attrs, :employee_range, attrs["employee_range"]),
+      annual_tpv_estimate_cents:
+        Map.get(attrs, :annual_tpv_estimate_cents, attrs["annual_tpv_estimate_cents"]),
+      website_url: Map.get(attrs, :website_url, attrs["website_url"]),
+      use_case: Map.get(attrs, :use_case, attrs["use_case"]),
+      expected_methods: Map.get(attrs, :expected_methods, attrs["expected_methods"]) || []
+    })
+  end
+
+  def start_application_review(application_id, reviewed_by, review_notes \\ nil) do
+    dispatch(%StartApplicationReview{
+      application_id: application_id,
+      reviewed_by: reviewed_by,
+      review_notes: review_notes
+    })
+  end
+
+  def approve_application(application_id, approved_by) do
+    dispatch(%ApproveMerchantApplication{
+      application_id: application_id,
+      approved_by: approved_by
+    })
+  end
+
+  def reject_application(application_id, rejected_by, reason) do
+    dispatch(%RejectMerchantApplication{
+      application_id: application_id,
+      rejected_by: rejected_by,
+      reason: reason
+    })
+  end
 
   def create_merchant(attrs) do
     dispatch(%RegisterMerchant{
@@ -154,6 +206,167 @@ defmodule YagyeCore.Merchants do
   end
 
   # ── Dispatch ─────────────────────────────────────────────────────────────────
+
+  defp dispatch(%SubmitMerchantApplication{} = cmd) do
+    attrs = %{
+      public_id: "app_#{Uniq.UUID.uuid7()}",
+      status: "submitted",
+      first_name: cmd.first_name,
+      last_name: cmd.last_name,
+      email: cmd.email && String.downcase(String.trim(cmd.email)),
+      phone_number: cmd.phone_number,
+      job_title: cmd.job_title,
+      legal_name: cmd.legal_name,
+      trading_name: cmd.trading_name,
+      country: cmd.country && String.upcase(cmd.country),
+      default_currency: cmd.default_currency && String.upcase(cmd.default_currency),
+      industry: cmd.industry,
+      employee_range: cmd.employee_range,
+      annual_tpv_estimate_cents: cmd.annual_tpv_estimate_cents,
+      website_url: cmd.website_url,
+      use_case: cmd.use_case,
+      expected_methods: cmd.expected_methods
+    }
+
+    %MerchantApplication{}
+    |> MerchantApplication.changeset(attrs)
+    |> Repo.insert()
+    |> case do
+      {:ok, application} ->
+        event = %ApplicationSubmitted{
+          application_id: application.id,
+          public_id: application.public_id,
+          email: application.email,
+          legal_name: application.legal_name,
+          trading_name: application.trading_name,
+          country: application.country,
+          occurred_at: DateTime.utc_now()
+        }
+
+        {:ok, {application, event}}
+
+      {:error, changeset} ->
+        {:error, changeset}
+    end
+  end
+
+  defp dispatch(%StartApplicationReview{} = cmd) do
+    case fetch_application_in_state(cmd.application_id, "submitted") do
+      {:ok, application} ->
+        application
+        |> MerchantApplication.review_changeset(%{
+          status: "under_review",
+          reviewed_by: cmd.reviewed_by,
+          review_notes: cmd.review_notes,
+          reviewed_at: DateTime.utc_now()
+        })
+        |> Repo.update()
+        |> case do
+          {:ok, updated} ->
+            event = %ApplicationReviewStarted{
+              application_id: updated.id,
+              reviewed_by: cmd.reviewed_by,
+              occurred_at: DateTime.utc_now()
+            }
+
+            {:ok, {updated, event}}
+
+          {:error, changeset} ->
+            {:error, changeset}
+        end
+
+      error ->
+        error
+    end
+  end
+
+  defp dispatch(%ApproveMerchantApplication{} = cmd) do
+    Multi.new()
+    |> Multi.run(:application, fn _repo, _changes ->
+      fetch_application_in_state(cmd.application_id, "under_review")
+    end)
+    |> Multi.run(:sod_check, fn _repo, %{application: application} ->
+      if application.reviewed_by == cmd.approved_by do
+        {:error, :sod_violation}
+      else
+        {:ok, :cleared}
+      end
+    end)
+    |> Multi.insert(:merchant, fn %{application: application} ->
+      Merchant.changeset(%Merchant{}, %{
+        public_id: "mch_#{Uniq.UUID.uuid7()}",
+        legal_name: application.legal_name,
+        trading_name: application.trading_name,
+        country: application.country,
+        default_currency: application.default_currency,
+        industry: application.industry,
+        employee_range: application.employee_range,
+        annual_tpv_estimate_cents: application.annual_tpv_estimate_cents,
+        website_url: application.website_url,
+        api_version: "2026-01-01",
+        metadata: %{}
+      })
+    end)
+    |> Multi.run(:mode, fn _repo, %{merchant: merchant} ->
+      grant_mode(merchant.id, :simulation)
+    end)
+    |> Multi.update(:approved_application, fn %{application: application, merchant: merchant} ->
+      MerchantApplication.approve_changeset(application, %{
+        status: "approved",
+        approved_by: cmd.approved_by,
+        merchant_id: merchant.id
+      })
+    end)
+    |> Multi.insert(:outbox, fn %{merchant: merchant} ->
+      Outbox.build_changeset(merchant, "merchant.registered", %{
+        legal_name: merchant.legal_name,
+        trading_name: merchant.trading_name,
+        country: merchant.country,
+        default_currency: merchant.default_currency
+      })
+    end)
+    |> Repo.transaction()
+    |> case do
+      {:ok, %{approved_application: application, merchant: merchant}} ->
+        event = %ApplicationApproved{
+          application_id: application.id,
+          approved_by: cmd.approved_by,
+          merchant_id: merchant.id,
+          merchant_public_id: merchant.public_id,
+          occurred_at: DateTime.utc_now()
+        }
+
+        {:ok, {application, merchant, event}}
+
+      {:error, _step, reason, _changes} ->
+        {:error, reason}
+    end
+  end
+
+  defp dispatch(%RejectMerchantApplication{} = cmd) do
+    with {:ok, application} <- fetch_rejectable_application(cmd.application_id) do
+      application
+      |> MerchantApplication.reject_changeset(%{
+        status: "rejected",
+        rejected_reason: cmd.reason
+      })
+      |> Repo.update()
+      |> case do
+        {:ok, updated} ->
+          event = %ApplicationRejected{
+            application_id: updated.id,
+            rejected_by: cmd.rejected_by,
+            reason: cmd.reason,
+            occurred_at: DateTime.utc_now()
+          }
+
+          {:ok, {updated, event}}
+
+        {:error, changeset} ->
+          {:error, changeset}
+      end
+    end
+  end
 
   defp dispatch(%RegisterMerchant{} = cmd) do
     attrs = %{
@@ -484,6 +697,22 @@ defmodule YagyeCore.Merchants do
     case Repo.one(query) do
       nil -> {:error, :not_found}
       record -> {:ok, record}
+    end
+  end
+
+  defp fetch_application_in_state(public_id, expected_status) do
+    case Repo.get_by(MerchantApplication, public_id: public_id) do
+      %MerchantApplication{status: ^expected_status} = app -> {:ok, app}
+      %MerchantApplication{} -> {:error, :invalid_state}
+      nil -> {:error, :not_found}
+    end
+  end
+
+  defp fetch_rejectable_application(public_id) do
+    case Repo.get_by(MerchantApplication, public_id: public_id) do
+      %MerchantApplication{status: s} = app when s in ["submitted", "under_review"] -> {:ok, app}
+      %MerchantApplication{} -> {:error, :invalid_state}
+      nil -> {:error, :not_found}
     end
   end
 end

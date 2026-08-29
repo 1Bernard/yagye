@@ -23,6 +23,10 @@ defmodule YagyeCore.Merchants.Schemas.Merchant do
     field :quiet_since, :utc_datetime_usec
     field :api_version, :string
     field :orchestration_billing_method, :string
+    field :industry, :string
+    field :employee_range, :string
+    field :annual_tpv_estimate_cents, :integer
+    field :website_url, :string
     field :entitlements, :map, default: %{}
     field :metadata, :map, default: %{}
 
@@ -35,6 +39,10 @@ defmodule YagyeCore.Merchants.Schemas.Merchant do
   @required ~w[public_id legal_name trading_name country default_currency api_version]a
   @optional ~w[
     orchestration_billing_method
+    industry
+    employee_range
+    annual_tpv_estimate_cents
+    website_url
     risk_rating
     pricing_plan_id
     settlement_schedule

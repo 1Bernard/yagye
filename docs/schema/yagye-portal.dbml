@@ -27,7 +27,7 @@ Project yagye_portal {
 // ─── HUMAN IDENTITY ───────────────────────────────────────────────────────
 
 Table users [headercolor: #1A2B4C] {
-  id bigserial [pk]
+  id uuid [pk, note: 'gen_random_uuid() — UUID PK to match core identity conventions (ADR-0019)']
   user_code text [unique, note: 'USR-A1B2 — stable public handle; generated on create, sent to core as on_behalf_of']
   email citext [unique, not null, note: '[PII] login lookup key — anonymised on erasure (deleted-<id>@invalid), not crypto-shredded, because audit trail rows must still resolve. Documented in §22.1.']
   encrypted_password text [not null, note: '[SEC] Devise bcrypt']
@@ -54,8 +54,8 @@ Table users [headercolor: #1A2B4C] {
 }
 
 Table webauthn_credentials [headercolor: #1A2B4C] {
-  id bigserial [pk]
-  user_id bigint [not null, ref: > users.id]
+  id uuid [pk, note: 'gen_random_uuid()']
+  user_id uuid [not null, ref: > users.id]
   external_id text [unique, not null]
   public_key text [not null, note: '[SEC] passkey public key — phishing-resistant, bound to origin']
   nickname text
@@ -331,6 +331,26 @@ Table portal_merchants [headercolor: #1A2B4C] {
   last_event_id text [not null]
   last_applied_at timestamptz [not null]
   Note: 'Ops onboarding triage and merchant status dashboard without a core API call per row.'
+}
+
+Table portal_merchant_applications [headercolor: #1A2B4C] {
+  application_code text [pk, note: 'app_01J… — mirrors core public_id']
+  aggregate_version integer [not null, default: 0]
+  status text [not null, note: 'submitted|under_review|approved|rejected']
+  legal_name text [not null]
+  trading_name text
+  country char(2) [not null]
+  industry text
+  employee_range text
+  submitted_by_email text [note: '[PII] contact email from the application form']
+  reviewed_by text
+  approved_by text
+  rejected_reason text
+  merchant_code text [note: 'mch_01J… — set on approval; join to portal_merchants for full merchant view']
+  last_event_id text [not null]
+  last_applied_at timestamptz [not null]
+  indexes { status [note: 'ops triage queue — filter by status'] }
+  Note: 'Ops triage read model. Written only by Karafka consumers on merchant.application.* events. Approved rows link to portal_merchants via merchant_code.'
 }
 
 Table portal_disputes [headercolor: #9B3232] {
@@ -615,6 +635,10 @@ TableGroup developer_console {
 
 TableGroup orchestration_console {
   portal_provider_connections
+}
+
+TableGroup merchant_onboarding {
+  portal_merchant_applications
 }
 
 TableGroup compliance_review {

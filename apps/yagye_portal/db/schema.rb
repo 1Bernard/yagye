@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_08_29_043624) do
+ActiveRecord::Schema[8.1].define(version: 2026_08_29_100001) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pgcrypto"
@@ -37,6 +37,25 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_29_043624) do
     t.datetime "created_at", null: false
     t.text "description", null: false
     t.text "resource", null: false
+  end
+
+  create_table "portal_merchant_applications", primary_key: "application_code", id: :text, force: :cascade do |t|
+    t.integer "aggregate_version", default: 0, null: false
+    t.text "approved_by"
+    t.string "country", limit: 2, null: false
+    t.text "employee_range"
+    t.text "industry"
+    t.timestamptz "last_applied_at", null: false
+    t.text "last_event_id", null: false
+    t.text "legal_name", null: false
+    t.text "merchant_code"
+    t.text "rejected_reason"
+    t.text "reviewed_by"
+    t.text "status", null: false
+    t.text "submitted_by_email"
+    t.text "trading_name"
+    t.index ["merchant_code"], name: "index_portal_merchant_applications_on_merchant_code"
+    t.index ["status"], name: "index_portal_merchant_applications_on_status"
   end
 
   create_table "portal_payments", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|

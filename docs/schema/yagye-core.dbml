@@ -95,10 +95,61 @@ Table merchants [headercolor: #1A2B4C] {
   api_version text [not null, note: 'DATE-BASED, pinned at first API call and never moved without opt-in. Add this in Phase 1 while there is one version — an afternoon now, a migration project after fifty merchants.']
   entitlements jsonb [not null, note: 'what the plan lets them DO: enabled methods, rate limit, volume cap, feature flags, support tier. Distinct from pricing, which is what they PAY. Known flags: routing_rules_override:true (enterprise custom routing), orchestration_enabled:true (Model B — merchant can connect their own external PSP credentials and route through them via merchant_provider_connections).']
   orchestration_billing_method text [note: 'NULL = not on Model B. cross_net|monthly_invoice|direct_debit. Determines how Yagye collects its orchestration fee when an external_psp settles directly to the merchant and Yagye never holds that money. cross_net: deducted from the next native_rail settlement (best when mobile money volume is significant). monthly_invoice: Yagye bills separately at month-end. direct_debit: Yagye pulls from merchant bank account under a mandate.']
+  industry text [note: 'sector: tech|fintech|ecommerce|retail|healthcare|logistics|hospitality|services|other — captured on application, used in risk classification']
+  employee_range text [note: '1-10|11-50|51-200|201-500|500+']
+  annual_tpv_estimate_cents bigint [note: 'self-reported expected annual transaction volume in cents — drives initial reserve tier and risk review']
+  website_url text [note: 'primary company website — KYB context. Distinct from merchant_checkout_configs.website_url (hosted checkout branding).']
   metadata jsonb [not null]
   inserted_at timestamptz [not null]
   updated_at timestamptz [not null]
   Note: 'The tenant boundary. Every money-bearing row traces back here.'
+}
+
+Table merchant_applications [headercolor: #1A2B4C] {
+  id uuid [pk]
+  public_id text [unique, not null, note: 'app_01J... — stable public handle returned in submission confirmation']
+  status text [not null, note: 'submitted|under_review|approved|rejected']
+
+  // Contact person (primary contact for this application)
+  first_name text [not null, note: '[PII]']
+  last_name text [not null, note: '[PII]']
+  email text [not null, note: '[PII] — checked for existing application on submission']
+  phone_number text [note: '[PII]']
+  job_title text
+
+  // Business identity
+  legal_name text [not null]
+  trading_name text [not null]
+  country char(2) [not null]
+  default_currency char(3) [not null]
+  industry text
+  employee_range text [note: '1-10|11-50|51-200|201-500|500+']
+  annual_tpv_estimate_cents bigint
+  website_url text
+  use_case text [note: 'free-text: what do you plan to process? Used in risk underwriting.']
+  expected_methods text[] [note: 'mtn_momo|stripe|paystack|flutterwave — rough intent, not a contract']
+
+  // Ops review (SoD: reviewed_by ≠ approved_by enforced by DB CHECK)
+  reviewed_by text [note: 'SoD: ops analyst who reviewed the application. Must differ from approved_by.']
+  review_notes text
+  reviewed_at timestamptz
+
+  // Outcome
+  approved_by text [note: 'SoD: ops manager who approved. Must differ from reviewed_by.']
+  rejected_reason text
+
+  // Set on approval when the merchant record is created
+  merchant_id uuid [ref: > merchants.id, note: 'NULL until approved']
+
+  inserted_at timestamptz [not null]
+  updated_at timestamptz [not null]
+
+  indexes {
+    email [note: 'dedup check — one active application per email']
+    status [note: 'ops triage queue filter']
+  }
+
+  Note: 'Pre-KYB prospect data captured from the public application form. Approved applications create a Merchant record and trigger a portal invitation.'
 }
 
 Table merchant_modes [headercolor: #2E4A73] {
@@ -1403,6 +1454,7 @@ Ref: merchant_webhook_deliveries.endpoint_id > merchant_webhook_endpoints.id
 
 TableGroup identity_and_access {
   merchants
+  merchant_applications
   merchant_modes
   api_keys
   idempotency_keys

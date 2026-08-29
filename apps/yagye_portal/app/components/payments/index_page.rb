@@ -154,8 +154,8 @@ module Payments
           plain "Showing #{@pagy.from}–#{@pagy.to} of #{@pagy.count}"
         end
         div class: "flex items-center gap-1" do
-          if @pagy.prev
-            a href: payments_path(page: @pagy.prev, status: @status_filter, q: @query),
+          if @pagy.previous
+            a href: payments_path(page: @pagy.previous, status: @status_filter, q: @query),
               class: UI::Theme::BUTTON_SECONDARY do
               plain "← Previous"
             end
