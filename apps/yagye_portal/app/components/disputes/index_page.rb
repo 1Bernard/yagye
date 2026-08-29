@@ -85,7 +85,8 @@ module Disputes
           end
 
           form(action: disputes_path, method: "get",
-               style: "display:flex;align-items:center;gap:6px") do
+               style: "display:flex;align-items:center;gap:6px",
+               data: { controller: "filter-form", filter_form_target: "form" }) do
             input(type: "hidden", name: "tab", value: tab)
 
             div(style: "display:flex;align-items:center;gap:7px;padding:0 11px;" \
@@ -103,7 +104,8 @@ module Disputes
             select(name: "reason",
                    style: "border:1px solid #e5e7eb;border-radius:9px;padding:0 10px;" \
                           "font-size:12.5px;font-weight:500;color:#374151;background:#fff;" \
-                          "outline:none;cursor:pointer;height:32px") do
+                          "outline:none;cursor:pointer;height:32px",
+                   data: { action: "change->filter-form#submit" }) do
               option(value: "", selected: reason.blank?) { "All reasons" }
               [["Fraud","fraud"],["Duplicate charge","duplicate"],
                ["Product not received","not_received"],["Unrecognised","unrecognised"],
@@ -115,18 +117,23 @@ module Disputes
             input(type: "date", name: "from", value: from,
                   style: "border:1px solid #e5e7eb;border-radius:9px;padding:0 10px;" \
                          "font-size:12.5px;color:#374151;background:#fff;" \
-                         "outline:none;cursor:pointer;height:32px")
+                         "outline:none;cursor:pointer;height:32px",
+                  data: { action: "change->filter-form#submit" })
 
             input(type: "date", name: "to", value: to,
                   style: "border:1px solid #e5e7eb;border-radius:9px;padding:0 10px;" \
                          "font-size:12.5px;color:#374151;background:#fff;" \
-                         "outline:none;cursor:pointer;height:32px")
+                         "outline:none;cursor:pointer;height:32px",
+                  data: { action: "change->filter-form#submit" })
 
             button(type: "submit",
-                   style: "display:inline-flex;align-items:center;padding:0 12px;" \
+                   style: "display:inline-flex;align-items:center;gap:5px;padding:0 12px;" \
                           "border:1px solid #e5e7eb;border-radius:9px;font-size:12.5px;" \
                           "font-weight:500;color:#374151;background:#fff;cursor:pointer;" \
-                          "height:32px;white-space:nowrap") { plain "Filter" }
+                          "height:32px;white-space:nowrap") do
+              render UI::Icon.new(:filter, class: "w-[12px] h-[12px]")
+              plain "Filter"
+            end
 
             a(href: disputes_path(format: :csv, tab: tab),
               style: "display:inline-flex;align-items:center;gap:5px;padding:0 12px;" \

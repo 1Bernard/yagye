@@ -52,7 +52,8 @@ module Payments
           end
 
           form(action: payments_path, method: "get",
-               style: "display:flex;align-items:center;gap:6px") do
+               style: "display:flex;align-items:center;gap:6px",
+               data: { controller: "filter-form", filter_form_target: "form" }) do
             div(style: "display:flex;align-items:center;gap:7px;padding:0 11px;" \
                        "border:1px solid #e5e7eb;border-radius:9px;background:#fff;height:32px") do
               span(style: "display:flex;width:12px;height:12px;color:#9ca3af;flex-shrink:0") do
@@ -68,7 +69,8 @@ module Payments
             select(name: "status",
                    style: "border:1px solid #e5e7eb;border-radius:9px;padding:0 10px;" \
                           "font-size:12.5px;font-weight:500;color:#374151;background:#fff;" \
-                          "outline:none;cursor:pointer;height:32px") do
+                          "outline:none;cursor:pointer;height:32px",
+                   data: { action: "change->filter-form#submit" }) do
               option(value: "", selected: status_filter.blank?) { "All statuses" }
               [["Initiated","initiated"],["Processing","processing"],["Paid","paid"],
                ["Failed","failed"],["Refunded","refunded"],["Disputed","disputed"]].each do |(lbl, val)|
@@ -77,10 +79,13 @@ module Payments
             end
 
             button(type: "submit",
-                   style: "display:inline-flex;align-items:center;padding:0 12px;" \
+                   style: "display:inline-flex;align-items:center;gap:5px;padding:0 12px;" \
                           "border:1px solid #e5e7eb;border-radius:9px;font-size:12.5px;" \
                           "font-weight:500;color:#374151;background:#fff;cursor:pointer;" \
-                          "height:32px;white-space:nowrap") { plain "Filter" }
+                          "height:32px;white-space:nowrap") do
+              render UI::Icon.new(:filter, class: "w-[12px] h-[12px]")
+              plain "Filter"
+            end
 
             if can_export
               a(href: payments_path(format: :csv, status: status_filter, q: query),

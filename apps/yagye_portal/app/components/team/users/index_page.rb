@@ -75,7 +75,8 @@ module Team
             end
 
             form(action: team_users_path, method: "get",
-                 style: "display:flex;align-items:center;gap:6px") do
+                 style: "display:flex;align-items:center;gap:6px",
+                 data: { controller: "filter-form", filter_form_target: "form" }) do
               div(style: "display:flex;align-items:center;gap:7px;padding:0 11px;" \
                          "border:1px solid #e5e7eb;border-radius:9px;background:#fff;height:32px") do
                 span(style: "display:flex;width:12px;height:12px;color:#9ca3af;flex-shrink:0") do
@@ -91,7 +92,8 @@ module Team
               select(name: "role",
                      style: "border:1px solid #e5e7eb;border-radius:9px;padding:0 10px;" \
                             "font-size:12.5px;font-weight:500;color:#374151;background:#fff;" \
-                            "outline:none;cursor:pointer;height:32px") do
+                            "outline:none;cursor:pointer;height:32px",
+                     data: { action: "change->filter-form#submit" }) do
                 option(value: "", selected: role.blank?) { "All roles" }
                 [["Owner","merchant_owner"],["Finance","merchant_finance"],
                  ["Developer","merchant_developer"],["Support","merchant_support"],
@@ -104,17 +106,21 @@ module Team
               select(name: "status",
                      style: "border:1px solid #e5e7eb;border-radius:9px;padding:0 10px;" \
                             "font-size:12.5px;font-weight:500;color:#374151;background:#fff;" \
-                            "outline:none;cursor:pointer;height:32px") do
+                            "outline:none;cursor:pointer;height:32px",
+                     data: { action: "change->filter-form#submit" }) do
                 option(value: "", selected: status.blank?) { "All" }
                 option(value: "active",    selected: status == "active") { "Active" }
                 option(value: "suspended", selected: status == "suspended") { "Suspended" }
               end
 
               button(type: "submit",
-                     style: "display:inline-flex;align-items:center;padding:0 12px;" \
+                     style: "display:inline-flex;align-items:center;gap:5px;padding:0 12px;" \
                             "border:1px solid #e5e7eb;border-radius:9px;font-size:12.5px;" \
                             "font-weight:500;color:#374151;background:#fff;cursor:pointer;" \
-                            "height:32px;white-space:nowrap") { plain "Filter" }
+                            "height:32px;white-space:nowrap") do
+                render UI::Icon.new(:filter, class: "w-[12px] h-[12px]")
+                plain "Filter"
+              end
 
               if query.present? || role.present? || status.present?
                 a(href: team_users_path,
