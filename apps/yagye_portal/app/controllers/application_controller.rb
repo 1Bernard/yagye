@@ -46,7 +46,6 @@ class ApplicationController < ActionController::Base
   # can be joined to audit_logs by user_id or merchant_code.
   def append_info_to_payload(payload)
     super
-    payload[:user_id]       = current_user&.id
     payload[:merchant_code] = current_user&.merchant_code
   end
 

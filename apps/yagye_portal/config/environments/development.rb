@@ -82,9 +82,8 @@ Rails.application.configure do
   config.lograge.formatter = Lograge::Formatters::Json.new
   config.lograge.custom_options = lambda do |event|
     {
-      correlation_id: CorrelationId.current,
-      user_id:        event.payload[:user_id],
-      merchant_code:  event.payload[:merchant_code]
+      trace_id:      CorrelationId.current,
+      merchant_code: event.payload[:merchant_code]
     }.compact
   end
 end
