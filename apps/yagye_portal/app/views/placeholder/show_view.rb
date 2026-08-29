@@ -2,7 +2,7 @@
 
 module Placeholder
   class ShowView < ApplicationComponent
-    BRAND  = "#3D47F5"
+    include UI::Theme
 
     SECTIONS = {
       "payments"    => {

@@ -2,6 +2,8 @@
 
 module UI
   class Grid < ApplicationComponent
+    include UI::Theme
+
     COLUMNS = {
       2 => "grid grid-cols-1 md:grid-cols-2 gap-5 mb-6",
       3 => "grid grid-cols-1 md:grid-cols-3 gap-5 mb-6",

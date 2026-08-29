@@ -11,9 +11,7 @@ module UI
   # If current_tier >= required_tier, the block is rendered as a normal button.
   # Otherwise a locked pill is rendered with a tooltip explaining the requirement.
   class TierGate < ApplicationComponent
-    BRAND  = "#3D47F5"
-    AMBER  = "#d97706"
-    GREEN  = "#16a34a"
+    include UI::Theme
 
     TIER_LABELS = {
       1 => "Tier 1",

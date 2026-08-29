@@ -4,13 +4,6 @@ module Dashboard
   class IndexView < ApplicationComponent
     include UI::Theme
 
-    BRAND  = "#3D47F5"
-    TEAL   = "#0d9488"
-    GREEN  = "#16a34a"
-    AMBER  = "#d97706"
-    RED    = "#dc2626"
-    PURPLE = "#6d28d9"
-
     def initialize(volume_cents:, tx_count:, success_rate:, pending_count:, failed_count:,
                    prev_volume_cents: 0, prev_tx_count: 0,
                    disputes_count: 0, kyb_pending_count: nil,

@@ -28,6 +28,13 @@ module UI
     #   SURFACE (#F9FAFB) · BORDER (#F3F4F6) · BORDER_MED (#E5E7EB)
     # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
+    # ── Semantic palette ──────────────────────────────────────────────────────
+    GREEN  = "#16a34a"   # Success, upward deltas
+    AMBER  = "#d97706"   # Warning, pending
+    RED    = "#dc2626"   # Error, downward deltas, failed
+    TEAL   = "#0d9488"   # Secondary accent (KYB, teal contexts)
+    PURPLE = "#6d28d9"   # Refunds, secondary data series
+
     # ── Color tokens ──────────────────────────────────────────────────────────
     INK         = "#111827"   # Titles, key data, primary text
     BODY_TEXT   = "#374151"   # Secondary text, subtitles, important body

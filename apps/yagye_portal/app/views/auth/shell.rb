@@ -2,7 +2,7 @@ require "base64"
 
 module Auth
   class Shell < ApplicationComponent
-    BLUE = "#3D47F5"
+    include UI::Theme
 
     # White SVG wordmark logos — unified on the blue background (premium logo-strip standard)
     NETWORK_LOGOS = {
@@ -130,7 +130,7 @@ module Auth
     def right_section
       div class: "w-[52%] shrink-0 p-7" do
         div class: "h-full flex flex-col rounded-[20px] overflow-hidden",
-            style: "background-color:#{BLUE}" do
+            style: "background-color:#{BRAND}" do
           # headline
           div class: "shrink-0 px-8 pt-8 pb-5" do
             p class: "text-[9px] font-bold uppercase tracking-[0.16em] mb-2",
@@ -202,7 +202,7 @@ module Auth
             end
           end
           span class: "text-[10px] font-semibold text-white rounded-lg px-3 py-1.5",
-               style: "background:#{BLUE}" do
+               style: "background:#{BRAND}" do
             plain "Add members ↑"
           end
         end
@@ -218,7 +218,7 @@ module Auth
     def dashboard_stats
       div class: "shrink-0 grid grid-cols-2 divide-x divide-gray-100 border-b border-gray-100" do
         stat_tile("Productive Time / Day", "12.4 hr", "+23% last week",
-                  [ 22, 28, 24, 36, 30, 44, 40, 52, 48, 60 ], BLUE, "sg_blue")
+                  [ 22, 28, 24, 36, 30, 44, 40, 52, 48, 60 ], BRAND, "sg_blue")
         stat_tile("Success Rate",          "99.2%",   "+0.3% last week",
                   [ 55, 60, 57, 64, 62, 70, 68, 72, 74, 78 ], "#10b981", "sg_green")
       end
@@ -297,7 +297,7 @@ module Auth
         # Bar + amount
         div class: "flex items-center gap-2 pr-1" do
           div class: "flex-1 h-2 rounded-full overflow-hidden", style: "background:#e5e7eb" do
-            div class: "h-full rounded-full", style: "width:#{r[:bar]}%;background:#{BLUE}"
+            div class: "h-full rounded-full", style: "width:#{r[:bar]}%;background:#{BRAND}"
           end
           span class: "text-[10px] text-gray-500 shrink-0 w-12 text-right tabular-nums font-medium" do
             plain r[:amount]
@@ -322,11 +322,11 @@ module Auth
             span class: "text-[10px] text-gray-400 ml-1 shrink-0" do plain "⊕" end
           end
           div class: "shrink-0 text-[10px] font-semibold text-white rounded-lg px-2.5 py-2 border",
-              style: "background:#{BLUE};border-color:#{BLUE}" do
+              style: "background:#{BRAND};border-color:#{BRAND}" do
             plain "Viewer ▾"
           end
           div class: "shrink-0 text-[10px] font-semibold text-white rounded-lg px-2.5 py-2",
-              style: "background:#{BLUE}" do
+              style: "background:#{BRAND}" do
             plain "Send Invite"
           end
         end
@@ -363,7 +363,7 @@ module Auth
             end
           end
           div class: "shrink-0 text-[10px] font-semibold text-white rounded-lg px-3 py-2",
-              style: "background:#{BLUE}" do
+              style: "background:#{BRAND}" do
             plain "Copy"
           end
         end

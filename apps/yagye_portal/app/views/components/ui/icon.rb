@@ -4,6 +4,8 @@ module UI
   # All SVG icon geometry lives here — one place, structured Phlex calls.
   # Components never embed raw SVG path data; they render UI::Icon.new(:name).
   class Icon < ApplicationComponent
+    include UI::Theme
+
     ICONS = %i[
       eye eye_off spinner arrow_right arrow_left
       mail lock unlock shield check x plus dots dots_vertical chev chev_up chev_left chev_right

@@ -4,6 +4,8 @@ module UI
   # items: [{label: "Payments", href: payments_path}, {label: "TX-001", href: nil}]
   # Last item (or any with href: nil) renders as current page (non-linked).
   class Breadcrumb < ApplicationComponent
+    include UI::Theme
+
     def initialize(items)
       @items = Array(items)
     end

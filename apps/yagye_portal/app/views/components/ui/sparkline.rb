@@ -3,7 +3,9 @@
 module UI
   # Tiny trend line for stat cells — pure SVG polyline, no JS overhead.
   class Sparkline < ApplicationComponent
-    def initialize(values, width: 72, height: 26, color: "#3D47F5", class: nil)
+    include UI::Theme
+
+    def initialize(values, width: 72, height: 26, color: BRAND, class: nil)
       @values = values
       @width  = width
       @height = height
