@@ -65,7 +65,7 @@ module Auth
 
           button(
             type: :submit,
-            class: "#{UI::Theme::BUTTON_PRIMARY} w-full justify-center py-2.5"
+            class: "#{UI::Theme::BUTTON_BRAND} w-full"
           ) do
             plain "Sign in"
           end

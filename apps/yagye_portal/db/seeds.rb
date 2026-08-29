@@ -132,3 +132,23 @@ GRANT_MATRIX.each do |role_key, permission_keys|
 end
 
 puts "Seeded #{Role.count} roles, #{Permission.count} permissions, #{RolePermission.count} grants."
+
+# ── Development admin user ──────────────────────────────────────────────────────
+if Rails.env.development? || Rails.env.test?
+  admin = User.find_or_create_by!(email: "admin@yagye.com") do |u|
+    u.password              = "Yagye2026!"
+    u.first_name            = "Yagye"
+    u.last_name             = "Admin"
+    u.kind                  = "internal_staff"
+    u.otp_required_for_login = false
+  end
+
+  ops_manager_role = Role.find_by!(key: "ops_manager")
+
+  UserRole.find_or_create_by!(user_id: admin.id, role_key: ops_manager_role.key) do |ur|
+    ur.granted_by = admin
+    ur.granted_at = now
+  end
+
+  puts "Dev admin: admin@yagye.com / Yagye2026! (ops_manager)"
+end

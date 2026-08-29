@@ -35,6 +35,7 @@ module UI
     BODY           = "text-sm text-gray-700"
     HEADING        = "font-semibold text-gray-900"
     AUTH_TITLE     = "text-xl font-semibold text-gray-900"
+    AUTH_TITLE_LG  = "text-2xl font-bold text-gray-900 tracking-tight"
     FORM_LABEL     = "block text-sm font-medium text-gray-700"
     FORM_HINT      = "text-xs text-gray-500"
     FORM_MUTED     = "text-xs text-gray-400"
@@ -57,6 +58,10 @@ module UI
 
     BUTTON_PRIMARY = "inline-flex items-center gap-2 rounded-lg px-4 py-2 text-sm " \
                      "font-medium bg-teal-400 text-white hover:bg-teal-500 transition-colors"
+
+    BUTTON_BRAND   = "inline-flex items-center justify-center rounded-lg px-4 py-2.5 text-sm " \
+                     "font-semibold text-white bg-gradient-to-r from-violet-600 to-blue-700 " \
+                     "hover:from-violet-700 hover:to-blue-800 transition-all shadow-sm"
 
     BUTTON_SECONDARY = "inline-flex items-center gap-2 rounded-lg border border-gray-200 " \
                        "px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors"
