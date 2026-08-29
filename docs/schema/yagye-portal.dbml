@@ -144,7 +144,7 @@ Table merchant_memberships [headercolor: #1F6B4A] {
 
 Table audit_logs [headercolor: #9B3232] {
   id bigserial [pk]
-  user_id bigint [ref: > users.id]
+  user_id uuid [ref: > users.id]
   user_code text [not null, note: 'denormalised — the log must survive the user being deleted/anonymised']
   merchant_code text
   action text [not null, note: 'payments.refund_requested | disputes.evidence_submitted | kyb.disposition_approved']
