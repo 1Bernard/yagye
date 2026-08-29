@@ -175,7 +175,7 @@ module UI
     TABLE_CELL   = "px-3.5 py-3 text-sm text-gray-700 first:pl-5"
     TABLE_TH     = "px-3.5 py-2.5 text-left text-[10px] font-semibold uppercase tracking-[0.16em] " \
                    "text-gray-400 whitespace-nowrap first:pl-5"
-    TABLE_CARD   = "bg-white border border-gray-100 rounded-2xl shadow-sm overflow-hidden"
+    TABLE_CARD   = "bg-white border border-gray-100 rounded-2xl overflow-hidden"
 
     # Legacy table aliases
     TH = "text-xs font-medium text-gray-500 px-4 py-3 text-left select-none"
