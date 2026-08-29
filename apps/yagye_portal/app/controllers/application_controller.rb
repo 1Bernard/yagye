@@ -7,12 +7,17 @@ class ApplicationController < ActionController::Base
 
   before_action :authenticate_user!
   before_action :set_current_user
+  before_action :set_locale
 
   after_action :verify_authorized, unless: :devise_controller?
 
   rescue_from Pundit::NotAuthorizedError, with: :user_not_authorized
 
   private
+
+  def set_locale
+    I18n.locale = session[:locale].presence_in(%w[en fr]) || I18n.default_locale
+  end
 
   def set_current_user
     Current.user         = current_user

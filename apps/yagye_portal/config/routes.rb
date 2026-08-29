@@ -12,13 +12,44 @@ Rails.application.routes.draw do
   end
 
   get "up" => "rails/health#show", as: :rails_health_check
+  get "locale", to: "locale#set", as: :locale
 
-  # Stub routes so sidebar nav helpers resolve
-  get "payments", to: "payments#index", as: :payments
-  get "disputes",   to: "application#not_implemented", as: :disputes
-  get "merchants",  to: "application#not_implemented", as: :merchants
-  get "kyb-reviews",  to: "application#not_implemented", as: :kyb_reviews
-  get "api-keys",   to: "application#not_implemented", as: :api_keys
-  get "settings",   to: "application#not_implemented", as: :settings
-  get "help",       to: "application#not_implemented", as: :help
+  # ── Payments domain ──────────────────────────────────────────────────────
+  scope module: "payments" do
+    get "payments",       to: "transactions#index", as: :payments
+    get "payments/:id",   to: "transactions#show",  as: :payment
+    get "disputes",       to: "disputes#index",     as: :disputes
+    get "disputes/:id",   to: "disputes#show",      as: :dispute
+  end
+
+  # ── Merchants domain (ops — policy-gated) ────────────────────────────────
+  scope module: "merchants" do
+    get "merchants",      to: "merchants#index",    as: :merchants
+    get "merchants/:id",  to: "merchants#show",     as: :merchant
+  end
+
+  # ── Compliance domain (ops — policy-gated) ───────────────────────────────
+  scope module: "compliance" do
+    get "kyb-reviews",      to: "kyb_reviews#index", as: :kyb_reviews
+    get "kyb-reviews/:id",  to: "kyb_reviews#show",  as: :kyb_review
+  end
+
+  # ── Developers domain ────────────────────────────────────────────────────
+  scope module: "developers" do
+    get "developers",     to: "api_keys#index",    as: :developers
+  end
+
+  # ── Team domain ──────────────────────────────────────────────────────────
+  scope module: "team" do
+    get "team",             to: "users#index",   as: :team
+    get "team/users",       to: "users#index",   as: :team_users
+    get "team/users/:id",   to: "users#show",    as: :team_user
+    get "team/roles",       to: "roles#index",   as: :team_roles
+  end
+
+  # ── Account domain ───────────────────────────────────────────────────────
+  scope module: "account" do
+    get "settings",       to: "settings#index",  as: :settings
+    get "help",           to: "help#index",       as: :help
+  end
 end

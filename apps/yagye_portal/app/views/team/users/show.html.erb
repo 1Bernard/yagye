@@ -1,0 +1,1 @@
+<%= render Team::Users::ShowPage.new(user: @user, roles: @roles, can_manage: policy(@user).update?) %>

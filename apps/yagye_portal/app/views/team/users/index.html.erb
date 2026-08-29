@@ -1,0 +1,1 @@
+<%= render Team::Users::IndexPage.new(users: @users, can_invite: policy(User).invite?) %>
