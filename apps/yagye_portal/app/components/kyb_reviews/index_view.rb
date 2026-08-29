@@ -1,7 +1,7 @@
 # frozen_string_literal: true
 
 module KybReviews
-  class IndexPage < ApplicationComponent
+  class IndexView < ApplicationComponent
     include UI::Theme
 
     TABS = [

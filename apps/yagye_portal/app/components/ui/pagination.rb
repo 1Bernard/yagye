@@ -47,8 +47,8 @@ module UI
     end
 
     def page_url(page)
-      params = helpers.request.query_parameters.merge("page" => page)
-      "#{helpers.request.path}?#{Rack::Utils.build_nested_query(params)}"
+      params = request.query_parameters.merge("page" => page)
+      "#{request.path}?#{Rack::Utils.build_nested_query(params)}"
     end
   end
 end

@@ -2,7 +2,7 @@
 
 module Team
   module Users
-    class ShowPage < ApplicationComponent
+    class ShowView < ApplicationComponent
       include UI::Theme
 
       def initialize(user:, roles: [], can_manage: false)

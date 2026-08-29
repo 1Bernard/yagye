@@ -3,7 +3,7 @@
 module Developers
   # Rendered inside the shared drawer-frame turbo frame.
   # Clicking a delivery row on the logs tab loads this.
-  class DeliveryDrawerPage < ApplicationComponent
+  class DeliveryDrawerView < ApplicationComponent
     include UI::Theme
 
     def initialize(delivery:)

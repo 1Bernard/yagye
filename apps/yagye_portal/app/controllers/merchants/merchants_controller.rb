@@ -5,7 +5,7 @@ module Merchants
     def index
       authorize :merchants, :index?
       pagy, merchants = pagy(Merchants::MerchantsQuery.new.call(filters), limit: 25)
-      render Merchants::IndexPage.new(
+      render Merchants::IndexView.new(
         merchants: merchants, pagy: pagy,
         status: params[:status], query: params[:q]
       )

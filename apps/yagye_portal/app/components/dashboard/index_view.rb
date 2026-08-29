@@ -1,7 +1,7 @@
 # frozen_string_literal: true
 
 module Dashboard
-  class IndexPage < ApplicationComponent
+  class IndexView < ApplicationComponent
     include UI::Theme
 
     BRAND  = "#3D47F5"

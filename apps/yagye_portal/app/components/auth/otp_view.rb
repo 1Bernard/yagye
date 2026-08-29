@@ -1,5 +1,5 @@
 module Auth
-  class OtpPage < ApplicationComponent
+  class OtpView < ApplicationComponent
     FIELD_LABEL = "block text-[10px] font-semibold uppercase tracking-[0.1em] text-gray-600 mb-1.5"
 
     def initialize(csrf_token:)

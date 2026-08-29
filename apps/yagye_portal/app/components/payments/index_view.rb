@@ -1,7 +1,7 @@
 # frozen_string_literal: true
 
 module Payments
-  class IndexPage < ApplicationComponent
+  class IndexView < ApplicationComponent
     include UI::Theme
 
     def initialize(payments:, pagy:, can_view_pii: false, can_export: false,

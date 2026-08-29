@@ -1,5 +1,5 @@
 module Auth
-  class ForgotPasswordPage < ApplicationComponent
+  class ForgotPasswordView < ApplicationComponent
     ICON_INPUT = "w-full rounded-xl border border-gray-200 bg-gray-50 pl-9 pr-3 py-3 text-[13.5px] " \
                  "text-gray-900 placeholder:text-gray-400 " \
                  "focus:outline-none focus:bg-white focus:border-blue-400 focus:ring-2 focus:ring-blue-500/10 transition-all"

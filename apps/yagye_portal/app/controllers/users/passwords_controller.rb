@@ -5,12 +5,12 @@ class Users::PasswordsController < Devise::PasswordsController
 
   def new
     self.resource = resource_class.new
-    render Auth::ForgotPasswordPage.new(resource: resource, csrf_token: form_authenticity_token)
+    render Auth::ForgotPasswordView.new(resource: resource, csrf_token: form_authenticity_token)
   end
 
   def edit
     self.resource = resource_class.new
-    render Auth::ResetPasswordPage.new(
+    render Auth::ResetPasswordView.new(
       resource: resource,
       csrf_token: form_authenticity_token,
       token: params[:reset_password_token]

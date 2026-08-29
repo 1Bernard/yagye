@@ -71,13 +71,13 @@ module Auth
     end
 
     def view_template
-      helpers.content_for(:body_class) { "h-screen overflow-hidden" }
+      content_for(:body_class) { "h-screen overflow-hidden" }
       style { raw safe("html,body{margin:0;padding:0}") }
       div class: "fixed inset-0 flex bg-white" do
         left_panel { yield }
         right_section
       end
-      render UI::Flash.new(flash: helpers.flash)
+      render UI::Flash.new(flash: flash)
     end
 
     private
@@ -88,7 +88,7 @@ module Auth
       div class: "flex-1 flex flex-col px-14 py-12 overflow-y-auto" do
         # Logo — top edge, outer py-12 is its breathing room
         div class: "shrink-0" do
-          img src: helpers.asset_path("yagye-text.png"), alt: "Yagye", class: "h-8 w-auto"
+          img src: asset_path("yagye-text.png"), alt: "Yagye", class: "h-8 w-auto"
         end
 
         # Equal spacer — pushes form to vertical centre

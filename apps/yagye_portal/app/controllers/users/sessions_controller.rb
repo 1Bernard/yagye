@@ -11,14 +11,14 @@ class Users::SessionsController < Devise::SessionsController
 
   def new
     self.resource = resource_class.new
-    render Auth::SignInPage.new(resource: resource, csrf_token: form_authenticity_token)
+    render Auth::SignInView.new(resource: resource, csrf_token: form_authenticity_token)
   end
 
   # GET /users/otp-challenge
   def otp_challenge
     resource = pending_otp_user
     redirect_to(new_user_session_path) and return unless resource
-    render Auth::OtpPage.new(csrf_token: form_authenticity_token)
+    render Auth::OtpView.new(csrf_token: form_authenticity_token)
   end
 
   # POST /users/otp-challenge

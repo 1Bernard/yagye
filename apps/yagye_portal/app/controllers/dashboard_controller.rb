@@ -6,7 +6,7 @@ class DashboardController < ApplicationController
     scope   = payment_scope
     summary = Payments::VolumeSummaryQuery.new(scope).call
 
-    render Dashboard::IndexPage.new(
+    render Dashboard::IndexView.new(
       volume_cents:      summary[:volume_cents],
       prev_volume_cents: summary[:prev_volume_cents],
       tx_count:          summary[:tx_count],

@@ -69,13 +69,13 @@ module Layout
           style: "display:flex;align-items:center;justify-content:space-between;" \
                  "height:56px;border-bottom:1px solid #{BORDER};flex-shrink:0;overflow:hidden") do
         # Full text logo — visible when expanded, hidden when collapsed
-        img(src: helpers.asset_path("yagye-text.png"),
+        img(src: asset_path("yagye-text.png"),
             alt: "Yagye",
             class: "sidebar-logo-full",
             style: "height:26px;width:auto;object-fit:contain;flex-shrink:0")
 
         # Icon-only logo — hidden when expanded, visible when collapsed
-        img(src: helpers.asset_path("yagye.png"),
+        img(src: asset_path("yagye.png"),
             alt: "Yagye",
             class: "sidebar-logo-icon",
             style: "width:28px;height:28px;object-fit:contain;flex-shrink:0")
@@ -221,10 +221,10 @@ module Layout
       dot    = live ? "#16a34a" : "#d97706"
 
       div(style: "margin:0 10px 8px;flex-shrink:0") do
-        form(action: helpers.portal_mode_path, method: :post,
+        form(action: portal_mode_path, method: :post,
              data: { turbo: false }) do
           input(type: "hidden", name: "_method",                value: "post")
-          input(type: "hidden", name: "authenticity_token",     value: helpers.form_authenticity_token)
+          input(type: "hidden", name: "authenticity_token",     value: form_authenticity_token)
           input(type: "hidden", name: "mode",                   value: target)
 
           button(type: "submit",

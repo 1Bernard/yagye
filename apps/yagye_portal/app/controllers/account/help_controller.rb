@@ -4,7 +4,7 @@ module Account
   class HelpController < ApplicationController
     def index
       authorize :help, :index?
-      render Help::IndexPage.new
+      render Help::IndexView.new
     end
   end
 end

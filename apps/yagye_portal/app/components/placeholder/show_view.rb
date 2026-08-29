@@ -1,7 +1,7 @@
 # frozen_string_literal: true
 
 module Placeholder
-  class ShowPage < ApplicationComponent
+  class ShowView < ApplicationComponent
     BRAND  = "#3D47F5"
 
     SECTIONS = {

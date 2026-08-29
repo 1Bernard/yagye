@@ -20,7 +20,7 @@ module Layout
         end
       end
 
-      render UI::Flash.new(flash: helpers.flash)
+      render UI::Flash.new(flash: flash)
       drawer_shell
       modal_shell
     end

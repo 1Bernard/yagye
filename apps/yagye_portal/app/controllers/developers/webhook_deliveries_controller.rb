@@ -18,7 +18,7 @@ module Developers
     def show
       delivery = policy_scope(PortalWebhookDelivery).find(params[:id])
       authorize delivery, :show?
-      render Developers::DeliveryDrawerPage.new(delivery: delivery)
+      render Developers::DeliveryDrawerView.new(delivery: delivery)
     end
   end
 end

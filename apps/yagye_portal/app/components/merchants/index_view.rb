@@ -1,7 +1,7 @@
 # frozen_string_literal: true
 
 module Merchants
-  class IndexPage < ApplicationComponent
+  class IndexView < ApplicationComponent
     include UI::Theme
 
     def initialize(merchants: [], pagy: nil, status: nil, query: nil)

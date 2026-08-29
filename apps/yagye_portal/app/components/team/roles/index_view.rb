@@ -2,7 +2,7 @@
 
 module Team
   module Roles
-    class IndexPage < ApplicationComponent
+    class IndexView < ApplicationComponent
       include UI::Theme
 
       ROLE_DESCRIPTIONS = {

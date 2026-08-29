@@ -1,7 +1,7 @@
 # frozen_string_literal: true
 
 module Help
-  class IndexPage < ApplicationComponent
+  class IndexView < ApplicationComponent
     include UI::Theme
 
     QUICK_LINKS = [

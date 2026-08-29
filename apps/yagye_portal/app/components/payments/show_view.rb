@@ -1,7 +1,7 @@
 # frozen_string_literal: true
 
 module Payments
-  class ShowPage < ApplicationComponent
+  class ShowView < ApplicationComponent
     include UI::Theme
 
     def initialize(payment:, can_refund: false, can_view_pii: false)

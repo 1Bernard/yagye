@@ -2,7 +2,7 @@
 
 module Team
   module Users
-    class IndexPage < ApplicationComponent
+    class IndexView < ApplicationComponent
       include UI::Theme
 
       def initialize(users: [], can_invite: false, query: nil, role: nil, status: nil)

@@ -5,7 +5,7 @@ module Team
     def index
       authorize User, :index?
       users = Team::UsersQuery.new(policy_scope(User)).call(filters)
-      render Team::Users::IndexPage.new(
+      render Team::Users::IndexView.new(
         users: users, can_invite: policy(User).invite?,
         query: params[:q], role: params[:role], status: params[:status]
       )
@@ -15,7 +15,7 @@ module Team
       user = policy_scope(User).find(params[:id])
       authorize user
       roles = user.user_roles.includes(:role).where(revoked_at: nil).order(:created_at)
-      render Team::Users::ShowPage.new(
+      render Team::Users::ShowView.new(
         user: user, roles: roles,
         can_manage: policy(user).update?
       )

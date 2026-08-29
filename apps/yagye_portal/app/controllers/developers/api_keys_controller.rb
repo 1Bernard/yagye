@@ -19,7 +19,7 @@ module Developers
         )
       end
 
-      render Developers::IndexPage.new(
+      render Developers::IndexView.new(
         tab: tab, api_keys: api_keys, webhooks: webhooks,
         deliveries: deliveries, pagy: pagy
       )
