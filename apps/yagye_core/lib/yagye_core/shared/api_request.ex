@@ -14,7 +14,6 @@ defmodule YagyeCore.Shared.ApiRequest do
     field :api_version, :string
     field :status, :integer
     field :duration_ms, :integer
-    field :correlation_id, :string
     field :trace_id, :string
     field :idempotency_key, :string
     field :request_body_sha256, :string
@@ -23,8 +22,8 @@ defmodule YagyeCore.Shared.ApiRequest do
     timestamps(updated_at: false)
   end
 
-  @required ~w[method path status duration_ms correlation_id]a
-  @optional ~w[merchant_id api_key_id mode api_version trace_id idempotency_key request_body_sha256 error_code]a
+  @required ~w[method path status duration_ms trace_id]a
+  @optional ~w[merchant_id api_key_id mode api_version idempotency_key request_body_sha256 error_code]a
 
   def changeset(request, attrs) do
     request

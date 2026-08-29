@@ -48,7 +48,7 @@ module Layout
       nav(class: "sidebar-wrapper bg-white border-r border-gray-100 flex flex-col h-full flex-shrink-0",
           data: { controller: "sidebar" }) do
         logo_block
-        div(class: "flex-1 overflow-y-auto") do
+        div(class: "flex-1 overflow-y-auto overflow-x-hidden") do
           div(class: "py-4") do
             NAV_SECTIONS.each { |s| nav_section(s) }
           end

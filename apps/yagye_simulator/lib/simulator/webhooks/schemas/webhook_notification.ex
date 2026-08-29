@@ -19,7 +19,7 @@ defmodule Simulator.Webhooks.Schemas.WebhookNotification do
       event_type: event_type(wallet_prompt.prompt_state),
       charge_ref: charge.charge_ref,
       occurred_at: wallet_prompt.resolved_at || DateTime.utc_now(),
-      auth_code: auth_code_for(wallet_prompt.prompt_state),
+      auth_code: charge.auth_code,
       decline_code: decline_code_for(wallet_prompt.prompt_state, wallet_prompt.decline_code)
     }
   end
@@ -27,11 +27,6 @@ defmodule Simulator.Webhooks.Schemas.WebhookNotification do
   defp event_type("APPROVED"), do: "charge.succeeded"
   defp event_type("DECLINED"), do: "charge.failed"
   defp event_type("EXPIRED"), do: "charge.failed"
-
-  defp auth_code_for("APPROVED"),
-    do: ("AUTH" <> :crypto.strong_rand_bytes(4)) |> Base.encode16()
-
-  defp auth_code_for(_), do: nil
 
   defp decline_code_for("DECLINED", code) when is_binary(code), do: code
   defp decline_code_for("DECLINED", _), do: "DECLINED_BY_CUSTOMER"

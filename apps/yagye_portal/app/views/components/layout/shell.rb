@@ -23,6 +23,7 @@ module Layout
       render UI::Flash.new(flash: flash)
       drawer_shell
       modal_shell
+      div(id: "sidebar-nav-tooltip")
     end
 
     private

@@ -33,7 +33,7 @@ defmodule YagyeCoreWeb.Plugs.AuditLog do
         api_version: get_req_header(conn, "x-api-version") |> List.first("2026-01-01"),
         status: conn.status,
         duration_ms: duration_ms,
-        correlation_id: conn.assigns[:correlation_id],
+        trace_id: conn.assigns[:trace_id],
         idempotency_key: get_req_header(conn, "idempotency-key") |> List.first(),
         request_body_sha256: body_hash(conn.assigns[:raw_body]),
         error_code: conn.assigns[:error_code]

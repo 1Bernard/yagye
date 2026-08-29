@@ -192,8 +192,13 @@ defmodule Simulator.Charges.ChargesTest do
     end
 
     defp wallet_attrs(network, msisdn) do
-      %{amount_minor: 10_000, currency: "GHS", instrument_type: "WALLET",
-        network: network, msisdn: msisdn}
+      %{
+        amount_minor: 10_000,
+        currency: "GHS",
+        instrument_type: "WALLET",
+        network: network,
+        msisdn: msisdn
+      }
     end
   end
 

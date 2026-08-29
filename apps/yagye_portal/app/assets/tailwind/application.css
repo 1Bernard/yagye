@@ -199,15 +199,12 @@ body {
   justify-content: center;
   padding-left: 0;
   padding-right: 0;
-  position: relative;
 }
 
-/* Tooltip: fade-in label to the right of icon when collapsed */
-.sidebar-wrapper.sidebar-collapsed .sidebar-nav-item::after {
-  content: attr(data-nav-tooltip);
-  position: absolute;
-  left: calc(100% + 10px);
-  top: 50%;
+/* Tooltip: fixed-position element managed by sidebar_controller.js.
+   position:fixed escapes the sidebar's overflow context entirely. */
+#sidebar-nav-tooltip {
+  position: fixed;
   transform: translateY(-50%);
   background: #111827;
   color: #fff;
@@ -216,13 +213,13 @@ body {
   padding: 5px 11px;
   border-radius: 7px;
   white-space: nowrap;
-  z-index: 200;
+  z-index: 1000;
   pointer-events: none;
   opacity: 0;
   transition: opacity 120ms ease;
   box-shadow: 0 2px 10px rgba(0,0,0,0.18);
 }
-.sidebar-wrapper.sidebar-collapsed .sidebar-nav-item:hover::after {
+#sidebar-nav-tooltip.is-visible {
   opacity: 1;
 }
 
