@@ -498,9 +498,14 @@ Table portal_webhook_deliveries [headercolor: #6B7A8D] {
   delivery_id uuid [pk]
   endpoint_id uuid [not null]
   merchant_code text [not null]
+  event_id text [note: 'mirrors merchant_webhook_deliveries.event_id for drawer display']
   event_type text [not null]
   state text [not null, note: 'pending|delivering|delivered|failed|exhausted']
+  request_headers jsonb [note: 'key headers sent: X-Yagye-Signature, X-Yagye-Delivery, Content-Type, User-Agent']
+  request_body jsonb [note: 'verbatim event payload as sent — stored at dispatch time, never re-derived']
   response_status integer
+  response_body text [note: 'truncated at 4096 chars at application layer']
+  duration_ms integer
   attempt integer [not null]
   delivered_at timestamptz
   last_applied_at timestamptz [not null]

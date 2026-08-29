@@ -37,7 +37,9 @@ Rails.application.routes.draw do
 
   # ── Developers domain ────────────────────────────────────────────────────
   scope module: "developers" do
-    get "developers",     to: "api_keys#index",    as: :developers
+    get "developers",                  to: "api_keys#index",              as: :developers
+    get "developers/deliveries",       to: "webhook_deliveries#index",    as: :developers_deliveries
+    get "developers/deliveries/:id",   to: "webhook_deliveries#show",     as: :developers_delivery
   end
 
   # ── Team domain ──────────────────────────────────────────────────────────

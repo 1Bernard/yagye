@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_08_29_170001) do
+ActiveRecord::Schema[8.1].define(version: 2026_08_29_180001) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pgcrypto"
@@ -142,10 +142,15 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_29_170001) do
   create_table "portal_webhook_deliveries", primary_key: "delivery_id", id: :uuid, default: nil, force: :cascade do |t|
     t.integer "attempt", default: 1, null: false
     t.datetime "delivered_at"
+    t.integer "duration_ms"
     t.uuid "endpoint_id", null: false
+    t.text "event_id"
     t.text "event_type", null: false
     t.datetime "last_applied_at", default: -> { "now()" }, null: false
     t.text "merchant_code", null: false
+    t.jsonb "request_body"
+    t.jsonb "request_headers"
+    t.text "response_body"
     t.integer "response_status"
     t.text "state", null: false
     t.index ["endpoint_id", "last_applied_at"], name: "idx_on_endpoint_id_last_applied_at_5426289cd1"

@@ -10,10 +10,12 @@ module Developers
       { key: "logs",      label: "Event Logs" }
     ].freeze
 
-    def initialize(tab: "api_keys", api_keys: [], webhooks: [])
-      @tab      = tab
-      @api_keys = api_keys
-      @webhooks = webhooks
+    def initialize(tab: "api_keys", api_keys: [], webhooks: [], deliveries: nil, pagy: nil)
+      @tab        = tab
+      @api_keys   = api_keys
+      @webhooks   = webhooks
+      @deliveries = deliveries || []
+      @pagy       = pagy
     end
 
     def view_template
@@ -167,15 +169,57 @@ module Developers
     # ── Event logs panel ──────────────────────────────────────────────────────
 
     def logs_panel
-      div(style: "background:#fff;border:1px solid #{BORDER};border-radius:20px;padding:56px 24px;text-align:center") do
-        div(style: "width:48px;height:48px;border-radius:16px;background:#f3f4f6;" \
-                   "display:flex;align-items:center;justify-content:middle;margin:0 auto 16px") do
-          span(style: "display:flex;width:22px;height:22px;color:#{SUBTLE_TEXT}") do
-            render UI::Icon.new(:layers, class: "w-full h-full")
+      pagy       = @pagy
+      deliveries = @deliveries
+
+      render UI::Datatable.new(records: deliveries, pagy: pagy,
+                               empty_message: "No delivery attempts yet. Webhook deliveries appear here once endpoints are active.") do |t|
+        t.header do
+          div do
+            p(style: TYPE_TITLE) { "Delivery log" }
+            p(style: "#{TYPE_CAPTION};margin-top:2px") { "Last 30 days. Click a row to inspect the request and response." }
           end
         end
-        p(style: "#{TYPE_BODY_MD};margin-bottom:6px") { "Event logs" }
-        p(style: TYPE_CAPTION) { "Webhook delivery history will be available in a future release." }
+
+        t.column("Event")    do |d|
+          div do
+            p(style: TYPE_BODY_MD) { d.event_type }
+            p(style: TYPE_CAPTION) { d.short_event_id }
+          end
+        end
+        t.column("Endpoint") { |d| code(style: "#{TYPE_MONO};font-size:11px") { d.portal_webhook_endpoint&.url || "—" } }
+        t.column("Status")   { |d| render UI::StatusBadge.new(status: d.state) }
+        t.column("HTTP")     { |d| http_status_chip(d) }
+        t.column("Duration") { |d| span(style: TYPE_CAPTION) { d.formatted_duration } }
+        t.column("Attempt")  { |d| span(style: TYPE_CAPTION) { d.attempt.to_s } }
+        t.column("Sent")     { |d| span(style: TYPE_CAPTION) { d.last_applied_at.strftime("%d %b, %H:%M") } }
+
+        t.actions do |d|
+          a(href: developers_delivery_path(d.delivery_id),
+            class: DROPDOWN_ITEM,
+            data: { turbo_frame: "drawer-frame" }) do
+            render UI::Icon.new(:eye, class: ICON_SM)
+            "Inspect"
+          end
+          a(href: developers_delivery_path(d.delivery_id),
+            class: DROPDOWN_ITEM) do
+            render UI::Icon.new(:refresh, class: ICON_SM)
+            "Retry"
+          end
+        end
+      end
+    end
+
+    def http_status_chip(delivery)
+      code = delivery.response_status
+      return span(style: TYPE_CAPTION) { "—" } unless code
+
+      color = code.between?(200, 299) ? "#16a34a" : "#dc2626"
+      bg    = code.between?(200, 299) ? "#f0fdf4" : "#fef2f2"
+
+      span(style: "font-size:11.5px;font-weight:600;color:#{color};background:#{bg};" \
+                  "padding:2px 8px;border-radius:20px;font-family:ui-monospace,monospace") do
+        code.to_s
       end
     end
   end

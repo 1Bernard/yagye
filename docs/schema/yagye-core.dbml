@@ -1302,8 +1302,10 @@ Table merchant_webhook_deliveries [headercolor: #6B7A8D] {
   event_type text [not null]
   attempt integer [not null]
   state text [not null, note: 'pending|delivering|delivered|failed|exhausted']
+  request_headers jsonb [not null, note: 'headers sent: X-Yagye-Signature, X-Yagye-Delivery, Content-Type, User-Agent']
+  request_body jsonb [not null, note: 'verbatim event payload — stored at build time, never re-derived; used by portal drawer']
   response_status integer [note: '2xx ONLY is success. A 3xx is a failure — we do not follow redirects.']
-  response_body_truncated text
+  response_body text [note: 'truncated at 4096 chars at application layer']
   duration_ms integer
   next_attempt_at timestamptz
   delivered_at timestamptz
