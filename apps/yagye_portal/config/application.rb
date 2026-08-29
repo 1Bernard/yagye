@@ -37,11 +37,13 @@ module YagyePortal
     # config.eager_load_paths << Rails.root.join("extras")
 
     config.autoload_paths += [
-      Rails.root.join("app/components"),
+      Rails.root.join("app/views"),
       Rails.root.join("app/queries"),
       Rails.root.join("app/services"),
       Rails.root.join("app/middleware")
     ]
+    config.eager_load_paths << Rails.root.join("app/views")
+    Rails.autoloaders.main.collapse(Rails.root.join("app/views/components"))
 
     # Correlation ID + structured logging middleware (runs before Devise/auth).
     # Explicit require because application.rb runs before Zeitwerk is active.
