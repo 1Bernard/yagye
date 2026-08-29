@@ -45,7 +45,7 @@ module YagyePortal
 
     # Correlation ID + structured logging middleware (runs before Devise/auth).
     # Explicit require because application.rb runs before Zeitwerk is active.
-    require_relative "../app/models/concerns/correlation_id"
+    require_relative "../app/middleware/correlation_id"
     require_relative "../app/middleware/correlation_id_middleware"
     config.middleware.use CorrelationIdMiddleware
     config.middleware.use RequestStore::Middleware
