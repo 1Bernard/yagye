@@ -16,6 +16,7 @@ module Help
     def view_template
       render Layout::Shell.new(
         active_nav: :help,
+        title:      "Help & Support",
         breadcrumbs: [ { label: "Help & Support" } ]
       ) do
         page_header

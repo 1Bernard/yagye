@@ -20,6 +20,7 @@ module Developers
     def view_template
       render Layout::Shell.new(
         active_nav: :developers,
+        title:      "Developers",
         breadcrumbs: [ { label: "Developers" } ]
       ) do
         page_header

@@ -14,6 +14,7 @@ module Merchants
     def view_template
       render Layout::Shell.new(
         active_nav: :merchants,
+        title:      "Merchants",
         breadcrumbs: [ { label: "Merchants" } ]
       ) do
         page_header

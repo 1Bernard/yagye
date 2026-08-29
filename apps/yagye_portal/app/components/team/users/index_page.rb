@@ -13,6 +13,7 @@ module Team
       def view_template
         render Layout::Shell.new(
           active_nav: :team_users,
+          title:      "Team members",
           breadcrumbs: [
             { label: "Team" },
             { label: "Users" }

@@ -14,6 +14,7 @@ module Team
       def view_template
         render Layout::Shell.new(
           active_nav: :team_users,
+          title:      @user.full_name,
           breadcrumbs: [
             { label: "Team",  url: team_users_path },
             { label: "Users", url: team_users_path },

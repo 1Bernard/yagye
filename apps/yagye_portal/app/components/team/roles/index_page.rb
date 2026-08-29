@@ -23,6 +23,7 @@ module Team
       def view_template
         render Layout::Shell.new(
           active_nav: :team_roles,
+          title:      "Roles & Permissions",
           breadcrumbs: [
             { label: "Team",               url: team_users_path },
             { label: "Roles & Permissions" }

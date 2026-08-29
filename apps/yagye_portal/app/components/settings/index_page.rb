@@ -19,6 +19,7 @@ module Settings
     def view_template
       render Layout::Shell.new(
         active_nav: :settings,
+        title:      "Settings",
         breadcrumbs: [ { label: "Settings" } ]
       ) do
         page_header

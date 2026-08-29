@@ -20,6 +20,7 @@ module Disputes
     def view_template
       render Layout::Shell.new(
         active_nav: :disputes,
+        title:      "Disputes",
         breadcrumbs: [ { label: "Disputes" } ]
       ) do
         page_header

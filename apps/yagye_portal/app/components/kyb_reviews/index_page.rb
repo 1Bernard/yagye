@@ -20,6 +20,7 @@ module KybReviews
     def view_template
       render Layout::Shell.new(
         active_nav: :kyb_reviews,
+        title:      "KYB Review",
         breadcrumbs: [ { label: "KYB Review" } ]
       ) do
         page_header
