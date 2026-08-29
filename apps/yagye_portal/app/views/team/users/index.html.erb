@@ -1,1 +1,7 @@
-<%= render Team::Users::IndexPage.new(users: @users, can_invite: policy(User).invite?) %>
+<%= render Team::Users::IndexPage.new(
+  users:      @users,
+  can_invite: policy(User).invite?,
+  query:      params[:q],
+  role:       params[:role],
+  status:     params[:status]
+) %>

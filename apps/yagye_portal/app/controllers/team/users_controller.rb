@@ -20,7 +20,7 @@ module Team
     private
 
     def filters
-      params.permit(:q, :role).to_h.symbolize_keys
+      params.permit(:q, :role, :status).to_h.symbolize_keys
     end
   end
 end

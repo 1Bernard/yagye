@@ -19,7 +19,6 @@ module Merchants
       ) do
         page_header
         stat_band
-        filter_bar_section
         merchants_table
       end
     end
@@ -31,10 +30,6 @@ module Merchants
         div do
           p(style: "#{TYPE_CAPTION};margin-bottom:2px") { "Operations" }
           h1(style: TYPE_DISPLAY) { "Merchants" }
-        end
-        button(type: "button", class: BTN_SECONDARY) do
-          render UI::Icon.new(:download, class: ICON_SM)
-          "Export"
         end
       end
     end
@@ -48,35 +43,76 @@ module Merchants
       end
     end
 
-    def filter_bar_section
-      render UI::FilterBar.new(action: merchants_path) do |f|
-        f.search_field name: "q", value: @query, placeholder: "Search business name or code..."
-        f.select_field name: "status", label: "Status",
-                       selected: @status,
-                       options: [
-                         [ "All statuses",    "" ],
-                         [ "Active",          "active" ],
-                         [ "Pending KYB",     "pending_kyb" ],
-                         [ "Under review",    "under_review" ],
-                         [ "Suspended",       "suspended" ],
-                         [ "Rejected",        "rejected" ]
-                       ]
-        f.select_field name: "country", label: "Country",
-                       options: [
-                         [ "All countries", "" ],
-                         [ "Ghana",         "GH" ],
-                         [ "Nigeria",       "NG" ],
-                         [ "Kenya",         "KE" ],
-                         [ "Côte d'Ivoire", "CI" ]
-                       ]
-      end
-    end
-
     def merchants_table
+      status = @status
+      query  = @query
+      total  = @pagy ? @pagy.count : @merchants.size
+
       render UI::Datatable.new(records: @merchants, pagy: @pagy,
                                empty_message: "No merchants registered yet.") do |t|
         t.header do
-          p(style: TYPE_TITLE) { "All merchants" }
+          div(style: "display:flex;align-items:center;gap:8px") do
+            p(style: TYPE_TITLE) { "All merchants" }
+            span(style: "background:#f3f4f6;color:#6b7280;border-radius:20px;" \
+                        "padding:1px 9px;font-size:11.5px;font-weight:600;line-height:1.6") { total.to_s } if total > 0
+          end
+
+          form(action: merchants_path, method: "get",
+               style: "display:flex;align-items:center;gap:6px") do
+            div(style: "display:flex;align-items:center;gap:7px;padding:0 11px;" \
+                       "border:1px solid #e5e7eb;border-radius:9px;background:#fff;height:32px") do
+              span(style: "display:flex;width:12px;height:12px;color:#9ca3af;flex-shrink:0") do
+                render UI::Icon.new(:search, class: "w-full h-full")
+              end
+              input(type: "search", name: "q", value: query,
+                    placeholder: "Search business name or code…",
+                    style: "border:0;outline:none;background:transparent;font-size:12.5px;" \
+                           "color:#374151;width:180px;min-width:0",
+                    class: "placeholder:text-gray-400")
+            end
+
+            select(name: "status", onchange: "this.form.submit()",
+                   style: "border:1px solid #e5e7eb;border-radius:9px;padding:0 10px;" \
+                          "font-size:12.5px;font-weight:500;color:#374151;background:#fff;" \
+                          "outline:none;cursor:pointer;height:32px") do
+              option(value: "", selected: status.blank?) { "All statuses" }
+              [["Active","active"],["Pending KYB","pending_kyb"],["Under review","under_review"],
+               ["Suspended","suspended"],["Rejected","rejected"]].each do |(lbl, val)|
+                option(value: val, selected: status == val) { lbl }
+              end
+            end
+
+            select(name: "country", onchange: "this.form.submit()",
+                   style: "border:1px solid #e5e7eb;border-radius:9px;padding:0 10px;" \
+                          "font-size:12.5px;font-weight:500;color:#374151;background:#fff;" \
+                          "outline:none;cursor:pointer;height:32px") do
+              option(value: "") { "All countries" }
+              [["Ghana","GH"],["Nigeria","NG"],["Kenya","KE"],["Côte d'Ivoire","CI"]].each do |(lbl, val)|
+                option(value: val) { lbl }
+              end
+            end
+
+            button(type: "submit",
+                   style: "display:inline-flex;align-items:center;padding:0 12px;" \
+                          "border:1px solid #e5e7eb;border-radius:9px;font-size:12.5px;" \
+                          "font-weight:500;color:#374151;background:#fff;cursor:pointer;" \
+                          "height:32px;white-space:nowrap") { plain "Filter" }
+
+            a(href: merchants_path(format: :csv, status: status, q: query),
+              style: "display:inline-flex;align-items:center;gap:5px;padding:0 12px;" \
+                     "border:1px solid #e5e7eb;border-radius:9px;font-size:12.5px;" \
+                     "font-weight:500;color:#374151;background:#fff;cursor:pointer;" \
+                     "height:32px;text-decoration:none;white-space:nowrap") do
+              render UI::Icon.new(:download, class: "w-[12px] h-[12px]")
+              plain "Export"
+            end
+
+            if query.present? || status.present?
+              a(href: merchants_path,
+                style: "font-size:12px;color:#9ca3af;text-decoration:none;" \
+                       "padding:0 4px;white-space:nowrap") { "Clear" }
+            end
+          end
         end
 
         t.column("Business") do |m|

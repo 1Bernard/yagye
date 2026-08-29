@@ -1,1 +1,6 @@
-<%= render Merchants::IndexPage.new(status: @status, query: @query) %>
+<%= render Merchants::IndexPage.new(
+  merchants: @merchants,
+  pagy: @pagy,
+  status: @status,
+  query: @query
+) %>

@@ -11,10 +11,15 @@ module Disputes
       { key: "lost", label: "Lost" }
     ].freeze
 
-    def initialize(tab: "all", disputes: [], pagy: nil)
-      @tab     = tab
+    def initialize(tab: "all", disputes: [], pagy: nil, query: nil, reason: nil,
+                   date_from: nil, date_to: nil)
+      @tab      = tab
       @disputes = disputes
-      @pagy    = pagy
+      @pagy     = pagy
+      @query    = query
+      @reason   = reason
+      @date_from = date_from
+      @date_to   = date_to
     end
 
     def view_template
@@ -26,7 +31,6 @@ module Disputes
         page_header
         stat_band
         tab_bar
-        filter_bar_section
         disputes_table
       end
     end
@@ -38,10 +42,6 @@ module Disputes
         div do
           p(style: "#{TYPE_CAPTION};margin-bottom:2px") { "Disputes" }
           h1(style: TYPE_DISPLAY) { "Dispute Management" }
-        end
-        button(type: "button", class: BTN_SECONDARY) do
-          render UI::Icon.new(:download, class: ICON_SM)
-          "Export"
         end
       end
     end
@@ -65,28 +65,84 @@ module Disputes
       end
     end
 
-    def filter_bar_section
-      render UI::FilterBar.new(action: disputes_path) do |f|
-        f.search_field name: "q", value: nil, placeholder: "Search by reference or payment ID..."
-        f.select_field name: "reason", label: "Reason",
-                       options: [
-                         [ "All reasons", "" ],
-                         [ "Fraud",                "fraud" ],
-                         [ "Duplicate charge",     "duplicate" ],
-                         [ "Product not received", "not_received" ],
-                         [ "Unrecognised",          "unrecognised" ],
-                         [ "Other",                "other" ]
-                       ]
-        f.date_field name: "from", label: "From"
-        f.date_field name: "to",   label: "To"
-      end
-    end
-
     def disputes_table
+      tab    = @tab
+      query  = @query
+      reason = @reason
+      from   = @date_from
+      to     = @date_to
+      total  = @pagy ? @pagy.count : @disputes.size
+
+      filters_active = query.present? || reason.present? || from.present? || to.present?
+
       render UI::Datatable.new(records: @disputes, pagy: @pagy,
                                empty_message: empty_message) do |t|
         t.header do
-          p(style: TYPE_TITLE) { "#{@tab.capitalize} disputes" }
+          div(style: "display:flex;align-items:center;gap:8px") do
+            p(style: TYPE_TITLE) { "#{tab.capitalize} disputes" }
+            span(style: "background:#f3f4f6;color:#6b7280;border-radius:20px;" \
+                        "padding:1px 9px;font-size:11.5px;font-weight:600;line-height:1.6") { total.to_s } if total > 0
+          end
+
+          form(action: disputes_path, method: "get",
+               style: "display:flex;align-items:center;gap:6px") do
+            input(type: "hidden", name: "tab", value: tab)
+
+            div(style: "display:flex;align-items:center;gap:7px;padding:0 11px;" \
+                       "border:1px solid #e5e7eb;border-radius:9px;background:#fff;height:32px") do
+              span(style: "display:flex;width:12px;height:12px;color:#9ca3af;flex-shrink:0") do
+                render UI::Icon.new(:search, class: "w-full h-full")
+              end
+              input(type: "search", name: "q", value: query,
+                    placeholder: "Search reference or payment ID…",
+                    style: "border:0;outline:none;background:transparent;font-size:12.5px;" \
+                           "color:#374151;width:170px;min-width:0",
+                    class: "placeholder:text-gray-400")
+            end
+
+            select(name: "reason", onchange: "this.form.submit()",
+                   style: "border:1px solid #e5e7eb;border-radius:9px;padding:0 10px;" \
+                          "font-size:12.5px;font-weight:500;color:#374151;background:#fff;" \
+                          "outline:none;cursor:pointer;height:32px") do
+              option(value: "", selected: reason.blank?) { "All reasons" }
+              [["Fraud","fraud"],["Duplicate charge","duplicate"],
+               ["Product not received","not_received"],["Unrecognised","unrecognised"],
+               ["Other","other"]].each do |(lbl, val)|
+                option(value: val, selected: reason == val) { lbl }
+              end
+            end
+
+            input(type: "date", name: "from", value: from,
+                  style: "border:1px solid #e5e7eb;border-radius:9px;padding:0 10px;" \
+                         "font-size:12.5px;color:#374151;background:#fff;" \
+                         "outline:none;cursor:pointer;height:32px")
+
+            input(type: "date", name: "to", value: to,
+                  style: "border:1px solid #e5e7eb;border-radius:9px;padding:0 10px;" \
+                         "font-size:12.5px;color:#374151;background:#fff;" \
+                         "outline:none;cursor:pointer;height:32px")
+
+            button(type: "submit",
+                   style: "display:inline-flex;align-items:center;padding:0 12px;" \
+                          "border:1px solid #e5e7eb;border-radius:9px;font-size:12.5px;" \
+                          "font-weight:500;color:#374151;background:#fff;cursor:pointer;" \
+                          "height:32px;white-space:nowrap") { plain "Filter" }
+
+            a(href: disputes_path(format: :csv, tab: tab),
+              style: "display:inline-flex;align-items:center;gap:5px;padding:0 12px;" \
+                     "border:1px solid #e5e7eb;border-radius:9px;font-size:12.5px;" \
+                     "font-weight:500;color:#374151;background:#fff;cursor:pointer;" \
+                     "height:32px;text-decoration:none;white-space:nowrap") do
+              render UI::Icon.new(:download, class: "w-[12px] h-[12px]")
+              plain "Export"
+            end
+
+            if filters_active
+              a(href: disputes_path(tab: tab),
+                style: "font-size:12px;color:#9ca3af;text-decoration:none;" \
+                       "padding:0 4px;white-space:nowrap") { "Clear" }
+            end
+          end
         end
 
         t.column("Reference")   { |d| span(style: TYPE_MONO) { d.reference } }

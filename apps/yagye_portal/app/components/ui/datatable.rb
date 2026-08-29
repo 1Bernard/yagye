@@ -67,7 +67,7 @@ module UI
     private
 
     def card_header
-      div(class: "flex items-center justify-between px-5 py-4 border-b border-gray-100") do
+      div(class: "flex items-center justify-between px-5 py-3.5 border-b border-gray-100") do
         @header_block.call
       end
     end
