@@ -1,4 +1,8 @@
 services:
+  # ---------------------------------------------------------------------------
+  # Infrastructure
+  # ---------------------------------------------------------------------------
+
   db:
     image: postgres:18
     restart: unless-stopped
@@ -16,71 +20,145 @@ services:
       timeout: 5s
       retries: 5
 
+  redpanda:
+    image: redpandadata/redpanda:v24.3.16
+    restart: unless-stopped
+    command:
+      - redpanda
+      - start
+      - --kafka-addr internal://0.0.0.0:9092,external://0.0.0.0:19092
+      - --advertise-kafka-addr internal://redpanda:9092,external://localhost:19092
+      - --schema-registry-addr http://0.0.0.0:8081
+      - --rpc-addr redpanda:33145
+      - --advertise-rpc-addr redpanda:33145
+      - --mode dev-container
+      - --smp 1
+      - --memory 512M
+      - --reserve-memory 0M
+      - --overprovisioned
+    ports:
+      - "9092:9092"   # Kafka protocol (app containers use this via service name)
+      - "19092:19092" # Kafka protocol (host machine / IDE tools)
+      - "8081:8081"   # Schema registry
+      - "9644:9644"   # Admin API
+    volumes:
+      - redpanda_data:/var/lib/redpanda/data
+    healthcheck:
+      test: ["CMD-SHELL", "rpk cluster health | grep -E 'Healthy:.+true' || exit 1"]
+      interval: 10s
+      timeout: 10s
+      retries: 10
+
   # ---------------------------------------------------------------------------
-  # App services — add a Dockerfile at apps/<name>/Dockerfile to enable each.
-  # During active development, running apps natively is faster:
-  #   mix phx.server  (core on :4000, simulator on :4100)
-  #   rails server    (portal on :3000)
-  # Use `docker compose up db` to start only the database.
+  # Application services
+  #
+  # During active development, running apps natively alongside `docker compose
+  # up db redpanda` is often faster (hot reload, no rebuild cycle).
+  # Use `docker compose up` to run the full stack in containers.
   # ---------------------------------------------------------------------------
 
-  # yagye_core:
-  #   build:
-  #     context: ../../apps/yagye_core
-  #     dockerfile: Dockerfile
-  #   restart: unless-stopped
-  #   environment:
-  #     PGHOST: db
-  #     PGUSER: postgres
-  #     PGPASSWORD: postgres
-  #     SECRET_KEY_BASE: dev_secret_replace_in_production
-  #     PORT: "4000"
-  #   ports:
-  #     - "4000:4000"
-  #   depends_on:
-  #     db:
-  #       condition: service_healthy
+  yagye_core:
+    build:
+      context: ../../apps/yagye_core
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: ecto://postgres:postgres@db/yagye_core_dev
+      SECRET_KEY_BASE: dev_secret_key_base_replace_in_production_min_64_chars_long_abc123
+      CORE_PORTAL_SERVICE_SECRET: dev_portal_service_secret_change_in_production
+      PORT: "4000"
+      PHX_HOST: localhost
+    # Run migrations then start server. YagyeCore.Release.migrate/0 is idempotent.
+    command: >
+      /bin/sh -c "
+        /app/bin/yagye_core eval 'YagyeCore.Release.migrate()' &&
+        /app/bin/yagye_core start
+      "
+    ports:
+      - "4000:4000"
+    depends_on:
+      db:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:4000/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
 
-  # yagye_simulator:
-  #   build:
-  #     context: ../../apps/yagye_simulator
-  #     dockerfile: Dockerfile
-  #   restart: unless-stopped
-  #   environment:
-  #     PGHOST: db
-  #     PGUSER: postgres
-  #     PGPASSWORD: postgres
-  #     SECRET_KEY_BASE: dev_secret_replace_in_production
-  #     PORT: "4100"
-  #     CORE_API_URL: http://yagye_core:4000
-  #   ports:
-  #     - "4100:4100"
-  #   depends_on:
-  #     db:
-  #       condition: service_healthy
+  yagye_simulator:
+    build:
+      context: ../../apps/yagye_simulator
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: ecto://postgres:postgres@db/gateway_simulator_dev
+      SECRET_KEY_BASE: dev_secret_key_base_replace_in_production_min_64_chars_long_abc123
+      CORE_API_URL: http://yagye_core:4000
+      PORT: "4001"
+      PHX_HOST: localhost
+    command: >
+      /bin/sh -c "
+        /app/bin/simulator eval 'Simulator.Release.migrate()' &&
+        /app/bin/simulator start
+      "
+    ports:
+      - "4001:4001"
+    depends_on:
+      db:
+        condition: service_healthy
+      yagye_core:
+        condition: service_healthy
 
-  # yagye_portal — uncomment after `rails new yagye_portal` in apps/yagye_portal/
-  # yagye_portal:
-  #   build:
-  #     context: ../../apps/yagye_portal
-  #     dockerfile: Dockerfile
-  #   restart: unless-stopped
-  #   environment:
-  #     DATABASE_URL: postgres://postgres:postgres@db/yagye_portal_dev
-  #     RAILS_ENV: development
-  #     SECRET_KEY_BASE: dev_secret_replace_in_production
-  #     CORE_API_URL: http://yagye_core:4000
-  #   ports:
-  #     - "3000:3000"
-  #   depends_on:
-  #     db:
-  #       condition: service_healthy
+  yagye_portal:
+    build:
+      context: ../../apps/yagye_portal
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: postgresql://postgres:postgres@db/yagye_portal_development
+      SECRET_KEY_BASE: dev_secret_key_base_replace_in_production_min_64_chars_long_abc123
+      RAILS_MASTER_KEY: ""
+      CORE_API_URL: http://yagye_core:4000
+      CORE_PORTAL_SERVICE_SECRET: dev_portal_service_secret_change_in_production
+      KAFKA_BOOTSTRAP_SERVERS: redpanda:9092
+      RAILS_LOG_TO_STDOUT: "true"
+    ports:
+      - "3000:80"  # Thruster listens on :80 inside the container
+    depends_on:
+      db:
+        condition: service_healthy
+      yagye_core:
+        condition: service_healthy
+      redpanda:
+        condition: service_healthy
+
+  # Karafka consumer process — runs alongside the Portal web server.
+  # Reads events from Redpanda and updates portal_* read model tables.
+  yagye_portal_karafka:
+    build:
+      context: ../../apps/yagye_portal
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: postgresql://postgres:postgres@db/yagye_portal_development
+      SECRET_KEY_BASE: dev_secret_key_base_replace_in_production_min_64_chars_long_abc123
+      KAFKA_BOOTSTRAP_SERVERS: redpanda:9092
+      RAILS_LOG_TO_STDOUT: "true"
+    command: ["bundle", "exec", "karafka", "server"]
+    depends_on:
+      db:
+        condition: service_healthy
+      redpanda:
+        condition: service_healthy
+      yagye_portal:
+        condition: service_started
 
 # Services added in later phases:
-#   redpanda   — P14 (Kafka-compatible event backbone)
-#   rabbitmq   — P15 (outbound webhook delivery)
+#   rabbitmq   — P15 (outbound merchant webhooks via RabbitMQ exchange → per-merchant queue → DLX)
 #   redis      — P17 (distributed rate limiting, session store)
 #   localstack — P21 (local AWS emulator; S3 + KMS for KYB documents)
 
 volumes:
   postgres_data:
+  redpanda_data:

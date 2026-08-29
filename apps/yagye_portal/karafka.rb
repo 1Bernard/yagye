@@ -2,7 +2,7 @@
 
 class KarafkaApp < Karafka::App
   setup do |config|
-    config.kafka = { 'bootstrap.servers': '127.0.0.1:9092' }
+    config.kafka = { 'bootstrap.servers': ENV.fetch("KAFKA_BOOTSTRAP_SERVERS", "127.0.0.1:9092") }
     config.client_id = "yagye-portal-#{Process.pid}-#{Socket.gethostname}"
     config.group_id  = "yagye_portal_consumer"
     # Recreate consumers with each batch. This will allow Rails code reload to work in the
