@@ -36,8 +36,11 @@ module YagyePortal
     # config.time_zone = "Central Time (US & Canada)"
     # config.eager_load_paths << Rails.root.join("extras")
 
-    # Phlex components live in app/components — Zeitwerk handles the rest
-    config.autoload_paths += [ Rails.root.join("app/components") ]
+    config.autoload_paths += [
+      Rails.root.join("app/components"),
+      Rails.root.join("app/queries"),
+      Rails.root.join("app/services")
+    ]
 
     # Don't generate system test files.
     config.generators.system_tests = nil
