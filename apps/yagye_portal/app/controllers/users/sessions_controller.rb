@@ -6,13 +6,19 @@ class Users::SessionsController < Devise::SessionsController
   # which handles errors and normal sign-in exactly as before.
   prepend_before_action :handle_two_factor_challenge, only: :create
 
-  skip_before_action :authenticate_user!, only: %i[otp_challenge verify_otp]
-  skip_after_action  :verify_authorized,  only: %i[otp_challenge verify_otp]
+  skip_before_action :authenticate_user!, only: %i[new otp_challenge verify_otp]
+  skip_after_action  :verify_authorized,  only: %i[new otp_challenge verify_otp]
+
+  def new
+    self.resource = resource_class.new
+    render Auth::SignInPage.new(resource: resource, csrf_token: form_authenticity_token)
+  end
 
   # GET /users/otp-challenge
   def otp_challenge
-    @resource = pending_otp_user
-    redirect_to(new_user_session_path) unless @resource
+    resource = pending_otp_user
+    redirect_to(new_user_session_path) and return unless resource
+    render Auth::OtpPage.new(csrf_token: form_authenticity_token)
   end
 
   # POST /users/otp-challenge

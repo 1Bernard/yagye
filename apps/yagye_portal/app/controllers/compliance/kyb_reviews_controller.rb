@@ -4,8 +4,9 @@ module Compliance
   class KybReviewsController < ApplicationController
     def index
       authorize :kyb_reviews, :index?
-      @tab          = params[:tab].presence_in(%w[pending in_review approved rejected]) || "pending"
-      @applications = Compliance::ApplicationsQuery.new.call(tab: @tab)
+      tab          = params[:tab].presence_in(%w[pending in_review approved rejected]) || "pending"
+      applications = Compliance::ApplicationsQuery.new.call(tab: tab)
+      render KybReviews::IndexPage.new(tab: tab, applications: applications)
     end
 
     def show

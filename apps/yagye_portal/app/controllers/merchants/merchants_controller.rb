@@ -4,10 +4,11 @@ module Merchants
   class MerchantsController < ApplicationController
     def index
       authorize :merchants, :index?
-      scope      = Merchants::MerchantsQuery.new.call(filters)
-      @pagy, @merchants = pagy(scope, limit: 25)
-      @status    = params[:status]
-      @query     = params[:q]
+      pagy, merchants = pagy(Merchants::MerchantsQuery.new.call(filters), limit: 25)
+      render Merchants::IndexPage.new(
+        merchants: merchants, pagy: pagy,
+        status: params[:status], query: params[:q]
+      )
     end
 
     def show

@@ -1,8 +1,0 @@
-<%= render Payments::IndexPage.new(
-  payments: @payments,
-  pagy: @pagy,
-  can_view_pii: @can_view_pii,
-  can_export: @can_export,
-  status_filter: params[:status],
-  query: params[:q]
-) %>

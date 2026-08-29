@@ -5,21 +5,24 @@ module Developers
     def index
       authorize :developers, :index?
 
-      @tab      = params[:tab].presence_in(%w[api_keys webhooks logs]) || "api_keys"
-      key_scope = policy_scope(PortalApiKey)
-      wh_scope  = policy_scope(PortalWebhookEndpoint)
+      tab       = params[:tab].presence_in(%w[api_keys webhooks logs]) || "api_keys"
+      api_keys  = Developers::ApiKeysQuery.new(policy_scope(PortalApiKey)).call
+      webhooks  = Developers::WebhookEndpointsQuery.new(policy_scope(PortalWebhookEndpoint)).call
+      pagy      = nil
+      deliveries = []
 
-      @api_keys = Developers::ApiKeysQuery.new(key_scope).call
-      @webhooks = Developers::WebhookEndpointsQuery.new(wh_scope).call
-
-      if @tab == "logs"
-        dl_scope        = policy_scope(PortalWebhookDelivery)
-        @pagy, @deliveries = pagy(
-          Developers::WebhookDeliveriesQuery.new(dl_scope)
+      if tab == "logs"
+        pagy, deliveries = pagy(
+          Developers::WebhookDeliveriesQuery.new(policy_scope(PortalWebhookDelivery))
             .call(endpoint_id: params[:endpoint_id], state: params[:state]),
           limit: 25
         )
       end
+
+      render Developers::IndexPage.new(
+        tab: tab, api_keys: api_keys, webhooks: webhooks,
+        deliveries: deliveries, pagy: pagy
+      )
     end
   end
 end

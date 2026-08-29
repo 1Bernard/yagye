@@ -4,17 +4,21 @@ module Team
   class UsersController < ApplicationController
     def index
       authorize User, :index?
-      scope    = policy_scope(User)
-      @users   = Team::UsersQuery.new(scope).call(filters)
-      @can_invite = policy(User).invite?
+      users = Team::UsersQuery.new(policy_scope(User)).call(filters)
+      render Team::Users::IndexPage.new(
+        users: users, can_invite: policy(User).invite?,
+        query: params[:q], role: params[:role], status: params[:status]
+      )
     end
 
     def show
-      @user = policy_scope(User).find(params[:id])
-      authorize @user
-      @roles       = @user.user_roles.includes(:role).where(revoked_at: nil).order(:created_at)
-      @can_manage  = policy(@user).update?
-      @can_suspend = policy(@user).destroy?
+      user = policy_scope(User).find(params[:id])
+      authorize user
+      roles = user.user_roles.includes(:role).where(revoked_at: nil).order(:created_at)
+      render Team::Users::ShowPage.new(
+        user: user, roles: roles,
+        can_manage: policy(user).update?
+      )
     end
 
     private

@@ -71,6 +71,7 @@ module Auth
     end
 
     def view_template
+      helpers.content_for(:body_class) { "h-screen overflow-hidden" }
       style { raw safe("html,body{margin:0;padding:0}") }
       div class: "fixed inset-0 flex bg-white" do
         left_panel { yield }

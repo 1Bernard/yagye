@@ -4,9 +4,12 @@ module Payments
   class DisputesController < ApplicationController
     def index
       authorize :disputes, :index?
-      @tab      = params[:tab].presence_in(%w[all open won lost]) || "all"
-      @disputes = []
-      @pagy     = nil
+      tab = params[:tab].presence_in(%w[all open won lost]) || "all"
+      render Disputes::IndexPage.new(
+        tab: tab, disputes: [], pagy: nil,
+        query: params[:q], reason: params[:reason],
+        date_from: params[:from], date_to: params[:to]
+      )
     end
 
     def show

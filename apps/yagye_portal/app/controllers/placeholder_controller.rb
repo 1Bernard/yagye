@@ -3,7 +3,7 @@
 class PlaceholderController < ApplicationController
   def show
     skip_authorization
-    @section = action_name_label
+    render Placeholder::ShowPage.new(section: action_name_label)
   end
 
   private
