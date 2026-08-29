@@ -30,9 +30,31 @@ defmodule YagyeCoreWeb.Controllers.ApiKeys.ApiKeyControllerTest do
       assert body["object"] == "api_key"
       assert body["kind"] == "secret"
       assert String.starts_with?(body["id"], "key_")
+      assert body["label"] == ""
       # raw key present on creation only
       assert is_binary(body["key"])
       assert String.length(body["key"]) == 43
+    end
+
+    test "accepts a label and returns it in the response", %{
+      conn: conn,
+      merchant: merchant,
+      raw_key: raw_key
+    } do
+      resp =
+        conn
+        |> with_auth(raw_key)
+        |> put_req_header("content-type", "application/json")
+        |> post("/v1/merchants/#{merchant.public_id}/keys", %{
+          kind: "secret",
+          mode: "simulation",
+          scopes: ["merchants:read"],
+          label: "CI deploy key"
+        })
+
+      assert resp.status == 201
+      body = Jason.decode!(resp.resp_body)
+      assert body["label"] == "CI deploy key"
     end
 
     test "issues a publishable key", %{conn: conn, merchant: merchant, raw_key: raw_key} do

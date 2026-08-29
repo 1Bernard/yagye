@@ -124,6 +124,7 @@ defmodule YagyeCore.Merchants do
       merchant_id: merchant_id,
       mode: Map.get(attrs, :mode, attrs["mode"]),
       kind: Map.get(attrs, :kind, attrs["kind"]),
+      label: Map.get(attrs, :label, attrs["label"]) || "",
       scopes: Map.get(attrs, :scopes, attrs["scopes"]) || [],
       expires_at: Map.get(attrs, :expires_at, attrs["expires_at"]),
       created_by: Map.get(attrs, :created_by, attrs["created_by"])
@@ -535,6 +536,7 @@ defmodule YagyeCore.Merchants do
         merchant_id: merchant.id,
         mode: cmd.mode,
         kind: to_string(cmd.kind),
+        label: cmd.label || "",
         key_prefix: key_prefix,
         secret_hash: secret_hash,
         scopes: cmd.scopes,
@@ -546,10 +548,15 @@ defmodule YagyeCore.Merchants do
     end)
     |> Multi.insert(:outbox, fn %{api_key: api_key} ->
       Outbox.build_changeset(api_key, "merchant.api_key_issued", %{
+        public_id: api_key.public_id,
         merchant_id: api_key.merchant_id,
         mode: api_key.mode,
         kind: api_key.kind,
-        scopes: api_key.scopes
+        label: api_key.label,
+        key_prefix: api_key.key_prefix,
+        scopes: api_key.scopes,
+        expires_at: api_key.expires_at,
+        created_by: api_key.created_by
       })
     end)
     |> Repo.transaction()
@@ -561,9 +568,11 @@ defmodule YagyeCore.Merchants do
           merchant_id: api_key.merchant_id,
           mode: api_key.mode,
           kind: api_key.kind,
+          label: api_key.label,
           key_prefix: api_key.key_prefix,
           scopes: api_key.scopes,
           expires_at: api_key.expires_at,
+          created_by: api_key.created_by,
           occurred_at: DateTime.utc_now()
         }
 

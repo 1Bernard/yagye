@@ -16,9 +16,11 @@ defmodule YagyeCore.Merchants.Events.ApiKeyIssued do
     :merchant_id,
     :mode,
     :kind,
+    :label,
     :key_prefix,
     :scopes,
     :expires_at,
+    :created_by,
     :occurred_at
   ]
 end

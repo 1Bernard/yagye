@@ -10,8 +10,10 @@ defmodule YagyeCoreWeb.Controllers.ApiKeys.ApiKeyJSON do
       object: "api_key",
       kind: k.kind,
       mode: k.mode,
+      label: k.label || "",
       key_prefix: k.key_prefix,
       scopes: k.scopes,
+      created_by: k.created_by,
       expires_at: k.expires_at,
       revoked_at: k.revoked_at,
       inserted_at: k.inserted_at
