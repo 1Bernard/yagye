@@ -100,7 +100,7 @@ module Disputes
                     class: "placeholder:text-gray-400")
             end
 
-            select(name: "reason", onchange: "this.form.submit()",
+            select(name: "reason",
                    style: "border:1px solid #e5e7eb;border-radius:9px;padding:0 10px;" \
                           "font-size:12.5px;font-weight:500;color:#374151;background:#fff;" \
                           "outline:none;cursor:pointer;height:32px") do

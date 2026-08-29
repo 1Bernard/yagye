@@ -71,7 +71,7 @@ module Merchants
                     class: "placeholder:text-gray-400")
             end
 
-            select(name: "status", onchange: "this.form.submit()",
+            select(name: "status",
                    style: "border:1px solid #e5e7eb;border-radius:9px;padding:0 10px;" \
                           "font-size:12.5px;font-weight:500;color:#374151;background:#fff;" \
                           "outline:none;cursor:pointer;height:32px") do
@@ -82,7 +82,7 @@ module Merchants
               end
             end
 
-            select(name: "country", onchange: "this.form.submit()",
+            select(name: "country",
                    style: "border:1px solid #e5e7eb;border-radius:9px;padding:0 10px;" \
                           "font-size:12.5px;font-weight:500;color:#374151;background:#fff;" \
                           "outline:none;cursor:pointer;height:32px") do
