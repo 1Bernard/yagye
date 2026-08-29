@@ -275,6 +275,15 @@ module UI
     XBTN = "w-8 h-8 rounded-lg border border-gray-200 grid place-items-center " \
            "text-gray-400 hover:border-gray-400 hover:text-gray-700 transition-colors"
 
+    # ── Charts ─────────────────────────────────────────────────────────────
+    SR_ONLY            = "sr-only"
+    CHART_DOWNLOAD_BTN = "absolute top-2 right-2 opacity-0 group-hover:opacity-100 " \
+                         "transition-opacity w-7 h-7 rounded-lg border border-gray-100 " \
+                         "bg-white/90 grid place-items-center text-gray-400 " \
+                         "hover:text-gray-700 hover:border-gray-300"
+    CHART_EMPTY_STATE  = "h-full flex flex-col items-center justify-center gap-2 " \
+                         "text-sm text-gray-400"
+
     # ── Form error feedback ────────────────────────────────────────────────
     FIELD_ERROR_TEXT = "text-xs text-red-600 mt-1"
     ERROR_BANNER = "p-4 bg-red-50 border border-red-200 rounded-xl text-sm text-red-700 mb-4"

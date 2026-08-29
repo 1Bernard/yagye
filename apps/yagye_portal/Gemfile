@@ -38,6 +38,13 @@ gem "superform"
 gem "faraday"
 gem "faraday-retry"
 
+# Exports — CSV (stdlib), Excel, PDF
+gem "csv"           # removed from Ruby 3.4 default gems
+gem "caxlsx"
+gem "matrix"        # prawn dependency, removed from Ruby 3.1 default gems
+gem "prawn"
+gem "prawn-table"
+
 # Audit trail — WHAT CHANGED on portal-owned AR records
 gem "paper_trail"
 

@@ -149,8 +149,6 @@ module Dashboard
     end
 
     def volume_chart_card
-      has_data = @chart_values.any?(&:positive?)
-
       div(style: "background:#fff;border:1px solid #{BORDER};border-radius:16px;overflow:hidden") do
         div(style: "display:flex;align-items:center;justify-content:space-between;padding:18px 22px 0") do
           div do
@@ -164,36 +162,33 @@ module Dashboard
           end
         end
         div(style: "padding:16px 22px 20px") do
-          if has_data
-            div(style: "height:220px",
-                data: { controller: "echarts", echarts_option_value: volume_chart_json }) do
-              p(style: "text-align:center;color:#d1d5db;font-size:13px;padding-top:90px") { plain "Loading…" }
-            end
-          else
-            chart_empty(:line_chart, "No transactions yet",
-                        "Volume will appear here once payments start.")
-          end
+          render UI::Chart::Line.new(
+            labels: @chart_dates,
+            data:   @chart_values,
+            dataset_label: "Transaction Volume",
+            area:   true,
+            height: 220
+          )
         end
       end
     end
 
     def provider_split_card
-      has_providers = @provider_data.any?
-
       div(style: "background:#fff;border:1px solid #{BORDER};border-radius:16px;padding:18px 22px") do
         p(style: "#{TYPE_TITLE};margin-bottom:3px") { plain "Provider Split" }
         p(style: "#{TYPE_CAPTION};margin-bottom:16px") { plain "Volume by provider (MTD)" }
 
-        if has_providers
-          div(style: "height:168px",
-              data: { controller: "echarts", echarts_option_value: donut_chart_json }) do
-            p(style: "text-align:center;color:#d1d5db;font-size:13px;padding-top:66px") { plain "Loading…" }
-          end
+        render UI::Chart::Pie.new(
+          labels: @provider_data.map { |p| p[:name] },
+          data:   @provider_data.map { |p| p[:amount_cents] / 100.0 },
+          colors: @provider_data.map { |p| p[:color] },
+          height: 168
+        )
+
+        unless @provider_data.empty?
           div(style: "margin-top:16px;display:flex;flex-direction:column;gap:10px") do
             @provider_data.each { |p| provider_row(p) }
           end
-        else
-          chart_empty(:bar_chart, "No data yet", "Provider breakdown will appear here.")
         end
       end
     end
@@ -221,20 +216,6 @@ module Dashboard
             plain "GHS #{fmt_decimal(prov[:amount_cents] / 100.0)}"
           end
         end
-      end
-    end
-
-    def chart_empty(icon_name, title, body)
-      div(style: "height:168px;display:flex;flex-direction:column;align-items:center;" \
-                 "justify-content:center;gap:8px") do
-        div(style: "width:40px;height:40px;border-radius:12px;background:#f9fafb;" \
-                   "display:flex;align-items:center;justify-content:center;margin-bottom:2px") do
-          span(style: "color:#d1d5db;display:flex;width:20px;height:20px") do
-            render UI::Icon.new(icon_name, class: "w-full h-full")
-          end
-        end
-        p(style: "font-size:13px;font-weight:500;color:#6b7280") { plain title }
-        p(style: "font-size:12px;color:#9ca3af;text-align:center;max-width:180px") { plain body }
       end
     end
 
@@ -454,81 +435,6 @@ module Dashboard
         p(style: TYPE_BODY_MD) { plain "No payments yet" }
         p(style: TYPE_CAPTION) { plain "Transactions will appear here once payments start flowing." }
       end
-    end
-
-    # ── ECharts JSON (uses real data from controller) ─────────────────────────
-
-    def volume_chart_json
-      {
-        grid: { top: 10, right: 8, bottom: 28, left: 56 },
-        xAxis: {
-          type: "category",
-          data: @chart_dates,
-          boundaryGap: false,
-          axisLine: { show: false },
-          axisTick: { show: false },
-          axisLabel: { color: "#9ca3af", fontSize: 10,
-                       interval: (@chart_dates.size / 6).floor }
-        },
-        yAxis: {
-          type: "value",
-          splitLine: { lineStyle: { color: "#f3f4f6", type: "dashed" } },
-          axisLabel: { color: "#9ca3af", fontSize: 10, formatter: "GHS {value}" }
-        },
-        series: [ {
-          type: "line",
-          smooth: true,
-          data: @chart_values,
-          showSymbol: false,
-          lineStyle: { color: BRAND, width: 2 },
-          itemStyle: { color: BRAND },
-          areaStyle: {
-            color: {
-              type: "linear", x: 0, y: 0, x2: 0, y2: 1,
-              colorStops: [
-                { offset: 0, color: "rgba(61,71,245,0.13)" },
-                { offset: 1, color: "rgba(61,71,245,0)" }
-              ]
-            }
-          }
-        } ],
-        tooltip: {
-          trigger: "axis",
-          backgroundColor: "#fff",
-          borderColor: "#e5e7eb",
-          borderWidth: 1,
-          textStyle: { color: "#374151", fontSize: 12 },
-          padding: [ 8, 12 ],
-          formatter: "GHS {c0}"
-        }
-      }.to_json
-    end
-
-    def donut_chart_json
-      series_data = @provider_data.map do |p|
-        { value: p[:amount_cents], name: p[:name],
-          itemStyle: { color: p[:color] } }
-      end
-
-      {
-        series: [ {
-          type: "pie",
-          radius: [ "55%", "82%" ],
-          center: [ "50%", "50%" ],
-          data: series_data,
-          label: { show: false },
-          emphasis: { label: { show: false } }
-        } ],
-        tooltip: {
-          trigger: "item",
-          backgroundColor: "#fff",
-          borderColor: "#e5e7eb",
-          borderWidth: 1,
-          textStyle: { color: "#374151", fontSize: 12 },
-          padding: [ 8, 12 ],
-          formatter: "{b}: {d}%"
-        }
-      }.to_json
     end
 
     # ── Helpers ───────────────────────────────────────────────────────────────

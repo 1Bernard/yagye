@@ -1,17 +1,28 @@
 @import "tailwindcss";
-@source "../../app/components/**/*.rb";
-@source "../../app/views/**/*.{erb,html}";
+@source "../../app/views/**/*.rb";
+@source "../../app/javascript/**/*.js";
 
-/* ── Design tokens (from LunarDesk-inspired system) ───────────────────── */
+/* ── Design tokens ─────────────────────────────────────────────────────── */
 @theme {
   --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
 
-  --color-primary-50:  #f0fdfa;
-  --color-primary-100: #ccfbf1;
-  --color-primary-400: #2dd4bf;
-  --color-primary-500: #14b8a6;
-  --color-primary-600: #0d9488;
-  --color-primary-700: #0f766e;
+  /* Brand — #3D47F5 blue-indigo tint scale */
+  --color-primary-50:  #eef0fe;
+  --color-primary-100: #dce1fd;
+  --color-primary-200: #bac2fb;
+  --color-primary-400: #6875f5;
+  --color-primary-500: #3D47F5;
+  --color-primary-600: #3D47F5;
+  --color-primary-700: #2e38d9;
+
+  /* Chart controller reads these for automatic color theming */
+  --color-chip:             #F3F4F6;
+  --color-ink-900:          #111827;
+  --color-chart-secondary:  #818cf8;
+  --color-chart-neutral:    #d1d5db;
+  --color-chart-amber:      #d97706;
+  --color-ok-text:          #16a34a;
+  --color-danger-text:      #dc2626;
 }
 
 /* ── Base ──────────────────────────────────────────────────────────────── */
