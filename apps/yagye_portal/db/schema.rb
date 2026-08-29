@@ -10,10 +10,31 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_08_29_100001) do
+ActiveRecord::Schema[8.1].define(version: 2026_08_29_150741) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pgcrypto"
+
+  create_table "audit_logs", force: :cascade do |t|
+    t.text "action", null: false
+    t.text "correlation_id", default: "", null: false
+    t.datetime "created_at", null: false
+    t.text "ip"
+    t.text "merchant_code"
+    t.jsonb "metadata", default: {}, null: false
+    t.text "outcome", null: false
+    t.text "reason"
+    t.text "resource_code"
+    t.text "resource_type", null: false
+    t.text "user_agent_hash"
+    t.text "user_code", null: false
+    t.uuid "user_id"
+    t.index ["action"], name: "index_audit_logs_on_action"
+    t.index ["correlation_id"], name: "index_audit_logs_on_correlation_id"
+    t.index ["created_at"], name: "index_audit_logs_on_created_at"
+    t.index ["merchant_code"], name: "index_audit_logs_on_merchant_code"
+    t.index ["user_id"], name: "index_audit_logs_on_user_id"
+  end
 
   create_table "merchant_memberships", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
     t.datetime "accepted_at"
@@ -141,6 +162,19 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_29_100001) do
     t.check_constraint "kind = ANY (ARRAY['merchant_user'::text, 'internal_staff'::text])", name: "valid_user_kind"
   end
 
+  create_table "versions", force: :cascade do |t|
+    t.datetime "created_at"
+    t.text "event", null: false
+    t.text "item_id", null: false
+    t.text "item_type", null: false
+    t.jsonb "object"
+    t.jsonb "object_changes"
+    t.text "whodunnit"
+    t.index ["created_at"], name: "index_versions_on_created_at"
+    t.index ["item_type", "item_id"], name: "index_versions_on_item_type_and_item_id"
+  end
+
+  add_foreign_key "audit_logs", "users"
   add_foreign_key "merchant_memberships", "users"
   add_foreign_key "merchant_memberships", "users", column: "invited_by_id"
   add_foreign_key "role_permissions", "permissions", column: "permission_key", primary_key: "key"

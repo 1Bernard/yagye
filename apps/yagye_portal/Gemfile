@@ -38,6 +38,15 @@ gem "superform"
 gem "faraday"
 gem "faraday-retry"
 
+# Audit trail — WHAT CHANGED on portal-owned AR records
+gem "paper_trail"
+
+# Structured single-line JSON request logs
+gem "lograge"
+
+# Thread-local request context (correlation ID, current user) outside controllers
+gem "request_store"
+
 # Kafka consumer — receives core events
 gem "karafka"
 
