@@ -14,7 +14,7 @@ Rails.application.routes.draw do
   get "up" => "rails/health#show", as: :rails_health_check
 
   # Stub routes so sidebar nav helpers resolve
-  get "payments",   to: "application#not_implemented", as: :payments
+  get "payments", to: "payments#index", as: :payments
   get "disputes",   to: "application#not_implemented", as: :disputes
   get "merchants",  to: "application#not_implemented", as: :merchants
   get "kyb-reviews",  to: "application#not_implemented", as: :kyb_reviews

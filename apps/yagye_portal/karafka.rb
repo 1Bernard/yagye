@@ -75,6 +75,10 @@ class KarafkaApp < Karafka::App
     topic :example do
       consumer ExampleConsumer
     end
+
+    topic "yagye.payments.v1" do
+      consumer PaymentEventsConsumer
+    end
   end
 
   # Uncomment this if you want Karafka to manage your topics configuration
