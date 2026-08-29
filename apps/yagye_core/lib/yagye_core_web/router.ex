@@ -23,11 +23,20 @@ defmodule YagyeCoreWeb.Router do
   alias YagyeCoreWeb.Controllers.Compliance.ComplianceController
   alias YagyeCoreWeb.Controllers.Customers.CustomerController
   alias YagyeCoreWeb.Controllers.Disputes.{DisputeController, RefundController}
+  alias YagyeCoreWeb.Controllers.Internal.ApplicationsController
   alias YagyeCoreWeb.Controllers.Merchants.MerchantController
   alias YagyeCoreWeb.Controllers.Payments.PaymentController
   alias YagyeCoreWeb.Controllers.Payouts.PayoutController
   alias YagyeCoreWeb.Controllers.Settlement.SettlementController
   alias YagyeCoreWeb.Controllers.Webhooks.ProviderWebhookController
+
+  # Internal service-to-service pipeline — portal → core ops actions.
+  # Authenticated by X-Service-Token shared secret (see AuthenticateInternal plug).
+  # Never exposed to merchants or the public internet (firewall rule in production).
+  pipeline :internal do
+    plug :accepts, ["json"]
+    plug YagyeCoreWeb.Plugs.AuthenticateInternal
+  end
 
   # Provider-to-core inbound webhooks (no merchant auth, HMAC-verified in controller)
   pipeline :provider_webhooks do
@@ -47,6 +56,14 @@ defmodule YagyeCoreWeb.Router do
 
   scope "/" do
     get "/swaggerui", OpenApiSpex.Plug.SwaggerUI, path: "/api/openapi"
+  end
+
+  # Internal ops endpoints — portal → core (KYB disposition, etc.)
+  scope "/internal" do
+    pipe_through :internal
+
+    post "/applications/:application_id/approve", ApplicationsController, :approve
+    post "/applications/:application_id/reject", ApplicationsController, :reject
   end
 
   # v1 merchant-facing API
