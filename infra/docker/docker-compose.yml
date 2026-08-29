@@ -19,6 +19,8 @@ services:
       interval: 5s
       timeout: 5s
       retries: 5
+    networks:
+      - data
 
   redpanda:
     image: redpandadata/redpanda:v24.3.16
@@ -37,10 +39,10 @@ services:
       - --reserve-memory 0M
       - --overprovisioned
     ports:
-      - "9092:9092"   # Kafka protocol (app containers use this via service name)
-      - "19092:19092" # Kafka protocol (host machine / IDE tools)
-      - "8081:8081"   # Schema registry
-      - "9644:9644"   # Admin API
+      - "9092:9092"    # Kafka protocol (app containers use service name, not this)
+      - "19092:19092"  # Kafka protocol (host machine / IDE tools)
+      - "8081:8081"    # Schema registry
+      - "9644:9644"    # Admin API
     volumes:
       - redpanda_data:/var/lib/redpanda/data
     healthcheck:
@@ -48,13 +50,31 @@ services:
       interval: 10s
       timeout: 10s
       retries: 10
+    networks:
+      - data
 
   # ---------------------------------------------------------------------------
   # Application services
   #
-  # During active development, running apps natively alongside `docker compose
-  # up db redpanda` is often faster (hot reload, no rebuild cycle).
-  # Use `docker compose up` to run the full stack in containers.
+  # Network topology (enforced at the Docker network layer):
+  #
+  #   data      — db + redpanda only. Every app that needs DB or broker access.
+  #   core_mesh — Core ↔ Simulator. Core calls Simulator as its payment gateway
+  #               in test/sandbox mode; Simulator may callback to Core.
+  #   edge      — Portal → Core HTTP only. The single permitted ingress path
+  #               from Portal into the backend.
+  #
+  # What this prevents:
+  #   Portal cannot reach Simulator (no shared network).
+  #   Simulator cannot reach Portal (no shared network).
+  #   Karafka consumer cannot make HTTP calls to Core or Portal (data only).
+  #
+  # Note: DB-level isolation (which app can access which database) is enforced
+  # by separate Postgres roles in production. Locally we use one superuser for
+  # convenience — the network model documents the production intent.
+  #
+  # During active development, running apps natively is faster (hot reload):
+  #   docker compose up db redpanda
   # ---------------------------------------------------------------------------
 
   yagye_core:
@@ -85,6 +105,10 @@ services:
       timeout: 5s
       retries: 10
       start_period: 20s
+    networks:
+      - data       # PostgreSQL access
+      - core_mesh  # Core ↔ Simulator calls
+      - edge       # Receives HTTP calls from Portal
 
   yagye_simulator:
     build:
@@ -109,6 +133,10 @@ services:
         condition: service_healthy
       yagye_core:
         condition: service_healthy
+    networks:
+      - data       # PostgreSQL access
+      - core_mesh  # Core ↔ Simulator calls
+    # NOT on edge — Simulator has no business reaching Portal
 
   yagye_portal:
     build:
@@ -132,9 +160,13 @@ services:
         condition: service_healthy
       redpanda:
         condition: service_healthy
+    networks:
+      - data  # Portal DB (portal_* read models) + Redpanda bootstrap
+      - edge  # Portal → Core HTTP via CoreApiClient
+    # NOT on core_mesh — Portal must go through Core's API, never Simulator directly
 
-  # Karafka consumer process — runs alongside the Portal web server.
-  # Reads events from Redpanda and updates portal_* read model tables.
+  # Karafka consumer — separate process, scales independently from the web tier.
+  # Reads events from Redpanda and writes to portal_* read model tables.
   yagye_portal_karafka:
     build:
       context: ../../apps/yagye_portal
@@ -153,12 +185,23 @@ services:
         condition: service_healthy
       yagye_portal:
         condition: service_started
+    networks:
+      - data  # DB writes + Redpanda consumption only
+    # NOT on edge or core_mesh — consumers write to DB, they don't call other services
 
 # Services added in later phases:
-#   rabbitmq   — P15 (outbound merchant webhooks via RabbitMQ exchange → per-merchant queue → DLX)
+#   rabbitmq   — P15 (outbound merchant webhooks: exchange → per-merchant queue → DLX)
 #   redis      — P17 (distributed rate limiting, session store)
-#   localstack — P21 (local AWS emulator; S3 + KMS for KYB documents)
+#   Floci      — P21 (local AWS emulator; S3 + KMS for KYB documents)
 
 volumes:
   postgres_data:
   redpanda_data:
+
+networks:
+  data:
+    driver: bridge
+  core_mesh:
+    driver: bridge
+  edge:
+    driver: bridge
