@@ -1,100 +1,240 @@
+# frozen_string_literal: true
+
 module Layout
+  # Premium topbar — left side is a single breadcrumb trail where the LAST
+  # crumb renders as the page title (display weight/size). No separate h1.
+  # Right side: language toggle · notification · user menu.
   class Topbar < ApplicationComponent
-    def initialize(title:, subtitle: nil)
-      @title    = title
-      @subtitle = subtitle
+    include UI::Theme
+
+    # Typographic scale — used only inside this component.
+    # Source of truth is UI::Theme::TYPE_SCALE; these alias it for brevity.
+    DISPLAY  = "font-size:16px;font-weight:700;color:#{INK};letter-spacing:-0.025em;line-height:1"
+    ANCESTOR = "font-size:12px;font-weight:500;color:#{MUTED_TEXT};text-decoration:none;white-space:nowrap;" \
+               "transition:color 140ms"
+    SEP      = "margin:0 7px;color:#{FAINT_TEXT};font-size:11px;user-select:none;line-height:1"
+    HOME_ICON_CLR = FAINT_TEXT
+
+    LOCALES = [
+      { code: "en", flag: "🇬🇧", label: "English"  },
+      { code: "fr", flag: "🇫🇷", label: "Français" }
+    ].freeze
+
+    def initialize(title:, subtitle: nil, breadcrumbs: nil)
+      @title       = title
+      @breadcrumbs = breadcrumbs
+      # subtitle accepted for backward compat but no longer shown in topbar
     end
 
     def view_template
-      header class: "#{UI::Theme::TOPBAR} flex items-center justify-between px-6 py-4 sticky top-0 z-10" do
-        title_block
-        div class: "flex items-center gap-3" do
-          search_box
-          action_icons
-          user_menu
+      header(style: "background:#fff;border-bottom:1px solid #{BORDER};position:sticky;top:0;z-index:10") do
+        div(style: "display:flex;align-items:center;justify-content:space-between;" \
+                   "padding:0 24px;height:56px") do
+          left_block
+          right_actions
         end
       end
     end
 
     private
 
-    def title_block
-      div do
-        h1 class: UI::Theme::PAGE_TITLE do
-          plain @title
-        end
-        if @subtitle
-          p class: UI::Theme::PAGE_SUBTITLE do
-            plain @subtitle
+    # ── Left: breadcrumb trail → current page as display title ────────────────
+
+    def left_block
+      nav(aria: { label: "Breadcrumb" }) do
+        ol(style: "display:flex;align-items:center;list-style:none;padding:0;margin:0;gap:0") do
+          home_crumb
+
+          if @breadcrumbs&.any?
+            @breadcrumbs.each_with_index do |item, idx|
+              last = (idx == @breadcrumbs.length - 1)
+              separator_crumb
+              if last
+                li(style: "display:flex;align-items:center") do
+                  span(style: DISPLAY) { plain item[:label] }
+                end
+              elsif item[:href]
+                li(style: "display:flex;align-items:center") do
+                  a(href: item[:href], style: ANCESTOR, class: "topbar-ancestor-crumb") do
+                    plain item[:label]
+                  end
+                end
+              else
+                li(style: "display:flex;align-items:center") do
+                  span(style: "#{ANCESTOR};pointer-events:none") { plain item[:label] }
+                end
+              end
+            end
+          else
+            separator_crumb
+            li(style: "display:flex;align-items:center") do
+              span(style: DISPLAY) { plain @title }
+            end
           end
         end
       end
     end
 
-    def search_box
-      div class: "relative" do
-        span class: "absolute inset-y-0 left-3 flex items-center pointer-events-none #{UI::Theme::NAV_ICON_OFF}" do
-          svg search_icon
-        end
-        input(
-          type: "text",
-          placeholder: "Search...",
-          class: "#{UI::Theme::SEARCH_INPUT} pl-9 pr-14 py-1.5 w-56"
-        )
-        span class: "absolute inset-y-0 right-3 flex items-center text-xs pointer-events-none #{UI::Theme::NAV_ICON_OFF}" do
-          plain "⌘K"
+    def home_crumb
+      li(style: "display:flex;align-items:center;flex-shrink:0") do
+        a(href: authenticated_root_path,
+          style: "display:flex;align-items:center;color:#{HOME_ICON_CLR};transition:color 140ms",
+          class: "topbar-home-crumb",
+          title: "Home") do
+          span(style: "display:flex;width:13px;height:13px") do
+            render UI::Icon.new(:home, class: "w-full h-full")
+          end
         end
       end
     end
 
-    def action_icons
-      div class: "flex items-center gap-1" do
-        %i[info settings mail bell].each do |name|
-          button class: "p-1.5 #{UI::Theme::ICON_BUTTON}" do
-            svg icon_svg(name)
+    def separator_crumb
+      li(style: "display:flex;align-items:center;flex-shrink:0") do
+        span(style: SEP) { "/" }
+      end
+    end
+
+    # ── Right: language · notification · user ────────────────────────────────
+
+    def right_actions
+      div(style: "display:flex;align-items:center;gap:2px;flex-shrink:0") do
+        language_toggle
+        divider_line
+        notif_btn
+        user_menu
+      end
+    end
+
+    def divider_line
+      span(style: "width:1px;height:20px;background:#{BORDER};margin:0 4px")
+    end
+
+    def language_toggle
+      current_code = I18n.locale.to_s
+      current      = LOCALES.find { |l| l[:code] == current_code } || LOCALES.first
+
+      div(style: "position:relative", data: { controller: "dropdown" }) do
+        button(type: "button",
+               class: "topbar-icon-btn",
+               style: "display:flex;align-items:center;gap:5px;padding:5px 9px;" \
+                      "border-radius:7px;font-size:12px;font-weight:600;color:#{INK}",
+               data:  { action: "click->dropdown#toggle" },
+               title: "Switch language") do
+          span(style: "font-size:13px;line-height:1") { plain current[:flag] }
+          plain current[:code].upcase
+          span(style: "display:flex;width:10px;height:10px;color:#{MUTED_TEXT};margin-left:1px") do
+            render UI::Icon.new(:chev, class: "w-full h-full")
           end
+        end
+
+        div(class: "right-0 top-full mt-1 #{DROPDOWN_MENU}",
+            style: "min-width:152px;border-radius:12px;padding:5px;" \
+                   "box-shadow:0 4px 20px rgba(0,0,0,0.09),0 1px 4px rgba(0,0,0,0.05)",
+            data: { dropdown_target: "menu" }) do
+          LOCALES.each { |l| locale_item(l, current_code) }
+        end
+      end
+    end
+
+    def locale_item(loc, current_code)
+      active = loc[:code] == current_code
+      a(href: locale_path(l: loc[:code]),
+        class: "topbar-menu-item #{active ? 'topbar-menu-item--active' : ''}") do
+        span(style: "font-size:15px;line-height:1;flex-shrink:0") { plain loc[:flag] }
+        plain loc[:label]
+        if active
+          span(style: "margin-left:auto;display:flex;width:13px;height:13px;color:#{BRAND}") do
+            render UI::Icon.new(:check, class: "w-full h-full")
+          end
+        end
+      end
+    end
+
+    def notif_btn
+      button(type: "button",
+             class: "topbar-icon-btn",
+             style: "width:34px;height:34px;border-radius:7px;display:flex;align-items:center;" \
+                    "justify-content:center;color:#{MUTED_TEXT}",
+             title: "Notifications") do
+        span(style: "display:flex;width:16px;height:16px") do
+          render UI::Icon.new(:bell, class: "w-full h-full")
         end
       end
     end
 
     def user_menu
-      button class: "flex items-center gap-2 pl-3 border-l border-gray-100" do
-        div class: "w-8 h-8 rounded-full flex items-center justify-center text-xs font-semibold #{UI::Theme::AVATAR}" do
-          plain user_initials
+      user = Current.user
+      return unless user
+
+      div(style: "position:relative", data: { controller: "dropdown" }) do
+        button(type: "button",
+               class: "topbar-user-btn",
+               data:  { action: "click->dropdown#toggle" }) do
+          render UI::Avatar.new(user_initials(user), size: :sm)
+          div(style: "text-align:left;line-height:1.25;min-width:0") do
+            p(style: "font-size:13px;font-weight:600;color:#{INK};white-space:nowrap") do
+              plain user.full_name
+            end
+            p(style: "font-size:11px;font-weight:400;color:#{MUTED_TEXT};white-space:nowrap") do
+              plain role_label(user)
+            end
+          end
+          span(style: "display:flex;width:12px;height:12px;color:#{SUBTLE_TEXT};flex-shrink:0") do
+            render UI::Icon.new(:chev, class: "w-full h-full")
+          end
         end
-        span class: "text-sm font-medium #{UI::Theme::BODY}" do
-          plain Current.user&.full_name || "Account"
-        end
-        span class: UI::Theme::NAV_ICON_OFF do
-          svg chevron_down
+
+        div(class: "right-0 top-full mt-1 #{DROPDOWN_MENU}",
+            style: "min-width:224px;border-radius:14px;padding:5px;" \
+                   "box-shadow:0 8px 30px rgba(0,0,0,0.10),0 2px 8px rgba(0,0,0,0.06)",
+            data: { dropdown_target: "menu" }) do
+          user_header(user)
+          div(style: "height:1px;background:#{SURFACE};margin:4px 8px")
+          menu_item(:user,     t("topbar.profile"), "#")
+          menu_item(:settings, t("nav.settings"),   settings_path)
+          div(style: "height:1px;background:#{SURFACE};margin:4px 8px")
+          sign_out_item
         end
       end
     end
 
-    def user_initials
-      name = Current.user&.full_name || ""
-      name.split.map { |w| w[0] }.first(2).join.upcase
-    end
-
-    def search_icon
-      %(<svg class="w-4 h-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M8 4a4 4 0 100 8 4 4 0 000-8zM2 8a6 6 0 1110.89 3.476l4.817 4.817a1 1 0 01-1.414 1.414l-4.816-4.816A6 6 0 012 8z" clip-rule="evenodd"/></svg>)
-    end
-
-    def chevron_down
-      %(<svg class="w-4 h-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clip-rule="evenodd"/></svg>)
-    end
-
-    def icon_svg(name)
-      case name
-      when :info
-        %(<svg class="w-5 h-5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd"/></svg>)
-      when :settings
-        %(<svg class="w-5 h-5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M11.49 3.17c-.38-1.56-2.6-1.56-2.98 0a1.532 1.532 0 01-2.286.948c-1.372-.836-2.942.734-2.106 2.106.54.886.061 2.042-.947 2.287-1.561.379-1.561 2.6 0 2.978a1.532 1.532 0 01.947 2.287c-.836 1.372.734 2.942 2.106 2.106a1.532 1.532 0 012.287.947c.379 1.561 2.6 1.561 2.978 0a1.533 1.533 0 012.287-.947c1.372.836 2.942-.734 2.106-2.106a1.533 1.533 0 01.947-2.287c1.561-.379 1.561-2.6 0-2.978a1.532 1.532 0 01-.947-2.287c.836-1.372-.734-2.942-2.106-2.106a1.532 1.532 0 01-2.287-.947zM10 13a3 3 0 100-6 3 3 0 000 6z" clip-rule="evenodd"/></svg>)
-      when :mail
-        %(<svg class="w-5 h-5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor"><path d="M2.003 5.884L10 9.882l7.997-3.998A2 2 0 0016 4H4a2 2 0 00-1.997 1.884z"/><path d="M18 8.118l-8 4-8-4V14a2 2 0 002 2h12a2 2 0 002-2V8.118z"/></svg>)
-      when :bell
-        %(<svg class="w-5 h-5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor"><path d="M10 2a6 6 0 00-6 6v3.586l-.707.707A1 1 0 004 14h12a1 1 0 00.707-1.707L16 11.586V8a6 6 0 00-6-6zM10 18a3 3 0 01-2.83-2h5.66A3 3 0 0110 18z"/></svg>)
+    def user_header(user)
+      div(style: "padding:10px 12px 8px") do
+        p(style: "font-size:13px;font-weight:600;color:#{INK}") { plain user.full_name }
+        p(style: "font-size:11.5px;color:#{MUTED_TEXT};margin-top:2px;" \
+                 "overflow:hidden;text-overflow:ellipsis;white-space:nowrap") do
+          plain user.email
+        end
       end
+    end
+
+    def menu_item(icon, label, href)
+      a(href: href, class: "topbar-menu-item") do
+        span(style: "display:flex;width:14px;height:14px;color:#{SUBTLE_TEXT}") do
+          render UI::Icon.new(icon, class: "w-full h-full")
+        end
+        plain label
+      end
+    end
+
+    def sign_out_item
+      a(href: destroy_user_session_path,
+        data: { turbo_method: :delete },
+        class: "topbar-menu-item topbar-menu-item--danger") do
+        span(style: "display:flex;width:14px;height:14px") do
+          render UI::Icon.new(:logout, class: "w-full h-full")
+        end
+        plain t("topbar.sign_out")
+      end
+    end
+
+    def user_initials(user)
+      user.full_name.split.map { |w| w[0] }.first(2).join.upcase
+    end
+
+    def role_label(user)
+      return "Yagye Staff" if user.internal_staff?
+      user.roles.first&.name&.tr("_", " ")&.split&.map(&:capitalize)&.join(" ") || "Merchant"
     end
   end
 end

@@ -43,6 +43,18 @@ class User < ApplicationRecord
     active_membership&.merchant_code
   end
 
+  # Returns 1, 2, or 3 for merchant users; nil for internal staff.
+  # Tier is derived from KYB application status until a dedicated tier column lands (P13+).
+  def merchant_tier
+    return nil if internal_staff?
+    app = PortalMerchantApplication.find_by(merchant_code: merchant_code)
+    case app&.status
+    when "approved"                        then 3
+    when "under_review", "submitted"       then 2
+    else                                        1
+    end
+  end
+
   private
 
   def permissions_cache

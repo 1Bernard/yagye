@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 class ApplicationComponent < Phlex::HTML
   include Phlex::Rails::Helpers::Routes
   include Phlex::Rails::Helpers::Translate
@@ -8,6 +10,18 @@ class ApplicationComponent < Phlex::HTML
   include Phlex::Rails::Helpers::TurboStreamFrom
   include Pundit::Authorization
 
+  # Auto-scoped i18n: ".key" resolves relative to the component's namespace.
+  # Auth::SignInPage -> "auth.sign_in_page.key"
+  def t(key, **)
+    if key.to_s.start_with?(".")
+      helpers.translate("#{i18n_scope}#{key}", **)
+    else
+      helpers.translate(key, **)
+    end
+  end
+
+  register_element :turbo_frame
+
   private
 
   def can?(action, subject)
@@ -17,11 +31,21 @@ class ApplicationComponent < Phlex::HTML
     false
   end
 
-  def vanish = nil
+  # Runs the block to collect slot definitions (columns, field defs, etc.)
+  # without emitting any HTML output — side effects (instance var writes)
+  # survive, rendered output does not.
+  def vanish(&block)
+    return unless block
+    capture { block.call(self) }
+    nil
+  end
 
-  # Output a trusted SVG string without HTML-escaping.
-  # Use only with literals or known-safe strings — never with user input.
+  # Embed a trusted SVG string. Use only with literals — never user input.
   def svg(content)
     raw safe(content.to_s)
+  end
+
+  def i18n_scope
+    @i18n_scope ||= self.class.name.underscore.tr("/", ".")
   end
 end
