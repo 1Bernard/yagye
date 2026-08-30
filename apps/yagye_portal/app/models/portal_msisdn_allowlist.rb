@@ -3,6 +3,8 @@
 class PortalMsisdnAllowlist < ApplicationRecord
   self.table_name = "portal_msisdn_allowlists"
 
+  has_paper_trail
+
   validates :merchant_code, :msisdn, presence: true
   validates :msisdn, format: {
     with:    /\A\+?[0-9]{7,15}\z/,

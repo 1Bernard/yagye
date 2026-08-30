@@ -10,6 +10,9 @@ class User < ApplicationRecord
 
   encrypts :otp_secret
 
+  has_paper_trail only: %i[first_name last_name otp_required_for_login theme_preference language_preference]
+  has_many :user_audit_events, dependent: :destroy
+
   before_create :generate_user_code
 
   has_many :user_roles, dependent: :destroy

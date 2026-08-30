@@ -52,8 +52,8 @@ module Team
     end
 
     test "newly assigned role is immediately returned by UserRole.active" do
-      call(user: @merchant, role_key: "merchant_finance", assigned_by: @manager)
-      assert_includes UserRole.active.where(user: @merchant, role_key: "merchant_finance"), UserRole.last
+      result = call(user: @merchant, role_key: "merchant_finance", assigned_by: @manager)
+      assert_includes UserRole.active.where(user: @merchant, role_key: "merchant_finance"), result.user_role
     end
 
     private
