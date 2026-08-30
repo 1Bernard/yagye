@@ -24,6 +24,23 @@ module Payments
       )
     end
 
+    def refund
+      payment = policy_scope(Payment).find(params[:id])
+      authorize payment, :refund?
+      amount_cents = params[:amount_cents].present? ? params[:amount_cents].to_i : payment.amount_cents
+      result = CoreApiClient.new.create_refund(
+        payment.core_payment_id,
+        amount_cents: amount_cents,
+        reason:       params[:reason].to_s.strip.presence || "requested_by_merchant",
+        initiated_by: current_user.email
+      )
+      if result.success?
+        redirect_to payment_path(payment), notice: "Refund initiated."
+      else
+        redirect_to payment_path(payment), alert: result.error_message
+      end
+    end
+
     private
 
     def filters

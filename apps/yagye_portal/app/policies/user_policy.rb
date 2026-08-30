@@ -17,6 +17,10 @@ class UserPolicy < ApplicationPolicy
     permitted?("team.manage") || internal_staff?
   end
 
+  def suspend?
+    (permitted?("team.manage") || internal_staff?) && record != user
+  end
+
   def destroy?
     internal_staff? || (permitted?("team.manage") && record != user)
   end

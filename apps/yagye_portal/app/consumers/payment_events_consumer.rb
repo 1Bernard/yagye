@@ -19,9 +19,11 @@ class PaymentEventsConsumer < ApplicationConsumer
       p.currency        = payload["currency"] || "GHS"
       p.status          = payload["status"]
       p.provider        = payload["provider"]
+      p.payment_method  = payload["payment_method"]
       p.description     = payload["description"]
       p.metadata        = payload["metadata"] || {}
       p.paid_at         = payload["paid_at"]
+      p.settled_at      = payload["settled_at"]
       p.save!
     end
   end

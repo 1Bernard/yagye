@@ -23,22 +23,84 @@ class CoreApiClient
     end
   end
 
-  # POST /internal/applications/:application_id/approve
+  # ── KYB / internal ────────────────────────────────────────────────────────
+
+  # POST /internal/applications/:code/approve
   def approve_application(application_code, approved_by:)
     post("/internal/applications/#{application_code}/approve",
          { approved_by: approved_by })
   end
 
-  # POST /internal/applications/:application_id/reject
+  # POST /internal/applications/:code/reject
   def reject_application(application_code, rejected_by:, reason:)
     post("/internal/applications/#{application_code}/reject",
          { rejected_by: rejected_by, reason: reason })
+  end
+
+  # ── Payments ───────────────────────────────────────────────────────────────
+
+  # POST /v1/payments/:id/refunds
+  def create_refund(payment_id, amount_cents:, reason:, initiated_by:)
+    post("/v1/payments/#{payment_id}/refunds",
+         { amount_cents: amount_cents, reason: reason, initiated_by: initiated_by })
+  end
+
+  # GET /v1/payments/:id/events
+  def get_payment_events(payment_id)
+    get("/v1/payments/#{payment_id}/events")
+  end
+
+  # ── API keys ───────────────────────────────────────────────────────────────
+
+  # POST /v1/keys
+  def generate_api_key(merchant_code:, label:, mode:, scopes: [], created_by:)
+    post("/v1/keys",
+         { merchant_code: merchant_code, label: label, mode: mode,
+           scopes: scopes, created_by: created_by })
+  end
+
+  # DELETE /v1/keys/:key_id
+  def revoke_api_key(key_id, revoked_by:)
+    delete("/v1/keys/#{key_id}", { revoked_by: revoked_by })
+  end
+
+  # ── Webhooks ───────────────────────────────────────────────────────────────
+
+  # POST /v1/webhooks
+  def add_webhook_endpoint(merchant_code:, url:, subscribed_events:, mode:)
+    post("/v1/webhooks",
+         { merchant_code: merchant_code, url: url,
+           subscribed_events: subscribed_events, mode: mode })
+  end
+
+  # DELETE /v1/webhooks/:endpoint_id
+  def remove_webhook_endpoint(endpoint_id)
+    delete("/v1/webhooks/#{endpoint_id}", {})
+  end
+
+  # POST /v1/webhooks/:endpoint_id/test
+  def test_webhook_endpoint(endpoint_id)
+    post("/v1/webhooks/#{endpoint_id}/test", {})
   end
 
   private
 
   def post(path, body)
     response = @conn.post(path, body, request_headers)
+    handle(response)
+  rescue Faraday::TimeoutError, Faraday::ConnectionFailed => e
+    Result.new(success?: false, error_code: "network_error", error_message: e.message)
+  end
+
+  def get(path)
+    response = @conn.get(path, nil, request_headers)
+    handle(response)
+  rescue Faraday::TimeoutError, Faraday::ConnectionFailed => e
+    Result.new(success?: false, error_code: "network_error", error_message: e.message)
+  end
+
+  def delete(path, body)
+    response = @conn.delete(path, body, request_headers)
     handle(response)
   rescue Faraday::TimeoutError, Faraday::ConnectionFailed => e
     Result.new(success?: false, error_code: "network_error", error_message: e.message)

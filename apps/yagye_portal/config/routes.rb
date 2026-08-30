@@ -48,17 +48,36 @@ Rails.application.routes.draw do
     get "developers/deliveries/:id",   to: "webhook_deliveries#show",     as: :developers_delivery
   end
 
+  # ── Payments — refund ────────────────────────────────────────────────────
+  scope module: "payments" do
+    post "payments/:id/refund", to: "transactions#refund", as: :payment_refund
+  end
+
+  # ── Developers — write actions ───────────────────────────────────────────
+  scope module: "developers" do
+    post   "developers/keys",                    to: "api_keys#create",   as: :developers_keys
+    delete "developers/keys/:key_id",            to: "api_keys#destroy",  as: :developers_key
+    post   "developers/webhooks",                to: "webhooks#create",   as: :developers_webhooks
+    delete "developers/webhooks/:endpoint_id",   to: "webhooks#destroy",  as: :developers_webhook
+    post   "developers/webhooks/:endpoint_id/test", to: "webhooks#test",  as: :test_developers_webhook
+  end
+
   # ── Team domain ──────────────────────────────────────────────────────────
   scope module: "team" do
-    get "team",             to: "users#index",   as: :team
-    get "team/users",       to: "users#index",   as: :team_users
-    get "team/users/:id",   to: "users#show",    as: :team_user
-    get "team/roles",       to: "roles#index",   as: :team_roles
+    get  "team",                        to: "users#index",      as: :team
+    get  "team/users",                  to: "users#index",      as: :team_users
+    get  "team/users/:id",              to: "users#show",       as: :team_user
+    post "team/users",                  to: "users#create",     as: :team_invite_user
+    post "team/users/:id/suspend",      to: "users#suspend",    as: :suspend_team_user
+    post "team/users/:id/roles",        to: "users#assign_role", as: :assign_team_user_role
+    get  "team/roles",                  to: "roles#index",      as: :team_roles
   end
 
   # ── Account domain ───────────────────────────────────────────────────────
   scope module: "account" do
-    get "settings",       to: "settings#index",  as: :settings
-    get "help",           to: "help#index",       as: :help
+    get   "settings",                   to: "settings#index",           as: :settings
+    patch "settings/profile",           to: "settings#update_profile",  as: :settings_profile
+    patch "settings/password",          to: "settings#update_password", as: :settings_password
+    get   "help",                       to: "help#index",               as: :help
   end
 end

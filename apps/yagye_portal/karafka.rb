@@ -64,6 +64,18 @@ class KarafkaApp < Karafka::App
     topic "yagye.applications.v1" do
       consumer MerchantApplicationEventsConsumer
     end
+
+    topic "yagye.api_keys.v1" do
+      consumer ApiKeyEventsConsumer
+    end
+
+    topic "yagye.webhooks.v1" do
+      consumer WebhookEventsConsumer
+    end
+
+    topic "yagye.disputes.v1" do
+      consumer DisputeEventsConsumer
+    end
   end
 
   # Uncomment this if you want Karafka to manage your topics configuration
