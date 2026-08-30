@@ -124,7 +124,7 @@ module Payments
         div(style: "padding:16px 24px;display:flex;flex-direction:column;gap:8px") do
           if @can_refund && @payment.status == "paid"
             button(type: "button",
-                   onclick: "document.getElementById('refund-dialog-#{@payment.id}').showModal()",
+                   data: { action: "click->dialog#open", dialog_target_param: "refund-dialog-#{@payment.id}" },
                    class: BTN_DANGER,
                    style: "width:100%;justify-content:center") do
               render UI::Icon.new(:refresh, class: ICON_SM)
@@ -162,9 +162,8 @@ module Payments
             end
           end
           div(style: "display:flex;gap:10px;justify-content:flex-end;margin-top:4px") do
-            button(type: "button",
-                   onclick: "document.getElementById('refund-dialog-#{@payment.id}').close()",
-                   class: BTN_SECONDARY) { "Cancel" }
+            button(type: "button", class: BTN_SECONDARY,
+                   data: { action: "click->dialog#close", dialog_target_param: "refund-dialog-#{@payment.id}" }) { "Cancel" }
             button(type: "submit", class: BTN_DANGER) do
               render UI::Icon.new(:refresh, class: ICON_SM)
               plain "Confirm refund"

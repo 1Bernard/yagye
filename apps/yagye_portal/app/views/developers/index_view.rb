@@ -53,7 +53,7 @@ module Developers
       div do
         div(style: "display:flex;align-items:center;justify-content:flex-end;margin-bottom:20px") do
           button(type: "button", class: BTN_PRIMARY,
-                 onclick: "document.getElementById('generate-key-dialog').showModal()") do
+                 data: { action: "click->dialog#open", dialog_target_param: "generate-key-dialog" }) do
             render UI::Icon.new(:plus, class: ICON_SM)
             plain "Generate Key"
           end
@@ -120,7 +120,7 @@ module Developers
             p(style: TYPE_CAPTION) { "Yagye sends signed POST requests to your endpoints for each event." }
           end
           button(type: "button", class: BTN_PRIMARY,
-                 onclick: "document.getElementById('add-webhook-dialog').showModal()") do
+                 data: { action: "click->dialog#open", dialog_target_param: "add-webhook-dialog" }) do
             render UI::Icon.new(:plus, class: ICON_SM)
             plain "Add Endpoint"
           end
@@ -245,7 +245,7 @@ module Developers
           dev_field("Key label", "label", placeholder: "e.g. Production server", required: true)
           div(style: "display:flex;gap:10px;justify-content:flex-end;margin-top:4px") do
             button(type: "button",
-                   onclick: "document.getElementById('generate-key-dialog').close()",
+                   data: { action: "click->dialog#close", dialog_target_param: "generate-key-dialog" },
                    class: BTN_SECONDARY) { "Cancel" }
             button(type: "submit", class: BTN_PRIMARY) do
               render UI::Icon.new(:plus, class: ICON_SM)
@@ -282,7 +282,7 @@ module Developers
           end
           div(style: "display:flex;gap:10px;justify-content:flex-end;margin-top:4px") do
             button(type: "button",
-                   onclick: "document.getElementById('add-webhook-dialog').close()",
+                   data: { action: "click->dialog#close", dialog_target_param: "add-webhook-dialog" },
                    class: BTN_SECONDARY) { "Cancel" }
             button(type: "submit", class: BTN_PRIMARY) do
               render UI::Icon.new(:plus, class: ICON_SM)

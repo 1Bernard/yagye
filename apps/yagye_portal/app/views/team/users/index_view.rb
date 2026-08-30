@@ -61,7 +61,7 @@ module Team
             div(style: "display:flex;align-items:center;gap:8px") do
             if can_invite
               button(type: "button", class: BTN_PRIMARY,
-                     onclick: "document.getElementById('invite-member-dialog').showModal()") do
+                     data: { action: "click->dialog#open", dialog_target_param: "invite-member-dialog" }) do
                 render UI::Icon.new(:plus, class: ICON_SM)
                 plain "Invite member"
               end
@@ -220,9 +220,8 @@ module Team
             end
           end
           div(style: "display:flex;gap:10px;justify-content:flex-end;margin-top:4px") do
-            button(type: "button",
-                   onclick: "document.getElementById('invite-member-dialog').close()",
-                   class: BTN_SECONDARY) { "Cancel" }
+            button(type: "button", class: BTN_SECONDARY,
+                   data: { action: "click->dialog#close", dialog_target_param: "invite-member-dialog" }) { "Cancel" }
             button(type: "submit", class: BTN_PRIMARY) do
               render UI::Icon.new(:plus, class: ICON_SM)
               plain "Send invitation"
