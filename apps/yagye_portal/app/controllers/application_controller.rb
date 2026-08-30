@@ -19,7 +19,8 @@ class ApplicationController < ActionController::Base
   private
 
   def set_locale
-    I18n.locale = session[:locale].presence_in(%w[en fr]) || I18n.default_locale
+    db_locale  = user_signed_in? ? current_user.language_preference.presence_in(%w[en fr]) : nil
+    I18n.locale = db_locale || session[:locale].presence_in(%w[en fr]) || I18n.default_locale
   end
 
   def set_current_user
@@ -52,6 +53,12 @@ class ApplicationController < ActionController::Base
   # PaperTrail — records the current user's email as the change author.
   def user_for_paper_trail
     current_user&.email
+  end
+
+  # Log sign-in for the non-TOTP path; TOTP path is logged in Sessions::verify_otp.
+  def after_sign_in_path_for(resource)
+    UserAuditEvents::Record.call(user: resource, event_type: :signed_in, request: request)
+    super
   end
 
   def user_not_authorized

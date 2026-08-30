@@ -48,12 +48,12 @@ class ApplicationComponent < Phlex::HTML
   def stat_cell(label, value, color: UI::Theme::INK, icon: nil, tint: nil, delta: nil)
     tint_bg = tint || "rgba(107,114,128,0.08)"
 
-    div(style: "background:#fff;border:1px solid #{UI::Theme::BORDER};border-radius:16px;padding:20px 22px") do
+    div(class: "bg-white border border-gray-100 rounded-2xl p-[22px]") do
       if icon
-        div(style: "display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:14px") do
-          div(style: "width:36px;height:36px;border-radius:10px;background:#{tint_bg};" \
-                     "display:flex;align-items:center;justify-content:center;flex-shrink:0") do
-            span(style: "color:#{color};display:flex;width:17px;height:17px") do
+        div(class: "flex items-start justify-between mb-[14px]") do
+          div(class: "w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0",
+              style: "background:#{tint_bg}") do
+            span(class: "flex w-[17px] h-[17px]", style: "color:#{color}") do
               render UI::Icon.new(icon, class: "w-full h-full")
             end
           end
@@ -61,15 +61,15 @@ class ApplicationComponent < Phlex::HTML
             positive = delta.to_f >= 0
             dc = positive ? "#16a34a" : "#dc2626"
             db = positive ? "rgba(22,163,74,0.08)" : "rgba(220,38,38,0.08)"
-            span(style: "font-size:11px;font-weight:600;color:#{dc};" \
-                        "padding:2px 7px;border-radius:20px;background:#{db}") do
-              "#{positive ? '+' : ''}#{delta}%"
+            span(class: "text-[11px] font-semibold px-[7px] py-[2px] rounded-full",
+                 style: "color:#{dc};background:#{db}") do
+              plain "#{positive ? '+' : ''}#{delta}%"
             end
           end
         end
       end
-      p(style: UI::Theme::TYPE_HEADING) { label }
-      p(style: "#{UI::Theme::TYPE_STAT};color:#{color};margin-top:8px") { value }
+      p(class: "#{UI::Theme::TYPE_HEADING} mb-2") { plain label }
+      p(class: "#{UI::Theme::TYPE_STAT} mt-2", style: "color:#{color}") { plain value }
     end
   end
 

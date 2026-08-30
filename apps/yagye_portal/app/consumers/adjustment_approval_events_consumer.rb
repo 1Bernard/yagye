@@ -20,9 +20,9 @@ class AdjustmentApprovalEventsConsumer < ApplicationConsumer
     return if existing&.last_event_id == event_id && event_id.present?
 
     state = if payload["approved_by"].present? then "approved"
-            elsif payload["rejected_reason"].present? then "rejected"
-            else "pending"
-            end
+    elsif payload["rejected_reason"].present? then "rejected"
+    else "pending"
+    end
 
     attrs = {
       core_break_id:   break_id,

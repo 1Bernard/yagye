@@ -5,9 +5,15 @@ module Developers
     include UI::Theme
 
     TABS = [
-      { key: "api_keys",  label: "API Keys" },
-      { key: "webhooks",  label: "Webhooks" },
-      { key: "logs",      label: "Event Logs" }
+      { key: "api_keys", label: "API Keys" },
+      { key: "webhooks", label: "Webhooks" },
+      { key: "logs",     label: "Event Logs" }
+    ].freeze
+
+    ALL_EVENTS = %w[
+      payment.paid payment.failed payment.refunded
+      dispute.opened dispute.resolved
+      merchant.kyb.approved merchant.kyb.rejected
     ].freeze
 
     def initialize(tab: "api_keys", api_keys: [], webhooks: [], deliveries: nil, pagy: nil)
@@ -45,14 +51,14 @@ module Developers
       end
     end
 
-    # ── API Keys panel ───────────────────────────────────────────────────────
+    # ── API Keys panel ────────────────────────────────────────────────────────
 
     def api_keys_panel
       live = Current.mode == "live"
 
       div do
-        div(style: "display:flex;align-items:center;justify-content:flex-end;margin-bottom:20px") do
-          button(type: "button", class: BTN_PRIMARY,
+        div(class: "flex items-center justify-end mb-5") do
+          render UI::Button.new(variant: :primary,
                  data: { action: "click->dialog#open", dialog_target_param: "generate-key-dialog" }) do
             render UI::Icon.new(:plus, class: ICON_SM)
             plain "Generate Key"
@@ -66,16 +72,16 @@ module Developers
                                  empty_message: "No API keys yet. Generate your first key to start integrating.") do |t|
           t.header do
             div do
-              p(style: TYPE_TITLE) { "#{live ? 'Live' : 'Test'} API keys" }
-              p(style: "#{TYPE_CAPTION};margin-top:2px") { "Keys are shown once at creation. Store them securely." }
+              p(class: TYPE_TITLE) { plain "#{live ? 'Live' : 'Test'} API keys" }
+              p(class: "#{TYPE_CAPTION} mt-0.5") { plain "Keys are shown once at creation. Store them securely." }
             end
           end
 
-          t.column("Name")      { |k| span(style: TYPE_BODY_MD) { k.label.presence || k.kind.capitalize } }
-          t.column("Key prefix") { |k| code(style: TYPE_MONO) { k.key_prefix + "..." } }
-          t.column("Created")   { |k| span(style: TYPE_CAPTION) { k.created_at.strftime("%d %b %Y") } }
-          t.column("Last used") { |k| span(style: TYPE_CAPTION) { k.last_used_at&.strftime("%d %b %Y") || "Never" } }
-          t.column("Status")    { |k| render UI::StatusBadge.new(status: k.active ? "active" : "revoked") }
+          t.column("Name")       { |k| span(class: TYPE_BODY_MD) { plain(k.label.presence || k.kind.capitalize) } }
+          t.column("Key prefix") { |k| code(class: TYPE_MONO) { plain(k.key_prefix + "...") } }
+          t.column("Created")    { |k| span(class: TYPE_CAPTION) { plain k.created_at.strftime("%d %b %Y") } }
+          t.column("Last used")  { |k| span(class: TYPE_CAPTION) { plain(k.last_used_at&.strftime("%d %b %Y") || "Never") } }
+          t.column("Status")     { |k| render UI::StatusBadge.new(status: k.active ? "active" : "revoked") }
 
           t.actions do |k|
             if k.active?
@@ -95,16 +101,15 @@ module Developers
     end
 
     def test_mode_notice
-      div(style: "background:#fffbeb;border:1px solid #fde68a;border-radius:12px;padding:14px 18px;" \
-                 "margin-bottom:16px;display:flex;gap:10px;align-items:flex-start") do
-        span(style: "display:flex;width:16px;height:16px;color:#d97706;flex-shrink:0;margin-top:1px") do
+      div(class: "bg-amber-50 border border-amber-200 rounded-xl px-[18px] py-[14px] mb-4 flex gap-[10px] items-start") do
+        span(class: "flex w-4 h-4 text-amber-500 flex-shrink-0 mt-px") do
           render UI::Icon.new(:info_circle, class: "w-full h-full")
         end
         div do
-          p(style: "font-size:13px;font-weight:600;color:#92400e;margin-bottom:2px") { "Test mode" }
-          p(style: "#{TYPE_CAPTION};color:#b45309") do
-            "Test keys are for development only. No real money moves. " \
-            "Switch to Live mode using the toggle in the sidebar to access live keys."
+          p(class: "text-[13px] font-semibold text-amber-900 mb-0.5") { plain "Test mode" }
+          p(class: "#{TYPE_CAPTION} text-amber-700") do
+            plain "Test keys are for development only. No real money moves. " \
+                  "Switch to Live mode using the toggle in the sidebar to access live keys."
           end
         end
       end
@@ -114,12 +119,12 @@ module Developers
 
     def webhooks_panel
       div do
-        div(style: "display:flex;align-items:center;justify-content:space-between;margin-bottom:20px") do
+        div(class: "flex items-center justify-between mb-5") do
           div do
-            p(style: TYPE_BODY_MD) { "Webhook endpoints" }
-            p(style: TYPE_CAPTION) { "Yagye sends signed POST requests to your endpoints for each event." }
+            p(class: TYPE_BODY_MD) { plain "Webhook endpoints" }
+            p(class: TYPE_CAPTION) { plain "Yagye sends signed POST requests to your endpoints for each event." }
           end
-          button(type: "button", class: BTN_PRIMARY,
+          render UI::Button.new(variant: :primary,
                  data: { action: "click->dialog#open", dialog_target_param: "add-webhook-dialog" }) do
             render UI::Icon.new(:plus, class: ICON_SM)
             plain "Add Endpoint"
@@ -130,13 +135,13 @@ module Developers
         render UI::Datatable.new(records: @webhooks,
                                  empty_message: "No webhook endpoints. Add one to receive real-time payment events.") do |t|
           t.header do
-            p(style: TYPE_TITLE) { "Endpoints" }
+            p(class: TYPE_TITLE) { plain "Endpoints" }
           end
 
-          t.column("URL")     { |wh| code(style: TYPE_MONO) { wh.url } }
-          t.column("Events")  { |wh| span(style: TYPE_CAPTION) { "#{Array(wh.subscribed_events).size} events" } }
+          t.column("URL")     { |wh| code(class: TYPE_MONO) { plain wh.url } }
+          t.column("Events")  { |wh| span(class: TYPE_CAPTION) { plain "#{Array(wh.subscribed_events).size} events" } }
           t.column("Status")  { |wh| render UI::StatusBadge.new(status: wh.active ? "active" : "suspended") }
-          t.column("Created") { |wh| span(style: TYPE_CAPTION) { wh.created_at.strftime("%d %b %Y") } }
+          t.column("Created") { |wh| span(class: TYPE_CAPTION) { plain wh.created_at.strftime("%d %b %Y") } }
 
           t.actions do |wh|
             form(action: developers_webhook_path(wh.endpoint_id), method: "post",
@@ -163,15 +168,15 @@ module Developers
     end
 
     def signing_secret_info
-      div(style: "background:#f9fafb;border:1px solid #{BORDER};border-radius:14px;padding:20px 24px;margin-top:20px") do
-        p(style: "#{TYPE_BODY_MD};margin-bottom:6px") { "Webhook signature verification" }
-        p(style: TYPE_CAPTION) do
-          "Every webhook payload is signed with your webhook secret using HMAC-SHA256. " \
-          "Always verify the X-Yagye-Signature header before processing events."
+      div(class: "bg-gray-50 border border-gray-100 rounded-[14px] px-6 py-5 mt-5") do
+        p(class: "#{TYPE_BODY_MD} mb-1.5") { plain "Webhook signature verification" }
+        p(class: TYPE_CAPTION) do
+          plain "Every webhook payload is signed with your webhook secret using HMAC-SHA256. " \
+                "Always verify the X-Yagye-Signature header before processing events."
         end
-        a(href: "#", style: "#{TYPE_CAPTION};color:#{BRAND};text-decoration:none;margin-top:8px;display:inline-flex;align-items:center;gap:4px") do
-          "View verification guide"
-          span(style: "display:flex;width:12px;height:12px") do
+        a(href: "#", class: "#{TYPE_CAPTION} text-[#3D47F5] no-underline mt-2 inline-flex items-center gap-1") do
+          plain "View verification guide"
+          span(class: "flex w-3 h-3") do
             render UI::Icon.new(:external_link, class: "w-full h-full")
           end
         end
@@ -181,42 +186,38 @@ module Developers
     # ── Event logs panel ──────────────────────────────────────────────────────
 
     def logs_panel
-      pagy       = @pagy
-      deliveries = @deliveries
-
-      render UI::Datatable.new(records: deliveries, pagy: pagy,
+      render UI::Datatable.new(records: @deliveries, pagy: @pagy,
                                empty_message: "No delivery attempts yet. Webhook deliveries appear here once endpoints are active.") do |t|
         t.header do
           div do
-            p(style: TYPE_TITLE) { "Delivery log" }
-            p(style: "#{TYPE_CAPTION};margin-top:2px") { "Last 30 days. Click a row to inspect the request and response." }
+            p(class: TYPE_TITLE) { plain "Delivery log" }
+            p(class: "#{TYPE_CAPTION} mt-0.5") { plain "Last 30 days. Click a row to inspect the request and response." }
           end
         end
 
-        t.column("Event")    do |d|
+        t.column("Event") do |d|
           div do
-            p(style: TYPE_BODY_MD) { d.event_type }
-            p(style: TYPE_CAPTION) { d.short_event_id }
+            p(class: TYPE_BODY_MD) { plain d.event_type }
+            p(class: TYPE_CAPTION) { plain d.short_event_id }
           end
         end
-        t.column("Endpoint") { |d| code(style: "#{TYPE_MONO};font-size:11px") { d.portal_webhook_endpoint&.url || "—" } }
+        t.column("Endpoint") { |d| code(class: "#{TYPE_MONO} text-[11px]") { plain(d.portal_webhook_endpoint&.url || "—") } }
         t.column("Status")   { |d| render UI::StatusBadge.new(status: d.state) }
         t.column("HTTP")     { |d| http_status_chip(d) }
-        t.column("Duration") { |d| span(style: TYPE_CAPTION) { d.formatted_duration } }
-        t.column("Attempt")  { |d| span(style: TYPE_CAPTION) { d.attempt.to_s } }
-        t.column("Sent")     { |d| span(style: TYPE_CAPTION) { d.last_applied_at.strftime("%d %b, %H:%M") } }
+        t.column("Duration") { |d| span(class: TYPE_CAPTION) { plain d.formatted_duration } }
+        t.column("Attempt")  { |d| span(class: TYPE_CAPTION) { plain d.attempt.to_s } }
+        t.column("Sent")     { |d| span(class: TYPE_CAPTION) { plain d.last_applied_at.strftime("%d %b, %H:%M") } }
 
         t.actions do |d|
           a(href: developers_delivery_path(d.delivery_id),
             class: DROPDOWN_ITEM,
             data: { turbo_frame: "drawer-frame" }) do
             render UI::Icon.new(:eye, class: ICON_SM)
-            "Inspect"
+            plain "Inspect"
           end
-          a(href: developers_delivery_path(d.delivery_id),
-            class: DROPDOWN_ITEM) do
+          a(href: developers_delivery_path(d.delivery_id), class: DROPDOWN_ITEM) do
             render UI::Icon.new(:refresh, class: ICON_SM)
-            "Retry"
+            plain "Retry"
           end
         end
       end
@@ -224,30 +225,22 @@ module Developers
 
     # ── Dialogs ───────────────────────────────────────────────────────────────
 
-    ALL_EVENTS = %w[
-      payment.paid payment.failed payment.refunded
-      dispute.opened dispute.resolved
-      merchant.kyb.approved merchant.kyb.rejected
-    ].freeze
-
     def generate_key_dialog(live_mode)
       dialog(id: "generate-key-dialog",
-             style: "border:none;border-radius:16px;padding:0;box-shadow:0 20px 60px rgba(0,0,0,0.18);" \
-                    "width:100%;max-width:420px;background:#fff") do
-        div(style: "padding:22px 24px;border-bottom:1px solid #{BORDER}") do
-          p(style: TYPE_TITLE) { "Generate API key" }
-          p(style: "#{TYPE_CAPTION};margin-top:3px") { "Keys are shown once. Store it immediately after creation." }
+             class: "border-0 rounded-2xl p-0 shadow-2xl w-full max-w-[420px] bg-white") do
+        div(class: "px-6 py-[22px] border-b border-gray-100") do
+          p(class: TYPE_TITLE) { plain "Generate API key" }
+          p(class: "#{TYPE_CAPTION} mt-[3px]") { plain "Keys are shown once. Store it immediately after creation." }
         end
         form(action: developers_keys_path, method: "post",
-             style: "padding:22px 24px;display:flex;flex-direction:column;gap:14px") do
+             class: "px-6 py-[22px] flex flex-col gap-[14px]") do
           input(type: "hidden", name: "authenticity_token", value: form_authenticity_token)
           input(type: "hidden", name: "mode",               value: live_mode ? "live" : "test")
-          dev_field("Key label", "label", placeholder: "e.g. Production server", required: true)
-          div(style: "display:flex;gap:10px;justify-content:flex-end;margin-top:4px") do
-            button(type: "button",
-                   data: { action: "click->dialog#close", dialog_target_param: "generate-key-dialog" },
-                   class: BTN_SECONDARY) { "Cancel" }
-            button(type: "submit", class: BTN_PRIMARY) do
+          render UI::InputField.new(name: "label", label: "Key label", placeholder: "e.g. Production server", required: true)
+          div(class: "flex gap-[10px] justify-end mt-1") do
+            render UI::Button.new(variant: :secondary,
+                   data: { action: "click->dialog#close", dialog_target_param: "generate-key-dialog" }) { plain "Cancel" }
+            render UI::Button.new(variant: :primary, type: "submit") do
               render UI::Icon.new(:plus, class: ICON_SM)
               plain "Generate"
             end
@@ -258,33 +251,33 @@ module Developers
 
     def add_webhook_dialog
       dialog(id: "add-webhook-dialog",
-             style: "border:none;border-radius:16px;padding:0;box-shadow:0 20px 60px rgba(0,0,0,0.18);" \
-                    "width:100%;max-width:500px;background:#fff") do
-        div(style: "padding:22px 24px;border-bottom:1px solid #{BORDER}") do
-          p(style: TYPE_TITLE) { "Add webhook endpoint" }
-          p(style: "#{TYPE_CAPTION};margin-top:3px") { "Yagye will POST signed events to this URL." }
+             class: "border-0 rounded-2xl p-0 shadow-2xl w-full max-w-[500px] bg-white") do
+        div(class: "px-6 py-[22px] border-b border-gray-100") do
+          p(class: TYPE_TITLE) { plain "Add webhook endpoint" }
+          p(class: "#{TYPE_CAPTION} mt-[3px]") { plain "Yagye will POST signed events to this URL." }
         end
         form(action: developers_webhooks_path, method: "post",
-             style: "padding:22px 24px;display:flex;flex-direction:column;gap:14px") do
+             class: "px-6 py-[22px] flex flex-col gap-[14px]") do
           input(type: "hidden", name: "authenticity_token", value: form_authenticity_token)
-          dev_field("Endpoint URL", "url", type: "url", placeholder: "https://your-server.com/webhooks", required: true)
+          render UI::InputField.new(name: "url", label: "Endpoint URL", type: "url",
+                                    placeholder: "https://your-server.com/webhooks", required: true)
           div do
-            p(style: "#{TYPE_MICRO};margin-bottom:8px") { "Events to receive" }
-            div(style: "display:flex;flex-direction:column;gap:6px") do
+            p(class: "#{TYPE_MICRO} mb-2") { plain "Events to receive" }
+            div(class: "flex flex-col gap-1.5") do
               ALL_EVENTS.each do |event|
-                label(style: "display:flex;align-items:center;gap:8px;cursor:pointer") do
+                label(class: "flex items-center gap-2 cursor-pointer") do
                   input(type: "checkbox", name: "subscribed_events[]", value: event, checked: true,
-                        style: "width:14px;height:14px;accent-color:#{BRAND};cursor:pointer")
-                  span(style: "#{TYPE_MONO};font-size:11.5px") { event }
+                        class: "w-[14px] h-[14px] cursor-pointer",
+                        style: "accent-color:#{BRAND}")
+                  span(class: TYPE_MONO) { plain event }
                 end
               end
             end
           end
-          div(style: "display:flex;gap:10px;justify-content:flex-end;margin-top:4px") do
-            button(type: "button",
-                   data: { action: "click->dialog#close", dialog_target_param: "add-webhook-dialog" },
-                   class: BTN_SECONDARY) { "Cancel" }
-            button(type: "submit", class: BTN_PRIMARY) do
+          div(class: "flex gap-[10px] justify-end mt-1") do
+            render UI::Button.new(variant: :secondary,
+                   data: { action: "click->dialog#close", dialog_target_param: "add-webhook-dialog" }) { plain "Cancel" }
+            render UI::Button.new(variant: :primary, type: "submit") do
               render UI::Icon.new(:plus, class: ICON_SM)
               plain "Add endpoint"
             end
@@ -293,28 +286,15 @@ module Developers
       end
     end
 
-    def dev_field(label, name, type: "text", placeholder: "", required: false)
-      div do
-        p(style: "#{TYPE_MICRO};margin-bottom:6px") { label }
-        input(type: type, name: name, placeholder: placeholder, required: required,
-              style: "width:100%;border:1px solid #{BORDER_MED};border-radius:10px;" \
-                     "padding:9px 12px;font-size:13px;color:#{INK};background:#fff;" \
-                     "outline:none;box-sizing:border-box",
-              class: "placeholder:text-gray-400")
-      end
-    end
-
     def http_status_chip(delivery)
-      code = delivery.response_status
-      return span(style: TYPE_CAPTION) { "—" } unless code
+      status_code = delivery.response_status
+      return span(class: TYPE_CAPTION) { plain "—" } unless status_code
 
-      color = code.between?(200, 299) ? "#16a34a" : "#dc2626"
-      bg    = code.between?(200, 299) ? "#f0fdf4" : "#fef2f2"
+      color = status_code.between?(200, 299) ? "#16a34a" : "#dc2626"
+      bg    = status_code.between?(200, 299) ? "#f0fdf4" : "#fef2f2"
 
-      span(style: "font-size:11.5px;font-weight:600;color:#{color};background:#{bg};" \
-                  "padding:2px 8px;border-radius:16px;font-family:ui-monospace,monospace") do
-        code.to_s
-      end
+      span(class: "text-[11.5px] font-semibold px-2 py-[2px] rounded-full font-mono",
+           style: "color:#{color};background:#{bg}") { plain status_code.to_s }
     end
   end
 end

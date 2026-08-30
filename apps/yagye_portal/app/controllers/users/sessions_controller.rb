@@ -33,12 +33,19 @@ class Users::SessionsController < Devise::SessionsController
     if user.validate_and_consume_otp!(submitted_otp)
       session.delete(:otp_user_id)
       sign_in(:user, user)
+      UserAuditEvents::Record.call(user: user, event_type: :signed_in, request: request)
       redirect_to after_sign_in_path_for(user)
     else
       flash.now[:alert] = "Invalid authentication code. Check your authenticator app and try again."
       @resource = user
       render :otp_challenge, status: :unprocessable_entity
     end
+  end
+
+  # Log sign-out before Devise destroys the session.
+  def destroy
+    UserAuditEvents::Record.call(user: current_user, event_type: :signed_out, request: request)
+    super
   end
 
   private

@@ -65,7 +65,8 @@ module UI
         # CTA link
         if @upgrade_path
           a(href: @upgrade_path,
-            style: "font-size:11px;font-weight:600;color:#{color};text-decoration:none;white-space:nowrap") do
+            class: "text-[11px] font-semibold no-underline whitespace-nowrap",
+            style: "color:#{color}") do
             plain "Upgrade →"
           end
         end

@@ -117,7 +117,7 @@ module Layout
       cls    = "#{base} sidebar-nav-item"
 
       a(href: path, class: cls, data: { nav_tooltip: item[:label] }) do
-        span(class: active ? "#{NAV_ICON_ON} flex-shrink-0" : "#{NAV_ICON_OFF} flex-shrink-0") do
+        span(class: active ? NAV_ICON_ON : "#{NAV_ICON_OFF} flex-shrink-0") do
           render UI::Icon.new(item[:icon], class: ICON_NAV)
         end
         span(class: "sidebar-nav-label") { item[:label] }

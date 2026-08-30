@@ -20,7 +20,7 @@ module Compliance
             { label: "Approvals" }
           ]
         ) do
-          div(style: "display:flex;flex-direction:column;gap:24px") do
+          div(class: "flex flex-col gap-6") do
             pending_section
             decided_section
           end
@@ -38,33 +38,33 @@ module Compliance
         ) do |t|
           t.header do
             div do
-              p(style: TYPE_TITLE) { "Pending approvals" }
-              p(style: "#{TYPE_CAPTION};margin-top:2px") do
+              p(class: TYPE_TITLE) { "Pending approvals" }
+              p(class: "#{TYPE_CAPTION} mt-0.5") do
                 "Adjustments proposed by one officer that require sign-off from a second."
               end
             end
           end
 
           t.column("Break ID") do |r|
-            code(style: TYPE_MONO) { r.core_break_id.to_s.first(12) + "…" }
+            code(class: TYPE_MONO) { r.core_break_id.to_s.first(12) + "…" }
           end
 
           t.column("Proposed by") do |r|
             div do
-              p(style: TYPE_BODY_MD) { r.proposed_by }
-              p(style: TYPE_CAPTION) { r.proposed_at.strftime("%d %b %Y, %H:%M") }
+              p(class: TYPE_BODY_MD) { r.proposed_by }
+              p(class: TYPE_CAPTION) { r.proposed_at.strftime("%d %b %Y, %H:%M") }
             end
           end
 
           t.column("Action") do |r|
-            span(style: TYPE_BODY_MD) { r.action_summary }
+            span(class: TYPE_BODY_MD) { r.action_summary }
           end
 
           t.column("Age") do |r|
             days = ((Time.current - r.proposed_at) / 86_400).round
             color = days > 2 ? "#dc2626" : "#d97706"
-            span(style: "font-size:12px;font-weight:600;color:#{color}") do
-              days == 0 ? "Today" : "#{days}d ago"
+            span(class: "text-[12px] font-semibold", style: "color:#{color}") do
+              plain days == 0 ? "Today" : "#{days}d ago"
             end
           end
 
@@ -99,11 +99,11 @@ module Compliance
           empty_message: "No decisions yet."
         ) do |t|
           t.header do
-            p(style: TYPE_TITLE) { "Recent decisions" }
+            p(class: TYPE_TITLE) { "Recent decisions" }
           end
 
           t.column("Break ID") do |r|
-            code(style: TYPE_MONO) { r.core_break_id.to_s.first(12) + "…" }
+            code(class: TYPE_MONO) { r.core_break_id.to_s.first(12) + "…" }
           end
 
           t.column("State") do |r|
@@ -111,20 +111,20 @@ module Compliance
           end
 
           t.column("Proposed by") do |r|
-            span(style: TYPE_BODY_MD) { r.proposed_by }
+            span(class: TYPE_BODY_MD) { r.proposed_by }
           end
 
           t.column("Decided by") do |r|
             decided_by = r.approved_by.presence || "—"
             decided_at = r.approved_at || r.updated_at
             div do
-              p(style: TYPE_BODY_MD) { decided_by }
-              p(style: TYPE_CAPTION) { decided_at.strftime("%d %b %Y, %H:%M") }
+              p(class: TYPE_BODY_MD) { decided_by }
+              p(class: TYPE_CAPTION) { decided_at.strftime("%d %b %Y, %H:%M") }
             end
           end
 
           t.column("Proposed") do |r|
-            span(style: TYPE_CAPTION) { r.proposed_at.strftime("%d %b %Y") }
+            span(class: TYPE_CAPTION) { r.proposed_at.strftime("%d %b %Y") }
           end
         end
       end
@@ -133,31 +133,27 @@ module Compliance
 
       def reject_dialog(record)
         dialog(id: "reject-dialog-#{record.id}",
-               style: "border:none;border-radius:16px;padding:0;box-shadow:0 20px 60px rgba(0,0,0,0.18);" \
-                      "width:100%;max-width:440px;background:#fff") do
-          div(style: "padding:22px 24px;border-bottom:1px solid #{BORDER}") do
-            p(style: TYPE_TITLE) { "Reject adjustment" }
-            p(style: "#{TYPE_CAPTION};margin-top:3px") do
-              "Provide a reason for the rejection. This is recorded for the audit trail."
+               class: "border-0 rounded-2xl p-0 shadow-2xl w-full max-w-[440px] bg-white") do
+          div(class: "px-6 py-[22px] border-b border-gray-100") do
+            p(class: TYPE_TITLE) { plain "Reject adjustment" }
+            p(class: "#{TYPE_CAPTION} mt-[3px]") do
+              plain "Provide a reason for the rejection. This is recorded for the audit trail."
             end
           end
           form(action: compliance_reject_approval_path(record), method: "post",
-               style: "padding:22px 24px;display:flex;flex-direction:column;gap:14px") do
+               class: "px-6 py-[22px] flex flex-col gap-[14px]") do
             input(type: "hidden", name: "authenticity_token", value: form_authenticity_token)
             div do
-              p(style: "#{TYPE_MICRO};margin-bottom:6px") { "Reason" }
+              p(class: "#{TYPE_MICRO} mb-1.5") { plain "Reason" }
               textarea(name: "reason", rows: 3, required: true,
                        placeholder: "Explain why this adjustment is being rejected…",
-                       style: "width:100%;border:1px solid #{BORDER_MED};border-radius:10px;" \
-                              "padding:9px 12px;font-size:13px;color:#{INK};background:#fff;" \
-                              "outline:none;box-sizing:border-box;resize:vertical",
-                       class: "placeholder:text-gray-400")
+                       class: "#{TEXTAREA_FIELD} placeholder:text-gray-400")
             end
-            div(style: "display:flex;gap:10px;justify-content:flex-end") do
-              button(type: "button", class: BTN_SECONDARY,
+            div(class: "flex gap-[10px] justify-end") do
+              render UI::Button.new(variant: :secondary,
                      data: { action: "click->dialog#close",
-                             dialog_target_param: "reject-dialog-#{record.id}" }) { "Cancel" }
-              button(type: "submit", class: BTN_DANGER) do
+                             dialog_target_param: "reject-dialog-#{record.id}" }) { plain "Cancel" }
+              render UI::Button.new(variant: :danger, type: "submit") do
                 render UI::Icon.new(:x, class: ICON_SM)
                 plain "Confirm rejection"
               end

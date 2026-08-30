@@ -32,7 +32,7 @@ module KybReviews
     private
 
     def stat_band
-      div(style: "display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-bottom:20px") do
+      render UI::Grid.new(columns: 4) do
         stat_cell("Pending Review", "0", icon: :clock,        color: "#d97706", tint: "rgba(217,119,6,0.08)")
         stat_cell("In Review",      "0", icon: :eye,          color: "#6d28d9", tint: "rgba(109,40,217,0.08)")
         stat_cell("Approved (30d)", "0", icon: :check_circle, color: "#16a34a", tint: "rgba(22,163,74,0.08)")
@@ -56,8 +56,8 @@ module KybReviews
       render UI::Datatable.new(records: @applications, pagy: @pagy,
                                empty_message: empty_message) do |t|
         t.header do
-          p(style: TYPE_TITLE) { "#{@tab.humanize} applications" }
-          button(type: "button", class: BTN_SECONDARY) do
+          p(class: TYPE_TITLE) { "#{@tab.humanize} applications" }
+          render UI::Button.new(variant: :secondary) do
             render UI::Icon.new(:download, class: ICON_SM)
             plain "Export"
           end
@@ -67,8 +67,8 @@ module KybReviews
           div(style: "display:flex;align-items:center;gap:10px") do
             render UI::Avatar.new(a.legal_name&.first(2)&.upcase || "??", size: :sm)
             div do
-              p(style: TYPE_BODY_MD) { a.legal_name }
-              p(style: TYPE_CAPTION) { a.merchant_code }
+              p(class: TYPE_BODY_MD) { a.legal_name }
+              p(class: TYPE_CAPTION) { a.merchant_code }
             end
           end
         end

@@ -30,7 +30,7 @@ module Exports
         border: { style: :thin, color: "CBD5E1" }
       )
       data_style = styles.add_style(sz: 10, border: { style: :thin, color: "E2E8F0" })
-      [header_style, data_style]
+      [ header_style, data_style ]
     end
 
     def add_rows(sheet, header_style, data_style)

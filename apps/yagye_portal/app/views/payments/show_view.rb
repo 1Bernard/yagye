@@ -19,7 +19,7 @@ module Payments
           { label: @payment.reference.presence || @payment.core_payment_id&.first(12) || @payment.id.to_s }
         ]
       ) do
-        div(style: "display:grid;grid-template-columns:1fr 340px;gap:24px;align-items:start") do
+        render UI::Grid.new(columns: :sidebar_lg) do
           left_column
           right_column
         end
@@ -29,7 +29,7 @@ module Payments
     private
 
     def left_column
-      div(style: "display:flex;flex-direction:column;gap:20px") do
+      div(class: "flex flex-col gap-5") do
         amount_card
         details_card
         metadata_card
@@ -37,7 +37,7 @@ module Payments
     end
 
     def right_column
-      div(style: "display:flex;flex-direction:column;gap:20px") do
+      div(class: "flex flex-col gap-5") do
         timeline_card
         actions_card if @can_refund
       end
@@ -46,17 +46,15 @@ module Payments
     # ── Amount / hero card ────────────────────────────────────────────────────
 
     def amount_card
-      div(style: "background:#fff;border:1px solid #{BORDER};border-radius:16px;padding:28px 32px") do
-        div(style: "display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:20px") do
+      div(class: "bg-white border border-gray-100 rounded-2xl px-8 py-7") do
+        div(class: "flex items-start justify-between mb-5") do
           div do
-            p(style: "#{TYPE_CAPTION};margin-bottom:4px") { "Transaction amount" }
-            p(style: "#{TYPE_AMOUNT};color:#{INK}") do
-              @payment.formatted_amount
-            end
+            p(class: "#{TYPE_CAPTION} mb-1") { plain "Transaction amount" }
+            p(class: "#{TYPE_AMOUNT} text-gray-900") { plain @payment.formatted_amount }
           end
-          render UI::StatusBadge.new(status: @payment.status)
+          render UI::StatusBadge.new(@payment.status)
         end
-        div(style: "display:grid;grid-template-columns:repeat(3,1fr);gap:1px;background:#{BORDER};border-radius:12px;overflow:hidden") do
+        div(class: "grid grid-cols-3 gap-[1px] bg-gray-100 rounded-xl overflow-hidden") do
           meta_cell("Reference", @payment.reference.presence || "—", mono: true)
           meta_cell("Provider",  @payment.provider_label)
           meta_cell("Date",      @payment.created_at.strftime("%d %b %Y, %H:%M"))
@@ -67,18 +65,18 @@ module Payments
     # ── Payment details card ──────────────────────────────────────────────────
 
     def details_card
-      div(style: "background:#fff;border:1px solid #{BORDER};border-radius:16px;overflow:hidden") do
-        div(style: "padding:20px 24px;border-bottom:1px solid #{BORDER}") do
-          p(style: TYPE_TITLE) { "Payment details" }
+      div(class: "bg-white border border-gray-100 rounded-2xl overflow-hidden") do
+        div(class: "px-6 py-5 border-b border-gray-100") do
+          p(class: TYPE_TITLE) { plain "Payment details" }
         end
-        div(style: "padding:0") do
-          detail_row("Customer",         customer_value)
-          detail_row("Core payment ID",  @payment.core_payment_id || "—", mono: true)
-          detail_row("Payment method",   @payment.provider_label)
-          detail_row("Status",           nil) { render UI::StatusBadge.new(status: @payment.status) }
-          detail_row("Created",          @payment.created_at.strftime("%d %b %Y at %H:%M UTC"))
-          detail_row("Settled",          settled_label)
-          detail_row("Merchant",         @payment.merchant_code || "—", mono: true)
+        render UI::DetailList.new do |list|
+          list.row("Customer",        customer_value)
+          list.row("Core payment ID", @payment.core_payment_id || "—", mono: true)
+          list.row("Payment method",  @payment.provider_label)
+          list.row("Status")         { render UI::StatusBadge.new(@payment.status) }
+          list.row("Created",        @payment.created_at.strftime("%d %b %Y at %H:%M UTC"))
+          list.row("Settled",        settled_label)
+          list.row("Merchant",       @payment.merchant_code || "—", mono: true)
         end
       end
     end
@@ -86,14 +84,13 @@ module Payments
     # ── Metadata card ─────────────────────────────────────────────────────────
 
     def metadata_card
-      div(style: "background:#fff;border:1px solid #{BORDER};border-radius:16px;overflow:hidden") do
-        div(style: "padding:20px 24px;border-bottom:1px solid #{BORDER}") do
-          p(style: TYPE_TITLE) { "Metadata" }
+      div(class: "bg-white border border-gray-100 rounded-2xl overflow-hidden") do
+        div(class: "px-6 py-5 border-b border-gray-100") do
+          p(class: TYPE_TITLE) { plain "Metadata" }
         end
-        div(style: "padding:16px 24px") do
-          pre(style: "#{TYPE_MONO};background:#{SURFACE};border-radius:10px;padding:14px;overflow-x:auto;" \
-                     "font-size:11.5px;line-height:1.6;white-space:pre-wrap;word-break:break-all") do
-            JSON.pretty_generate(@payment.metadata.presence || {})
+        div(class: "px-6 py-4") do
+          pre(class: "#{TYPE_MONO} text-[11.5px] bg-gray-50 rounded-xl p-[14px] overflow-x-auto leading-relaxed whitespace-pre-wrap break-all") do
+            plain JSON.pretty_generate(@payment.metadata.presence || {})
           end
         end
       end
@@ -102,11 +99,11 @@ module Payments
     # ── Timeline card ─────────────────────────────────────────────────────────
 
     def timeline_card
-      div(style: "background:#fff;border:1px solid #{BORDER};border-radius:16px;overflow:hidden") do
-        div(style: "padding:20px 24px;border-bottom:1px solid #{BORDER}") do
-          p(style: TYPE_TITLE) { "Activity timeline" }
+      div(class: "bg-white border border-gray-100 rounded-2xl overflow-hidden") do
+        div(class: "px-6 py-5 border-b border-gray-100") do
+          p(class: TYPE_TITLE) { plain "Activity timeline" }
         end
-        div(style: "padding:20px 24px") do
+        div(class: "px-6 py-5 flex flex-col gap-0") do
           timeline_events.each_with_index do |(label, at, color), i|
             timeline_item(label, at, color, last: i == timeline_events.length - 1)
           end
@@ -117,23 +114,22 @@ module Payments
     # ── Actions card ──────────────────────────────────────────────────────────
 
     def actions_card
-      div(style: "background:#fff;border:1px solid #{BORDER};border-radius:16px;overflow:hidden") do
-        div(style: "padding:20px 24px;border-bottom:1px solid #{BORDER}") do
-          p(style: TYPE_TITLE) { "Actions" }
+      div(class: "bg-white border border-gray-100 rounded-2xl overflow-hidden") do
+        div(class: "px-6 py-5 border-b border-gray-100") do
+          p(class: TYPE_TITLE) { plain "Actions" }
         end
-        div(style: "padding:16px 24px;display:flex;flex-direction:column;gap:8px") do
+        div(class: "px-6 py-4 flex flex-col gap-2") do
           if @can_refund && @payment.status == "paid"
-            button(type: "button",
+            render UI::Button.new(variant: :danger,
                    data: { action: "click->dialog#open", dialog_target_param: "refund-dialog-#{@payment.id}" },
-                   class: BTN_DANGER,
                    style: "width:100%;justify-content:center") do
               render UI::Icon.new(:refresh, class: ICON_SM)
               plain "Issue refund"
             end
             refund_dialog
           end
-          p(style: "#{TYPE_CAPTION};text-align:center;margin-top:4px") do
-            "Refunds are processed within 5–10 business days."
+          p(class: "#{TYPE_CAPTION} text-center mt-1") do
+            plain "Refunds are processed within 5–10 business days."
           end
         end
       end
@@ -141,30 +137,31 @@ module Payments
 
     def refund_dialog
       dialog(id: "refund-dialog-#{@payment.id}",
-             style: "border:none;border-radius:16px;padding:0;box-shadow:0 20px 60px rgba(0,0,0,0.18);" \
-                    "width:100%;max-width:420px;background:#fff") do
-        div(style: "padding:22px 24px;border-bottom:1px solid #{BORDER}") do
-          p(style: TYPE_TITLE) { "Confirm refund" }
-          p(style: "#{TYPE_CAPTION};margin-top:3px") { "Refund #{@payment.formatted_amount} to the original payment method." }
+             class: "border-0 rounded-2xl p-0 shadow-2xl w-full max-w-[420px] bg-white") do
+        div(class: "px-6 py-[22px] border-b border-gray-100") do
+          p(class: TYPE_TITLE) { plain "Confirm refund" }
+          p(class: "#{TYPE_CAPTION} mt-[3px]") do
+            plain "Refund #{@payment.formatted_amount} to the original payment method."
+          end
         end
         form(action: payment_refund_path(@payment), method: "post",
-             style: "padding:20px 24px;display:flex;flex-direction:column;gap:14px") do
+             class: "px-6 py-5 flex flex-col gap-[14px]") do
           input(type: "hidden", name: "authenticity_token", value: form_authenticity_token)
           div do
-            p(style: "#{TYPE_MICRO};margin-bottom:6px") { "Reason" }
-            select(name: "reason",
-                   style: "width:100%;border:1px solid #{BORDER_MED};border-radius:10px;padding:9px 12px;" \
-                          "font-size:13px;color:#{INK};background:#fff;outline:none;cursor:pointer") do
-              option(value: "requested_by_merchant") { "Requested by merchant" }
-              option(value: "duplicate")             { "Duplicate charge" }
-              option(value: "fraudulent")            { "Fraudulent transaction" }
-              option(value: "customer_request")      { "Customer request" }
+            p(class: "#{TYPE_MICRO} mb-1.5") { plain "Reason" }
+            select(name: "reason", class: "#{SELECT_FIELD} cursor-pointer") do
+              option(value: "requested_by_merchant") { plain "Requested by merchant" }
+              option(value: "duplicate")             { plain "Duplicate charge" }
+              option(value: "fraudulent")            { plain "Fraudulent transaction" }
+              option(value: "customer_request")      { plain "Customer request" }
             end
           end
-          div(style: "display:flex;gap:10px;justify-content:flex-end;margin-top:4px") do
-            button(type: "button", class: BTN_SECONDARY,
-                   data: { action: "click->dialog#close", dialog_target_param: "refund-dialog-#{@payment.id}" }) { "Cancel" }
-            button(type: "submit", class: BTN_DANGER) do
+          div(class: "flex gap-[10px] justify-end mt-1") do
+            render UI::Button.new(variant: :secondary,
+                   data: { action: "click->dialog#close", dialog_target_param: "refund-dialog-#{@payment.id}" }) do
+              plain "Cancel"
+            end
+            render UI::Button.new(variant: :danger, type: "submit") do
               render UI::Icon.new(:refresh, class: ICON_SM)
               plain "Confirm refund"
             end
@@ -175,34 +172,22 @@ module Payments
 
     # ── Helpers ───────────────────────────────────────────────────────────────
 
-    def detail_row(label, value, mono: false)
-      div(style: "display:flex;align-items:center;justify-content:space-between;padding:14px 24px;" \
-                 "border-bottom:1px solid #{BORDER}") do
-        span(style: TYPE_CAPTION) { label }
-        if block_given?
-          yield
-        else
-          span(style: mono ? TYPE_MONO : TYPE_BODY_MD) { value }
-        end
-      end
-    end
-
     def meta_cell(label, value, mono: false)
-      div(style: "background:#fff;padding:14px 18px") do
-        p(style: "#{TYPE_MICRO};margin-bottom:3px") { label }
-        p(style: mono ? TYPE_MONO : TYPE_BODY_MD) { value }
+      div(class: "bg-white px-[18px] py-[14px]") do
+        p(class: "#{TYPE_MICRO} mb-[3px]") { plain label }
+        p(class: (mono ? TYPE_MONO : TYPE_BODY_MD)) { plain value }
       end
     end
 
     def timeline_item(label, timestamp, color, last: false)
-      div(style: "display:flex;gap:14px") do
-        div(style: "display:flex;flex-direction:column;align-items:center;flex-shrink:0") do
-          div(style: "width:10px;height:10px;border-radius:50%;background:#{color};flex-shrink:0;margin-top:3px")
-          div(style: "width:1px;flex:1;background:#{BORDER};margin-top:4px") unless last
+      div(class: "flex gap-[14px]") do
+        div(class: "flex flex-col items-center flex-shrink-0") do
+          div(class: "w-[10px] h-[10px] rounded-full flex-shrink-0 mt-[3px]", style: "background:#{color}")
+          div(class: "w-[1px] flex-1 bg-gray-100 mt-1") unless last
         end
-        div(style: "padding-bottom:#{last ? '0' : '16px'}") do
-          p(style: TYPE_BODY_MD) { label }
-          p(style: TYPE_CAPTION) { timestamp&.strftime("%d %b %Y, %H:%M") || "—" }
+        div(class: last ? "" : "pb-4") do
+          p(class: TYPE_BODY_MD) { plain label }
+          p(class: TYPE_CAPTION)  { plain timestamp&.strftime("%d %b %Y, %H:%M") || "—" }
         end
       end
     end

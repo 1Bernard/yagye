@@ -37,7 +37,7 @@ module Disputes
     private
 
     def stat_band
-      div(style: "display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-bottom:20px") do
+      render UI::Grid.new(columns: 4) do
         stat_cell("Open Disputes", "0", icon: :flag,         color: "#d97706", tint: "rgba(217,119,6,0.08)")
         stat_cell("Won",           "0", icon: :check_circle, color: "#16a34a", tint: "rgba(22,163,74,0.08)")
         stat_cell("Lost",          "0", icon: :alert_circle, color: "#dc2626", tint: "rgba(220,38,38,0.08)")
@@ -68,86 +68,66 @@ module Disputes
       render UI::Datatable.new(records: @disputes, pagy: @pagy,
                                empty_message: empty_message) do |t|
         t.header do
-          div(style: "display:flex;align-items:center;gap:8px") do
-            p(style: TYPE_TITLE) { "#{tab.capitalize} disputes" }
-            span(style: "background:#f3f4f6;color:#6b7280;border-radius:20px;" \
-                        "padding:1px 9px;font-size:11.5px;font-weight:600;line-height:1.6") { total.to_s } if total > 0
+          div(class: "flex items-center gap-2") do
+            p(class: TYPE_TITLE) { plain "#{tab.capitalize} disputes" }
+            span(class: "bg-gray-100 text-gray-500 rounded-full px-[9px] py-[1px] text-[11.5px] font-semibold leading-[1.6]") { plain total.to_s } if total > 0
           end
 
           form(action: disputes_path, method: "get",
-               style: "display:flex;align-items:center;gap:6px",
+               class: "flex items-center gap-1.5",
                data: { controller: "filter-form", filter_form_target: "form" }) do
             input(type: "hidden", name: "tab", value: tab)
 
-            div(style: "display:flex;align-items:center;gap:7px;padding:0 11px;" \
-                       "border:1px solid #e5e7eb;border-radius:9px;background:#fff;height:32px") do
-              span(style: "display:flex;width:12px;height:12px;color:#9ca3af;flex-shrink:0") do
+            div(class: "flex items-center gap-2 px-3 h-8 border border-gray-200 rounded-[9px] bg-white") do
+              span(class: "flex w-3 h-3 text-gray-400 flex-shrink-0") do
                 render UI::Icon.new(:search, class: "w-full h-full")
               end
               input(type: "search", name: "q", value: query,
                     placeholder: "Search reference or payment ID…",
-                    style: "border:0;outline:none;background:transparent;font-size:12.5px;" \
-                           "color:#374151;width:170px;min-width:0",
-                    class: "placeholder:text-gray-400")
+                    class: "border-0 outline-none bg-transparent text-[12.5px] text-gray-700 w-[170px] min-w-0 placeholder:text-gray-400")
             end
 
             select(name: "reason",
-                   style: "border:1px solid #e5e7eb;border-radius:9px;padding:0 10px;" \
-                          "font-size:12.5px;font-weight:500;color:#374151;background:#fff;" \
-                          "outline:none;cursor:pointer;height:32px",
+                   class: "h-8 border border-gray-200 rounded-[9px] px-[10px] text-[12.5px] font-medium text-gray-700 bg-white outline-none cursor-pointer",
                    data: { action: "change->filter-form#submit" }) do
-              option(value: "", selected: reason.blank?) { "All reasons" }
-              [["Fraud","fraud"],["Duplicate charge","duplicate"],
-               ["Product not received","not_received"],["Unrecognised","unrecognised"],
-               ["Other","other"]].each do |(lbl, val)|
-                option(value: val, selected: reason == val) { lbl }
+              option(value: "", selected: reason.blank?) { plain "All reasons" }
+              [ [ "Fraud", "fraud" ], [ "Duplicate charge", "duplicate" ],
+               [ "Product not received", "not_received" ], [ "Unrecognised", "unrecognised" ],
+               [ "Other", "other" ] ].each do |(lbl, val)|
+                option(value: val, selected: reason == val) { plain lbl }
               end
             end
 
             input(type: "date", name: "from", value: from,
-                  style: "border:1px solid #e5e7eb;border-radius:9px;padding:0 10px;" \
-                         "font-size:12.5px;color:#374151;background:#fff;" \
-                         "outline:none;cursor:pointer;height:32px",
+                  class: "h-8 border border-gray-200 rounded-[9px] px-[10px] text-[12.5px] text-gray-700 bg-white outline-none cursor-pointer",
                   data: { action: "change->filter-form#submit" })
 
             input(type: "date", name: "to", value: to,
-                  style: "border:1px solid #e5e7eb;border-radius:9px;padding:0 10px;" \
-                         "font-size:12.5px;color:#374151;background:#fff;" \
-                         "outline:none;cursor:pointer;height:32px",
+                  class: "h-8 border border-gray-200 rounded-[9px] px-[10px] text-[12.5px] text-gray-700 bg-white outline-none cursor-pointer",
                   data: { action: "change->filter-form#submit" })
 
-            button(type: "submit",
-                   style: "display:inline-flex;align-items:center;gap:5px;padding:0 12px;" \
-                          "border:1px solid #e5e7eb;border-radius:9px;font-size:12.5px;" \
-                          "font-weight:500;color:#374151;background:#fff;cursor:pointer;" \
-                          "height:32px;white-space:nowrap") do
+            render UI::Button.new(variant: :secondary, type: "submit") do
               render UI::Icon.new(:filter, class: "w-[12px] h-[12px]")
               plain "Filter"
             end
 
-            a(href: disputes_path(format: :csv, tab: tab),
-              style: "display:inline-flex;align-items:center;gap:5px;padding:0 12px;" \
-                     "border:1px solid #e5e7eb;border-radius:9px;font-size:12.5px;" \
-                     "font-weight:500;color:#374151;background:#fff;cursor:pointer;" \
-                     "height:32px;text-decoration:none;white-space:nowrap") do
+            render UI::Button.new(variant: :secondary, href: disputes_path(format: :csv, tab: tab)) do
               render UI::Icon.new(:download, class: "w-[12px] h-[12px]")
               plain "Export"
             end
 
             if filters_active
-              a(href: disputes_path(tab: tab),
-                style: "font-size:12px;color:#9ca3af;text-decoration:none;" \
-                       "padding:0 4px;white-space:nowrap") { "Clear" }
+              a(href: disputes_path(tab: tab), class: "text-[12px] text-gray-400 no-underline px-1 whitespace-nowrap") { plain "Clear" }
             end
           end
         end
 
-        t.column("Reference")   { |d| span(style: TYPE_MONO) { d.reference } }
-        t.column("Payment")     { |d| span(style: TYPE_MONO) { d.payment_reference } }
+        t.column("Reference")   { |d| span(class: TYPE_MONO) { d.reference } }
+        t.column("Payment")     { |d| span(class: TYPE_MONO) { d.payment_reference } }
         t.column("Amount")      { |d| d.formatted_amount }
         t.column("Reason")      { |d| d.reason.humanize }
         t.column("Status")      { |d| render UI::StatusBadge.new(status: d.status) }
-        t.column("SLA")         { |d| span(style: "font-size:12px;font-weight:600;color:#dc2626") { "Overdue" } }
+        t.column("SLA")         { |d| span(class: "text-[12px] font-semibold text-red-600") { plain "Overdue" } }
         t.column("Opened")      { |d| d.created_at.strftime("%d %b %Y") }
 
         t.actions do |d|

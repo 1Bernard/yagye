@@ -11,25 +11,23 @@ module UI
     end
 
     def view_template
-      nav(style: "margin-bottom:20px") do
-        ol(style: "display:flex;align-items:center;list-style:none;padding:0;margin:0;flex-wrap:wrap;gap:0") do
-          li(style: "display:flex;align-items:center") do
-            a(href: "/",
-              style: "display:flex;align-items:center;color:#9ca3af;text-decoration:none") do
-              span(style: "display:flex;width:14px;height:14px") do
+      nav(class: "mb-5") do
+        ol(class: "flex items-center list-none p-0 m-0 flex-wrap") do
+          li(class: "flex items-center") do
+            a(href: "/", class: "flex items-center text-gray-400 no-underline") do
+              span(class: "flex w-[14px] h-[14px]") do
                 render UI::Icon.new(:home, class: "w-full h-full")
               end
             end
           end
 
           @items.each_with_index do |item, i|
-            li(style: "display:flex;align-items:center") do
-              span(style: "margin:0 8px;color:#d1d5db;font-size:13px;user-select:none") { "/" }
+            li(class: "flex items-center") do
+              span(class: "mx-2 text-gray-300 text-[13px] select-none") { "/" }
               if i == @items.length - 1 || item[:href].nil?
-                span(style: "font-size:13px;color:#374151;font-weight:500") { plain item[:label] }
+                span(class: TYPE_BODY_MD) { plain item[:label] }
               else
-                a(href: item[:href],
-                  style: "font-size:13px;color:#9ca3af;text-decoration:none") do
+                a(href: item[:href], class: "text-[13px] text-gray-400 no-underline") do
                   plain item[:label]
                 end
               end

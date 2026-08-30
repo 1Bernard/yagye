@@ -11,6 +11,8 @@ module Account
       )
       authorize entry, policy_class: PortalIpAllowlistPolicy
       if entry.save
+        UserAuditEvents::Record.call(user: current_user, event_type: :ip_allowlisted, request: request,
+                                     metadata: { cidr: entry.cidr })
         redirect_to settings_path(tab: "allowlists"), notice: "IP address added to allowlist."
       else
         redirect_to settings_path(tab: "allowlists"), alert: entry.errors.full_messages.to_sentence
@@ -20,7 +22,10 @@ module Account
     def destroy_ip
       entry = PortalIpAllowlist.find(params[:id])
       authorize entry, policy_class: PortalIpAllowlistPolicy
+      cidr = entry.cidr
       entry.destroy
+      UserAuditEvents::Record.call(user: current_user, event_type: :ip_removed, request: request,
+                                   metadata: { cidr: cidr })
       redirect_to settings_path(tab: "allowlists"), notice: "IP address removed."
     end
 
@@ -33,6 +38,8 @@ module Account
       )
       authorize entry, policy_class: PortalMsisdnAllowlistPolicy
       if entry.save
+        UserAuditEvents::Record.call(user: current_user, event_type: :msisdn_allowlisted, request: request,
+                                     metadata: { msisdn: entry.msisdn })
         redirect_to settings_path(tab: "allowlists"), notice: "Phone number added to allowlist."
       else
         redirect_to settings_path(tab: "allowlists"), alert: entry.errors.full_messages.to_sentence
@@ -42,7 +49,10 @@ module Account
     def destroy_msisdn
       entry = PortalMsisdnAllowlist.find(params[:id])
       authorize entry, policy_class: PortalMsisdnAllowlistPolicy
+      msisdn = entry.msisdn
       entry.destroy
+      UserAuditEvents::Record.call(user: current_user, event_type: :msisdn_removed, request: request,
+                                   metadata: { msisdn: msisdn })
       redirect_to settings_path(tab: "allowlists"), notice: "Phone number removed."
     end
   end

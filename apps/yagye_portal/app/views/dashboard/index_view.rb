@@ -42,7 +42,7 @@ module Dashboard
     # 6 cards: volume, transactions, success rate, pending, failed/KYB (role-split), disputes
 
     def stat_grid
-      div(style: "display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-bottom:20px") do
+      div(class: "grid grid-cols-3 gap-4 mb-5") do
         stat_card(
           label: "Volume (MTD)",
           value: format_volume,
@@ -107,27 +107,26 @@ module Dashboard
     end
 
     def stat_card(label:, value:, icon:, color:, tint:, delta:)
-      div(class: "dash-stat-card",
-          style: "background:#fff;border:1px solid #{BORDER};border-radius:16px;padding:20px 22px") do
-        div(style: "display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:14px") do
-          div(style: "width:36px;height:36px;border-radius:10px;background:#{tint};" \
-                     "display:flex;align-items:center;justify-content:center;flex-shrink:0") do
-            span(style: "color:#{color};display:flex;width:17px;height:17px") do
+      div(class: "bg-white border border-gray-100 rounded-2xl p-[22px]") do
+        div(class: "flex items-start justify-between mb-[14px]") do
+          div(class: "w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0",
+              style: "background:#{tint}") do
+            span(class: "flex w-[17px] h-[17px]", style: "color:#{color}") do
               render UI::Icon.new(icon, class: "w-full h-full")
             end
           end
           if delta
-            positive = delta >= 0
+            positive    = delta >= 0
             delta_color = positive ? GREEN : RED
             delta_bg    = positive ? "rgba(22,163,74,0.08)" : "rgba(220,38,38,0.08)"
-            span(style: "font-size:11px;font-weight:600;color:#{delta_color};" \
-                        "padding:2px 7px;border-radius:20px;background:#{delta_bg}") do
+            span(class: "text-[11px] font-semibold px-[7px] py-[2px] rounded-full",
+                 style: "color:#{delta_color};background:#{delta_bg}") do
               plain "#{positive ? '+' : ''}#{delta}%"
             end
           end
         end
-        p(style: "#{TYPE_HEADING};margin-bottom:8px") { plain label }
-        p(style: "#{TYPE_STAT};color:#{INK}") { plain value }
+        p(class: "#{TYPE_HEADING} mb-2") { plain label }
+        p(class: "#{TYPE_STAT} text-gray-900") { plain value }
       end
     end
 
@@ -141,19 +140,19 @@ module Dashboard
     end
 
     def volume_chart_card
-      div(style: "background:#fff;border:1px solid #{BORDER};border-radius:16px;overflow:hidden") do
-        div(style: "display:flex;align-items:center;justify-content:space-between;padding:18px 22px 0") do
+      div(class: "bg-white border border-gray-100 rounded-2xl overflow-hidden") do
+        div(class: "flex items-center justify-between px-[22px] pt-[18px]") do
           div do
-            p(style: TYPE_TITLE) { plain "Transaction Volume" }
-            p(style: "#{TYPE_CAPTION};margin-top:3px") { plain "Daily paid volume · last 30 days" }
+            p(class: TYPE_TITLE) { plain "Transaction Volume" }
+            p(class: "#{TYPE_CAPTION} mt-[3px]") { plain "Daily paid volume · last 30 days" }
           end
-          div(style: "display:flex;align-items:center;gap:4px") do
+          div(class: "flex items-center gap-1") do
             period_btn("7D", false)
             period_btn("30D", true)
             period_btn("3M", false)
           end
         end
-        div(style: "padding:16px 22px 20px") do
+        div(class: "px-[22px] pt-4 pb-5") do
           render UI::Chart::Line.new(
             labels: @chart_dates,
             data:   @chart_values,
@@ -166,9 +165,9 @@ module Dashboard
     end
 
     def provider_split_card
-      div(style: "background:#fff;border:1px solid #{BORDER};border-radius:16px;padding:18px 22px") do
-        p(style: "#{TYPE_TITLE};margin-bottom:3px") { plain "Provider Split" }
-        p(style: "#{TYPE_CAPTION};margin-bottom:16px") { plain "Volume by provider (MTD)" }
+      div(class: "bg-white border border-gray-100 rounded-2xl px-[22px] pt-[18px] pb-[22px]") do
+        p(class: "#{TYPE_TITLE} mb-[3px]") { plain "Provider Split" }
+        p(class: "#{TYPE_CAPTION} mb-4") { plain "Volume by provider (MTD)" }
 
         render UI::Chart::Pie.new(
           labels: @provider_data.map { |p| p[:name] },
@@ -178,7 +177,7 @@ module Dashboard
         )
 
         unless @provider_data.empty?
-          div(style: "margin-top:16px;display:flex;flex-direction:column;gap:10px") do
+          div(class: "mt-4 flex flex-col gap-[10px]") do
             @provider_data.each { |p| provider_row(p) }
           end
         end
@@ -186,27 +185,28 @@ module Dashboard
     end
 
     def period_btn(label, active)
-      s = if active
-            "font-size:11.5px;font-weight:600;padding:4px 10px;border-radius:6px;" \
-            "background:#{BRAND};color:#fff;cursor:pointer;border:none"
+      if active
+        button(type: "button",
+               class: "text-[11.5px] font-semibold px-[10px] py-1 rounded-md cursor-pointer border-0 text-white bg-[#3D47F5]") do
+          plain label
+        end
       else
-            "font-size:11.5px;font-weight:500;padding:4px 10px;border-radius:6px;" \
-            "background:transparent;color:#9ca3af;cursor:pointer;border:none"
+        button(type: "button",
+               class: "text-[11.5px] font-medium px-[10px] py-1 rounded-md cursor-pointer border-0 bg-transparent text-gray-400") do
+          plain label
+        end
       end
-      button(type: "button", style: s) { plain label }
     end
 
     def provider_row(prov)
-      div(style: "display:flex;align-items:center;justify-content:space-between") do
-        div(style: "display:flex;align-items:center;gap:8px") do
-          span(style: "width:8px;height:8px;border-radius:50%;background:#{prov[:color]};flex-shrink:0")
-          span(style: "#{TYPE_CAPTION}") { plain prov[:name] }
+      div(class: "flex items-center justify-between") do
+        div(class: "flex items-center gap-2") do
+          span(class: "w-2 h-2 rounded-full flex-shrink-0", style: "background:#{prov[:color]}")
+          span(class: TYPE_CAPTION) { plain prov[:name] }
         end
-        div(style: "display:flex;align-items:center;gap:8px") do
-          span(style: "#{TYPE_CAPTION};color:#{SUBTLE_TEXT}") { plain "#{prov[:pct]}%" }
-          span(style: "#{TYPE_MONO}") do
-            plain "GHS #{fmt_decimal(prov[:amount_cents] / 100.0)}"
-          end
+        div(class: "flex items-center gap-2") do
+          span(class: TYPE_CAPTION) { plain "#{prov[:pct]}%" }
+          span(class: TYPE_MONO) { plain "GHS #{fmt_decimal(prov[:amount_cents] / 100.0)}" }
         end
       end
     end
@@ -219,8 +219,8 @@ module Dashboard
         if @recent_payments.empty?
           table_empty_state
         else
-          div(style: "overflow-x:auto") do
-            table(style: "width:100%;border-collapse:collapse;min-width:780px") do
+          div(class: "overflow-x-auto") do
+            table(class: "w-full border-collapse min-w-[780px]") do
               table_head
               tbody { @recent_payments.each { |pay| table_row(pay) } }
             end
@@ -231,58 +231,43 @@ module Dashboard
     end
 
     def table_action_bar
-      div(style: "display:flex;align-items:center;justify-content:space-between;" \
-                 "padding:14px 20px;border-bottom:1px solid #{BORDER}") do
-        div(style: "display:flex;align-items:center;gap:10px") do
-          p(style: TYPE_TITLE) { plain "Recent Payments" }
+      div(class: "flex items-center justify-between px-5 py-[14px] border-b border-gray-100") do
+        div(class: "flex items-center gap-[10px]") do
+          p(class: TYPE_TITLE) { plain "Recent Payments" }
           unless @recent_payments.empty?
-            span(style: "font-size:11px;font-weight:600;padding:2px 8px;" \
-                        "background:#{SURFACE};border-radius:20px;color:#{MUTED_TEXT}") do
+            span(class: "text-[11px] font-semibold px-2 py-[2px] bg-gray-50 rounded-full text-gray-500") do
               plain "Last #{@recent_payments.size}"
             end
           end
         end
-        div(style: "display:flex;align-items:center;gap:8px") do
-          div(style: "display:flex;align-items:center;gap:8px;padding:7px 12px;" \
-                     "border:1px solid #{BORDER_MED};border-radius:9px;min-width:176px;cursor:text") do
-            span(style: "color:#{SUBTLE_TEXT};display:flex;width:13px;height:13px;flex-shrink:0") do
+        div(class: "flex items-center gap-2") do
+          div(class: "flex items-center gap-2 px-3 py-[7px] border border-gray-200 rounded-[9px] min-w-[176px] cursor-text") do
+            span(class: "text-gray-300 flex w-[13px] h-[13px] flex-shrink-0") do
               render UI::Icon.new(:search, class: "w-full h-full")
             end
-            span(style: "#{TYPE_CAPTION};color:#{SUBTLE_TEXT}") { plain "Search payments…" }
+            span(class: TYPE_CAPTION) { plain "Search payments…" }
           end
-          ghost_btn(:filter, "Filter")
-          ghost_btn(:download, "Export")
-          a(href: payments_path,
-            style: "display:inline-flex;align-items:center;gap:6px;padding:7px 14px;" \
-                   "background:#{BRAND};border-radius:9px;font-size:12.5px;font-weight:600;" \
-                   "color:#fff;text-decoration:none;white-space:nowrap") do
+          render UI::Button.new(variant: :secondary, type: "button") do
+            span(class: "flex w-[12px] h-[12px]") { render UI::Icon.new(:filter, class: "w-full h-full") }
+            plain "Filter"
+          end
+          render UI::Button.new(variant: :secondary, type: "button") do
+            span(class: "flex w-[12px] h-[12px]") { render UI::Icon.new(:download, class: "w-full h-full") }
+            plain "Export"
+          end
+          render UI::Button.new(variant: :primary, href: payments_path) do
             plain "View all"
-            span(style: "display:flex;width:13px;height:13px") do
-              render UI::Icon.new(:arrow_right, class: "w-full h-full")
-            end
+            span(class: "flex w-[13px] h-[13px]") { render UI::Icon.new(:arrow_right, class: "w-full h-full") }
           end
         end
-      end
-    end
-
-    def ghost_btn(icon_name, label)
-      button(type: "button",
-             style: "display:inline-flex;align-items:center;gap:6px;padding:7px 12px;" \
-                    "border:1px solid #{BORDER_MED};border-radius:9px;font-size:12.5px;" \
-                    "font-weight:500;color:#{BODY_TEXT};background:#fff;cursor:pointer;white-space:nowrap") do
-        span(style: "display:flex;width:13px;height:13px") do
-          render UI::Icon.new(icon_name, class: "w-full h-full")
-        end
-        plain label
       end
     end
 
     def table_head
       thead do
-        tr(style: "border-bottom:1px solid #{BORDER}") do
-          th(style: "padding:10px 12px 10px 20px;width:36px") do
-            input(type: "checkbox",
-                  style: "width:14px;height:14px;border-radius:3px;cursor:pointer;accent-color:#{BRAND}")
+        tr(class: "border-b border-gray-100") do
+          th(class: "px-3 py-[10px] pl-5 w-9") do
+            input(type: "checkbox", class: CHECKBOX_INPUT)
           end
           th_col("Reference")
           th_col("Customer")
@@ -291,57 +276,39 @@ module Dashboard
           th_col("Provider")
           th_col("Status")
           th_col("Date")
-          th(style: "padding:10px 20px 10px 14px;width:40px")
+          th(class: "px-5 py-[10px] pl-[14px] w-10")
         end
       end
     end
 
     def th_col(label)
-      th(style: "padding:10px 14px;text-align:left;white-space:nowrap;cursor:pointer") do
-        div(style: "display:inline-flex;align-items:center;gap:4px") do
-          span(style: TYPE_HEADING) { plain label }
-          span(style: "color:#{FAINT_TEXT};font-size:10px") { plain "↕" }
+      th(class: "px-[14px] py-[10px] text-left whitespace-nowrap cursor-pointer") do
+        div(class: "inline-flex items-center gap-1") do
+          span(class: TYPE_HEADING) { plain label }
+          span(class: "text-gray-200 text-[10px]") { plain "↕" }
         end
       end
     end
 
     def table_row(pay)
-      tr(class: "dash-tr", style: "border-bottom:1px solid #{BORDER};cursor:pointer") do
-        td(style: "padding:12px 12px 12px 20px") do
-          input(type: "checkbox",
-                style: "width:14px;height:14px;border-radius:3px;cursor:pointer;accent-color:#{BRAND}")
+      tr(class: TABLE_ROW) do
+        td(class: "px-3 py-3 pl-5") do
+          input(type: "checkbox", class: CHECKBOX_INPUT)
         end
-        td(style: "padding:12px 14px") do
-          span(style: TYPE_MONO) { plain pay.reference.to_s }
+        td(class: "px-[14px] py-3") { span(class: TYPE_MONO) { plain pay.reference.to_s } }
+        td(class: "px-[14px] py-3") { span(class: TYPE_CAPTION) { plain pay.masked_msisdn } }
+        td(class: "px-[14px] py-3") do
+          span(class: "text-[13px] font-semibold text-gray-900 #{TYPE_NUM}") { plain pay.formatted_amount }
         end
-        td(style: "padding:12px 14px") do
-          span(style: TYPE_CAPTION) { plain pay.masked_msisdn }
+        td(class: "px-[14px] py-3") { method_badge(pay.try(:payment_method).to_s) }
+        td(class: "px-[14px] py-3") { span(class: TYPE_BODY) { plain pay.provider_label } }
+        td(class: "px-[14px] py-3") { render UI::StatusBadge.new(pay.status) }
+        td(class: "px-[14px] py-3 whitespace-nowrap") do
+          span(class: TYPE_CAPTION) { plain pay.created_at.strftime("%d %b, %H:%M") }
         end
-        td(style: "padding:12px 14px") do
-          span(style: "font-size:13px;font-weight:600;color:#{INK};#{TYPE_NUM}") do
-            plain pay.formatted_amount
-          end
-        end
-        td(style: "padding:12px 14px") do
-          method_badge(pay.try(:payment_method).to_s)
-        end
-        td(style: "padding:12px 14px") do
-          span(style: TYPE_BODY) { plain pay.provider_label }
-        end
-        td(style: "padding:12px 14px") do
-          status_badge(pay.status)
-        end
-        td(style: "padding:12px 14px;white-space:nowrap") do
-          span(style: TYPE_CAPTION) { plain pay.created_at.strftime("%d %b, %H:%M") }
-        end
-        td(style: "padding:12px 20px 12px 14px") do
-          button(type: "button",
-                 style: "display:flex;align-items:center;justify-content:center;" \
-                        "width:28px;height:28px;border-radius:6px;border:none;" \
-                        "background:transparent;cursor:pointer;color:#{SUBTLE_TEXT}") do
-            span(style: "display:flex;width:14px;height:14px") do
-              render UI::Icon.new(:dots_vertical, class: "w-full h-full")
-            end
+        td(class: "px-5 py-3 pl-[14px]") do
+          render UI::Button.new(variant: :icon) do
+            render UI::Icon.new(:dots_vertical, class: ICON_SM)
           end
         end
       end
@@ -349,83 +316,40 @@ module Dashboard
 
     def method_badge(method)
       cfg = case method
-      when "mobile_money"
-              { label: "Mobile Money", bg: "#fef9c3", text: "#854d0e" }
-      when "card"
-              { label: "Card",         bg: "#eff6ff", text: "#1d4ed8" }
-      when "bank_transfer"
-              { label: "Bank",         bg: "#f0fdf4", text: "#166534" }
-      else
-              { label: "—",            bg: "#f9fafb", text: "#9ca3af" }
+      when "mobile_money" then { label: "Mobile Money", bg: "#fef9c3", text: "#854d0e" }
+      when "card"         then { label: "Card",         bg: "#eff6ff", text: "#1d4ed8" }
+      when "bank_transfer" then { label: "Bank",        bg: "#f0fdf4", text: "#166534" }
+      else                     { label: "—",            bg: "#f9fafb", text: "#9ca3af" }
       end
-      span(style: "display:inline-flex;align-items:center;padding:2px 8px;border-radius:4px;" \
-                  "background:#{cfg[:bg]};font-size:11.5px;font-weight:500;color:#{cfg[:text]}") do
+      span(class: "inline-flex items-center px-2 py-[2px] rounded text-[11.5px] font-medium",
+           style: "background:#{cfg[:bg]};color:#{cfg[:text]}") do
         plain cfg[:label]
       end
     end
 
-    def status_badge(status)
-      cfg = case status
-      when "paid", "succeeded", "success", "settled"
-              { dot: GREEN,   bg: "rgba(22,163,74,0.08)",   text: "#15803d", label: "Paid" }
-      when "initiated", "processing", "requires_action"
-              { dot: AMBER,   bg: "rgba(217,119,6,0.08)",   text: "#b45309",
-                label: status.tr("_", " ").split.map(&:capitalize).join(" ") }
-      when "failed", "cancelled"
-              { dot: RED,     bg: "rgba(220,38,38,0.08)",   text: "#b91c1c", label: status.capitalize }
-      when "refunded", "partially_refunded"
-              { dot: PURPLE,  bg: "rgba(109,40,217,0.08)",  text: "#5b21b6", label: "Refunded" }
-      when "disputed"
-              { dot: "#c2410c", bg: "rgba(194,65,12,0.08)", text: "#9a3412", label: "Disputed" }
-      else
-              { dot: SUBTLE_TEXT, bg: "rgba(156,163,175,0.08)", text: MUTED_TEXT,
-                label: status.tr("_", " ").capitalize }
-      end
-      span(style: "display:inline-flex;align-items:center;gap:6px;padding:3px 10px;" \
-                  "border-radius:20px;background:#{cfg[:bg]}") do
-        span(style: "width:6px;height:6px;border-radius:50%;background:#{cfg[:dot]};flex-shrink:0")
-        span(style: "font-size:12px;font-weight:500;color:#{cfg[:text]}") { plain cfg[:label] }
-      end
-    end
-
     def table_footer
-      div(style: "display:flex;align-items:center;justify-content:space-between;" \
-                 "padding:12px 20px;border-top:1px solid #{BORDER}") do
-        p(style: "#{TYPE_CAPTION}") do
+      div(class: "flex items-center justify-between px-5 py-3 border-t border-gray-100") do
+        p(class: TYPE_CAPTION) do
           plain "Showing last #{@recent_payments.size} payments · "
-          a(href: payments_path,
-            style: "color:#{BRAND};text-decoration:none;font-weight:500") { plain "View all →" }
+          a(href: payments_path, class: "text-[#3D47F5] no-underline font-medium") { plain "View all →" }
         end
-        div(style: "display:flex;align-items:center;gap:4px") do
-          pg_btn(:chev_left)
-          span(style: "font-size:12.5px;font-weight:500;color:#{BODY_TEXT};padding:0 8px") { plain "1" }
-          pg_btn(:chev_right)
-        end
-      end
-    end
-
-    def pg_btn(icon_name)
-      button(type: "button",
-             style: "display:flex;align-items:center;justify-content:center;width:28px;height:28px;" \
-                    "border-radius:6px;border:1px solid #{BORDER_MED};background:#fff;" \
-                    "cursor:pointer;color:#{MUTED_TEXT}") do
-        span(style: "display:flex;width:14px;height:14px") do
-          render UI::Icon.new(icon_name, class: "w-full h-full")
+        div(class: "flex items-center gap-1") do
+          render UI::Button.new(variant: :icon) { render UI::Icon.new(:chev_left, class: ICON_SM) }
+          span(class: "text-[12.5px] font-medium text-gray-700 px-2") { plain "1" }
+          render UI::Button.new(variant: :icon) { render UI::Icon.new(:chev_right, class: ICON_SM) }
         end
       end
     end
 
     def table_empty_state
-      div(style: "padding:56px 20px;display:flex;flex-direction:column;align-items:center;" \
-                 "justify-content:center;gap:10px;text-align:center") do
-        div(style: "width:44px;height:44px;border-radius:12px;background:#f9fafb;" \
-                   "display:flex;align-items:center;justify-content:center;margin-bottom:4px") do
-          span(style: "color:#{FAINT_TEXT};display:flex;width:22px;height:22px") do
+      div(class: "py-14 px-5 flex flex-col items-center justify-center gap-[10px] text-center") do
+        div(class: "w-11 h-11 rounded-xl bg-gray-50 flex items-center justify-center mb-1") do
+          span(class: "text-gray-300 flex w-[22px] h-[22px]") do
             render UI::Icon.new(:layers, class: "w-full h-full")
           end
         end
-        p(style: TYPE_BODY_MD) { plain "No payments yet" }
-        p(style: TYPE_CAPTION) { plain "Transactions will appear here once payments start flowing." }
+        p(class: TYPE_BODY_MD) { plain "No payments yet" }
+        p(class: TYPE_CAPTION) { plain "Transactions will appear here once payments start flowing." }
       end
     end
 

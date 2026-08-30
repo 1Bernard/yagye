@@ -25,7 +25,7 @@ module Merchants
     private
 
     def stat_band
-      div(style: "display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-bottom:20px") do
+      render UI::Grid.new(columns: 4) do
         stat_cell("Active Merchants", "0", icon: :check_circle, color: "#16a34a", tint: "rgba(22,163,74,0.08)")
         stat_cell("Pending KYB",      "0", icon: :clock,        color: "#d97706", tint: "rgba(217,119,6,0.08)")
         stat_cell("Suspended",        "0", icon: :alert_circle, color: "#dc2626", tint: "rgba(220,38,38,0.08)")
@@ -42,7 +42,7 @@ module Merchants
                                empty_message: "No merchants registered yet.") do |t|
         t.header do
           div(style: "display:flex;align-items:center;gap:8px") do
-            p(style: TYPE_TITLE) { "All merchants" }
+            p(class: TYPE_TITLE) { "All merchants" }
             span(style: "background:#f3f4f6;color:#6b7280;border-radius:20px;" \
                         "padding:1px 9px;font-size:11.5px;font-weight:600;line-height:1.6") { total.to_s } if total > 0
           end
@@ -68,8 +68,8 @@ module Merchants
                           "outline:none;cursor:pointer;height:32px",
                    data: { action: "change->filter-form#submit" }) do
               option(value: "", selected: status.blank?) { "All statuses" }
-              [["Active","active"],["Pending KYB","pending_kyb"],["Under review","under_review"],
-               ["Suspended","suspended"],["Rejected","rejected"]].each do |(lbl, val)|
+              [ [ "Active", "active" ], [ "Pending KYB", "pending_kyb" ], [ "Under review", "under_review" ],
+               [ "Suspended", "suspended" ], [ "Rejected", "rejected" ] ].each do |(lbl, val)|
                 option(value: val, selected: status == val) { lbl }
               end
             end
@@ -80,7 +80,7 @@ module Merchants
                           "outline:none;cursor:pointer;height:32px",
                    data: { action: "change->filter-form#submit" }) do
               option(value: "") { "All countries" }
-              [["Ghana","GH"],["Nigeria","NG"],["Kenya","KE"],["Côte d'Ivoire","CI"]].each do |(lbl, val)|
+              [ [ "Ghana", "GH" ], [ "Nigeria", "NG" ], [ "Kenya", "KE" ], [ "Côte d'Ivoire", "CI" ] ].each do |(lbl, val)|
                 option(value: val) { lbl }
               end
             end
@@ -115,12 +115,12 @@ module Merchants
           div(style: "display:flex;align-items:center;gap:10px") do
             render UI::Avatar.new(m.legal_name&.first(2)&.upcase || "??", size: :sm)
             div do
-              p(style: TYPE_BODY_MD) { m.legal_name }
-              p(style: TYPE_CAPTION) { m.submitted_by_email }
+              p(class: TYPE_BODY_MD) { m.legal_name }
+              p(class: TYPE_CAPTION) { m.submitted_by_email }
             end
           end
         end
-        t.column("Code")         { |m| span(style: TYPE_MONO) { m.merchant_code } }
+        t.column("Code")         { |m| span(class: TYPE_MONO) { m.merchant_code } }
         t.column("Country")      { |m| m.country }
         t.column("KYB Status")   { |m| render UI::StatusBadge.new(status: m.status) }
         t.column("Volume (MTD)") { |m| span(style: "font-size:13px;color:#{SUBTLE_TEXT}") { "—" } }
@@ -134,6 +134,5 @@ module Merchants
         end
       end
     end
-
   end
 end

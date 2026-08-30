@@ -10,7 +10,7 @@ module Exports
     end
 
     def call
-      pdf = Prawn::Document.new(page_layout: :landscape, margin: [30, 30, 30, 30])
+      pdf = Prawn::Document.new(page_layout: :landscape, margin: [ 30, 30, 30, 30 ])
       render_header(pdf)
       render_table(pdf)
       render_footer(pdf)
@@ -32,7 +32,7 @@ module Exports
       pdf.table(rows,
                 header: true,
                 width:  pdf.bounds.width,
-                cell_style: { size: 9, padding: [5, 8, 5, 8], border_color: "CBD5E1" }) do |t|
+                cell_style: { size: 9, padding: [ 5, 8, 5, 8 ], border_color: "CBD5E1" }) do |t|
         style_rows(t, rows.size)
       end
     end
@@ -48,7 +48,7 @@ module Exports
 
     def render_footer(pdf)
       pdf.number_pages("<page> / <total>",
-                       at: [pdf.bounds.right - 60, 0],
+                       at: [ pdf.bounds.right - 60, 0 ],
                        width: 60, align: :right, size: 8)
     end
 
@@ -60,7 +60,7 @@ module Exports
           val.to_s
         end
       end
-      [header] + data
+      [ header ] + data
     end
   end
 end

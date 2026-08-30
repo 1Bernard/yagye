@@ -21,12 +21,10 @@ module Developers
     private
 
     def drawer_header
-      div(style: "display:flex;align-items:center;justify-content:space-between;" \
-                 "padding:20px 24px;border-bottom:1px solid #{BORDER};position:sticky;" \
-                 "top:0;background:#fff;z-index:10") do
+      div(class: "flex items-center justify-between px-6 py-5 border-b border-gray-100 sticky top-0 bg-white z-10") do
         div do
-          p(style: TYPE_MICRO) { "Webhook delivery" }
-          p(style: TYPE_TITLE) { @delivery.event_type }
+          p(class: TYPE_MICRO) { plain "Webhook delivery" }
+          p(class: TYPE_TITLE) { plain @delivery.event_type }
         end
         a(href: developers_path(tab: "logs"),
           data: { turbo_frame: "_top" },
@@ -37,7 +35,7 @@ module Developers
     end
 
     def drawer_body
-      div(style: "padding:24px;display:flex;flex-direction:column;gap:20px") do
+      div(class: "p-6 flex flex-col gap-5") do
         summary_card
         request_card
         response_card
@@ -45,82 +43,75 @@ module Developers
     end
 
     def summary_card
-      div(style: "background:#{SURFACE};border:1px solid #{BORDER};border-radius:16px;padding:18px 20px") do
-        div(style: "display:flex;align-items:center;gap:10px;margin-bottom:12px") do
-          div(style: "width:10px;height:10px;border-radius:50%;background:#{@delivery.state_color};flex-shrink:0")
-          span(style: "font-size:12.5px;font-weight:600;color:#{@delivery.state_color}") do
-            @delivery.state.capitalize
-          end
-          span(style: "#{TYPE_CAPTION};margin-left:auto") do
-            "Attempt #{@delivery.attempt}"
-          end
+      div(class: "bg-gray-50 border border-gray-100 rounded-2xl px-5 py-[18px]") do
+        div(class: "flex items-center gap-[10px] mb-3") do
+          div(class: "w-[10px] h-[10px] rounded-full flex-shrink-0",
+              style: "background:#{@delivery.state_color}")
+          span(class: "text-[12.5px] font-semibold",
+               style: "color:#{@delivery.state_color}") { plain @delivery.state.capitalize }
+          span(class: "#{TYPE_CAPTION} ml-auto") { plain "Attempt #{@delivery.attempt}" }
         end
 
-        detail_row("Endpoint", @endpoint&.url || "—")
-        detail_row("Event ID", @delivery.short_event_id, mono: true)
-        detail_row("HTTP status", status_pill)
-        detail_row("Duration", @delivery.formatted_duration)
-        detail_row("Sent at", @delivery.last_applied_at.strftime("%d %b %Y, %H:%M:%S UTC"))
+        detail_row("Endpoint",    @endpoint&.url || "—")
+        detail_row("Event ID",    @delivery.short_event_id, mono: true)
+        detail_row("HTTP status") { status_pill }
+        detail_row("Duration",    @delivery.formatted_duration)
+        detail_row("Sent at",     @delivery.last_applied_at.strftime("%d %b %Y, %H:%M:%S UTC"))
       end
     end
 
     def request_card
-      div(style: "background:#fff;border:1px solid #{BORDER};border-radius:16px;overflow:hidden") do
+      div(class: "bg-white border border-gray-100 rounded-2xl overflow-hidden") do
         code_card_header("Request")
-        div(style: "display:flex;flex-direction:column;gap:0") do
+        div do
           code_section("Headers", @delivery.formatted_headers)
-          div(style: "border-top:1px solid #{BORDER}")
+          div(class: "border-t border-gray-100")
           code_section("Body", @delivery.formatted_request_body)
         end
       end
     end
 
     def response_card
-      div(style: "background:#fff;border:1px solid #{BORDER};border-radius:16px;overflow:hidden") do
+      div(class: "bg-white border border-gray-100 rounded-2xl overflow-hidden") do
         code_card_header("Response")
         code_section("Body", @delivery.response_body.presence || "(empty response)")
       end
     end
 
     def code_card_header(title)
-      div(style: "padding:14px 18px;border-bottom:1px solid #{BORDER};background:#{SURFACE}") do
-        p(style: TYPE_MICRO) { title }
+      div(class: "px-[18px] py-[14px] border-b border-gray-100 bg-gray-50") do
+        p(class: TYPE_MICRO) { plain title }
       end
     end
 
     def code_section(label, content)
-      div(style: "padding:14px 18px") do
-        p(style: "#{TYPE_MICRO};margin-bottom:8px") { label }
-        pre(style: "#{TYPE_MONO};font-size:11.5px;line-height:1.6;white-space:pre-wrap;" \
-                   "word-break:break-all;background:#{SURFACE};border:1px solid #{BORDER};" \
-                   "border-radius:10px;padding:12px;overflow-x:auto") do
+      div(class: "px-[18px] py-[14px]") do
+        p(class: "#{TYPE_MICRO} mb-2") { plain label }
+        pre(class: "#{TYPE_MONO} text-[11.5px] leading-relaxed whitespace-pre-wrap break-all bg-gray-50 border border-gray-100 rounded-[10px] p-3 overflow-x-auto") do
           plain content
         end
       end
     end
 
-    def detail_row(label, value_or_content = nil, mono: false)
-      div(style: "display:flex;align-items:center;justify-content:space-between;" \
-                 "padding:6px 0;border-bottom:1px solid #{BORDER};last-child:border-0") do
-        span(style: TYPE_CAPTION) { label }
+    def detail_row(label, value = nil, mono: false)
+      div(class: "flex items-center justify-between py-1.5 border-b border-gray-100 last:border-0") do
+        span(class: TYPE_CAPTION) { plain label }
         if block_given?
           yield
         else
-          span(style: mono ? TYPE_MONO : TYPE_BODY_MD) { value_or_content }
+          span(class: (mono ? TYPE_MONO : TYPE_BODY_MD)) { plain value.to_s }
         end
       end
     end
 
     def status_pill
-      return span(style: TYPE_CAPTION) { "—" } unless @delivery.response_status
+      return span(class: TYPE_CAPTION) { plain "—" } unless @delivery.response_status
 
       color = @delivery.success? ? "#16a34a" : "#dc2626"
       bg    = @delivery.success? ? "#f0fdf4" : "#fef2f2"
 
-      span(style: "font-size:12px;font-weight:600;color:#{color};background:#{bg};" \
-                  "padding:2px 9px;border-radius:16px") do
-        @delivery.response_status.to_s
-      end
+      span(class: "text-[12px] font-semibold px-[9px] py-[2px] rounded-full",
+           style: "color:#{color};background:#{bg}") { plain @delivery.response_status.to_s }
     end
   end
 end

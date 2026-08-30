@@ -28,7 +28,7 @@ module Payments
     private
 
     def stat_band
-      div(style: "display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-bottom:20px") do
+      render UI::Grid.new(columns: 4) do
         stat_cell("Volume (MTD)",       "GHS 0.00", icon: :trending_up,  color: "#3D47F5", tint: "rgba(61,71,245,0.08)")
         stat_cell("Transactions (MTD)", "0",         icon: :layers,       color: "#6d28d9", tint: "rgba(109,40,217,0.08)")
         stat_cell("Pending",            "0",         icon: :clock,        color: "#d97706", tint: "rgba(217,119,6,0.08)")
@@ -45,63 +45,47 @@ module Payments
 
       render UI::Datatable.new(records: @payments, pagy: @pagy, empty_message: empty_message) do |t|
         t.header do
-          div(style: "display:flex;align-items:center;gap:8px") do
-            p(style: TYPE_TITLE) { "Payments" }
-            span(style: "background:#f3f4f6;color:#6b7280;border-radius:20px;" \
-                        "padding:1px 9px;font-size:11.5px;font-weight:600;line-height:1.6") { total.to_s } if total > 0
+          div(class: "flex items-center gap-2") do
+            p(class: TYPE_TITLE) { plain "Payments" }
+            span(class: "bg-gray-100 text-gray-500 rounded-full px-[9px] py-[1px] text-[11.5px] font-semibold leading-[1.6]") { plain total.to_s } if total > 0
           end
 
           form(action: payments_path, method: "get",
-               style: "display:flex;align-items:center;gap:6px",
+               class: "flex items-center gap-1.5",
                data: { controller: "filter-form", filter_form_target: "form" }) do
-            div(style: "display:flex;align-items:center;gap:7px;padding:0 11px;" \
-                       "border:1px solid #e5e7eb;border-radius:9px;background:#fff;height:32px") do
-              span(style: "display:flex;width:12px;height:12px;color:#9ca3af;flex-shrink:0") do
+            div(class: "flex items-center gap-2 px-3 h-8 border border-gray-200 rounded-[9px] bg-white") do
+              span(class: "flex w-3 h-3 text-gray-400 flex-shrink-0") do
                 render UI::Icon.new(:search, class: "w-full h-full")
               end
               input(type: "search", name: "q", value: query,
                     placeholder: "Search reference or customer…",
-                    style: "border:0;outline:none;background:transparent;font-size:12.5px;" \
-                           "color:#374151;width:180px;min-width:0",
-                    class: "placeholder:text-gray-400")
+                    class: "border-0 outline-none bg-transparent text-[12.5px] text-gray-700 w-[180px] min-w-0 placeholder:text-gray-400")
             end
 
             select(name: "status",
-                   style: "border:1px solid #e5e7eb;border-radius:9px;padding:0 10px;" \
-                          "font-size:12.5px;font-weight:500;color:#374151;background:#fff;" \
-                          "outline:none;cursor:pointer;height:32px",
+                   class: "h-8 border border-gray-200 rounded-[9px] px-[10px] text-[12.5px] font-medium text-gray-700 bg-white outline-none cursor-pointer",
                    data: { action: "change->filter-form#submit" }) do
-              option(value: "", selected: status_filter.blank?) { "All statuses" }
-              [["Initiated","initiated"],["Processing","processing"],["Paid","paid"],
-               ["Failed","failed"],["Refunded","refunded"],["Disputed","disputed"]].each do |(lbl, val)|
-                option(value: val, selected: status_filter == val) { lbl }
+              option(value: "", selected: status_filter.blank?) { plain "All statuses" }
+              [ [ "Initiated", "initiated" ], [ "Processing", "processing" ], [ "Paid", "paid" ],
+               [ "Failed", "failed" ], [ "Refunded", "refunded" ], [ "Disputed", "disputed" ] ].each do |(lbl, val)|
+                option(value: val, selected: status_filter == val) { plain lbl }
               end
             end
 
-            button(type: "submit",
-                   style: "display:inline-flex;align-items:center;gap:5px;padding:0 12px;" \
-                          "border:1px solid #e5e7eb;border-radius:9px;font-size:12.5px;" \
-                          "font-weight:500;color:#374151;background:#fff;cursor:pointer;" \
-                          "height:32px;white-space:nowrap") do
+            render UI::Button.new(variant: :secondary, type: "submit") do
               render UI::Icon.new(:filter, class: "w-[12px] h-[12px]")
               plain "Filter"
             end
 
             if can_export
-              a(href: payments_path(format: :csv, status: status_filter, q: query),
-                style: "display:inline-flex;align-items:center;gap:5px;padding:0 12px;" \
-                       "border:1px solid #e5e7eb;border-radius:9px;font-size:12.5px;" \
-                       "font-weight:500;color:#374151;background:#fff;cursor:pointer;" \
-                       "height:32px;text-decoration:none;white-space:nowrap") do
+              render UI::Button.new(variant: :secondary, href: payments_path(format: :csv, status: status_filter, q: query)) do
                 render UI::Icon.new(:download, class: "w-[12px] h-[12px]")
                 plain "Export"
               end
             end
 
             if query.present? || status_filter.present?
-              a(href: payments_path,
-                style: "font-size:12px;color:#9ca3af;text-decoration:none;" \
-                       "padding:0 4px;white-space:nowrap") { "Clear" }
+              a(href: payments_path, class: "text-[12px] text-gray-400 no-underline px-1 whitespace-nowrap") { plain "Clear" }
             end
           end
         end

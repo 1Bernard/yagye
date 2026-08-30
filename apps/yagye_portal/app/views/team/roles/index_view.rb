@@ -45,7 +45,7 @@ module Team
           end
           div do
             p(style: "font-size:13px;font-weight:600;color:#1d4ed8;margin-bottom:2px") { "System-defined roles" }
-            p(style: "#{TYPE_CAPTION};color:#3b82f6") do
+            p(class: "#{TYPE_CAPTION} text-blue-500") do
               "Roles are predefined by Yagye. Assign roles to team members via the Users page. " \
               "Custom roles are planned for a future release."
             end
@@ -73,11 +73,11 @@ module Team
                      "align-items:center;gap:8px") do
             span(style: "font-size:11px;font-weight:600;padding:2px 9px;border-radius:16px;" \
                         "background:#{badge_bg};color:#{badge_fg}") { label }
-            p(style: TYPE_TITLE) { title }
+            p(class: TYPE_TITLE) { title }
           end
           div(style: "padding:16px 20px;display:flex;flex-direction:column;gap:12px") do
             if roles.empty?
-              p(style: TYPE_CAPTION) { "No roles seeded yet." }
+              p(class: TYPE_CAPTION) { "No roles seeded yet." }
             else
               roles.each { |role| role_card(role, badge_bg, badge_fg) }
             end
@@ -92,7 +92,7 @@ module Team
 
         div(style: "padding:14px;background:#{SURFACE};border:1px solid #{BORDER};border-radius:12px") do
           div(style: "display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:6px") do
-            p(style: TYPE_BODY_MD) { role.name }
+            p(class: TYPE_BODY_MD) { role.name }
             div(style: "display:flex;align-items:center;gap:12px;flex-shrink:0") do
               div(style: "text-align:center") do
                 p(style: "font-size:16px;font-weight:700;color:#{INK}") { user_count.to_s }
@@ -104,7 +104,7 @@ module Team
               end
             end
           end
-          p(style: TYPE_CAPTION) { desc }
+          p(class: TYPE_CAPTION) { desc }
         end
       end
 
@@ -116,8 +116,8 @@ module Team
 
         div(style: "background:#fff;border:1px solid #{BORDER};border-radius:16px;overflow:hidden") do
           div(style: "padding:20px 24px;border-bottom:1px solid #{BORDER}") do
-            p(style: TYPE_TITLE) { "Permission matrix" }
-            p(style: "#{TYPE_CAPTION};margin-top:3px") do
+            p(class: TYPE_TITLE) { "Permission matrix" }
+            p(class: "#{TYPE_CAPTION} mt-[3px]") do
               "Which role grants each permission."
             end
           end
@@ -133,9 +133,9 @@ module Team
       def matrix_header
         thead do
           tr(style: "border-bottom:1px solid #{BORDER}") do
-            th(style: "#{TABLE_TH};text-align:left;padding-left:24px") { "Permission" }
+            th(class: "#{TABLE_TH} pl-6") { "Permission" }
             @roles.each do |role|
-              th(style: "#{TABLE_TH};text-align:center;white-space:nowrap;min-width:80px") { role.name }
+              th(class: "#{TABLE_TH} text-center whitespace-nowrap min-w-[80px]") { role.name }
             end
           end
         end
@@ -146,17 +146,17 @@ module Team
           grouped.each do |group, perms|
             tr(style: "background:#{SURFACE}") do
               td(colspan: @roles.size + 1,
-                 style: "padding:8px 24px;#{TYPE_MICRO};letter-spacing:0.12em") { group.gsub("_", " ").upcase }
+                 class: "#{TYPE_MICRO} px-6 py-2") { group.gsub("_", " ").upcase }
             end
 
             perms.each do |perm|
               tr(style: "border-bottom:1px solid #{BORDER}") do
-                td(style: "#{TABLE_CELL};color:#{BODY_TEXT};padding-left:24px") do
+                td(class: "#{TABLE_CELL} pl-6") do
                   perm.key.split(".").last.gsub("_", " ").capitalize
                 end
                 @roles.each do |role|
                   has = role.permissions.include?(perm)
-                  td(style: "#{TABLE_CELL};text-align:center") do
+                  td(class: "#{TABLE_CELL} text-center") do
                     if has
                       span(style: "display:inline-flex;width:16px;height:16px;color:#16a34a") do
                         render UI::Icon.new(:check, class: "w-full h-full")
