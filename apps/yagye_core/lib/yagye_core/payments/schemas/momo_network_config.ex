@@ -8,7 +8,6 @@ defmodule YagyeCore.Payments.Schemas.MomoNetworkConfig do
 
   # network is a text PK, not a UUID
   @primary_key {:network, :string, []}
-  @derive {Phoenix.Param, key: :network}
 
   schema "momo_network_config" do
     field :display_name, :string

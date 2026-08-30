@@ -48,8 +48,12 @@ defmodule YagyeCore.Routing do
     |> Repo.update()
   end
 
-  def delete_rule(%RoutingRule{} = rule) do
-    Repo.delete(rule)
+  # Routing rules are never hard-deleted — they are deactivated.
+  # Hard deletion would destroy the audit trail of which rule routed which payment.
+  def deactivate_rule(%RoutingRule{} = rule) do
+    rule
+    |> Ecto.Changeset.change(active: false)
+    |> Repo.update()
   end
 
   def add_condition(%RoutingRule{} = rule, attrs) do
