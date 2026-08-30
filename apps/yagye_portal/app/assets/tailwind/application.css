@@ -2,9 +2,10 @@
 @source "../../app/views/**/*.rb";
 @source "../../app/javascript/**/*.js";
 
-/* ── Design tokens ─────────────────────────────────────────────────────── */
+/* ── Tailwind brand theme extensions ────────────────────────────────────── */
 @theme {
-  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-sans:    "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-display: "Plus Jakarta Sans", ui-sans-serif, sans-serif;
 
   /* Brand — #3D47F5 blue-indigo tint scale */
   --color-primary-50:  #eef0fe;
@@ -25,11 +26,247 @@
   --color-danger-text:      #dc2626;
 }
 
+/* ── Semantic color tokens (light, default) ─────────────────────────────── */
+/* Consumed by UI::Theme Ruby constants as var(--*) in inline style attrs.
+   Dark mode redefines these tokens; all components automatically adapt.   */
+:root {
+  --ink:         #111827;
+  --body-text:   #374151;
+  --prose-text:  #4B5563;
+  --muted-text:  #6B7280;
+  --subtle-text: #9CA3AF;
+  --faint-text:  #D1D5DB;
+  --surface:     #F9FAFB;
+  --border:      #F3F4F6;
+  --border-med:  #E5E7EB;
+  --card-bg:     #FFFFFF;
+  --page-bg:     #F9FAFB;
+  --tooltip-bg:  #111827;
+  --tooltip-fg:  #FFFFFF;
+}
+
+/* ── Dark mode — explicit choice ────────────────────────────────────────── */
+/* Palette: GitHub-calibrated neutral dark (no blue tint).
+   --color-gray-100 sits between card-bg and the page canvas so that
+   border-gray-100 and bg-gray-100 (chips, inner dividers) are actually
+   visible against a card surface. Never use gray-100 as the card bg.       */
+body[data-theme="dark"] {
+  --color-gray-50:  #0D1117;   /* page canvas — deepest                     */
+  --color-gray-100: #1C2128;   /* separator / chip bg — above card-bg       */
+  --color-gray-200: #21262D;   /* default border / hover surface            */
+  --color-gray-300: #30363D;   /* medium border                             */
+  --color-gray-400: #3D444D;   /* strong border / icon containers           */
+  --color-gray-500: #6E7681;   /* subtle text — timestamps, decorative      */
+  --color-gray-600: #8B949E;   /* muted text — captions, labels             */
+  --color-gray-700: #ADBAC7;   /* body text                                 */
+  --color-gray-800: #CDD9E5;   /* secondary headings                        */
+  --color-gray-900: #E6EDF3;   /* primary text / ink                        */
+
+  --ink:         #E6EDF3;
+  --body-text:   #ADBAC7;
+  --prose-text:  #8B949E;
+  --muted-text:  #6E7681;
+  --subtle-text: #444C56;
+  --faint-text:  #30363D;
+  --surface:     #21262D;
+  --border:      #21262D;
+  --border-med:  #30363D;
+  --card-bg:     #161B22;
+  --page-bg:     #0D1117;
+  --tooltip-bg:  #E6EDF3;
+  --tooltip-fg:  #0D1117;
+}
+
+/* ── Dark mode — system OS preference ──────────────────────────────────── */
+@media (prefers-color-scheme: dark) {
+  body:not([data-theme="light"]) {
+    --color-gray-50:  #0D1117;
+    --color-gray-100: #1C2128;
+    --color-gray-200: #21262D;
+    --color-gray-300: #30363D;
+    --color-gray-400: #3D444D;
+    --color-gray-500: #6E7681;
+    --color-gray-600: #8B949E;
+    --color-gray-700: #ADBAC7;
+    --color-gray-800: #CDD9E5;
+    --color-gray-900: #E6EDF3;
+
+    --ink:         #E6EDF3;
+    --body-text:   #ADBAC7;
+    --prose-text:  #8B949E;
+    --muted-text:  #6E7681;
+    --subtle-text: #444C56;
+    --faint-text:  #30363D;
+    --surface:     #21262D;
+    --border:      #21262D;
+    --border-med:  #30363D;
+    --card-bg:     #161B22;
+    --page-bg:     #0D1117;
+    --tooltip-bg:  #E6EDF3;
+    --tooltip-fg:  #0D1117;
+  }
+}
+
+/* ── bg-white dark override (white is not part of the gray scale) ───────── */
+/* Specificity [0,2,1] beats Tailwind's [0,1,0] — no !important needed.    */
+body[data-theme="dark"] .bg-white {
+  background-color: var(--card-bg);
+}
+@media (prefers-color-scheme: dark) {
+  body:not([data-theme="light"]) .bg-white {
+    background-color: var(--card-bg);
+  }
+}
+
+/* ── Dark mode: text-gray-400 contrast fix ──────────────────────────────── */
+/* In the dark palette, --color-gray-400 (#3D444D) is a border/container    */
+/* colour. Any element that uses text-gray-400 for actual text or icon       */
+/* colour renders nearly invisible. Remap to --muted-text (#6E7681).         */
+body[data-theme="dark"] .text-gray-400 { color: var(--muted-text); }
+@media (prefers-color-scheme: dark) {
+  body:not([data-theme="light"]) .text-gray-400 { color: var(--muted-text); }
+}
+
+/* ── Dark mode: hover elevation fix ─────────────────────────────────────── */
+/* The gray scale is inverted in dark mode (gray-50 = darkest, gray-900 =  */
+/* lightest). Row hovers that use bg-gray-50 would make elements SINK to     */
+/* the page canvas — the opposite of elevation. Override them to --surface   */
+/* (#21262D) which correctly sits one step ABOVE card-bg (#161B22).          */
+body[data-theme="dark"] .hover\:bg-gray-50:hover     { background-color: var(--surface); }
+body[data-theme="dark"] .hover\:bg-gray-50\/60:hover { background-color: rgba(33,38,45,0.6); }
+body[data-theme="dark"] .hover\:bg-gray-50\/70:hover { background-color: rgba(33,38,45,0.7); }
+body[data-theme="dark"] .hover\:bg-gray-100:hover    { background-color: var(--surface); }
+body[data-theme="dark"] .hover\:bg-gray-200:hover    { background-color: var(--border-med); }
+
+/* Custom row-divider — avoids Tailwind specificity battles entirely.         */
+/* Light: gray-100 (#F3F4F6). Dark: --border (#21262D). Owns its own selector. */
+.divide-rows > * + * {
+  border-top-width: 1px;
+  border-top-style: solid;
+  border-top-color: var(--color-gray-100);
+}
+body[data-theme="dark"] .divide-rows > * + *   { border-top-color: var(--border); }
+body[data-theme="dark"] .border-gray-50         { border-color: var(--border); }
+
+@media (prefers-color-scheme: dark) {
+  body:not([data-theme="light"]) .hover\:bg-gray-50:hover     { background-color: var(--surface); }
+  body:not([data-theme="light"]) .hover\:bg-gray-50\/60:hover { background-color: rgba(33,38,45,0.6); }
+  body:not([data-theme="light"]) .hover\:bg-gray-50\/70:hover { background-color: rgba(33,38,45,0.7); }
+  body:not([data-theme="light"]) .hover\:bg-gray-100:hover    { background-color: var(--surface); }
+  body:not([data-theme="light"]) .hover\:bg-gray-200:hover    { background-color: var(--border-med); }
+  body:not([data-theme="light"]) .divide-rows > * + * { border-top-color: var(--border); }
+  body:not([data-theme="light"]) .border-gray-50     { border-color: var(--border); }
+}
+
+/* ── Semantic icon tint palette ──────────────────────────────────────────── */
+/* The container sets both tint (background) and icon colour (color) so      */
+/* child SVG icons inherit via currentColor — no per-icon style= needed.     */
+/* Light: 9% opacity. Dark: 400-level colour + 15-16% opacity for contrast. */
+.icon-brand  { background: rgba(61,71,245,0.09);   color: #3D47F5; }
+.icon-green  { background: rgba(22,163,74,0.09);   color: #16a34a; }
+.icon-amber  { background: rgba(217,119,6,0.09);   color: #d97706; }
+.icon-purple { background: rgba(109,40,217,0.09);  color: #6d28d9; }
+.icon-teal   { background: rgba(13,148,136,0.09);  color: #0d9488; }
+.icon-red    { background: rgba(220,38,38,0.09);   color: #dc2626; }
+.icon-blue   { background: rgba(59,130,246,0.09);  color: #3b82f6; }
+
+body[data-theme="dark"] .icon-brand  { background: rgba(129,140,248,0.16); color: #818cf8; }
+body[data-theme="dark"] .icon-green  { background: rgba(74,222,128,0.14);  color: #4ade80; }
+body[data-theme="dark"] .icon-amber  { background: rgba(251,191,36,0.14);  color: #fbbf24; }
+body[data-theme="dark"] .icon-purple { background: rgba(167,139,250,0.14); color: #a78bfa; }
+body[data-theme="dark"] .icon-teal   { background: rgba(45,212,191,0.14);  color: #2dd4bf; }
+body[data-theme="dark"] .icon-red    { background: rgba(248,113,113,0.14); color: #f87171; }
+body[data-theme="dark"] .icon-blue   { background: rgba(96,165,250,0.14);  color: #60a5fa; }
+
+/* ── Palette text — accent links, "Learn more" spans, status text ────────── */
+.palette-brand  { color: #3D47F5; }
+.palette-green  { color: #16a34a; }
+.palette-amber  { color: #d97706; }
+.palette-purple { color: #6d28d9; }
+.palette-teal   { color: #0d9488; }
+.palette-red    { color: #dc2626; }
+.palette-blue   { color: #3b82f6; }
+
+body[data-theme="dark"] .palette-brand  { color: #818cf8; }
+body[data-theme="dark"] .palette-green  { color: #4ade80; }
+body[data-theme="dark"] .palette-amber  { color: #fbbf24; }
+body[data-theme="dark"] .palette-purple { color: #a78bfa; }
+body[data-theme="dark"] .palette-teal   { color: #2dd4bf; }
+body[data-theme="dark"] .palette-red    { color: #f87171; }
+body[data-theme="dark"] .palette-blue   { color: #60a5fa; }
+
+/* ── Status pill (hero operational badge) ────────────────────────────────── */
+.status-operational                          { background: rgba(22,163,74,0.08); border-color: rgba(22,163,74,0.22); }
+.status-operational .status-dot              { background: #16a34a; }
+.status-operational .status-text            { color: #16a34a; }
+body[data-theme="dark"] .status-operational  { background: rgba(74,222,128,0.10); border-color: rgba(74,222,128,0.22); }
+body[data-theme="dark"] .status-dot          { background: #4ade80; }
+body[data-theme="dark"] .status-text         { color: #4ade80; }
+
+/* ── Badge palette ───────────────────────────────────────────────────────── */
+/* Opacity-based so they sit cleanly on white or dark card surfaces.         */
+/* Light: ~9% tint + 700-level text. Dark: ~14% tint + 400-level text.      */
+.badge-green  { background:rgba(22,163,74,0.09);   color:#15803d; border:1px solid rgba(22,163,74,0.22); }
+.badge-red    { background:rgba(220,38,38,0.09);   color:#dc2626; border:1px solid rgba(220,38,38,0.22); }
+.badge-amber  { background:rgba(217,119,6,0.09);   color:#b45309; border:1px solid rgba(217,119,6,0.22); }
+.badge-violet { background:rgba(139,92,246,0.09);  color:#6d28d9; border:1px solid rgba(139,92,246,0.22); }
+.badge-blue   { background:rgba(37,99,235,0.09);   color:#1d4ed8; border:1px solid rgba(37,99,235,0.22); }
+.badge-gray   { background:rgba(107,114,128,0.09); color:#4b5563; border:1px solid rgba(107,114,128,0.22); }
+.badge-teal   { background:rgba(13,148,136,0.09);  color:#0f766e; border:1px solid rgba(13,148,136,0.22); }
+.badge-purple { background:rgba(147,51,234,0.09);  color:#7e22ce; border:1px solid rgba(147,51,234,0.22); }
+
+body[data-theme="dark"] .badge-green  { background:rgba(74,222,128,0.12);  color:#4ade80; border-color:rgba(74,222,128,0.28); }
+body[data-theme="dark"] .badge-red    { background:rgba(248,113,113,0.12); color:#f87171; border-color:rgba(248,113,113,0.28); }
+body[data-theme="dark"] .badge-amber  { background:rgba(251,191,36,0.12);  color:#fbbf24; border-color:rgba(251,191,36,0.28); }
+body[data-theme="dark"] .badge-violet { background:rgba(167,139,250,0.12); color:#a78bfa; border-color:rgba(167,139,250,0.28); }
+body[data-theme="dark"] .badge-blue   { background:rgba(96,165,250,0.12);  color:#60a5fa; border-color:rgba(96,165,250,0.28); }
+body[data-theme="dark"] .badge-gray   { background:rgba(139,148,158,0.12); color:#8b949e; border-color:rgba(139,148,158,0.28); }
+body[data-theme="dark"] .badge-teal   { background:rgba(45,212,191,0.12);  color:#2dd4bf; border-color:rgba(45,212,191,0.28); }
+body[data-theme="dark"] .badge-purple { background:rgba(192,132,252,0.12); color:#c084fc; border-color:rgba(192,132,252,0.28); }
+
+@media (prefers-color-scheme: dark) {
+  body:not([data-theme="light"]) .icon-brand  { background: rgba(129,140,248,0.16); color: #818cf8; }
+  body:not([data-theme="light"]) .icon-green  { background: rgba(74,222,128,0.14);  color: #4ade80; }
+  body:not([data-theme="light"]) .icon-amber  { background: rgba(251,191,36,0.14);  color: #fbbf24; }
+  body:not([data-theme="light"]) .icon-purple { background: rgba(167,139,250,0.14); color: #a78bfa; }
+  body:not([data-theme="light"]) .icon-teal   { background: rgba(45,212,191,0.14);  color: #2dd4bf; }
+  body:not([data-theme="light"]) .icon-red    { background: rgba(248,113,113,0.14); color: #f87171; }
+  body:not([data-theme="light"]) .icon-blue   { background: rgba(96,165,250,0.14);  color: #60a5fa; }
+  body:not([data-theme="light"]) .palette-brand  { color: #818cf8; }
+  body:not([data-theme="light"]) .palette-green  { color: #4ade80; }
+  body:not([data-theme="light"]) .palette-amber  { color: #fbbf24; }
+  body:not([data-theme="light"]) .palette-purple { color: #a78bfa; }
+  body:not([data-theme="light"]) .palette-teal   { color: #2dd4bf; }
+  body:not([data-theme="light"]) .palette-red    { color: #f87171; }
+  body:not([data-theme="light"]) .palette-blue   { color: #60a5fa; }
+  body:not([data-theme="light"]) .status-operational { background: rgba(74,222,128,0.10); border-color: rgba(74,222,128,0.22); }
+  body:not([data-theme="light"]) .status-dot    { background: #4ade80; }
+  body:not([data-theme="light"]) .status-text   { color: #4ade80; }
+  body:not([data-theme="light"]) .badge-green  { background:rgba(74,222,128,0.12);  color:#4ade80; border-color:rgba(74,222,128,0.28); }
+  body:not([data-theme="light"]) .badge-red    { background:rgba(248,113,113,0.12); color:#f87171; border-color:rgba(248,113,113,0.28); }
+  body:not([data-theme="light"]) .badge-amber  { background:rgba(251,191,36,0.12);  color:#fbbf24; border-color:rgba(251,191,36,0.28); }
+  body:not([data-theme="light"]) .badge-violet { background:rgba(167,139,250,0.12); color:#a78bfa; border-color:rgba(167,139,250,0.28); }
+  body:not([data-theme="light"]) .badge-blue   { background:rgba(96,165,250,0.12);  color:#60a5fa; border-color:rgba(96,165,250,0.28); }
+  body:not([data-theme="light"]) .badge-gray   { background:rgba(139,148,158,0.12); color:#8b949e; border-color:rgba(139,148,158,0.28); }
+  body:not([data-theme="light"]) .badge-teal   { background:rgba(45,212,191,0.12);  color:#2dd4bf; border-color:rgba(45,212,191,0.28); }
+  body:not([data-theme="light"]) .badge-purple { background:rgba(192,132,252,0.12); color:#c084fc; border-color:rgba(192,132,252,0.28); }
+}
+
+/* ── Danger button — overrides Tailwind red-* utilities for dark mode ─── */
+.btn-danger               { border-color: rgba(220,38,38,0.28); }
+.btn-danger:hover         { background: rgba(220,38,38,0.06); border-color: rgba(220,38,38,0.4); }
+body[data-theme="dark"] .btn-danger       { color: #f87171; border-color: rgba(248,113,113,0.28); }
+body[data-theme="dark"] .btn-danger:hover { background: rgba(248,113,113,0.08); border-color: rgba(248,113,113,0.42); }
+@media (prefers-color-scheme: dark) {
+  body:not([data-theme="light"]) .btn-danger       { color: #f87171; border-color: rgba(248,113,113,0.28); }
+  body:not([data-theme="light"]) .btn-danger:hover { background: rgba(248,113,113,0.08); border-color: rgba(248,113,113,0.42); }
+}
+
 /* ── Base ──────────────────────────────────────────────────────────────── */
 body {
   font-family: var(--font-sans);
-  background-color: #f9fafb;
-  color: #111827;
+  background-color: var(--page-bg);
+  color: var(--ink);
 }
 
 /* ── Tabular numbers for financial data ─────────────────────────────── */
@@ -46,18 +283,25 @@ body {
   background: transparent;
 }
 ::-webkit-scrollbar-thumb {
-  background: #e5e7eb;
+  background: var(--border-med);
   border-radius: 3px;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: #d1d5db;
+  background: var(--subtle-text);
 }
 
 /* ── Sidebar navigation active state ──────────────────────────────── */
-.nav-active {
-  background-color: var(--color-primary-50);
-  color: var(--color-primary-700);
-  font-weight: 500;
+/* Light: subtle brand tint. Dark: low-opacity glow that reads cleanly    */
+/* on a dark sidebar without the jarring blue-50 (#EFF6FF) slab.          */
+.nav-active      { background-color: rgba(61,71,245,0.08); color: #3D47F5; }
+.nav-active-icon { color: #3D47F5; }
+
+body[data-theme="dark"] .nav-active      { background-color: rgba(129,140,248,0.14); color: #818cf8; }
+body[data-theme="dark"] .nav-active-icon { color: #818cf8; }
+
+@media (prefers-color-scheme: dark) {
+  body:not([data-theme="light"]) .nav-active      { background-color: rgba(129,140,248,0.14); color: #818cf8; }
+  body:not([data-theme="light"]) .nav-active-icon { color: #818cf8; }
 }
 
 /* ── Table sort arrows ─────────────────────────────────────────────── */
@@ -82,7 +326,7 @@ body {
   cursor: pointer;
   transition: background 150ms, color 150ms;
 }
-.topbar-icon-btn:hover { background: #f9fafb; }
+.topbar-icon-btn:hover { background: var(--surface); }
 
 /* ── Topbar user button ──────────────────────────────────────────── */
 .topbar-user-btn {
@@ -91,16 +335,16 @@ body {
   gap: 8px;
   padding: 5px 8px 5px 6px;
   border-radius: 9px;
-  border: 1px solid #f3f4f6;
-  background: #fff;
+  border: 1px solid var(--border);
+  background: var(--card-bg);
   cursor: pointer;
   transition: background 150ms, border-color 150ms;
 }
-.topbar-user-btn:hover { background: #f9fafb; border-color: #e5e7eb; }
+.topbar-user-btn:hover { background: var(--surface); border-color: var(--border-med); }
 
 /* ── Topbar breadcrumb hover states ──────────────────────────────── */
-.topbar-ancestor-crumb:hover { color: #374151 !important; }
-.topbar-home-crumb:hover { color: #6b7280 !important; }
+.topbar-ancestor-crumb:hover { color: var(--body-text) !important; }
+.topbar-home-crumb:hover { color: var(--muted-text) !important; }
 
 /* ── Topbar dropdown menu items ───────────────────────────────────── */
 .topbar-menu-item {
@@ -112,37 +356,37 @@ body {
   border-radius: 8px;
   font-size: 13px;
   font-weight: 500;
-  color: #374151;
+  color: var(--body-text);
   text-decoration: none;
   transition: background 100ms;
   white-space: nowrap;
 }
-.topbar-menu-item:hover { background: #f9fafb; }
+.topbar-menu-item:hover { background: var(--surface); }
 .topbar-menu-item--active { color: #3D47F5; font-weight: 600; background: rgba(61,71,245,0.05); }
 .topbar-menu-item--active:hover { background: rgba(61,71,245,0.08); }
 .topbar-menu-item--danger { color: #dc2626; }
 .topbar-menu-item--danger:hover { background: #fef2f2; }
 
 /* ── Topbar button hover ──────────────────────────────────────────── */
-.topbar-btn:hover { background: #f9fafb; color: #374151; }
+.topbar-btn:hover { background: var(--surface); color: var(--body-text); }
 
 /* ── Dashboard stat card hover ────────────────────────────────────── */
 .dash-stat-card {
   transition: box-shadow 200ms ease, border-color 200ms ease;
 }
 .dash-stat-card:hover {
-  border-color: #e5e7eb;
+  border-color: var(--border-med);
   box-shadow: 0 4px 16px rgba(0,0,0,0.06);
 }
 
 /* ── Dashboard table row hover ────────────────────────────────────── */
-.dash-tr:hover { background: #fafafa; }
+.dash-tr:hover { background: var(--surface); }
 
 /* ── Dashboard outline button hover ──────────────────────────────── */
-.dash-outline-btn:hover { background: #f9fafb; }
+.dash-outline-btn:hover { background: var(--surface); }
 
 /* ── Dashboard pagination / ghost buttons ─────────────────────────── */
-.dash-pg-btn:hover    { background: #f9fafb; border-color: #d1d5db; }
+.dash-pg-btn:hover    { background: var(--surface); border-color: var(--border-med); }
 
 /* ── Toast dismiss button ─────────────────────────────────────────── */
 .toast-dismiss {
@@ -206,8 +450,8 @@ body {
 #sidebar-nav-tooltip {
   position: fixed;
   transform: translateY(-50%);
-  background: #111827;
-  color: #fff;
+  background: var(--tooltip-bg);
+  color: var(--tooltip-fg);
   font-size: 12px;
   font-weight: 500;
   padding: 5px 11px;

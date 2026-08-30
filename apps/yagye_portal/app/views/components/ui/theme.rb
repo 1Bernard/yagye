@@ -35,45 +35,45 @@ module UI
     TEAL   = "#0d9488"   # Secondary accent (KYB, teal contexts)
     PURPLE = "#6d28d9"   # Refunds, secondary data series
 
-    # ── Color tokens ──────────────────────────────────────────────────────────
-    INK         = "#111827"   # Titles, key data, primary text
-    BODY_TEXT   = "#374151"   # Secondary text, subtitles, important body
-    PROSE_TEXT  = "#4B5563"   # Body text, descriptions, paragraphs
-    MUTED_TEXT  = "#6B7280"   # Labels, timestamps, captions (min for readability)
-    SUBTLE_TEXT = "#9CA3AF"   # Decorative only — placeholders, resting icons
-    FAINT_TEXT  = "#D1D5DB"   # Separators, faint icons — never body text
-    SURFACE     = "#F9FAFB"   # Card backgrounds, hover fills
-    BORDER      = "#F3F4F6"   # Default border / divider
-    BORDER_MED  = "#E5E7EB"   # Stronger border for interactive elements
+    # ── Color tokens (CSS vars — auto-adapt to light/dark theme) ─────────────
+    # See app/assets/tailwind/application.css for the token definitions.
+    INK         = "var(--ink)"          # Titles, key data, primary text
+    BODY_TEXT   = "var(--body-text)"    # Secondary text, subtitles, important body
+    PROSE_TEXT  = "var(--prose-text)"   # Body text, descriptions, paragraphs
+    MUTED_TEXT  = "var(--muted-text)"   # Labels, timestamps, captions
+    SUBTLE_TEXT = "var(--subtle-text)"  # Decorative only — placeholders, resting icons
+    FAINT_TEXT  = "var(--faint-text)"   # Separators, faint icons — never body text
+    SURFACE     = "var(--surface)"      # Hover fills, input backgrounds
+    BORDER      = "var(--border)"       # Default border / divider
+    BORDER_MED  = "var(--border-med)"   # Stronger border for interactive elements
+    CARD_BG     = "var(--card-bg)"      # White card / raised panel surface
 
-    # ── Type scale (inline-style fragments — paste into style: strings) ───────
+    # ── Type scale (Tailwind class strings — use with class:) ────────────────
     # DISPLAY  — page/breadcrumb title, stat values, hero numbers
-    TYPE_DISPLAY = "font-size:16px;font-weight:700;color:#{INK};letter-spacing:-0.025em;line-height:1.1"
+    TYPE_DISPLAY = "text-[16px] font-bold text-gray-900 tracking-tight leading-tight"
     # TITLE    — card headers, section names, modal headings
-    TYPE_TITLE   = "font-size:14px;font-weight:600;color:#{INK};line-height:1.2"
+    TYPE_TITLE   = "text-[14px] font-semibold text-gray-900 leading-snug"
     # HEADING  — sub-section labels, table column titles (uppercase)
-    TYPE_HEADING = "font-size:10.5px;font-weight:700;color:#{MUTED_TEXT};text-transform:uppercase;letter-spacing:0.09em;line-height:1"
+    TYPE_HEADING = "text-[10.5px] font-bold text-gray-500 uppercase tracking-[0.09em] leading-none"
     # BODY     — standard body text, cell values, descriptions
-    TYPE_BODY    = "font-size:13px;font-weight:400;color:#{PROSE_TEXT};line-height:1.5"
+    TYPE_BODY    = "text-[13px] text-gray-600 leading-normal"
     # BODY_MD  — slightly heavier body for key values, names
-    TYPE_BODY_MD = "font-size:13px;font-weight:500;color:#{BODY_TEXT};line-height:1.5"
+    TYPE_BODY_MD = "text-[13px] font-medium text-gray-700 leading-normal"
     # CAPTION  — small supporting text, timestamps, metadata
-    TYPE_CAPTION = "font-size:11.5px;font-weight:400;color:#{MUTED_TEXT};line-height:1.4"
+    TYPE_CAPTION = "text-[11.5px] text-gray-500 leading-snug"
     # LABEL    — badge labels, status text inside pill badges
-    TYPE_LABEL   = "font-size:12px;font-weight:500;color:#{MUTED_TEXT}"
+    TYPE_LABEL   = "text-[12px] font-medium text-gray-500"
     # MICRO    — uppercase section labels, keyboard shortcut hints
-    TYPE_MICRO   = "font-size:10px;font-weight:700;color:#{SUBTLE_TEXT};text-transform:uppercase;letter-spacing:0.1em"
+    TYPE_MICRO   = "text-[10px] font-bold text-gray-400 uppercase tracking-[0.1em]"
     # MONO     — transaction references, codes, API keys
-    TYPE_MONO    = "font-family:ui-monospace,monospace;font-size:12px;font-weight:500;color:#{BODY_TEXT}"
+    TYPE_MONO    = "font-mono text-[12px] font-medium text-gray-700"
     # NUM      — append to any type level for financial figures
-    TYPE_NUM     = "font-variant-numeric:tabular-nums;font-feature-settings:'tnum'"
+    TYPE_NUM     = "tabular-nums"
     # STAT     — large KPI value in stat cards (26px, Plus Jakarta Sans 800)
-    #            color intentionally omitted — apply per-card via "#{TYPE_STAT};color:..."
-    TYPE_STAT    = "font-family:'Plus Jakarta Sans',sans-serif;font-size:26px;font-weight:800;" \
-                   "letter-spacing:-0.03em;font-variant-numeric:tabular-nums;line-height:1"
+    #            color is separate — append a text-* class after this token
+    TYPE_STAT    = "font-display text-[26px] font-extrabold tracking-[-0.03em] tabular-nums leading-none"
     # AMOUNT   — hero-scale financial figure on show/detail pages (36px)
-    TYPE_AMOUNT  = "font-family:'Plus Jakarta Sans',sans-serif;font-size:36px;font-weight:800;" \
-                   "letter-spacing:-0.035em;font-variant-numeric:tabular-nums;line-height:1"
+    TYPE_AMOUNT  = "font-display text-[36px] font-extrabold tracking-[-0.035em] tabular-nums leading-none"
 
     # ── Surfaces ───────────────────────────────────────────────────────────
     CANVAS_BG     = "bg-gray-50 min-h-screen text-gray-900 antialiased"
@@ -109,28 +109,33 @@ module UI
     LINK_MUTED    = "text-gray-400 hover:text-gray-600 transition-colors"
 
     # ── Buttons ────────────────────────────────────────────────────────────
-    BTN_PRIMARY   = "bg-[#3D47F5] hover:opacity-90 text-white font-semibold rounded-xl " \
-                    "text-sm px-5 py-2.5 transition-opacity inline-flex items-center gap-2 " \
-                    "disabled:opacity-50 disabled:cursor-not-allowed"
-    BTN_SECONDARY = "bg-white hover:border-gray-400 text-gray-700 border border-gray-200 " \
-                    "font-medium rounded-xl text-sm px-5 py-2.5 transition-colors " \
-                    "inline-flex items-center gap-2"
-    BTN_DANGER    = "bg-white hover:bg-red-50 text-red-600 border border-red-200 " \
-                    "font-medium rounded-xl text-sm px-5 py-2.5 transition-colors " \
-                    "inline-flex items-center gap-2"
-    BTN_GHOST     = "text-gray-500 hover:text-gray-900 hover:bg-gray-100 font-medium " \
-                    "rounded-xl text-sm px-4 py-2 transition-colors inline-flex items-center gap-2"
-    BTN_ICON      = "w-9 h-9 rounded-lg grid place-items-center text-gray-400 " \
-                    "hover:text-gray-700 hover:bg-gray-100 transition-colors"
+    BTN_PRIMARY   = "bg-[#3D47F5] hover:opacity-90 text-white font-medium rounded-[8px] " \
+                    "text-[12.5px] px-3 py-[5px] transition-opacity inline-flex items-center gap-[5px] " \
+                    "disabled:opacity-50 disabled:cursor-not-allowed border-0 cursor-pointer"
+    BTN_SECONDARY = "bg-white hover:border-gray-300 text-gray-700 border border-gray-200 " \
+                    "font-medium rounded-[8px] text-[12.5px] px-3 py-[5px] transition-colors " \
+                    "inline-flex items-center gap-[5px] cursor-pointer"
+    BTN_DANGER    = "btn-danger bg-white text-red-600 border border-red-200 " \
+                    "font-medium rounded-[8px] text-[12.5px] px-3 py-[5px] transition-colors " \
+                    "inline-flex items-center gap-[5px] cursor-pointer"
+    BTN_GHOST     = "text-gray-500 hover:text-gray-700 hover:bg-gray-100 font-medium " \
+                    "rounded-[8px] text-[12.5px] px-3 py-[5px] transition-colors " \
+                    "inline-flex items-center gap-[5px] cursor-pointer"
+    BTN_ICON      = "w-7 h-7 rounded-[7px] grid place-items-center text-gray-400 " \
+                    "hover:text-gray-700 hover:bg-gray-100 transition-colors border-0 cursor-pointer"
 
     # Legacy aliases used by existing sign-in form / layout components
-    BUTTON_PRIMARY   = "inline-flex items-center gap-2 rounded-lg px-4 py-2 text-sm " \
-                       "font-medium bg-[#3D47F5] text-white hover:opacity-90 transition-opacity"
-    BUTTON_BRAND     = "inline-flex items-center justify-center rounded-xl px-4 py-2.5 text-sm " \
-                       "font-semibold text-white transition-opacity hover:opacity-90 shadow-sm"
-    BUTTON_SECONDARY = "inline-flex items-center gap-2 rounded-lg border border-gray-200 " \
-                       "px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors"
-    ICON_BUTTON      = "rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-50 transition-colors"
+    BUTTON_PRIMARY   = "inline-flex items-center gap-[5px] rounded-[8px] px-3 py-[5px] " \
+                       "text-[12.5px] font-medium bg-[#3D47F5] text-white hover:opacity-90 " \
+                       "transition-opacity border-0 cursor-pointer"
+    BUTTON_BRAND     = "inline-flex items-center justify-center rounded-[8px] px-3 py-[5px] " \
+                       "text-[12.5px] font-medium text-white transition-opacity hover:opacity-90 " \
+                       "shadow-sm cursor-pointer"
+    BUTTON_SECONDARY = "inline-flex items-center gap-[5px] rounded-[8px] border border-gray-200 " \
+                       "px-3 py-[5px] text-[12.5px] font-medium text-gray-700 hover:bg-gray-100 " \
+                       "transition-colors cursor-pointer"
+    ICON_BUTTON      = "rounded-[7px] text-gray-400 hover:text-gray-600 hover:bg-gray-100 " \
+                       "transition-colors cursor-pointer"
     CHECKBOX         = "h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
 
     # ── Form controls ──────────────────────────────────────────────────────
@@ -157,18 +162,14 @@ module UI
                    "placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-400"
 
     # ── Badges ─────────────────────────────────────────────────────────────
-    BADGE_SUCCESS = "bg-green-50 text-green-700 text-xs px-3 py-1 rounded-full font-semibold " \
-                    "inline-flex items-center gap-1.5"
-    BADGE_PENDING = "bg-violet-50 text-violet-700 text-xs px-3 py-1 rounded-full font-semibold " \
-                    "inline-flex items-center gap-1.5"
-    BADGE_FAILED  = "bg-red-50 text-red-600 text-xs px-3 py-1 rounded-full font-semibold " \
-                    "inline-flex items-center gap-1.5"
-    BADGE_WARNING = "bg-amber-50 text-amber-700 text-xs px-3 py-1 rounded-full font-semibold " \
-                    "inline-flex items-center gap-1.5"
-    BADGE_INFO    = "bg-blue-50 text-blue-700 text-xs px-3 py-1 rounded-full font-semibold " \
-                    "inline-flex items-center gap-1.5"
-    BADGE_NEUTRAL = "bg-gray-100 text-gray-500 text-xs px-3 py-1 rounded-full font-semibold " \
-                    "inline-flex items-center gap-1.5"
+    BADGE_BASE    = "inline-flex items-center gap-1.5 text-[12px] font-semibold " \
+                    "px-[9px] py-[3px] rounded-full"
+    BADGE_SUCCESS = "badge-green #{BADGE_BASE}"
+    BADGE_PENDING = "badge-violet #{BADGE_BASE}"
+    BADGE_FAILED  = "badge-red #{BADGE_BASE}"
+    BADGE_WARNING = "badge-amber #{BADGE_BASE}"
+    BADGE_INFO    = "badge-blue #{BADGE_BASE}"
+    BADGE_NEUTRAL = "badge-gray #{BADGE_BASE}"
 
     # ── Toast / Flash ──────────────────────────────────────────────────────
     TOAST_STACK = "fixed top-5 right-5 z-[90] flex flex-col items-end pointer-events-none"
@@ -242,9 +243,9 @@ module UI
     NAV_ITEM      = "flex items-center gap-3 px-2.5 py-2 rounded-xl text-[13.5px] font-medium " \
                     "text-gray-500 hover:text-gray-900 hover:bg-gray-50 transition-colors"
     NAV_ITEM_ON   = "relative flex items-center gap-3 px-2.5 py-2 rounded-xl text-[13.5px] " \
-                    "font-semibold text-blue-700 bg-blue-50"
+                    "font-semibold nav-active"
     NAV_ACCENT_BAR = "absolute left-[-16px] top-1/2 -translate-y-1/2 w-0.5 h-4 bg-[#3D47F5]"
-    NAV_ICON_ON   = "text-blue-600"
+    NAV_ICON_ON   = "nav-active-icon flex-shrink-0"
     NAV_ICON_OFF  = "text-gray-400"
 
     # ── Icons ──────────────────────────────────────────────────────────────
@@ -304,16 +305,16 @@ module UI
     ERROR_ITEM   = "text-xs text-red-600 space-y-0.5 list-disc list-inside"
 
     # ── Status semantic colours ────────────────────────────────────────────
-    STATUS_SUCCESS = "bg-green-100 text-green-700"
-    STATUS_FAILED  = "bg-red-100 text-red-600"
-    STATUS_PENDING = "bg-violet-100 text-violet-700"
-    STATUS_WARNING = "bg-amber-100 text-amber-700"
-    STATUS_NEUTRAL = "bg-gray-100 text-gray-600"
+    STATUS_SUCCESS = "badge-green"
+    STATUS_FAILED  = "badge-red"
+    STATUS_PENDING = "badge-violet"
+    STATUS_WARNING = "badge-amber"
+    STATUS_NEUTRAL = "badge-gray"
 
     # ── Priority pills ─────────────────────────────────────────────────────
-    PRIORITY_HIGH   = "bg-red-100 text-red-600"
-    PRIORITY_MEDIUM = "bg-blue-100 text-blue-700"
-    PRIORITY_LOW    = "bg-violet-100 text-violet-600"
+    PRIORITY_HIGH   = "badge-red"
+    PRIORITY_MEDIUM = "badge-blue"
+    PRIORITY_LOW    = "badge-violet"
 
     # ── Legacy primary / accent (kept for backward compat) ─────────────────
     PRIMARY        = "bg-[#3D47F5] text-white hover:opacity-90"

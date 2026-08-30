@@ -21,7 +21,7 @@ module Team
             { label: @user.full_name }
           ]
         ) do
-          div(style: "display:grid;grid-template-columns:320px 1fr;gap:24px;align-items:start") do
+          render UI::Grid.new(columns: :profile) do
             left_panel
             right_panel
           end
@@ -31,14 +31,14 @@ module Team
       private
 
       def left_panel
-        div(style: "display:flex;flex-direction:column;gap:20px") do
+        div(class: "flex flex-col gap-5") do
           profile_card
           danger_zone if @can_manage
         end
       end
 
       def right_panel
-        div(style: "display:flex;flex-direction:column;gap:20px") do
+        div(class: "flex flex-col gap-5") do
           roles_card
           permissions_card
           activity_card
@@ -48,51 +48,54 @@ module Team
       # ── Profile card ──────────────────────────────────────────────────────────
 
       def profile_card
-        div(style: "background:#fff;border:1px solid #{BORDER};border-radius:16px;padding:24px") do
-          div(style: "display:flex;flex-direction:column;align-items:center;gap:12px;margin-bottom:20px;" \
-                     "padding-bottom:20px;border-bottom:1px solid #{BORDER}") do
+        div(class: "bg-white border border-gray-100 rounded-2xl p-6") do
+          div(class: "flex flex-col items-center gap-3 mb-5 pb-5 border-b border-gray-100") do
             render UI::Avatar.new(initials, size: :xl)
-            div(style: "text-align:center") do
-              p(style: TYPE_TITLE) { @user.full_name }
-              p(style: TYPE_CAPTION) { @user.email }
+            div(class: "text-center") do
+              p(class: TYPE_TITLE) { plain @user.full_name }
+              p(class: TYPE_CAPTION) { plain @user.email }
             end
             kind_badge
           end
-          div(style: "display:flex;flex-direction:column;gap:12px") do
-            profile_row("Joined",       @user.created_at.strftime("%d %b %Y"))
-            profile_row("Last sign in", @user.last_sign_in_at&.strftime("%d %b %Y, %H:%M") || "Never")
+          div(class: "flex flex-col gap-3") do
+            profile_row("Joined",        @user.created_at.strftime("%d %b %Y"))
+            profile_row("Last sign in",  @user.last_sign_in_at&.strftime("%d %b %Y, %H:%M") || "Never")
             profile_row("Sign in count", @user.sign_in_count.to_s)
-            profile_row("2FA",          @user.otp_required_for_login ? "Enabled" : "Disabled")
+            profile_row("2FA",           @user.otp_required_for_login ? "Enabled" : "Disabled")
           end
         end
       end
 
       def profile_row(label, value)
-        div(style: "display:flex;align-items:center;justify-content:space-between") do
-          p(style: TYPE_CAPTION) { label }
-          p(style: TYPE_BODY_MD) { value }
+        div(class: "flex items-center justify-between") do
+          p(class: TYPE_CAPTION) { plain label }
+          p(class: TYPE_BODY_MD) { plain value }
         end
       end
 
       def kind_badge
         if @user.internal_staff?
-          span(style: "font-size:11px;font-weight:600;padding:3px 12px;border-radius:16px;background:#dbeafe;color:#1d4ed8") { "Yagye Staff" }
+          span(class: "badge-blue text-[11px] font-semibold px-3 py-[3px] rounded-2xl") do
+            plain "Yagye Staff"
+          end
         else
-          span(style: "font-size:11px;font-weight:600;padding:3px 12px;border-radius:16px;background:#f3f4f6;color:#{MUTED_TEXT}") { "Merchant user" }
+          span(class: "text-[11px] font-semibold px-3 py-[3px] rounded-2xl bg-gray-100 text-gray-500") do
+            plain "Merchant user"
+          end
         end
       end
 
       def danger_zone
-        div(style: "background:#fff;border:1px solid #fca5a5;border-radius:16px;padding:20px 24px") do
-          p(style: "font-size:13px;font-weight:600;color:#dc2626;margin-bottom:12px") { "Danger zone" }
-          div(style: "display:flex;flex-direction:column;gap:8px") do
-            button(type: "button", class: BTN_DANGER, style: "width:100%;justify-content:center") do
-              render UI::Icon.new(:archive, class: ICON_SM)
-              "Suspend user"
-            end
-            button(type: "button", class: BTN_DANGER, style: "width:100%;justify-content:center") do
-              render UI::Icon.new(:x, class: ICON_SM)
-              "Remove from team"
+        div(class: "bg-white border border-red-300 rounded-2xl px-6 py-5") do
+          p(class: "text-[13px] font-semibold text-red-600 mb-3") { plain "Danger zone" }
+          div(class: "flex flex-col gap-2") do
+            form(action: suspend_team_user_path(@user), method: "post",
+                 data: { turbo_confirm: "Suspend #{@user.full_name}? They will lose access immediately." }) do
+              input(type: "hidden", name: "authenticity_token", value: form_authenticity_token)
+              render UI::Button.new(variant: :danger, type: "submit", class: "w-full justify-center") do
+                render UI::Icon.new(:archive, class: ICON_SM)
+                plain "Suspend user"
+              end
             end
           end
         end
@@ -101,20 +104,19 @@ module Team
       # ── Roles card ────────────────────────────────────────────────────────────
 
       def roles_card
-        div(style: "background:#fff;border:1px solid #{BORDER};border-radius:16px;overflow:hidden") do
-          div(style: "padding:20px 24px;border-bottom:1px solid #{BORDER};display:flex;" \
-                     "align-items:center;justify-content:space-between") do
-            p(style: TYPE_TITLE) { "Assigned roles" }
-            button(type: "button", class: BTN_SECONDARY, style: @can_manage ? "" : "display:none") do
+        div(class: "bg-white border border-gray-100 rounded-2xl overflow-hidden") do
+          div(class: "px-6 py-5 border-b border-gray-100 flex items-center justify-between") do
+            p(class: TYPE_TITLE) { plain "Assigned roles" }
+            render UI::Button.new(variant: :secondary, hidden: !@can_manage) do
               render UI::Icon.new(:edit, class: ICON_SM)
-              "Edit roles"
+              plain "Edit roles"
             end
           end
-          div(style: "padding:20px 24px") do
+          div(class: "px-6 py-5") do
             if @roles.empty?
-              p(style: TYPE_CAPTION) { "No roles assigned. Assign a role to grant access." }
+              p(class: TYPE_CAPTION) { plain "No roles assigned. Assign a role to grant access." }
             else
-              div(style: "display:flex;flex-direction:column;gap:10px") do
+              div(class: "flex flex-col gap-[10px]") do
                 @roles.each { |role| role_row(role) }
               end
             end
@@ -126,14 +128,15 @@ module Team
         scope_color = role.scope == "internal" ? "#1d4ed8" : MUTED_TEXT
         scope_bg    = role.scope == "internal" ? "#dbeafe" : "#f3f4f6"
 
-        div(style: "display:flex;align-items:center;justify-content:space-between;padding:12px 14px;" \
-                   "background:#{SURFACE};border-radius:12px;border:1px solid #{BORDER}") do
-          div(style: "display:flex;align-items:center;gap:10px") do
-            span(style: "font-size:11px;font-weight:600;padding:2px 9px;border-radius:16px;" \
-                        "background:#{scope_bg};color:#{scope_color}") { role.scope.capitalize }
-            p(style: TYPE_BODY_MD) { role.name }
+        div(class: "flex items-center justify-between px-[14px] py-3 bg-gray-50 rounded-xl border border-gray-100") do
+          div(class: "flex items-center gap-[10px]") do
+            span(class: "text-[11px] font-semibold px-[9px] py-[2px] rounded-2xl",
+                 style: "background:#{scope_bg};color:#{scope_color}") do
+              plain role.scope.capitalize
+            end
+            p(class: TYPE_BODY_MD) { plain role.name }
           end
-          p(style: TYPE_CAPTION) { "#{role.permissions.size} permissions" }
+          p(class: TYPE_CAPTION) { plain "#{role.permissions.size} permissions" }
         end
       end
 
@@ -142,22 +145,22 @@ module Team
       def permissions_card
         all_perms = @roles.flat_map(&:permissions).uniq
 
-        div(style: "background:#fff;border:1px solid #{BORDER};border-radius:16px;overflow:hidden") do
-          div(style: "padding:20px 24px;border-bottom:1px solid #{BORDER}") do
-            div(style: "display:flex;align-items:center;justify-content:space-between") do
-              p(style: TYPE_TITLE) { "Effective permissions" }
-              p(style: TYPE_CAPTION) { "#{all_perms.size} permissions from #{@roles.size} #{@roles.size == 1 ? 'role' : 'roles'}" }
+        div(class: "bg-white border border-gray-100 rounded-2xl overflow-hidden") do
+          div(class: "px-6 py-5 border-b border-gray-100") do
+            div(class: "flex items-center justify-between") do
+              p(class: TYPE_TITLE) { plain "Effective permissions" }
+              p(class: TYPE_CAPTION) do
+                plain "#{all_perms.size} permissions from #{@roles.size} #{@roles.size == 1 ? 'role' : 'roles'}"
+              end
             end
           end
-          div(style: "padding:16px 24px") do
+          div(class: "px-6 py-4") do
             if all_perms.empty?
-              p(style: TYPE_CAPTION) { "No permissions. Assign a role to grant access." }
+              p(class: TYPE_CAPTION) { plain "No permissions. Assign a role to grant access." }
             else
               grouped = all_perms.group_by { |p| p.key.split(".").first }
-              div(style: "display:grid;grid-template-columns:1fr 1fr;gap:12px") do
-                grouped.each do |group, perms|
-                  perm_group(group, perms)
-                end
+              div(class: "grid grid-cols-2 gap-3") do
+                grouped.each { |group, perms| perm_group(group, perms) }
               end
             end
           end
@@ -165,15 +168,17 @@ module Team
       end
 
       def perm_group(group, perms)
-        div(style: "background:#{SURFACE};border-radius:12px;padding:12px 14px;border:1px solid #{BORDER}") do
-          p(style: "#{TYPE_MICRO};margin-bottom:8px") { group.gsub("_", " ") }
-          div(style: "display:flex;flex-direction:column;gap:5px") do
+        div(class: "bg-gray-50 rounded-xl px-[14px] py-3 border border-gray-100") do
+          p(class: "#{TYPE_MICRO} mb-2") { plain group.gsub("_", " ") }
+          div(class: "flex flex-col gap-[5px]") do
             perms.each do |perm|
-              div(style: "display:flex;align-items:center;gap:6px") do
-                span(style: "display:flex;width:12px;height:12px;color:#16a34a;flex-shrink:0") do
+              div(class: "flex items-center gap-1.5") do
+                span(class: "flex w-3 h-3 text-green-600 flex-shrink-0") do
                   render UI::Icon.new(:check, class: "w-full h-full")
                 end
-                p(style: "font-size:11.5px;color:#{BODY_TEXT}") { perm.key.split(".").last.gsub("_", " ").capitalize }
+                p(class: "text-[11.5px] text-gray-700") do
+                  plain perm.key.split(".").last.gsub("_", " ").capitalize
+                end
               end
             end
           end
@@ -183,15 +188,15 @@ module Team
       # ── Activity card ─────────────────────────────────────────────────────────
 
       def activity_card
-        div(style: "background:#fff;border:1px solid #{BORDER};border-radius:16px;overflow:hidden") do
-          div(style: "padding:20px 24px;border-bottom:1px solid #{BORDER}") do
-            p(style: TYPE_TITLE) { "Recent activity" }
+        div(class: "bg-white border border-gray-100 rounded-2xl overflow-hidden") do
+          div(class: "px-6 py-5 border-b border-gray-100") do
+            p(class: TYPE_TITLE) { plain "Recent activity" }
           end
-          div(style: "padding:40px 24px;text-align:center") do
-            span(style: "display:flex;width:32px;height:32px;color:#{SUBTLE_TEXT};margin:0 auto 10px") do
+          div(class: "py-10 px-6 text-center") do
+            span(class: "flex w-8 h-8 text-gray-300 mx-auto mb-[10px]") do
               render UI::Icon.new(:clock, class: "w-full h-full")
             end
-            p(style: TYPE_CAPTION) { "Activity log will be available in a future release." }
+            p(class: TYPE_CAPTION) { plain "Activity log will be available in a future release." }
           end
         end
       end

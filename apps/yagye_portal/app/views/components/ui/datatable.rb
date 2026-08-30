@@ -88,13 +88,13 @@ module UI
     def empty_state
       div(style: "padding:56px 20px;display:flex;flex-direction:column;align-items:center;" \
                  "justify-content:center;gap:10px;text-align:center") do
-        div(style: "width:44px;height:44px;border-radius:12px;background:#f9fafb;" \
-                   "display:flex;align-items:center;justify-content:center;margin-bottom:4px") do
-          span(style: "color:#{FAINT_TEXT};display:flex;width:22px;height:22px") do
+        div(class: "w-11 h-11 rounded-xl bg-gray-100 border border-gray-200 " \
+                   "flex items-center justify-center mb-1 flex-shrink-0") do
+          span(class: "text-gray-400 flex w-[20px] h-[20px]") do
             render UI::Icon.new(@empty_icon, class: "w-full h-full")
           end
         end
-        p(style: TYPE_BODY_MD) { @empty_message }
+        p(class: TYPE_BODY_MD) { @empty_message }
       end
     end
 
@@ -110,7 +110,7 @@ module UI
           th(class: "#{TABLE_TH} #{col[:cls]}") do
             div(style: "display:inline-flex;align-items:center;gap:3px") do
               plain col[:name]
-              span(style: "color:#{FAINT_TEXT};font-size:10px;line-height:1") { "↕" }
+              span(class: "text-gray-300 text-[10px] leading-none") { "↕" }
             end
           end
         end
