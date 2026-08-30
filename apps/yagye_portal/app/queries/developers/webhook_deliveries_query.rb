@@ -10,7 +10,7 @@ module Developers
 
     def call(filters = {})
       scoped = @relation.includes(:portal_webhook_endpoint)
-      scoped = scoped.where(merchant_code: Current.merchant&.merchant_code) if Current.merchant.present?
+      scoped = scoped.where(merchant_code: Current.user.merchant_code) if Current.user&.merchant_code.present?
       scoped = scoped.where(endpoint_id: filters[:endpoint_id]) if filters[:endpoint_id].present?
       scoped = scoped.where(state: filters[:state])             if filters[:state].present?
       scoped = scoped.where(event_type: filters[:event_type])   if filters[:event_type].present?

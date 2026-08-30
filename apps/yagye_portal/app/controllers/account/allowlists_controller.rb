@@ -1,0 +1,49 @@
+# frozen_string_literal: true
+
+module Account
+  class AllowlistsController < ApplicationController
+    def create_ip
+      entry = PortalIpAllowlist.new(
+        merchant_code: Current.user.merchant_code,
+        cidr:          params[:cidr].to_s.strip,
+        label:         params[:label].to_s.strip.presence,
+        created_by:    Current.user.email
+      )
+      authorize entry, policy_class: PortalIpAllowlistPolicy
+      if entry.save
+        redirect_to settings_path(tab: "allowlists"), notice: "IP address added to allowlist."
+      else
+        redirect_to settings_path(tab: "allowlists"), alert: entry.errors.full_messages.to_sentence
+      end
+    end
+
+    def destroy_ip
+      entry = PortalIpAllowlist.find(params[:id])
+      authorize entry, policy_class: PortalIpAllowlistPolicy
+      entry.destroy
+      redirect_to settings_path(tab: "allowlists"), notice: "IP address removed."
+    end
+
+    def create_msisdn
+      entry = PortalMsisdnAllowlist.new(
+        merchant_code: Current.user.merchant_code,
+        msisdn:        params[:msisdn].to_s.strip,
+        label:         params[:label].to_s.strip.presence,
+        created_by:    Current.user.email
+      )
+      authorize entry, policy_class: PortalMsisdnAllowlistPolicy
+      if entry.save
+        redirect_to settings_path(tab: "allowlists"), notice: "Phone number added to allowlist."
+      else
+        redirect_to settings_path(tab: "allowlists"), alert: entry.errors.full_messages.to_sentence
+      end
+    end
+
+    def destroy_msisdn
+      entry = PortalMsisdnAllowlist.find(params[:id])
+      authorize entry, policy_class: PortalMsisdnAllowlistPolicy
+      entry.destroy
+      redirect_to settings_path(tab: "allowlists"), notice: "Phone number removed."
+    end
+  end
+end

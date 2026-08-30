@@ -39,6 +39,10 @@ Rails.application.routes.draw do
     get  "kyb-reviews/:id",           to: "kyb_reviews#show",    as: :kyb_review
     post "kyb-reviews/:id/approve",   to: "kyb_reviews#approve", as: :approve_kyb_review
     post "kyb-reviews/:id/reject",    to: "kyb_reviews#reject",  as: :reject_kyb_review
+
+    get  "compliance/approvals",          to: "approvals#index",   as: :compliance_approvals
+    post "compliance/approvals/:id/approve", to: "approvals#approve", as: :compliance_approve_approval
+    post "compliance/approvals/:id/reject",  to: "approvals#reject",  as: :compliance_reject_approval
   end
 
   # ── Developers domain ────────────────────────────────────────────────────
@@ -79,5 +83,10 @@ Rails.application.routes.draw do
     patch "settings/profile",           to: "settings#update_profile",  as: :settings_profile
     patch "settings/password",          to: "settings#update_password", as: :settings_password
     get   "help",                       to: "help#index",               as: :help
+
+    post   "settings/allowlists/ip",         to: "allowlists#create_ip",      as: :settings_add_ip
+    delete "settings/allowlists/ip/:id",     to: "allowlists#destroy_ip",     as: :settings_remove_ip
+    post   "settings/allowlists/msisdn",     to: "allowlists#create_msisdn",  as: :settings_add_msisdn
+    delete "settings/allowlists/msisdn/:id", to: "allowlists#destroy_msisdn", as: :settings_remove_msisdn
   end
 end

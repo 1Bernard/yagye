@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_08_30_095532) do
+ActiveRecord::Schema[8.1].define(version: 2026_08_30_100002) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pgcrypto"
@@ -60,6 +60,22 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_30_095532) do
     t.text "resource", null: false
   end
 
+  create_table "portal_adjustment_approvals", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+    t.datetime "approved_at"
+    t.text "approved_by"
+    t.uuid "core_break_id", null: false
+    t.datetime "created_at", null: false
+    t.text "last_event_id"
+    t.jsonb "proposed_action", default: {}, null: false
+    t.datetime "proposed_at", null: false
+    t.text "proposed_by", null: false
+    t.text "rejected_reason"
+    t.text "state", default: "pending", null: false
+    t.datetime "updated_at", null: false
+    t.index ["core_break_id"], name: "index_portal_adjustment_approvals_on_core_break_id", unique: true
+    t.index ["state"], name: "index_portal_adjustment_approvals_on_state"
+  end
+
   create_table "portal_api_keys", primary_key: "key_id", id: :uuid, default: nil, force: :cascade do |t|
     t.datetime "created_at", default: -> { "now()" }, null: false
     t.text "created_by"
@@ -105,6 +121,16 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_30_095532) do
     t.index ["status"], name: "index_portal_disputes_on_status"
   end
 
+  create_table "portal_ip_allowlists", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+    t.text "cidr", null: false
+    t.datetime "created_at", null: false
+    t.text "created_by"
+    t.text "label"
+    t.text "merchant_code", null: false
+    t.datetime "updated_at", null: false
+    t.index ["merchant_code"], name: "index_portal_ip_allowlists_on_merchant_code"
+  end
+
   create_table "portal_merchant_applications", primary_key: "application_code", id: :text, force: :cascade do |t|
     t.integer "aggregate_version", default: 0, null: false
     t.text "approved_by"
@@ -138,6 +164,16 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_30_095532) do
     t.text "risk_rating"
     t.text "status", default: "registered", null: false
     t.text "trading_name", default: "", null: false
+  end
+
+  create_table "portal_msisdn_allowlists", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+    t.datetime "created_at", null: false
+    t.text "created_by"
+    t.text "label"
+    t.text "merchant_code", null: false
+    t.text "msisdn", null: false
+    t.datetime "updated_at", null: false
+    t.index ["merchant_code"], name: "index_portal_msisdn_allowlists_on_merchant_code"
   end
 
   create_table "portal_payments", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|

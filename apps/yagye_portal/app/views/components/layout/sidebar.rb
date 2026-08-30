@@ -24,8 +24,9 @@ module Layout
         label: "OPERATIONS",
         internal_only: true,
         items: [
-          { key: :merchants,   icon: :building, label: "Merchants",  path: :merchants_path },
-          { key: :kyb_reviews, icon: :shield,   label: "KYB Review", path: :kyb_reviews_path }
+          { key: :merchants,   icon: :building,     label: "Merchants",   path: :merchants_path },
+          { key: :kyb_reviews, icon: :shield,       label: "KYB Review",  path: :kyb_reviews_path },
+          { key: :approvals,   icon: :check_circle, label: "Approvals",   path: :compliance_approvals_path }
         ]
       },
       {

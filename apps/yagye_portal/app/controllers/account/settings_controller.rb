@@ -5,7 +5,10 @@ module Account
     def index
       authorize :settings, :index?
       tab = params[:tab].presence_in(%w[profile security notifications allowlists]) || "profile"
-      render Settings::IndexView.new(tab: tab, current_user: current_user)
+      ip_allowlists     = PortalIpAllowlist.for_merchant(current_user.merchant_code).order(:created_at)
+      msisdn_allowlists = PortalMsisdnAllowlist.for_merchant(current_user.merchant_code).order(:created_at)
+      render Settings::IndexView.new(tab: tab, current_user: current_user,
+                                     ip_allowlists: ip_allowlists, msisdn_allowlists: msisdn_allowlists)
     end
 
     def update_profile

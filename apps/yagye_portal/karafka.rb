@@ -8,6 +8,7 @@ class KarafkaApp < Karafka::App
     # Recreate consumers with each batch. This will allow Rails code reload to work in the
     # development mode. Otherwise Karafka process would not be aware of code changes
     config.consumer_persistence = !Rails.env.development?
+    config.strict_topics_namespacing = false
   end
 
   # Comment out this part if you are not using instrumentation and/or you are not
@@ -75,6 +76,10 @@ class KarafkaApp < Karafka::App
 
     topic "yagye.disputes.v1" do
       consumer DisputeEventsConsumer
+    end
+
+    topic "yagye.adjustment_approvals.v1" do
+      consumer AdjustmentApprovalEventsConsumer
     end
   end
 

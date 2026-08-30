@@ -83,6 +83,18 @@ class CoreApiClient
     post("/v1/webhooks/#{endpoint_id}/test", {})
   end
 
+  # ── Adjustment approvals (ops — SoD enforced in Core) ─────────────────────
+
+  # POST /internal/adjustment_approvals/:break_id/approve
+  def approve_adjustment(break_id:, approved_by:)
+    post("/internal/adjustment_approvals/#{break_id}/approve", { approved_by: approved_by })
+  end
+
+  # POST /internal/adjustment_approvals/:break_id/reject
+  def reject_adjustment(break_id:, rejected_reason:)
+    post("/internal/adjustment_approvals/#{break_id}/reject", { rejected_reason: rejected_reason })
+  end
+
   private
 
   def post(path, body)

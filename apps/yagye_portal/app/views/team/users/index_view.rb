@@ -188,7 +188,6 @@ module Team
           end
         end
       end
-    end
 
     def invite_dialog
       dialog(id: "invite-member-dialog",
@@ -240,6 +239,7 @@ module Team
                      "outline:none;box-sizing:border-box",
               class: "placeholder:text-gray-400")
       end
+    end
     end
   end
 end
