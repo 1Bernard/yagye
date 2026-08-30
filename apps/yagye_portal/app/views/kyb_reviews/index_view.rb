@@ -23,7 +23,6 @@ module KybReviews
         title:      "KYB Review",
         breadcrumbs: [ { label: "KYB Review" } ]
       ) do
-        page_header
         stat_band
         tab_bar
         applications_table
@@ -31,21 +30,6 @@ module KybReviews
     end
 
     private
-
-    def page_header
-      div(style: "display:flex;align-items:center;justify-content:space-between;margin-bottom:20px") do
-        div do
-          p(style: "#{TYPE_CAPTION};margin-bottom:2px") { "Compliance" }
-          h1(style: TYPE_DISPLAY) { "KYB Review Queue" }
-        end
-        div(style: "display:flex;gap:10px") do
-          button(type: "button", class: BTN_SECONDARY) do
-            render UI::Icon.new(:download, class: ICON_SM)
-            "Export"
-          end
-        end
-      end
-    end
 
     def stat_band
       div(style: "display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-bottom:20px") do
@@ -73,6 +57,10 @@ module KybReviews
                                empty_message: empty_message) do |t|
         t.header do
           p(style: TYPE_TITLE) { "#{@tab.humanize} applications" }
+          button(type: "button", class: BTN_SECONDARY) do
+            render UI::Icon.new(:download, class: ICON_SM)
+            plain "Export"
+          end
         end
 
         t.column("Business") do |a|

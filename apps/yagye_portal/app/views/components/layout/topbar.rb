@@ -9,7 +9,8 @@ module Layout
 
     # Typographic scale — used only inside this component.
     # Source of truth is UI::Theme::TYPE_SCALE; these alias it for brevity.
-    DISPLAY  = "font-size:16px;font-weight:700;color:#{INK};letter-spacing:-0.025em;line-height:1"
+    DISPLAY  = "font-family:'Plus Jakarta Sans',sans-serif;font-size:16px;font-weight:700;" \
+               "color:#{INK};letter-spacing:-0.025em;line-height:1"
     ANCESTOR = "font-size:12px;font-weight:500;color:#{MUTED_TEXT};text-decoration:none;white-space:nowrap;" \
                "transition:color 140ms"
     SEP      = "margin:0 7px;color:#{FAINT_TEXT};font-size:11px;user-select:none;line-height:1"
@@ -171,11 +172,11 @@ module Layout
                class: "topbar-user-btn",
                data:  { action: "click->dropdown#toggle" }) do
           render UI::Avatar.new(user_initials(user), size: :sm)
-          div(style: "text-align:left;line-height:1.25;min-width:0") do
-            p(style: "font-size:13px;font-weight:600;color:#{INK};white-space:nowrap") do
+          div(style: "display:flex;flex-direction:column;gap:1px;text-align:left;min-width:0") do
+            p(style: "font-size:13px;font-weight:600;color:#{INK};white-space:nowrap;line-height:1.2") do
               plain user.full_name
             end
-            p(style: "font-size:11px;font-weight:400;color:#{MUTED_TEXT};white-space:nowrap") do
+            p(style: "font-size:11px;font-weight:400;color:#{MUTED_TEXT};white-space:nowrap;line-height:1.2") do
               plain role_label(user)
             end
           end

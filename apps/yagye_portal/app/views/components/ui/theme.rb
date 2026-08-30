@@ -67,6 +67,13 @@ module UI
     TYPE_MONO    = "font-family:ui-monospace,monospace;font-size:12px;font-weight:500;color:#{BODY_TEXT}"
     # NUM      — append to any type level for financial figures
     TYPE_NUM     = "font-variant-numeric:tabular-nums;font-feature-settings:'tnum'"
+    # STAT     — large KPI value in stat cards (26px, Plus Jakarta Sans 800)
+    #            color intentionally omitted — apply per-card via "#{TYPE_STAT};color:..."
+    TYPE_STAT    = "font-family:'Plus Jakarta Sans',sans-serif;font-size:26px;font-weight:800;" \
+                   "letter-spacing:-0.03em;font-variant-numeric:tabular-nums;line-height:1"
+    # AMOUNT   — hero-scale financial figure on show/detail pages (36px)
+    TYPE_AMOUNT  = "font-family:'Plus Jakarta Sans',sans-serif;font-size:36px;font-weight:800;" \
+                   "letter-spacing:-0.035em;font-variant-numeric:tabular-nums;line-height:1"
 
     # ── Surfaces ───────────────────────────────────────────────────────────
     CANVAS_BG     = "bg-gray-50 min-h-screen text-gray-900 antialiased"
@@ -235,7 +242,7 @@ module UI
     NAV_ITEM      = "flex items-center gap-3 px-2.5 py-2 rounded-xl text-[13.5px] font-medium " \
                     "text-gray-500 hover:text-gray-900 hover:bg-gray-50 transition-colors"
     NAV_ITEM_ON   = "relative flex items-center gap-3 px-2.5 py-2 rounded-xl text-[13.5px] " \
-                    "font-semibold text-gray-900 bg-blue-50"
+                    "font-semibold text-blue-700 bg-blue-50"
     NAV_ACCENT_BAR = "absolute left-[-16px] top-1/2 -translate-y-1/2 w-0.5 h-4 bg-[#3D47F5]"
     NAV_ICON_ON   = "text-blue-600"
     NAV_ICON_OFF  = "text-gray-400"

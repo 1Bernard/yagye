@@ -128,7 +128,8 @@ module Placeholder
           end
         end
 
-        h2(style: "font-size:22px;font-weight:700;color:#111827;letter-spacing:-0.02em;margin-bottom:10px") do
+        h2(style: "font-family:'Plus Jakarta Sans',sans-serif;font-size:22px;font-weight:800;" \
+                   "color:#111827;letter-spacing:-0.025em;line-height:1.1;margin-bottom:10px") do
           plain @section.split.map(&:capitalize).join(" ")
         end
 

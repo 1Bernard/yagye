@@ -11,7 +11,7 @@ Rails.application.routes.draw do
   devise_scope :user do
     get  "users/otp-challenge", to: "users/sessions#otp_challenge", as: :users_otp_challenge
     post "users/otp-challenge", to: "users/sessions#verify_otp",    as: :users_verify_otp
-    root "devise/sessions#new"
+    root "users/sessions#new"
   end
 
   get  "up" => "rails/health#show", as: :rails_health_check

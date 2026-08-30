@@ -22,7 +22,6 @@ module Settings
         title:      "Settings",
         breadcrumbs: [ { label: "Settings" } ]
       ) do
-        page_header
         tab_bar
         case @tab
         when "profile"       then profile_panel
@@ -34,15 +33,6 @@ module Settings
     end
 
     private
-
-    def page_header
-      div(style: "display:flex;align-items:center;justify-content:space-between;margin-bottom:20px") do
-        div do
-          p(style: "#{TYPE_CAPTION};margin-bottom:2px") { "Account" }
-          h1(style: TYPE_DISPLAY) { "Settings" }
-        end
-      end
-    end
 
     def tab_bar
       render UI::Tabs.new do |t|

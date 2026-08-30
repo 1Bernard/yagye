@@ -29,7 +29,6 @@ module Team
             { label: "Roles & Permissions" }
           ]
         ) do
-          page_header
           scope_notice
           roles_grid
           permissions_matrix
@@ -37,15 +36,6 @@ module Team
       end
 
       private
-
-      def page_header
-        div(style: "display:flex;align-items:center;justify-content:space-between;margin-bottom:20px") do
-          div do
-            p(style: "#{TYPE_CAPTION};margin-bottom:2px") { "Team" }
-            h1(style: TYPE_DISPLAY) { "Roles & Permissions" }
-          end
-        end
-      end
 
       def scope_notice
         div(style: "background:#eff6ff;border:1px solid #bfdbfe;border-radius:12px;padding:14px 18px;" \

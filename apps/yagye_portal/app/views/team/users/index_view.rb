@@ -22,28 +22,12 @@ module Team
             { label: "Users" }
           ]
         ) do
-          page_header
           stat_band
           users_table
         end
       end
 
       private
-
-      def page_header
-        div(style: "display:flex;align-items:center;justify-content:space-between;margin-bottom:20px") do
-          div do
-            p(style: "#{TYPE_CAPTION};margin-bottom:2px") { "Team" }
-            h1(style: TYPE_DISPLAY) { "Team members" }
-          end
-          if @can_invite
-            button(type: "button", class: BTN_PRIMARY) do
-              render UI::Icon.new(:plus, class: ICON_SM)
-              "Invite member"
-            end
-          end
-        end
-      end
 
       def stat_band
         total   = @users.size
@@ -74,6 +58,13 @@ module Team
                           "padding:1px 9px;font-size:11.5px;font-weight:600;line-height:1.6") { total.to_s } if total > 0
             end
 
+            div(style: "display:flex;align-items:center;gap:8px") do
+            if can_invite
+              button(type: "button", class: BTN_PRIMARY) do
+                render UI::Icon.new(:plus, class: ICON_SM)
+                plain "Invite member"
+              end
+            end
             form(action: team_users_path, method: "get",
                  style: "display:flex;align-items:center;gap:6px",
                  data: { controller: "filter-form", filter_form_target: "form" }) do
@@ -127,6 +118,7 @@ module Team
                   style: "font-size:12px;color:#9ca3af;text-decoration:none;" \
                          "padding:0 4px;white-space:nowrap") { "Clear" }
               end
+            end
             end
           end
 

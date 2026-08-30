@@ -28,7 +28,6 @@ module Disputes
         title:      "Disputes",
         breadcrumbs: [ { label: "Disputes" } ]
       ) do
-        page_header
         stat_band
         tab_bar
         disputes_table
@@ -36,15 +35,6 @@ module Disputes
     end
 
     private
-
-    def page_header
-      div(style: "display:flex;align-items:center;justify-content:space-between;margin-bottom:20px") do
-        div do
-          p(style: "#{TYPE_CAPTION};margin-bottom:2px") { "Disputes" }
-          h1(style: TYPE_DISPLAY) { "Dispute Management" }
-        end
-      end
-    end
 
     def stat_band
       div(style: "display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-bottom:20px") do

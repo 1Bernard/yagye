@@ -24,7 +24,6 @@ module Developers
         title:      "Developers",
         breadcrumbs: [ { label: "Developers" } ]
       ) do
-        page_header
         tab_bar
         case @tab
         when "api_keys" then api_keys_panel
@@ -35,15 +34,6 @@ module Developers
     end
 
     private
-
-    def page_header
-      div(style: "display:flex;align-items:center;justify-content:space-between;margin-bottom:20px") do
-        div do
-          p(style: "#{TYPE_CAPTION};margin-bottom:2px") { "Account" }
-          h1(style: TYPE_DISPLAY) { "Developer Tools" }
-        end
-      end
-    end
 
     def tab_bar
       render UI::Tabs.new do |t|

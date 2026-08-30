@@ -86,39 +86,36 @@ module Auth
 
     def left_panel(&content)
       div class: "flex-1 flex flex-col px-14 py-12 overflow-y-auto" do
-        # Logo — top edge, outer py-12 is its breathing room
         div class: "shrink-0" do
           img src: asset_path("yagye-text.png"), alt: "Yagye", class: "h-8 w-auto"
         end
 
-        # Equal spacer — pushes form to vertical centre
         div class: "flex-1"
 
-        # Form block — centred horizontally, never touches logo or footer
         div class: "shrink-0 flex flex-col items-center" do
           div class: "w-full max-w-[360px]" do
-            h1 class: "text-[36px] font-extrabold text-gray-900 leading-[1.08] tracking-[-0.03em] mb-2" do
+            p class: "mb-5 text-[10px] font-bold uppercase tracking-[0.22em]",
+              style: "color:#{BRAND};font-family:'Plus Jakarta Sans',sans-serif" do
+              plain "Africa's Payment Layer"
+            end
+
+            h1 class: "text-[36px] font-extrabold text-gray-900 leading-[1.08] tracking-[-0.03em] mb-3",
+               style: "font-family:'Plus Jakarta Sans',sans-serif;text-wrap:balance" do
               plain @title
             end
+
             if @subtitle
-              p class: "text-[13.5px] text-gray-600 leading-[1.5] mb-3" do
+              p class: "text-sm text-gray-500 leading-[1.5] mb-8" do
                 plain @subtitle
               end
             end
-            div class: "inline-flex items-center gap-1.5 mb-8 px-2.5 py-1 rounded-full bg-gray-50 border border-gray-100" do
-              div class: "w-1.5 h-1.5 rounded-full bg-emerald-400"
-              span class: "text-[11px] text-gray-600 font-medium" do
-                plain "2,500+ merchants across West Africa"
-              end
-            end
+
             content.call
           end
         end
 
-        # Equal spacer — mirrors the one above, keeps form centred
         div class: "flex-1"
 
-        # Copyright — bottom edge, outer py-12 is its breathing room
         p class: "shrink-0 text-[11px] text-gray-400 text-center w-full" do
           plain "© #{Time.current.year} Yagye Technologies. All rights reserved."
         end
@@ -135,16 +132,17 @@ module Auth
           div class: "shrink-0 px-8 pt-8 pb-5" do
             p class: "text-[9px] font-bold uppercase tracking-[0.16em] mb-2",
               style: "color:rgba(255,255,255,0.55)" do
-              plain "Africa's Payment Layer"
+              plain "Built for African Commerce"
             end
-            h2 class: "text-[24px] font-extrabold text-white leading-[1.15] tracking-[-0.02em] mb-2" do
-              plain "The simplest way to"
+            h2 class: "text-[24px] font-extrabold text-white leading-[1.15] tracking-[-0.02em] mb-2",
+               style: "font-family:'Plus Jakarta Sans',sans-serif" do
+              plain "Route smarter."
               br
-              plain "pay across Africa"
+              plain "Settle faster."
             end
             p class: "text-[12px] leading-[1.5]",
               style: "color:rgba(255,255,255,0.82)" do
-              plain "Enter your credentials to access your account"
+              plain "Real-time visibility across all your payment rails and teams"
             end
           end
 

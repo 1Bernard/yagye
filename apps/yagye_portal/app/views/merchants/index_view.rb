@@ -17,22 +17,12 @@ module Merchants
         title:      "Merchants",
         breadcrumbs: [ { label: "Merchants" } ]
       ) do
-        page_header
         stat_band
         merchants_table
       end
     end
 
     private
-
-    def page_header
-      div(style: "display:flex;align-items:center;justify-content:space-between;margin-bottom:20px") do
-        div do
-          p(style: "#{TYPE_CAPTION};margin-bottom:2px") { "Operations" }
-          h1(style: TYPE_DISPLAY) { "Merchants" }
-        end
-      end
-    end
 
     def stat_band
       div(style: "display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-bottom:20px") do

@@ -1,10 +1,10 @@
 module Auth
   class SignInView < ApplicationComponent
-    ICON_INPUT = "w-full rounded-xl border border-gray-200 bg-gray-50 pl-9 pr-3 py-3 text-[13.5px] " \
-                 "text-gray-900 placeholder:text-gray-400 " \
+    ICON_INPUT = "w-full rounded-xl border border-gray-200 bg-gray-50 pl-9 pr-3 py-3.5 text-[13.5px] " \
+                 "text-gray-900 placeholder:text-gray-300 " \
                  "focus:outline-none focus:bg-white focus:border-blue-400 focus:ring-2 focus:ring-blue-500/10 transition-all"
 
-    FIELD_LABEL = "block text-[10px] font-semibold uppercase tracking-[0.1em] text-gray-600 mb-1.5"
+    FIELD_LABEL = "block text-[10px] font-semibold uppercase tracking-[0.12em] text-gray-400 mb-2"
 
     def initialize(resource:, csrf_token:)
       @resource   = resource
@@ -13,8 +13,8 @@ module Auth
 
     def view_template
       render Auth::Shell.new(
-        title: "Welcome back",
-        subtitle: "Sign in to your Yagye account"
+        title: "The simplest way to pay across Africa",
+        subtitle: "Enter your credentials to access your account"
       ) do
         render UI::ErrorSummary.new(errors: @resource.errors)
 
@@ -88,8 +88,8 @@ module Auth
           div do
             button(
               type: :submit,
-              class: "w-full inline-flex items-center justify-center rounded-xl px-4 py-3 " \
-                     "text-[13.5px] font-semibold text-white transition-opacity hover:opacity-90 shadow-md",
+              class: "w-full inline-flex items-center justify-center rounded-xl px-4 py-3.5 " \
+                     "text-sm font-semibold text-white transition-opacity hover:opacity-90 shadow-lg",
               style: "background-color: #3D47F5"
             ) do
               plain "Sign in"

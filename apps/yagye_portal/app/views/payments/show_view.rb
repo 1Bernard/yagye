@@ -50,7 +50,7 @@ module Payments
         div(style: "display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:20px") do
           div do
             p(style: "#{TYPE_CAPTION};margin-bottom:4px") { "Transaction amount" }
-            p(style: "font-size:36px;font-weight:700;color:#{INK};font-variant-numeric:tabular-nums;line-height:1") do
+            p(style: "#{TYPE_AMOUNT};color:#{INK}") do
               @payment.formatted_amount
             end
           end

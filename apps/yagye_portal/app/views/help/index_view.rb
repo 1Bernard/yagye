@@ -5,12 +5,18 @@ module Help
     include UI::Theme
 
     QUICK_LINKS = [
-      { icon: :file,         title: "API Reference",       desc: "Full REST API documentation with examples.",     href: "#" },
-      { icon: :globe,        title: "Webhooks Guide",      desc: "Receive events and verify signatures.",           href: "#" },
-      { icon: :layers,       title: "Testing Guide",       desc: "Sandbox credentials and test scenarios.",         href: "#" },
-      { icon: :chart,        title: "System Status",       desc: "Live uptime and incident history.",                href: "#" },
-      { icon: :tag,          title: "Changelog",           desc: "Recent product updates and API changes.",         href: "#" },
-      { icon: :users,        title: "Community",           desc: "Developer forum and integration tips.",           href: "#" }
+      { icon: :file,    title: "API Reference",  desc: "Full REST API documentation with examples.",    href: "#",
+        color: "#3D47F5", tint: "rgba(61,71,245,0.08)" },
+      { icon: :globe,   title: "Webhooks Guide", desc: "Receive events and verify signatures.",          href: "#",
+        color: "#6d28d9", tint: "rgba(109,40,217,0.08)" },
+      { icon: :layers,  title: "Testing Guide",  desc: "Sandbox credentials and test scenarios.",        href: "#",
+        color: "#0d9488", tint: "rgba(13,148,136,0.08)" },
+      { icon: :chart,   title: "System Status",  desc: "Live uptime and incident history.",               href: "#",
+        color: "#16a34a", tint: "rgba(22,163,74,0.08)" },
+      { icon: :tag,     title: "Changelog",      desc: "Recent product updates and API changes.",        href: "#",
+        color: "#d97706", tint: "rgba(217,119,6,0.08)" },
+      { icon: :users,   title: "Community",      desc: "Developer forum and integration tips.",          href: "#",
+        color: "#dc2626", tint: "rgba(220,38,38,0.08)" }
     ].freeze
 
     def view_template
@@ -19,7 +25,6 @@ module Help
         title:      "Help & Support",
         breadcrumbs: [ { label: "Help & Support" } ]
       ) do
-        page_header
         search_section
         quick_links_section
         support_section
@@ -28,26 +33,15 @@ module Help
 
     private
 
-    def page_header
-      div(style: "display:flex;align-items:center;justify-content:space-between;margin-bottom:20px") do
-        div do
-          p(style: "#{TYPE_CAPTION};margin-bottom:2px") { "Account" }
-          h1(style: TYPE_DISPLAY) { "Help & Support" }
-        end
-        status_indicator
-      end
-    end
-
-    def status_indicator
-      div(style: "display:flex;align-items:center;gap:8px;padding:8px 14px;" \
-                 "background:#f0fdf4;border:1px solid #bbf7d0;border-radius:10px") do
-        div(style: "width:8px;height:8px;border-radius:50%;background:#16a34a")
-        p(style: "font-size:12.5px;font-weight:600;color:#15803d") { "All systems operational" }
-      end
-    end
-
     def search_section
       div(style: "margin-bottom:32px") do
+        div(style: "display:flex;align-items:center;gap:12px;margin-bottom:14px") do
+          div(style: "display:flex;align-items:center;gap:6px;padding:5px 12px;" \
+                     "background:#f0fdf4;border:1px solid #bbf7d0;border-radius:20px") do
+            div(style: "width:7px;height:7px;border-radius:50%;background:#16a34a")
+            span(style: "font-size:12px;font-weight:600;color:#15803d") { "All systems operational" }
+          end
+        end
         div(style: "position:relative;max-width:560px") do
           span(style: "position:absolute;left:16px;top:50%;transform:translateY(-50%);" \
                       "display:flex;width:18px;height:18px;color:#{SUBTLE_TEXT}") do
@@ -74,9 +68,9 @@ module Help
       a(href: link[:href],
         style: "display:flex;gap:16px;padding:20px;background:#fff;border:1px solid #{BORDER};" \
                "border-radius:16px;text-decoration:none;transition:border-color 150ms,box-shadow 150ms") do
-        div(style: "width:40px;height:40px;border-radius:12px;background:#{SURFACE};" \
-                   "display:flex;align-items:center;justify-content:center;flex-shrink:0;border:1px solid #{BORDER}") do
-          span(style: "display:flex;width:18px;height:18px;color:#{MUTED_TEXT}") do
+        div(style: "width:40px;height:40px;border-radius:12px;background:#{link[:tint]};" \
+                   "display:flex;align-items:center;justify-content:center;flex-shrink:0;flex-shrink:0") do
+          span(style: "display:flex;width:18px;height:18px;color:#{link[:color]}") do
             render UI::Icon.new(link[:icon], class: "w-full h-full")
           end
         end

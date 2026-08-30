@@ -8,7 +8,8 @@ module UI
       xs: "w-6 h-6 text-[9px]",
       sm: "w-7 h-7 text-[10px]",
       md: "w-8 h-8 text-[11px]",
-      lg: "w-10 h-10 text-xs"
+      lg: "w-10 h-10 text-xs",
+      xl: "w-14 h-14 text-base"
     }.freeze
 
     PALETTE = [

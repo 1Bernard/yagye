@@ -69,8 +69,7 @@ class ApplicationComponent < Phlex::HTML
         end
       end
       p(style: UI::Theme::TYPE_HEADING) { label }
-      p(style: "font-size:26px;font-weight:700;letter-spacing:-0.03em;color:#{color};" \
-               "font-variant-numeric:tabular-nums;line-height:1;margin-top:8px") { value }
+      p(style: "#{UI::Theme::TYPE_STAT};color:#{color};margin-top:8px") { value }
     end
   end
 

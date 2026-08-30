@@ -127,8 +127,7 @@ module Dashboard
           end
         end
         p(style: "#{TYPE_HEADING};margin-bottom:8px") { plain label }
-        p(style: "font-size:26px;font-weight:700;letter-spacing:-0.03em;color:#{INK};" \
-                 "#{TYPE_NUM};line-height:1") { plain value }
+        p(style: "#{TYPE_STAT};color:#{INK}") { plain value }
       end
     end
 

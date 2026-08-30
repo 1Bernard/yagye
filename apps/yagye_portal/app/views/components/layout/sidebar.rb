@@ -6,7 +6,7 @@ module Layout
 
     NAV_SECTIONS = [
       {
-        label: "MAIN MENU",
+        label: nil,
         items: [
           { key: :dashboard,  icon: :home,        label: "Dashboard", path: :authenticated_root_path },
           { key: :payments,   icon: :credit_card, label: "Payments",  path: :payments_path },
@@ -100,8 +100,10 @@ module Layout
     def nav_section(section)
       return if section[:internal_only] && !internal_staff?
 
-      div(class: "px-3 mb-2") do
-        p(class: "sidebar-section-label #{LABEL} px-2 mb-1") { section[:label] }
+      div(class: "px-3 mb-1") do
+        if section[:label]
+          p(class: "sidebar-section-label #{SIDEBAR_LABEL}") { plain section[:label] }
+        end
         section[:items].each { |item| nav_item(item) }
       end
     end
@@ -253,17 +255,23 @@ module Layout
       div(style: "display:flex;align-items:center;gap:10px;padding:12px 16px;" \
                  "border-top:1px solid #{BORDER};flex-shrink:0;overflow:hidden") do
         render UI::Avatar.new(initials(user), size: :md)
-        div(class: "sidebar-nav-label", style: "min-width:0;overflow:hidden") do
-          p(style: "font-size:12.5px;font-weight:600;color:#{INK};white-space:nowrap;" \
+        div(class: "sidebar-nav-label",
+            style: "display:flex;flex-direction:column;gap:1px;min-width:0;overflow:hidden") do
+          p(style: "font-size:12.5px;font-weight:600;color:#{INK};white-space:nowrap;line-height:1.2;" \
                    "overflow:hidden;text-overflow:ellipsis") { plain user.full_name }
-          p(style: "font-size:11px;color:#{MUTED_TEXT};white-space:nowrap;" \
-                   "overflow:hidden;text-overflow:ellipsis") { plain user.email }
+          p(style: "font-size:11px;color:#{MUTED_TEXT};white-space:nowrap;line-height:1.2;" \
+                   "overflow:hidden;text-overflow:ellipsis") { plain sidebar_role_label(user) }
         end
       end
     end
 
     def initials(user)
       user.full_name.split.map { |w| w[0] }.first(2).join.upcase
+    end
+
+    def sidebar_role_label(user)
+      return "Yagye Staff" if user.internal_staff?
+      user.roles.first&.name&.tr("_", " ")&.split&.map(&:capitalize)&.join(" ") || "Merchant"
     end
 
     def internal_staff?

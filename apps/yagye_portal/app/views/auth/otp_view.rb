@@ -42,8 +42,8 @@ module Auth
 
           button(
             type: :submit,
-            class: "w-full inline-flex items-center justify-center rounded-xl px-4 py-3 " \
-                   "text-[13.5px] font-semibold text-white transition-opacity hover:opacity-90 shadow-md",
+            class: "w-full inline-flex items-center justify-center rounded-xl px-4 py-3.5 " \
+                   "text-sm font-semibold text-white transition-opacity hover:opacity-90 shadow-lg",
             style: "background-color: #3D47F5"
           ) do
             plain "Verify"
