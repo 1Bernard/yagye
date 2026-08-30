@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_08_29_180001) do
+ActiveRecord::Schema[8.1].define(version: 2026_08_30_090001) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pgcrypto"
@@ -74,7 +74,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_29_180001) do
     t.text "mode", null: false
     t.datetime "revoked_at"
     t.text "scopes", default: [], null: false, array: true
-    t.index ["merchant_code", "mode"], name: "index_portal_api_keys_on_merchant_code_and_mode"
+    t.index ["merchant_code", "mode", "created_at"], name: "index_portal_api_keys_on_merchant_code_mode_created_at", order: { created_at: :desc }
     t.index ["merchant_code"], name: "index_portal_api_keys_on_merchant_code"
     t.index ["revoked_at"], name: "index_portal_api_keys_on_revoked_at"
   end
@@ -169,7 +169,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_29_180001) do
     t.text "mode", null: false
     t.text "subscribed_events", default: [], null: false, array: true
     t.text "url", null: false
-    t.index ["merchant_code", "mode"], name: "index_portal_webhook_endpoints_on_merchant_code_and_mode"
+    t.index ["merchant_code", "mode", "created_at"], name: "index_portal_webhook_endpoints_on_merchant_code_mode_created_at", order: { created_at: :desc }
     t.index ["merchant_code"], name: "index_portal_webhook_endpoints_on_merchant_code"
   end
 
