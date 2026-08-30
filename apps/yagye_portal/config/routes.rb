@@ -22,8 +22,9 @@ Rails.application.routes.draw do
   scope module: "payments" do
     get "payments",       to: "transactions#index", as: :payments
     get "payments/:id",   to: "transactions#show",  as: :payment
-    get "disputes",       to: "disputes#index",     as: :disputes
-    get "disputes/:id",   to: "disputes#show",      as: :dispute
+    get   "disputes",       to: "disputes#index",     as: :disputes
+    get   "disputes/:id",   to: "disputes#show",      as: :dispute
+    patch "disputes/:id",   to: "disputes#update"
   end
 
   # ── Merchants domain (ops — policy-gated) ────────────────────────────────
@@ -34,8 +35,10 @@ Rails.application.routes.draw do
 
   # ── Compliance domain (ops — policy-gated) ───────────────────────────────
   scope module: "compliance" do
-    get "kyb-reviews",      to: "kyb_reviews#index", as: :kyb_reviews
-    get "kyb-reviews/:id",  to: "kyb_reviews#show",  as: :kyb_review
+    get  "kyb-reviews",               to: "kyb_reviews#index",   as: :kyb_reviews
+    get  "kyb-reviews/:id",           to: "kyb_reviews#show",    as: :kyb_review
+    post "kyb-reviews/:id/approve",   to: "kyb_reviews#approve", as: :approve_kyb_review
+    post "kyb-reviews/:id/reject",    to: "kyb_reviews#reject",  as: :reject_kyb_review
   end
 
   # ── Developers domain ────────────────────────────────────────────────────

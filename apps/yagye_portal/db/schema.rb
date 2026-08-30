@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_08_30_090001) do
+ActiveRecord::Schema[8.1].define(version: 2026_08_30_095532) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pgcrypto"
@@ -79,6 +79,32 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_30_090001) do
     t.index ["revoked_at"], name: "index_portal_api_keys_on_revoked_at"
   end
 
+  create_table "portal_disputes", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+    t.bigint "amount_cents", null: false
+    t.text "core_dispute_id", null: false
+    t.text "core_payment_id"
+    t.datetime "created_at", null: false
+    t.text "currency", default: "GHS", null: false
+    t.text "customer_msisdn"
+    t.datetime "last_applied_at", default: -> { "now()" }, null: false
+    t.text "last_event_id", default: "", null: false
+    t.text "merchant_code", null: false
+    t.text "network_deadline"
+    t.datetime "opened_at"
+    t.text "payment_reference"
+    t.text "reason", null: false
+    t.text "reference", null: false
+    t.datetime "resolved_at"
+    t.text "status", null: false
+    t.datetime "updated_at", null: false
+    t.index ["core_dispute_id"], name: "index_portal_disputes_on_core_dispute_id", unique: true
+    t.index ["merchant_code", "created_at"], name: "index_portal_disputes_on_merchant_code_and_created_at"
+    t.index ["merchant_code", "status"], name: "index_portal_disputes_on_merchant_code_and_status"
+    t.index ["merchant_code"], name: "index_portal_disputes_on_merchant_code"
+    t.index ["reference"], name: "index_portal_disputes_on_reference", unique: true
+    t.index ["status"], name: "index_portal_disputes_on_status"
+  end
+
   create_table "portal_merchant_applications", primary_key: "application_code", id: :text, force: :cascade do |t|
     t.integer "aggregate_version", default: 0, null: false
     t.text "approved_by"
@@ -126,8 +152,10 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_30_090001) do
     t.jsonb "metadata", default: {}, null: false
     t.text "mode", default: "test", null: false
     t.datetime "paid_at"
+    t.text "payment_method"
     t.text "provider"
     t.text "reference"
+    t.datetime "settled_at"
     t.text "status", null: false
     t.datetime "updated_at", null: false
     t.index ["core_payment_id"], name: "index_portal_payments_on_core_payment_id", unique: true
@@ -135,6 +163,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_30_090001) do
     t.index ["merchant_code", "mode"], name: "index_portal_payments_on_merchant_code_and_mode"
     t.index ["merchant_code"], name: "index_portal_payments_on_merchant_code"
     t.index ["mode"], name: "index_portal_payments_on_mode"
+    t.index ["payment_method"], name: "index_portal_payments_on_payment_method"
     t.index ["reference"], name: "index_portal_payments_on_reference"
     t.index ["status"], name: "index_portal_payments_on_status"
   end

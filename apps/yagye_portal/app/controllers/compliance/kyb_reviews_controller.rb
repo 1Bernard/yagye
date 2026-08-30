@@ -11,7 +11,37 @@ module Compliance
 
     def show
       authorize :kyb_reviews, :show?
-      @application = PortalMerchantApplication.find(params[:id])
+      application = PortalMerchantApplication.find(params[:id])
+      render KybReviews::ShowView.new(application: application)
+    end
+
+    def approve
+      authorize :kyb_reviews, :approve?
+      application = PortalMerchantApplication.find(params[:id])
+      result = Compliance::ApproveApplication.new.call(
+        application_code: application.application_code,
+        approved_by:      current_user.email
+      )
+      if result.success?
+        redirect_to kyb_review_path(application), notice: "Application approved."
+      else
+        redirect_to kyb_review_path(application), alert: result.error_message
+      end
+    end
+
+    def reject
+      authorize :kyb_reviews, :approve?
+      application = PortalMerchantApplication.find(params[:id])
+      result = Compliance::RejectApplication.new.call(
+        application_code: application.application_code,
+        rejected_by:      current_user.email,
+        reason:           params[:reason].to_s.strip.presence || "No reason provided."
+      )
+      if result.success?
+        redirect_to kyb_review_path(application), notice: "Application rejected."
+      else
+        redirect_to kyb_review_path(application), alert: result.error_message
+      end
     end
   end
 end
