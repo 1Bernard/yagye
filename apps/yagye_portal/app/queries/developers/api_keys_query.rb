@@ -15,7 +15,7 @@ module Developers
       when "revoked" then scoped.revoked
       else scoped
       end
-      scoped.order(created_at: :desc)
+      scoped.order(created_at: :desc).limit(200)
     end
   end
 end

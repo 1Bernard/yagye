@@ -51,6 +51,15 @@ defmodule YagyeCore do
       BankReconciliation.Schemas.BankStatementLine,
       Webhooks,
       Webhooks.Schemas.WebhookEvent,
+      Invoices,
+      Invoices.Schemas.Invoice,
+      Invoices.Schemas.InvoiceLineItem,
+      Invoices.Schemas.InvoiceDelivery,
+      Routing,
+      Routing.Schemas.RoutingRule,
+      Routing.Schemas.RoutingRuleCondition,
+      Routing.Schemas.RoutingRuleAction,
+      Payments.Schemas.MomoNetworkConfig,
       Repo
     ]
 

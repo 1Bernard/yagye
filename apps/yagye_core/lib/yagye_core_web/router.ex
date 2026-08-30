@@ -24,9 +24,11 @@ defmodule YagyeCoreWeb.Router do
   alias YagyeCoreWeb.Controllers.Customers.CustomerController
   alias YagyeCoreWeb.Controllers.Disputes.{DisputeController, RefundController}
   alias YagyeCoreWeb.Controllers.Internal.ApplicationsController
+  alias YagyeCoreWeb.Controllers.Invoices.InvoiceController
   alias YagyeCoreWeb.Controllers.Merchants.MerchantController
   alias YagyeCoreWeb.Controllers.Payments.PaymentController
   alias YagyeCoreWeb.Controllers.Payouts.PayoutController
+  alias YagyeCoreWeb.Controllers.Routing.RoutingController
   alias YagyeCoreWeb.Controllers.Settlement.SettlementController
   alias YagyeCoreWeb.Controllers.Webhooks.ProviderWebhookController
 
@@ -64,6 +66,12 @@ defmodule YagyeCoreWeb.Router do
 
     post "/applications/:application_id/approve", ApplicationsController, :approve
     post "/applications/:application_id/reject", ApplicationsController, :reject
+
+    # P13 — Routing rules management (Yagye ops + enterprise merchants at P16)
+    get "/routing-rules", RoutingController, :index
+    post "/routing-rules", RoutingController, :create
+    get "/routing-rules/:id", RoutingController, :show
+    post "/routing-rules/:id/deactivate", RoutingController, :deactivate
   end
 
   # v1 merchant-facing API
@@ -113,6 +121,12 @@ defmodule YagyeCoreWeb.Router do
     post "/payouts", PayoutController, :create
     get "/payouts", PayoutController, :index
     get "/payouts/:id", PayoutController, :show
+
+    # P13 — Invoices
+    resources "/invoices", InvoiceController, only: [:create, :index, :show], param: "id" do
+      post "/issue", InvoiceController, :issue
+      post "/void", InvoiceController, :void
+    end
   end
 
   scope "/api", YagyeCoreWeb do

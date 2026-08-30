@@ -4,7 +4,9 @@ defmodule YagyeCore.Invoices do
   import Ecto.Query
 
   alias Ecto.Multi
+  alias YagyeCore.Customers
   alias YagyeCore.Invoices.Schemas.{Invoice, InvoiceDelivery, InvoiceLineItem}
+  alias YagyeCore.Merchants
   alias YagyeCore.Repo
 
   # ── Public API ───────────────────────────────────────────────────────────────
@@ -34,14 +36,23 @@ defmodule YagyeCore.Invoices do
   end
 
   def create_invoice(merchant_id, attrs) do
+    with {:ok, customer_id} <- resolve_customer_id(merchant_id, attrs),
+         {:ok, mode} <- resolve_mode_for(merchant_id, attrs) do
+      do_create_invoice(merchant_id, mode, customer_id, attrs)
+    end
+  end
+
+  defp do_create_invoice(merchant_id, mode, customer_id, attrs) do
     line_item_attrs = Map.get(attrs, :line_items, [])
-    invoice_attrs = Map.drop(attrs, [:line_items])
+    invoice_attrs = Map.drop(attrs, [:line_items, :customer_reference, :merchant_customer_ref])
 
     {subtotal, tax, total} = compute_totals(line_item_attrs)
 
     base_attrs =
       invoice_attrs
       |> Map.put(:merchant_id, merchant_id)
+      |> Map.put(:customer_id, customer_id)
+      |> Map.put(:mode, mode)
       |> Map.put(:subtotal_amount, subtotal)
       |> Map.put(:tax_amount, tax)
       |> Map.put(:discount_amount, Map.get(invoice_attrs, :discount_amount, 0))
@@ -93,6 +104,32 @@ defmodule YagyeCore.Invoices do
   end
 
   # ── Private ──────────────────────────────────────────────────────────────────
+
+  # Accept a pre-resolved customer_id (internal callers) or resolve from a reference string.
+  defp resolve_customer_id(_merchant_id, %{customer_id: id}) when is_binary(id), do: {:ok, id}
+
+  defp resolve_customer_id(merchant_id, attrs) do
+    ref = Map.get(attrs, :customer_reference) || Map.get(attrs, :merchant_customer_ref)
+    resolve_customer_by_ref(merchant_id, ref)
+  end
+
+  defp resolve_customer_by_ref(_merchant_id, nil), do: {:error, :customer_reference_required}
+
+  defp resolve_customer_by_ref(merchant_id, ref) do
+    case Customers.find_or_create(merchant_id, ref, %{}) do
+      {:ok, customer} -> {:ok, customer.id}
+      {:error, _} = err -> err
+    end
+  end
+
+  # Use the caller-supplied mode when provided (allows override and changeset validation of bad values).
+  # Fall back to resolving from merchant live-mode flag.
+  defp resolve_mode_for(_merchant_id, %{mode: mode}) when is_binary(mode), do: {:ok, mode}
+
+  defp resolve_mode_for(merchant_id, _attrs) do
+    mode = if Merchants.live_mode_enabled?(merchant_id), do: "live", else: "simulation"
+    {:ok, mode}
+  end
 
   defp compute_totals(line_items) do
     subtotal =
