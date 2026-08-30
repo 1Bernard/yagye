@@ -227,8 +227,7 @@ Table api_requests [headercolor: #6B7A8D] {
   api_version text [note: 'pinned per merchant at first call']
   status integer [not null, note: 'HTTP status code, not a state machine']
   duration_ms integer [not null]
-  correlation_id text [not null]
-  trace_id text [note: 'ephemeral — the trace expires, this row does not']
+  trace_id text [not null, note: 'HTTP X-Request-ID / OTel distributed trace context']
   idempotency_key text
   request_body_sha256 text
   error_code text

@@ -1,6 +1,7 @@
 defmodule YagyeCore.Fixtures do
   @moduledoc false
 
+  alias YagyeCore.Customers
   alias YagyeCore.Merchants
   alias YagyeCore.Payments.Schemas.Payment
   alias YagyeCore.Providers.Schemas.{Provider, ProviderCredential}
@@ -141,6 +142,28 @@ defmodule YagyeCore.Fixtures do
     |> Repo.insert!()
 
     {provider, secret}
+  end
+
+  def customer_fixture(merchant, attrs \\ %{}) do
+    ref = Map.get(attrs, :merchant_customer_ref, "cust_#{System.unique_integer([:positive])}")
+    {:ok, customer} = Customers.find_or_create(merchant.id, ref, attrs)
+    customer
+  end
+
+  def provider_fixture(attrs \\ %{}) do
+    %Provider{}
+    |> Provider.changeset(
+      Map.merge(
+        %{
+          code: "provider_#{System.unique_integer([:positive])}",
+          display_name: "Test Provider",
+          adapter_module: "YagyeCore.Payments.Adapters.SimulatorAdapter",
+          active: true
+        },
+        attrs
+      )
+    )
+    |> Repo.insert!()
   end
 
   # Returns {api_key, raw_key}. raw_key is only available at creation.
