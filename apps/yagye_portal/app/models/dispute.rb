@@ -2,6 +2,7 @@
 
 class Dispute < ApplicationRecord
   self.table_name = "portal_disputes"
+  def self.policy_class = DisputesPolicy
 
   REASONS = %w[fraud duplicate not_received unrecognised other].freeze
   STATUSES = %w[submitted under_review won lost closed].freeze
