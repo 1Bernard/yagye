@@ -60,10 +60,12 @@ module Team
 
             div(style: "display:flex;align-items:center;gap:8px") do
             if can_invite
-              button(type: "button", class: BTN_PRIMARY) do
+              button(type: "button", class: BTN_PRIMARY,
+                     onclick: "document.getElementById('invite-member-dialog').showModal()") do
                 render UI::Icon.new(:plus, class: ICON_SM)
                 plain "Invite member"
               end
+              invite_dialog
             end
             form(action: team_users_path, method: "get",
                  style: "display:flex;align-items:center;gap:6px",
@@ -86,10 +88,10 @@ module Team
                             "outline:none;cursor:pointer;height:32px",
                      data: { action: "change->filter-form#submit" }) do
                 option(value: "", selected: role.blank?) { "All roles" }
-                [["Owner","merchant_owner"],["Finance","merchant_finance"],
-                 ["Developer","merchant_developer"],["Support","merchant_support"],
-                 ["Ops Analyst","ops_analyst"],["Ops Manager","ops_manager"],
-                 ["Compliance Analyst","compliance_analyst"],["Compliance Manager","compliance_manager"]].each do |(lbl, val)|
+                [ [ "Owner", "merchant_owner" ], [ "Finance", "merchant_finance" ],
+                 [ "Developer", "merchant_developer" ], [ "Support", "merchant_support" ],
+                 [ "Ops Analyst", "ops_analyst" ], [ "Ops Manager", "ops_manager" ],
+                 [ "Compliance Analyst", "compliance_analyst" ], [ "Compliance Manager", "compliance_manager" ] ].each do |(lbl, val)|
                   option(value: val, selected: role == val) { lbl }
                 end
               end
@@ -174,13 +176,70 @@ module Team
             end
             if can_invite
               div(class: DROPDOWN_SEP)
-              button(type: "button", class: DROPDOWN_ITEM_DANGER) do
-                render UI::Icon.new(:archive, class: ICON_SM)
-                "Suspend"
+              form(action: suspend_team_user_path(u), method: "post",
+                   data: { turbo_confirm: "Suspend #{u.full_name}? They will lose portal access immediately." }) do
+                input(type: "hidden", name: "authenticity_token", value: form_authenticity_token)
+                button(type: "submit", class: DROPDOWN_ITEM_DANGER) do
+                  render UI::Icon.new(:archive, class: ICON_SM)
+                  plain "Suspend"
+                end
               end
             end
           end
         end
+      end
+    end
+
+    def invite_dialog
+      dialog(id: "invite-member-dialog",
+             style: "border:none;border-radius:16px;padding:0;box-shadow:0 20px 60px rgba(0,0,0,0.18);" \
+                    "width:100%;max-width:480px;background:#fff") do
+        div(style: "padding:22px 24px;border-bottom:1px solid #{BORDER}") do
+          p(style: TYPE_TITLE) { "Invite team member" }
+          p(style: "#{TYPE_CAPTION};margin-top:3px") { "They'll receive an email to set up their account." }
+        end
+        form(action: team_invite_user_path, method: "post",
+             style: "padding:22px 24px;display:flex;flex-direction:column;gap:14px") do
+          input(type: "hidden", name: "authenticity_token", value: form_authenticity_token)
+          div(style: "display:grid;grid-template-columns:1fr 1fr;gap:12px") do
+            invite_field("First name", "first_name", type: "text", required: true)
+            invite_field("Last name",  "last_name",  type: "text", required: true)
+          end
+          invite_field("Email address", "email", type: "email", required: true)
+          div do
+            p(style: "#{TYPE_MICRO};margin-bottom:6px") { "Role" }
+            select(name: "role_key", required: true,
+                   style: "width:100%;border:1px solid #{BORDER_MED};border-radius:10px;" \
+                          "padding:9px 12px;font-size:13px;color:#{INK};background:#fff;" \
+                          "outline:none;cursor:pointer") do
+              option(value: "")                     { "Select a role…" }
+              option(value: "merchant_owner")        { "Owner" }
+              option(value: "merchant_finance")      { "Finance" }
+              option(value: "merchant_developer")    { "Developer" }
+              option(value: "merchant_support")      { "Support" }
+            end
+          end
+          div(style: "display:flex;gap:10px;justify-content:flex-end;margin-top:4px") do
+            button(type: "button",
+                   onclick: "document.getElementById('invite-member-dialog').close()",
+                   class: BTN_SECONDARY) { "Cancel" }
+            button(type: "submit", class: BTN_PRIMARY) do
+              render UI::Icon.new(:plus, class: ICON_SM)
+              plain "Send invitation"
+            end
+          end
+        end
+      end
+    end
+
+    def invite_field(label, name, type: "text", required: false)
+      div do
+        p(style: "#{TYPE_MICRO};margin-bottom:6px") { label }
+        input(type: type, name: name, required: required,
+              style: "width:100%;border:1px solid #{BORDER_MED};border-radius:10px;" \
+                     "padding:9px 12px;font-size:13px;color:#{INK};background:#fff;" \
+                     "outline:none;box-sizing:border-box",
+              class: "placeholder:text-gray-400")
       end
     end
   end

@@ -53,10 +53,11 @@ module Developers
       div do
         div(style: "display:flex;align-items:center;justify-content:flex-end;margin-bottom:20px") do
           button(type: "button", class: BTN_PRIMARY,
-                 style: "cursor:not-allowed;opacity:0.6", disabled: true) do
+                 onclick: "document.getElementById('generate-key-dialog').showModal()") do
             render UI::Icon.new(:plus, class: ICON_SM)
-            "Generate Key"
+            plain "Generate Key"
           end
+          generate_key_dialog(live)
         end
 
         test_mode_notice unless live
@@ -77,9 +78,16 @@ module Developers
           t.column("Status")    { |k| render UI::StatusBadge.new(status: k.active ? "active" : "revoked") }
 
           t.actions do |k|
-            button(type: "button", class: DROPDOWN_ITEM) do
-              render UI::Icon.new(:x, class: ICON_SM)
-              "Revoke"
+            if k.active?
+              form(action: developers_key_path(k.key_id), method: "post",
+                   data: { turbo_confirm: "Revoke this API key? This cannot be undone." }) do
+                input(type: "hidden", name: "_method",            value: "delete")
+                input(type: "hidden", name: "authenticity_token", value: form_authenticity_token)
+                button(type: "submit", class: DROPDOWN_ITEM_DANGER) do
+                  render UI::Icon.new(:x, class: ICON_SM)
+                  plain "Revoke"
+                end
+              end
             end
           end
         end
@@ -111,10 +119,12 @@ module Developers
             p(style: TYPE_BODY_MD) { "Webhook endpoints" }
             p(style: TYPE_CAPTION) { "Yagye sends signed POST requests to your endpoints for each event." }
           end
-          button(type: "button", class: BTN_PRIMARY, style: "cursor:not-allowed;opacity:0.6", disabled: true) do
+          button(type: "button", class: BTN_PRIMARY,
+                 onclick: "document.getElementById('add-webhook-dialog').showModal()") do
             render UI::Icon.new(:plus, class: ICON_SM)
-            "Add Endpoint"
+            plain "Add Endpoint"
           end
+          add_webhook_dialog
         end
 
         render UI::Datatable.new(records: @webhooks,
@@ -129,9 +139,21 @@ module Developers
           t.column("Created") { |wh| span(style: TYPE_CAPTION) { wh.created_at.strftime("%d %b %Y") } }
 
           t.actions do |wh|
-            a(href: "#", class: DROPDOWN_ITEM) do
-              render UI::Icon.new(:edit, class: ICON_SM)
-              "Edit"
+            form(action: developers_webhook_path(wh.endpoint_id), method: "post",
+                 data: { turbo_confirm: "Remove this webhook endpoint?" }) do
+              input(type: "hidden", name: "_method",            value: "delete")
+              input(type: "hidden", name: "authenticity_token", value: form_authenticity_token)
+              button(type: "submit", class: DROPDOWN_ITEM_DANGER) do
+                render UI::Icon.new(:x, class: ICON_SM)
+                plain "Remove"
+              end
+            end
+            form(action: test_developers_webhook_path(wh.endpoint_id), method: "post") do
+              input(type: "hidden", name: "authenticity_token", value: form_authenticity_token)
+              button(type: "submit", class: DROPDOWN_ITEM) do
+                render UI::Icon.new(:refresh, class: ICON_SM)
+                plain "Send test"
+              end
             end
           end
         end
@@ -197,6 +219,88 @@ module Developers
             "Retry"
           end
         end
+      end
+    end
+
+    # ── Dialogs ───────────────────────────────────────────────────────────────
+
+    ALL_EVENTS = %w[
+      payment.paid payment.failed payment.refunded
+      dispute.opened dispute.resolved
+      merchant.kyb.approved merchant.kyb.rejected
+    ].freeze
+
+    def generate_key_dialog(live_mode)
+      dialog(id: "generate-key-dialog",
+             style: "border:none;border-radius:16px;padding:0;box-shadow:0 20px 60px rgba(0,0,0,0.18);" \
+                    "width:100%;max-width:420px;background:#fff") do
+        div(style: "padding:22px 24px;border-bottom:1px solid #{BORDER}") do
+          p(style: TYPE_TITLE) { "Generate API key" }
+          p(style: "#{TYPE_CAPTION};margin-top:3px") { "Keys are shown once. Store it immediately after creation." }
+        end
+        form(action: developers_keys_path, method: "post",
+             style: "padding:22px 24px;display:flex;flex-direction:column;gap:14px") do
+          input(type: "hidden", name: "authenticity_token", value: form_authenticity_token)
+          input(type: "hidden", name: "mode",               value: live_mode ? "live" : "test")
+          dev_field("Key label", "label", placeholder: "e.g. Production server", required: true)
+          div(style: "display:flex;gap:10px;justify-content:flex-end;margin-top:4px") do
+            button(type: "button",
+                   onclick: "document.getElementById('generate-key-dialog').close()",
+                   class: BTN_SECONDARY) { "Cancel" }
+            button(type: "submit", class: BTN_PRIMARY) do
+              render UI::Icon.new(:plus, class: ICON_SM)
+              plain "Generate"
+            end
+          end
+        end
+      end
+    end
+
+    def add_webhook_dialog
+      dialog(id: "add-webhook-dialog",
+             style: "border:none;border-radius:16px;padding:0;box-shadow:0 20px 60px rgba(0,0,0,0.18);" \
+                    "width:100%;max-width:500px;background:#fff") do
+        div(style: "padding:22px 24px;border-bottom:1px solid #{BORDER}") do
+          p(style: TYPE_TITLE) { "Add webhook endpoint" }
+          p(style: "#{TYPE_CAPTION};margin-top:3px") { "Yagye will POST signed events to this URL." }
+        end
+        form(action: developers_webhooks_path, method: "post",
+             style: "padding:22px 24px;display:flex;flex-direction:column;gap:14px") do
+          input(type: "hidden", name: "authenticity_token", value: form_authenticity_token)
+          dev_field("Endpoint URL", "url", type: "url", placeholder: "https://your-server.com/webhooks", required: true)
+          div do
+            p(style: "#{TYPE_MICRO};margin-bottom:8px") { "Events to receive" }
+            div(style: "display:flex;flex-direction:column;gap:6px") do
+              ALL_EVENTS.each do |event|
+                label(style: "display:flex;align-items:center;gap:8px;cursor:pointer") do
+                  input(type: "checkbox", name: "subscribed_events[]", value: event, checked: true,
+                        style: "width:14px;height:14px;accent-color:#{BRAND};cursor:pointer")
+                  span(style: "#{TYPE_MONO};font-size:11.5px") { event }
+                end
+              end
+            end
+          end
+          div(style: "display:flex;gap:10px;justify-content:flex-end;margin-top:4px") do
+            button(type: "button",
+                   onclick: "document.getElementById('add-webhook-dialog').close()",
+                   class: BTN_SECONDARY) { "Cancel" }
+            button(type: "submit", class: BTN_PRIMARY) do
+              render UI::Icon.new(:plus, class: ICON_SM)
+              plain "Add endpoint"
+            end
+          end
+        end
+      end
+    end
+
+    def dev_field(label, name, type: "text", placeholder: "", required: false)
+      div do
+        p(style: "#{TYPE_MICRO};margin-bottom:6px") { label }
+        input(type: type, name: name, placeholder: placeholder, required: required,
+              style: "width:100%;border:1px solid #{BORDER_MED};border-radius:10px;" \
+                     "padding:9px 12px;font-size:13px;color:#{INK};background:#fff;" \
+                     "outline:none;box-sizing:border-box",
+              class: "placeholder:text-gray-400")
       end
     end
 

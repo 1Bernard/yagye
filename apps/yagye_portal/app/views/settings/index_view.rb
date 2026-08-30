@@ -59,7 +59,10 @@ module Settings
           p(style: TYPE_TITLE) { "Personal information" }
           p(style: "#{TYPE_CAPTION};margin-top:3px") { "Update your name and contact details." }
         end
-        div(style: "padding:24px") do
+        form(action: settings_profile_path, method: "post",
+             style: "padding:24px") do
+          input(type: "hidden", name: "_method", value: "patch")
+          input(type: "hidden", name: "authenticity_token", value: form_authenticity_token)
           div(style: "display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px") do
             form_field("First name",  @current_user&.first_name || "", name: "first_name")
             form_field("Last name",   @current_user&.last_name  || "", name: "last_name")
@@ -112,10 +115,13 @@ module Settings
           p(style: TYPE_TITLE) { "Password" }
           p(style: "#{TYPE_CAPTION};margin-top:3px") { "Use a strong, unique password for your account." }
         end
-        div(style: "padding:24px;display:flex;flex-direction:column;gap:16px") do
-          form_field("Current password", "",    name: "current_password",  type: "password")
-          form_field("New password",     "",    name: "new_password",      type: "password")
-          form_field("Confirm password", "",    name: "confirm_password",  type: "password")
+        form(action: settings_password_path, method: "post",
+             style: "padding:24px;display:flex;flex-direction:column;gap:16px") do
+          input(type: "hidden", name: "_method", value: "patch")
+          input(type: "hidden", name: "authenticity_token", value: form_authenticity_token)
+          form_field("Current password", "", name: "current_password",      type: "password")
+          form_field("New password",     "", name: "password",              type: "password")
+          form_field("Confirm password", "", name: "password_confirmation", type: "password")
           div(style: "display:flex;justify-content:flex-end") do
             button(type: "submit", class: BTN_PRIMARY) { "Change password" }
           end

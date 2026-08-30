@@ -123,14 +123,52 @@ module Payments
         end
         div(style: "padding:16px 24px;display:flex;flex-direction:column;gap:8px") do
           if @can_refund && @payment.status == "paid"
-            button(type: "button", class: BTN_DANGER,
+            button(type: "button",
+                   onclick: "document.getElementById('refund-dialog-#{@payment.id}').showModal()",
+                   class: BTN_DANGER,
                    style: "width:100%;justify-content:center") do
               render UI::Icon.new(:refresh, class: ICON_SM)
-              "Issue refund"
+              plain "Issue refund"
             end
+            refund_dialog
           end
           p(style: "#{TYPE_CAPTION};text-align:center;margin-top:4px") do
             "Refunds are processed within 5–10 business days."
+          end
+        end
+      end
+    end
+
+    def refund_dialog
+      dialog(id: "refund-dialog-#{@payment.id}",
+             style: "border:none;border-radius:16px;padding:0;box-shadow:0 20px 60px rgba(0,0,0,0.18);" \
+                    "width:100%;max-width:420px;background:#fff") do
+        div(style: "padding:22px 24px;border-bottom:1px solid #{BORDER}") do
+          p(style: TYPE_TITLE) { "Confirm refund" }
+          p(style: "#{TYPE_CAPTION};margin-top:3px") { "Refund #{@payment.formatted_amount} to the original payment method." }
+        end
+        form(action: payment_refund_path(@payment), method: "post",
+             style: "padding:20px 24px;display:flex;flex-direction:column;gap:14px") do
+          input(type: "hidden", name: "authenticity_token", value: form_authenticity_token)
+          div do
+            p(style: "#{TYPE_MICRO};margin-bottom:6px") { "Reason" }
+            select(name: "reason",
+                   style: "width:100%;border:1px solid #{BORDER_MED};border-radius:10px;padding:9px 12px;" \
+                          "font-size:13px;color:#{INK};background:#fff;outline:none;cursor:pointer") do
+              option(value: "requested_by_merchant") { "Requested by merchant" }
+              option(value: "duplicate")             { "Duplicate charge" }
+              option(value: "fraudulent")            { "Fraudulent transaction" }
+              option(value: "customer_request")      { "Customer request" }
+            end
+          end
+          div(style: "display:flex;gap:10px;justify-content:flex-end;margin-top:4px") do
+            button(type: "button",
+                   onclick: "document.getElementById('refund-dialog-#{@payment.id}').close()",
+                   class: BTN_SECONDARY) { "Cancel" }
+            button(type: "submit", class: BTN_DANGER) do
+              render UI::Icon.new(:refresh, class: ICON_SM)
+              plain "Confirm refund"
+            end
           end
         end
       end
