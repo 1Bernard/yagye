@@ -29,8 +29,9 @@ Rails.application.routes.draw do
 
   # ── Merchants domain (ops — policy-gated) ────────────────────────────────
   scope module: "merchants" do
-    get "merchants",      to: "merchants#index",    as: :merchants
-    get "merchants/:id",  to: "merchants#show",     as: :merchant
+    get   "merchants",      to: "merchants#index",  as: :merchants
+    get   "merchants/:id",  to: "merchants#show",   as: :merchant
+    patch "merchants/:id",  to: "merchants#update"
   end
 
   # ── Compliance domain (ops — policy-gated) ───────────────────────────────
@@ -53,6 +54,13 @@ Rails.application.routes.draw do
   end
 
   # ── Payments — refund ────────────────────────────────────────────────────
+  scope module: "payments" do
+    get "payouts",         to: "payouts#index",     as: :payouts
+    get "payouts/:id",     to: "payouts#show",      as: :payout
+    get "settlements",     to: "settlements#index", as: :settlements
+    get "settlements/:id", to: "settlements#show",  as: :settlement
+  end
+
   scope module: "payments" do
     post "payments/:id/refund", to: "transactions#refund", as: :payment_refund
   end

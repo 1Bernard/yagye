@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_08_30_100002) do
+ActiveRecord::Schema[8.1].define(version: 2026_08_30_140001) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pgcrypto"
@@ -204,6 +204,42 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_30_100002) do
     t.index ["status"], name: "index_portal_payments_on_status"
   end
 
+  create_table "portal_payouts", primary_key: "payout_code", id: :text, force: :cascade do |t|
+    t.integer "aggregate_version", default: 1, null: false
+    t.bigint "amount", null: false
+    t.string "currency", limit: 3, null: false
+    t.text "destination_fingerprint", null: false
+    t.text "destination_type", null: false
+    t.text "failure_code"
+    t.datetime "last_applied_at", null: false
+    t.text "last_event_id", null: false
+    t.text "merchant_code", null: false
+    t.text "mode", null: false
+    t.date "scheduled_for", null: false
+    t.text "state", null: false
+    t.index ["merchant_code", "scheduled_for"], name: "index_portal_payouts_on_merchant_code_and_scheduled_for"
+    t.index ["merchant_code"], name: "index_portal_payouts_on_merchant_code"
+  end
+
+  create_table "portal_settlements", primary_key: "settlement_code", id: :text, force: :cascade do |t|
+    t.integer "aggregate_version", default: 1, null: false
+    t.string "currency", limit: 3, null: false
+    t.bigint "expected_net", null: false
+    t.integer "item_count"
+    t.datetime "last_applied_at", null: false
+    t.text "last_event_id", null: false
+    t.text "merchant_code", null: false
+    t.text "mode", null: false
+    t.datetime "period_end", null: false
+    t.datetime "period_start", null: false
+    t.text "provider_code", null: false
+    t.bigint "reported_net"
+    t.text "state", null: false
+    t.date "value_date"
+    t.bigint "variance"
+    t.index ["merchant_code"], name: "index_portal_settlements_on_merchant_code"
+  end
+
   create_table "portal_webhook_deliveries", primary_key: "delivery_id", id: :uuid, default: nil, force: :cascade do |t|
     t.integer "attempt", default: 1, null: false
     t.datetime "delivered_at"
@@ -254,6 +290,16 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_30_100002) do
     t.check_constraint "scope = ANY (ARRAY['merchant'::text, 'internal'::text])", name: "valid_role_scope"
   end
 
+  create_table "user_audit_events", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+    t.datetime "created_at", null: false
+    t.string "event_type", null: false
+    t.string "ip_address"
+    t.jsonb "metadata", default: {}, null: false
+    t.string "user_agent"
+    t.uuid "user_id", null: false
+    t.index ["user_id", "created_at"], name: "index_user_audit_events_on_user_id_and_created_at"
+  end
+
   create_table "user_roles", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
     t.datetime "created_at", null: false
     t.datetime "expires_at"
@@ -279,6 +325,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_30_100002) do
     t.integer "failed_attempts", default: 0, null: false
     t.string "first_name"
     t.text "kind", default: "merchant_user", null: false
+    t.string "language_preference", default: "en", null: false
     t.string "last_name"
     t.datetime "last_sign_in_at"
     t.string "last_sign_in_ip"
@@ -289,6 +336,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_30_100002) do
     t.datetime "reset_password_sent_at"
     t.string "reset_password_token"
     t.integer "sign_in_count", default: 0, null: false
+    t.string "theme_preference", default: "system", null: false
     t.string "unlock_token"
     t.datetime "updated_at", null: false
     t.text "user_code"
@@ -316,6 +364,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_30_100002) do
   add_foreign_key "merchant_memberships", "users", column: "invited_by_id"
   add_foreign_key "role_permissions", "permissions", column: "permission_key", primary_key: "key"
   add_foreign_key "role_permissions", "roles", column: "role_key", primary_key: "key"
+  add_foreign_key "user_audit_events", "users"
   add_foreign_key "user_roles", "roles", column: "role_key", primary_key: "key"
   add_foreign_key "user_roles", "users"
   add_foreign_key "user_roles", "users", column: "granted_by_id"

@@ -81,6 +81,14 @@ class KarafkaApp < Karafka::App
     topic "yagye.adjustment_approvals.v1" do
       consumer AdjustmentApprovalEventsConsumer
     end
+
+    topic "yagye.payouts.v1" do
+      consumer PayoutEventsConsumer
+    end
+
+    topic "yagye.settlements.v1" do
+      consumer SettlementEventsConsumer
+    end
   end
 
   # Uncomment this if you want Karafka to manage your topics configuration
