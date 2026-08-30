@@ -37,15 +37,10 @@ defmodule YagyeCoreWeb.Controllers.Invoices.InvoiceController do
 
   def index(conn, params) do
     merchant_id = conn.assigns.merchant_id
+    opts = cursor_opts(params) ++ [state: params[:state] || params["state"]]
 
-    opts = [
-      state: params[:state],
-      limit: min(params[:limit] || 50, 100),
-      offset: params[:offset] || 0
-    ]
-
-    with {:ok, invoices} <- Invoices.list_invoices(merchant_id, opts) do
-      Response.ok(conn, InvoiceJSON.list(invoices))
+    with {:ok, page} <- Invoices.list_invoices(merchant_id, opts) do
+      Response.ok(conn, InvoiceJSON.list(page))
     end
   end
 
@@ -65,5 +60,14 @@ defmodule YagyeCoreWeb.Controllers.Invoices.InvoiceController do
     with {:ok, invoice} <- Invoices.void_invoice(id) do
       Response.ok(conn, InvoiceJSON.data(invoice))
     end
+  end
+
+  defp cursor_opts(params) do
+    [
+      limit: params["limit"] || params[:limit],
+      starting_after: params["starting_after"] || params[:starting_after],
+      ending_before: params["ending_before"] || params[:ending_before]
+    ]
+    |> Keyword.reject(fn {_, v} -> is_nil(v) end)
   end
 end

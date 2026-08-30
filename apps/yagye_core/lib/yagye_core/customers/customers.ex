@@ -6,6 +6,7 @@ defmodule YagyeCore.Customers do
   alias YagyeCore.Customers.Schemas.Customer
   alias YagyeCore.Payments.Schemas.AccountVerification
   alias YagyeCore.Repo
+  alias YagyeCore.Shared.Pagination
 
   # ── Public API ───────────────────────────────────────────────────────────────
 
@@ -43,14 +44,8 @@ defmodule YagyeCore.Customers do
   end
 
   def list_customers(merchant_id, opts \\ []) do
-    limit = Keyword.get(opts, :limit, 50)
-
-    from(c in Customer,
-      where: c.merchant_id == ^merchant_id,
-      order_by: [desc: c.inserted_at],
-      limit: ^limit
-    )
-    |> Repo.all()
+    base = from(c in Customer, where: c.merchant_id == ^merchant_id)
+    {:ok, Pagination.paginate(base, :public_id, opts)}
   end
 
   @doc """
@@ -72,13 +67,8 @@ defmodule YagyeCore.Customers do
   end
 
   def list_account_verifications(merchant_id, opts \\ []) do
-    limit = Keyword.get(opts, :limit, 50)
-
-    from(av in AccountVerification,
-      where: av.merchant_id == ^merchant_id,
-      order_by: [desc: av.inserted_at],
-      limit: ^limit
-    )
-    |> Repo.all()
+    base = from(av in AccountVerification, where: av.merchant_id == ^merchant_id)
+    # account_verifications has no public_id; use the UUID v7 internal id as cursor
+    {:ok, Pagination.paginate(base, :id, opts)}
   end
 end

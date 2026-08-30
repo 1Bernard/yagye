@@ -4,8 +4,8 @@ defmodule YagyeCoreWeb.Controllers.Customers.CustomerJSON do
   alias YagyeCore.Customers.Schemas.Customer
   alias YagyeCore.Payments.Schemas.AccountVerification
 
-  def list(customers) do
-    %{object: "list", data: Enum.map(customers, &data/1)}
+  def list(%{data: customers, has_more: has_more}) do
+    %{object: "list", data: Enum.map(customers, &data/1), has_more: has_more}
   end
 
   def data(%Customer{} = c) do
@@ -19,8 +19,8 @@ defmodule YagyeCoreWeb.Controllers.Customers.CustomerJSON do
     }
   end
 
-  def verification_list(verifications) do
-    %{object: "list", data: Enum.map(verifications, &verification_data/1)}
+  def verification_list(%{data: verifications, has_more: has_more}) do
+    %{object: "list", data: Enum.map(verifications, &verification_data/1), has_more: has_more}
   end
 
   def verification_data(%AccountVerification{} = av) do

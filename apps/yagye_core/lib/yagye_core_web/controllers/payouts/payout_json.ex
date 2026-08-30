@@ -3,8 +3,8 @@ defmodule YagyeCoreWeb.Controllers.Payouts.PayoutJSON do
 
   alias YagyeCore.Payouts.Schemas.{Payout, PayoutDestination}
 
-  def list(payouts) do
-    %{object: "list", data: Enum.map(payouts, &data/1)}
+  def list(%{data: payouts, has_more: has_more}) do
+    %{object: "list", data: Enum.map(payouts, &data/1), has_more: has_more}
   end
 
   def data(%Payout{} = p) do

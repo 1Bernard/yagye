@@ -20,10 +20,12 @@ defmodule YagyeCoreWeb.Controllers.Customers.CustomerController do
 
   def open_api_operation(action), do: CustomerSpec.operation(action)
 
-  def index(conn, _params) do
+  def index(conn, params) do
     merchant_id = conn.assigns.merchant_id
-    customers = Customers.list_customers(merchant_id)
-    Response.ok(conn, CustomerJSON.list(customers))
+
+    with {:ok, page} <- Customers.list_customers(merchant_id, cursor_opts(params)) do
+      Response.ok(conn, CustomerJSON.list(page))
+    end
   end
 
   def show(conn, %{id: id}) do
@@ -32,10 +34,21 @@ defmodule YagyeCoreWeb.Controllers.Customers.CustomerController do
     end
   end
 
-  def verifications_index(conn, _params) do
+  def verifications_index(conn, params) do
     merchant_id = conn.assigns.merchant_id
-    verifications = Customers.list_account_verifications(merchant_id)
-    Response.ok(conn, CustomerJSON.verification_list(verifications))
+
+    with {:ok, page} <- Customers.list_account_verifications(merchant_id, cursor_opts(params)) do
+      Response.ok(conn, CustomerJSON.verification_list(page))
+    end
+  end
+
+  defp cursor_opts(params) do
+    [
+      limit: params["limit"] || params[:limit],
+      starting_after: params["starting_after"] || params[:starting_after],
+      ending_before: params["ending_before"] || params[:ending_before]
+    ]
+    |> Keyword.reject(fn {_, v} -> is_nil(v) end)
   end
 
   def verifications_show(conn, %{id: id}) do

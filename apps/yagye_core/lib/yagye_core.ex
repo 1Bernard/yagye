@@ -12,6 +12,7 @@ defmodule YagyeCore do
       Disputes.Schemas.Refund,
       Idempotency,
       Shared.ApiRequest,
+      Shared.Pagination,
       Shared.RateLimiter,
       Shared.Schema,
       Payments,

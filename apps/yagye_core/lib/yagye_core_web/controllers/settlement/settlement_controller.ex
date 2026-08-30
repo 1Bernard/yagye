@@ -19,10 +19,12 @@ defmodule YagyeCoreWeb.Controllers.Settlement.SettlementController do
 
   def open_api_operation(action), do: SettlementSpec.operation(action)
 
-  def index(conn, _params) do
+  def index(conn, params) do
     merchant_id = conn.assigns.merchant_id
-    settlements = Settlement.list_settlements(merchant_id)
-    Response.ok(conn, SettlementJSON.list(settlements))
+
+    with {:ok, page} <- Settlement.list_settlements(merchant_id, cursor_opts(params)) do
+      Response.ok(conn, SettlementJSON.list(page))
+    end
   end
 
   def show(conn, %{id: id}) do
@@ -31,10 +33,21 @@ defmodule YagyeCoreWeb.Controllers.Settlement.SettlementController do
     end
   end
 
-  def batch_index(conn, _params) do
+  def batch_index(conn, params) do
     merchant_id = conn.assigns.merchant_id
-    batches = Settlement.list_batches(merchant_id)
-    Response.ok(conn, SettlementJSON.batch_list(batches))
+
+    with {:ok, page} <- Settlement.list_batches(merchant_id, cursor_opts(params)) do
+      Response.ok(conn, SettlementJSON.batch_list(page))
+    end
+  end
+
+  defp cursor_opts(params) do
+    [
+      limit: params["limit"] || params[:limit],
+      starting_after: params["starting_after"] || params[:starting_after],
+      ending_before: params["ending_before"] || params[:ending_before]
+    ]
+    |> Keyword.reject(fn {_, v} -> is_nil(v) end)
   end
 
   def batch_show(conn, %{id: id}) do

@@ -31,10 +31,12 @@ defmodule YagyeCoreWeb.Controllers.Payouts.PayoutController do
     end
   end
 
-  def index(conn, _params) do
+  def index(conn, params) do
     merchant_id = conn.assigns.merchant_id
-    payouts = Payouts.list_payouts(merchant_id)
-    Response.ok(conn, PayoutJSON.list(payouts))
+
+    with {:ok, page} <- Payouts.list_payouts(merchant_id, cursor_opts(params)) do
+      Response.ok(conn, PayoutJSON.list(page))
+    end
   end
 
   def show(conn, %{id: id}) do
@@ -56,6 +58,15 @@ defmodule YagyeCoreWeb.Controllers.Payouts.PayoutController do
     merchant_id = conn.assigns.merchant_id
     destinations = Payouts.list_destinations(merchant_id)
     Response.ok(conn, PayoutJSON.destination_list(destinations))
+  end
+
+  defp cursor_opts(params) do
+    [
+      limit: params["limit"] || params[:limit],
+      starting_after: params["starting_after"] || params[:starting_after],
+      ending_before: params["ending_before"] || params[:ending_before]
+    ]
+    |> Keyword.reject(fn {_, v} -> is_nil(v) end)
   end
 
   def destinations_show(conn, %{id: id}) do

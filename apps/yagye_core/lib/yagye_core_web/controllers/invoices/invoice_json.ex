@@ -28,5 +28,7 @@ defmodule YagyeCoreWeb.Controllers.Invoices.InvoiceJSON do
     }
   end
 
-  def list(invoices), do: %{object: "list", data: Enum.map(invoices, &data/1)}
+  def list(%{data: invoices, has_more: has_more}) do
+    %{object: "list", data: Enum.map(invoices, &data/1), has_more: has_more}
+  end
 end

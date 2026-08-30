@@ -138,7 +138,7 @@ defmodule YagyeCore.Invoices.InvoicesTest do
       Invoices.create_invoice(merchant.id, base_attrs(merchant, customer))
       Invoices.create_invoice(other_merchant.id, base_attrs(other_merchant, customer))
 
-      {:ok, invoices} = Invoices.list_invoices(merchant.id)
+      {:ok, %{data: invoices, has_more: false}} = Invoices.list_invoices(merchant.id)
       assert length(invoices) == 2
       assert Enum.all?(invoices, &(&1.merchant_id == merchant.id))
     end
@@ -149,8 +149,8 @@ defmodule YagyeCore.Invoices.InvoicesTest do
       {:ok, inv} = Invoices.create_invoice(merchant.id, base_attrs(merchant, customer))
       Invoices.issue_invoice(inv.public_id)
 
-      {:ok, drafts} = Invoices.list_invoices(merchant.id, state: "draft")
-      {:ok, open} = Invoices.list_invoices(merchant.id, state: "open")
+      {:ok, %{data: drafts}} = Invoices.list_invoices(merchant.id, state: "draft")
+      {:ok, %{data: open}} = Invoices.list_invoices(merchant.id, state: "open")
 
       assert drafts == []
       assert length(open) == 1

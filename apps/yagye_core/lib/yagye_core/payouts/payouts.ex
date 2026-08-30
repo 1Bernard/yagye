@@ -7,6 +7,7 @@ defmodule YagyeCore.Payouts do
   alias YagyeCore.Payouts.Schemas.{Payout, PayoutDestination}
   alias YagyeCore.Payouts.Workers.PayoutSagaWorker
   alias YagyeCore.Repo
+  alias YagyeCore.Shared.Pagination
 
   # ── Public API ───────────────────────────────────────────────────────────────
 
@@ -41,19 +42,9 @@ defmodule YagyeCore.Payouts do
 
   def list_payouts(merchant_id, opts \\ []) do
     state = Keyword.get(opts, :state)
-    limit = Keyword.get(opts, :limit, 50)
-
-    query =
-      from(p in Payout,
-        where: p.merchant_id == ^merchant_id,
-        order_by: [desc: p.inserted_at],
-        limit: ^limit
-      )
-
-    query =
-      if state, do: where(query, [p], p.state == ^state), else: query
-
-    Repo.all(query)
+    base = from(p in Payout, where: p.merchant_id == ^merchant_id)
+    base = if state, do: where(base, [p], p.state == ^state), else: base
+    {:ok, Pagination.paginate(base, :public_id, opts)}
   end
 
   def transition(payout, to_state, extra \\ %{}) do

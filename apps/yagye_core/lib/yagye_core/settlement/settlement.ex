@@ -11,6 +11,7 @@ defmodule YagyeCore.Settlement do
   alias YagyeCore.Providers.Schemas.Provider
   alias YagyeCore.Repo
   alias YagyeCore.Settlement.Schemas.{Settlement, SettlementBatch, SettlementItem}
+  alias YagyeCore.Shared.Pagination
 
   @open_states ~w[pending processing]
 
@@ -97,19 +98,9 @@ defmodule YagyeCore.Settlement do
 
   def list_settlements(merchant_id, opts \\ []) do
     state = Keyword.get(opts, :state)
-    limit = Keyword.get(opts, :limit, 50)
-
-    query =
-      from(s in Settlement,
-        where: s.merchant_id == ^merchant_id,
-        order_by: [desc: s.inserted_at],
-        limit: ^limit
-      )
-
-    query =
-      if state, do: where(query, [s], s.state == ^state), else: query
-
-    Repo.all(query)
+    base = from(s in Settlement, where: s.merchant_id == ^merchant_id)
+    base = if state, do: where(base, [s], s.state == ^state), else: base
+    {:ok, Pagination.paginate(base, :public_id, opts)}
   end
 
   def transition_settlement(%Settlement{} = settlement, to_state, extra \\ %{}) do
@@ -154,14 +145,9 @@ defmodule YagyeCore.Settlement do
 
   @doc "Lists batches for a merchant, most recent first."
   def list_batches(merchant_id, opts \\ []) do
-    limit = Keyword.get(opts, :limit, 50)
-
-    from(b in SettlementBatch,
-      where: b.merchant_id == ^merchant_id,
-      order_by: [desc: b.inserted_at],
-      limit: ^limit
-    )
-    |> Repo.all()
+    base = from(b in SettlementBatch, where: b.merchant_id == ^merchant_id)
+    # settlement_batches has no public_id; use UUID v7 internal id as cursor
+    {:ok, Pagination.paginate(base, :id, opts)}
   end
 
   @doc "Fetches a batch by id."

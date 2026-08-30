@@ -8,24 +8,15 @@ defmodule YagyeCore.Invoices do
   alias YagyeCore.Invoices.Schemas.{Invoice, InvoiceDelivery, InvoiceLineItem}
   alias YagyeCore.Merchants
   alias YagyeCore.Repo
+  alias YagyeCore.Shared.Pagination
 
   # ── Public API ───────────────────────────────────────────────────────────────
 
   def list_invoices(merchant_id, opts \\ []) do
-    limit = Keyword.get(opts, :limit, 50)
-    offset = Keyword.get(opts, :offset, 0)
     state = Keyword.get(opts, :state)
-
-    base =
-      from(i in Invoice,
-        where: i.merchant_id == ^merchant_id,
-        order_by: [desc: i.inserted_at],
-        limit: ^limit,
-        offset: ^offset
-      )
-
-    query = if state, do: where(base, [i], i.state == ^state), else: base
-    {:ok, Repo.all(query)}
+    base = from(i in Invoice, where: i.merchant_id == ^merchant_id)
+    base = if state, do: where(base, [i], i.state == ^state), else: base
+    {:ok, Pagination.paginate(base, :public_id, opts)}
   end
 
   def get_invoice(public_id) do

@@ -3,8 +3,8 @@ defmodule YagyeCoreWeb.Controllers.Settlement.SettlementJSON do
 
   alias YagyeCore.Settlement.Schemas.{Settlement, SettlementBatch}
 
-  def list(settlements) do
-    %{object: "list", data: Enum.map(settlements, &data/1)}
+  def list(%{data: settlements, has_more: has_more}) do
+    %{object: "list", data: Enum.map(settlements, &data/1), has_more: has_more}
   end
 
   def data(%Settlement{} = s) do
@@ -26,8 +26,8 @@ defmodule YagyeCoreWeb.Controllers.Settlement.SettlementJSON do
     }
   end
 
-  def batch_list(batches) do
-    %{object: "list", data: Enum.map(batches, &batch_data/1)}
+  def batch_list(%{data: batches, has_more: has_more}) do
+    %{object: "list", data: Enum.map(batches, &batch_data/1), has_more: has_more}
   end
 
   def batch_data(%SettlementBatch{} = b) do
