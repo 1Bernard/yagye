@@ -52,3 +52,9 @@ What did we decide? One clear statement.
 | [0013](0013-gateway-simulator-as-acl.md) | Permanent gateway simulator as the anti-corruption layer | Accepted |
 | [0014](0014-transactional-outbox.md) | Transactional outbox for domain event emission | Accepted |
 | [0015](0015-outbox-driven-projections.md) | Outbox-driven read-model projections | Accepted |
+| [0016](0016-portal-phlex-view-layer.md) | Portal view layer: Phlex components | Accepted |
+| [0017](0017-portal-dynamic-rbac.md) | Portal dynamic DB-backed RBAC | Accepted |
+| [0018](0018-ui-theme-single-source.md) | UI theme as a single-source token system | Accepted |
+| [0019](0019-cursor-keyset-pagination.md) | Cursor-based keyset pagination for all list endpoints | Accepted |
+| [0020](0020-restrict-fk-no-hard-delete-psp.md) | RESTRICT foreign keys — no hard deletes for PSP data | Accepted |
+| [0021](0021-dual-scope-routing-rules.md) | Dual-scope routing rules (platform + merchant) | Accepted |
