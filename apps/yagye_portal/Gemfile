@@ -93,6 +93,17 @@ group :development, :test do
 
   # Omakase Ruby styling [https://github.com/rails/rubocop-rails-omakase/]
   gem "rubocop-rails-omakase", require: false
+
+  # Test data factories — used instead of fixtures for all per-test data.
+  # Seed data (roles, permissions) is loaded once from db/seeds.rb.
+  gem "factory_bot_rails"
+end
+
+group :test do
+  # Stub Faraday HTTP calls to yagye_core's /internal API.
+  # CoreApiClient never raises — WebMock lets us exercise all its code paths
+  # (success, error response, network failure) without a running Core server.
+  gem "webmock"
 end
 
 group :development do
