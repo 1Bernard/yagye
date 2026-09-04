@@ -65,18 +65,18 @@ module Payments
     # ── Payment details card ──────────────────────────────────────────────────
 
     def details_card
-      div(class: "bg-white border border-gray-100 rounded-2xl overflow-hidden") do
-        div(class: "px-6 py-5 border-b border-gray-100") do
-          p(class: TYPE_TITLE) { plain "Payment details" }
-        end
-        render UI::DetailList.new do |list|
-          list.row("Customer",        customer_value)
-          list.row("Core payment ID", @payment.core_payment_id || "—", mono: true)
-          list.row("Payment method",  @payment.provider_label)
-          list.row("Status")         { render UI::StatusBadge.new(@payment.status) }
-          list.row("Created",        @payment.created_at.strftime("%d %b %Y at %H:%M UTC"))
-          list.row("Settled",        settled_label)
-          list.row("Merchant",       @payment.merchant_code || "—", mono: true)
+      render UI::Card.new do |c|
+        c.header("Payment details")
+        c.body(padding: false) do
+          render UI::DetailList.new do |list|
+            list.row("Customer",        customer_value)
+            list.row("Core payment ID", @payment.core_payment_id || "—", mono: true)
+            list.row("Payment method",  @payment.provider_label)
+            list.row("Status")         { render UI::StatusBadge.new(@payment.status) }
+            list.row("Created",        @payment.created_at.strftime("%d %b %Y at %H:%M UTC"))
+            list.row("Settled",        settled_label)
+            list.row("Merchant",       @payment.merchant_code || "—", mono: true)
+          end
         end
       end
     end
@@ -84,11 +84,9 @@ module Payments
     # ── Metadata card ─────────────────────────────────────────────────────────
 
     def metadata_card
-      div(class: "bg-white border border-gray-100 rounded-2xl overflow-hidden") do
-        div(class: "px-6 py-5 border-b border-gray-100") do
-          p(class: TYPE_TITLE) { plain "Metadata" }
-        end
-        div(class: "px-6 py-4") do
+      render UI::Card.new do |c|
+        c.header("Metadata")
+        c.body do
           pre(class: "#{TYPE_MONO} text-[11.5px] bg-gray-50 rounded-xl p-[14px] overflow-x-auto leading-relaxed whitespace-pre-wrap break-all") do
             plain JSON.pretty_generate(@payment.metadata.presence || {})
           end
@@ -99,13 +97,13 @@ module Payments
     # ── Timeline card ─────────────────────────────────────────────────────────
 
     def timeline_card
-      div(class: "bg-white border border-gray-100 rounded-2xl overflow-hidden") do
-        div(class: "px-6 py-5 border-b border-gray-100") do
-          p(class: TYPE_TITLE) { plain "Activity timeline" }
-        end
-        div(class: "px-6 py-5 flex flex-col gap-0") do
-          timeline_events.each_with_index do |(label, at, color), i|
-            timeline_item(label, at, color, last: i == timeline_events.length - 1)
+      render UI::Card.new do |c|
+        c.header("Activity timeline")
+        c.body do
+          div(class: "flex flex-col") do
+            timeline_events.each_with_index do |(label, at, color), i|
+              timeline_item(label, at, color, last: i == timeline_events.length - 1)
+            end
           end
         end
       end
@@ -114,22 +112,22 @@ module Payments
     # ── Actions card ──────────────────────────────────────────────────────────
 
     def actions_card
-      div(class: "bg-white border border-gray-100 rounded-2xl overflow-hidden") do
-        div(class: "px-6 py-5 border-b border-gray-100") do
-          p(class: TYPE_TITLE) { plain "Actions" }
-        end
-        div(class: "px-6 py-4 flex flex-col gap-2") do
-          if @can_refund && @payment.status == "paid"
-            render UI::Button.new(variant: :danger,
-                   data: { action: "click->dialog#open", dialog_target_param: "refund-dialog-#{@payment.id}" },
-                   style: "width:100%;justify-content:center") do
-              render UI::Icon.new(:refresh, class: ICON_SM)
-              plain "Issue refund"
+      render UI::Card.new do |c|
+        c.header("Actions")
+        c.body do
+          div(class: "flex flex-col gap-2") do
+            if @can_refund && @payment.status == "paid"
+              render UI::Button.new(variant: :danger,
+                     data: { action: "click->dialog#open", dialog_target_param: "refund-dialog-#{@payment.id}" },
+                     style: "width:100%;justify-content:center") do
+                render UI::Icon.new(:refresh, class: ICON_SM)
+                plain "Issue refund"
+              end
+              refund_dialog
             end
-            refund_dialog
-          end
-          p(class: "#{TYPE_CAPTION} text-center mt-1") do
-            plain "Refunds are processed within 5–10 business days."
+            p(class: "#{TYPE_CAPTION} text-center mt-1") do
+              plain "Refunds are processed within 5–10 business days."
+            end
           end
         end
       end

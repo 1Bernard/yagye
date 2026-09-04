@@ -59,31 +59,29 @@ module Payments
       end
 
       def details_card
-        div(class: "bg-white border border-gray-100 rounded-2xl overflow-hidden") do
-          div(class: "px-6 py-5 border-b border-gray-100") do
-            p(class: TYPE_TITLE) { plain "Payout details" }
-          end
-          render UI::DetailList.new do |list|
-            list.row("Payout code",   @payout.payout_code, mono: true)
-            list.row("Merchant code", @payout.merchant_code || "—", mono: true)
-            list.row("Amount",        @payout.formatted_amount)
-            list.row("Currency",      @payout.currency)
-            list.row("State")         { render UI::StatusBadge.new(status: @payout.state) }
-            list.row("Destination",   @payout.destination_type&.humanize || "—")
-            list.row("Fingerprint",   @payout.destination_fingerprint || "—", mono: true)
-            list.row("Scheduled for", @payout.scheduled_for&.strftime("%d %b %Y, %H:%M") || "—")
-            list.row("Last updated",  @payout.last_applied_at&.strftime("%d %b %Y at %H:%M UTC") || "—")
-            list.row("Version",       @payout.aggregate_version.to_s, mono: true)
+        render UI::Card.new do |c|
+          c.header("Payout details")
+          c.body(padding: false) do
+            render UI::DetailList.new do |list|
+              list.row("Payout code",   @payout.payout_code, mono: true)
+              list.row("Merchant code", @payout.merchant_code || "—", mono: true)
+              list.row("Amount",        @payout.formatted_amount)
+              list.row("Currency",      @payout.currency)
+              list.row("State")         { render UI::StatusBadge.new(status: @payout.state) }
+              list.row("Destination",   @payout.destination_type&.humanize || "—")
+              list.row("Fingerprint",   @payout.destination_fingerprint || "—", mono: true)
+              list.row("Scheduled for", @payout.scheduled_for&.strftime("%d %b %Y, %H:%M") || "—")
+              list.row("Last updated",  @payout.last_applied_at&.strftime("%d %b %Y at %H:%M UTC") || "—")
+              list.row("Version",       @payout.aggregate_version.to_s, mono: true)
+            end
           end
         end
       end
 
       def state_card
-        div(class: "bg-white border border-gray-100 rounded-2xl overflow-hidden") do
-          div(class: "px-6 py-5 border-b border-gray-100") do
-            p(class: TYPE_TITLE) { plain "State timeline" }
-          end
-          div(class: "px-6 py-5") do
+        render UI::Card.new do |c|
+          c.header("State timeline")
+          c.body do
             state_steps.each_with_index do |(label, done), i|
               state_step(label, done, last: i == state_steps.length - 1)
             end

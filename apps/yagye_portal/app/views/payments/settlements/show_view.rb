@@ -59,31 +59,29 @@ module Payments
       end
 
       def financials_card
-        div(class: "bg-white border border-gray-100 rounded-2xl overflow-hidden") do
-          div(class: "px-6 py-5 border-b border-gray-100") do
-            p(class: TYPE_TITLE) { plain "Financial breakdown" }
-          end
-          render UI::DetailList.new do |list|
-            list.row("Expected net",  @settlement.formatted_expected_net)
-            list.row("Reported net",  @settlement.formatted_reported_net)
-            list.row("Variance") do
-              v     = @settlement.variance
-              color = v.nil? ? MUTED_TEXT : (v.negative? ? "#dc2626" : "#16a34a")
-              span(class: "text-[13px] font-semibold", style: "color:#{color}") { plain variance_label }
+        render UI::Card.new do |c|
+          c.header("Financial breakdown")
+          c.body(padding: false) do
+            render UI::DetailList.new do |list|
+              list.row("Expected net",  @settlement.formatted_expected_net)
+              list.row("Reported net",  @settlement.formatted_reported_net)
+              list.row("Variance") do
+                v     = @settlement.variance
+                color = v.nil? ? MUTED_TEXT : (v.negative? ? "#dc2626" : "#16a34a")
+                span(class: "text-[13px] font-semibold", style: "color:#{color}") { plain variance_label }
+              end
+              list.row("Item count",   @settlement.item_count&.to_s || "—")
+              list.row("Currency",     @settlement.currency)
+              list.row("Value date",   @settlement.value_date&.strftime("%d %b %Y") || "—")
             end
-            list.row("Item count",   @settlement.item_count&.to_s || "—")
-            list.row("Currency",     @settlement.currency)
-            list.row("Value date",   @settlement.value_date&.strftime("%d %b %Y") || "—")
           end
         end
       end
 
       def state_card
-        div(class: "bg-white border border-gray-100 rounded-2xl overflow-hidden") do
-          div(class: "px-6 py-5 border-b border-gray-100") do
-            p(class: TYPE_TITLE) { plain "Reconciliation state" }
-          end
-          div(class: "px-6 py-5") do
+        render UI::Card.new do |c|
+          c.header("Reconciliation state")
+          c.body do
             PortalSettlement::STATES.each_with_index do |s, i|
               state_step(s, @settlement.state == s || past_state?(s), last: i == PortalSettlement::STATES.length - 1)
             end
@@ -105,17 +103,17 @@ module Payments
       end
 
       def details_card
-        div(class: "bg-white border border-gray-100 rounded-2xl overflow-hidden") do
-          div(class: "px-6 py-5 border-b border-gray-100") do
-            p(class: TYPE_TITLE) { plain "Details" }
-          end
-          render UI::DetailList.new do |list|
-            list.row("Settlement code", @settlement.settlement_code, mono: true)
-            list.row("Merchant code",   @settlement.merchant_code || "—", mono: true)
-            list.row("Provider code",   @settlement.provider_code || "—", mono: true)
-            list.row("Mode",            @settlement.mode&.capitalize || "—")
-            list.row("Version",         @settlement.aggregate_version.to_s, mono: true)
-            list.row("Last updated",    @settlement.last_applied_at&.strftime("%d %b %Y at %H:%M UTC") || "—")
+        render UI::Card.new do |c|
+          c.header("Details")
+          c.body(padding: false) do
+            render UI::DetailList.new do |list|
+              list.row("Settlement code", @settlement.settlement_code, mono: true)
+              list.row("Merchant code",   @settlement.merchant_code || "—", mono: true)
+              list.row("Provider code",   @settlement.provider_code || "—", mono: true)
+              list.row("Mode",            @settlement.mode&.capitalize || "—")
+              list.row("Version",         @settlement.aggregate_version.to_s, mono: true)
+              list.row("Last updated",    @settlement.last_applied_at&.strftime("%d %b %Y at %H:%M UTC") || "—")
+            end
           end
         end
       end

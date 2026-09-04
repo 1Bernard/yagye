@@ -64,17 +64,17 @@ module Merchants
     # ── KYB details card ──────────────────────────────────────────────────────
 
     def kyb_card
-      div(class: "bg-white border border-gray-100 rounded-2xl overflow-hidden") do
-        div(class: "px-6 py-5 border-b border-gray-100") do
-          p(class: TYPE_TITLE) { plain "KYB information" }
-        end
-        render UI::DetailList.new do |list|
-          list.row("Industry",        @app.industry&.humanize || "—")
-          list.row("Employee range",  @app.employee_range || "—")
-          list.row("Trading name",    @app.trading_name.presence || "—")
-          list.row("Reviewed by",     @app.reviewed_by || "—")
-          list.row("Approved by",     @app.approved_by || "—")
-          list.row("Rejected reason", @app.rejected_reason.presence || "—") if @app.rejected?
+      render UI::Card.new do |c|
+        c.header("KYB information")
+        c.body(padding: false) do
+          render UI::DetailList.new do |list|
+            list.row("Industry",        @app.industry&.humanize || "—")
+            list.row("Employee range",  @app.employee_range || "—")
+            list.row("Trading name",    @app.trading_name.presence || "—")
+            list.row("Reviewed by",     @app.reviewed_by || "—")
+            list.row("Approved by",     @app.approved_by || "—")
+            list.row("Rejected reason", @app.rejected_reason.presence || "—") if @app.rejected?
+          end
         end
       end
     end
@@ -82,11 +82,9 @@ module Merchants
     # ── Status card ───────────────────────────────────────────────────────────
 
     def status_card
-      div(class: "bg-white border border-gray-100 rounded-2xl overflow-hidden") do
-        div(class: "px-6 py-5 border-b border-gray-100") do
-          p(class: TYPE_TITLE) { plain "Application status" }
-        end
-        div(class: "px-6 py-5") do
+      render UI::Card.new do |c|
+        c.header("Application status")
+        c.body do
           div(class: "flex items-center gap-[10px] mb-3") do
             render UI::StatusBadge.new(status: @app.status)
             p(class: TYPE_CAPTION) { plain @app.status_label }
@@ -101,19 +99,19 @@ module Merchants
     # ── Actions card ──────────────────────────────────────────────────────────
 
     def actions_card
-      div(class: "bg-white border border-gray-100 rounded-2xl overflow-hidden") do
-        div(class: "px-6 py-5 border-b border-gray-100") do
-          p(class: TYPE_TITLE) { plain "Actions" }
-        end
-        div(class: "px-5 py-4 flex flex-col gap-2") do
-          if @app.pending?
-            approve_form
-            reject_form
-          elsif @app.approved?
-            suspend_form
-          end
-          p(class: "#{TYPE_CAPTION} text-center mt-1") do
-            plain "Status changes are logged and visible to the compliance team."
+      render UI::Card.new do |c|
+        c.header("Actions")
+        c.body do
+          div(class: "flex flex-col gap-2") do
+            if @app.pending?
+              approve_form
+              reject_form
+            elsif @app.approved?
+              suspend_form
+            end
+            p(class: "#{TYPE_CAPTION} text-center mt-1") do
+              plain "Status changes are logged and visible to the compliance team."
+            end
           end
         end
       end

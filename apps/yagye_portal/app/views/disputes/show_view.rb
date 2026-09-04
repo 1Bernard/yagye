@@ -71,27 +71,23 @@ module Disputes
     end
 
     def payment_context_card
-      div(class: "bg-white border border-gray-100 rounded-2xl overflow-hidden") do
-        card_header_row("Original payment", :credit_card)
-        render UI::DetailList.new do |list|
-          list.row("Payment reference", @dispute.payment_reference, mono: true)
-          list.row("Dispute reference", @dispute.reference, mono: true)
-          list.row("Customer MSISDN",   @dispute.masked_msisdn)
-          list.row("Network deadline",  @dispute.network_deadline.presence || "—")
-          list.row("Resolved",          resolved_label)
+      render UI::Card.new do |c|
+        c.header("Original payment", icon: :credit_card)
+        c.body(padding: false) do
+          render UI::DetailList.new do |list|
+            list.row("Payment reference", @dispute.payment_reference, mono: true)
+            list.row("Dispute reference", @dispute.reference, mono: true)
+            list.row("Customer MSISDN",   @dispute.masked_msisdn)
+            list.row("Network deadline",  @dispute.network_deadline.presence || "—")
+            list.row("Resolved",          resolved_label)
+          end
         end
       end
     end
 
     def evidence_card
-      div(class: "bg-white border border-gray-100 rounded-2xl overflow-hidden") do
-        div(class: "flex items-center justify-between px-[22px] py-4 border-b border-gray-100") do
-          div(class: "flex items-center gap-[10px]") do
-            span(class: "flex w-[14px] h-[14px] text-gray-400") do
-              render UI::Icon.new(:file, class: "w-full h-full")
-            end
-            p(class: TYPE_TITLE) { plain "Evidence" }
-          end
+      render UI::Card.new do |c|
+        c.header("Evidence", icon: :file) do
           if @can_submit_evidence && @dispute.open?
             render UI::Button.new(variant: :secondary, style: "cursor:not-allowed;opacity:0.55", disabled: true) do
               render UI::Icon.new(:plus, class: ICON_SM)
@@ -99,33 +95,37 @@ module Disputes
             end
           end
         end
-        div(class: "py-12 px-6 flex flex-col items-center justify-center gap-[10px] text-center") do
-          div(class: "w-11 h-11 rounded-xl bg-gray-50 flex items-center justify-center mb-1") do
-            span(class: "text-gray-300 flex w-[22px] h-[22px]") do
-              render UI::Icon.new(:file, class: "w-full h-full")
+        c.body(padding: false) do
+          div(class: "py-12 px-6 flex flex-col items-center justify-center gap-[10px] text-center") do
+            div(class: "w-11 h-11 rounded-xl bg-gray-50 flex items-center justify-center mb-1") do
+              span(class: "text-gray-300 flex w-[22px] h-[22px]") do
+                render UI::Icon.new(:file, class: "w-full h-full")
+              end
             end
+            p(class: TYPE_BODY_MD) { plain "No evidence submitted" }
+            p(class: TYPE_CAPTION) { plain "Evidence submission will be available in the next release." }
           end
-          p(class: TYPE_BODY_MD) { plain "No evidence submitted" }
-          p(class: TYPE_CAPTION) { plain "Evidence submission will be available in the next release." }
         end
       end
     end
 
     def timeline_card
       events = build_timeline
-      div(class: "bg-white border border-gray-100 rounded-2xl overflow-hidden") do
-        card_header_row("Activity", :clock)
-        div(class: "px-6 py-5 flex flex-col") do
-          events.each_with_index do |(label, at, color), i|
-            last = i == events.length - 1
-            div(class: "flex gap-[14px]") do
-              div(class: "flex flex-col items-center flex-shrink-0") do
-                div(class: "w-[10px] h-[10px] rounded-full flex-shrink-0 mt-[3px]", style: "background:#{color}")
-                div(class: "w-[1px] flex-1 bg-gray-100 mt-1") unless last
-              end
-              div(class: last ? "" : "pb-[18px]") do
-                p(class: TYPE_BODY_MD) { plain label }
-                p(class: "#{TYPE_CAPTION} mt-px") { plain at }
+      render UI::Card.new do |c|
+        c.header("Activity", icon: :clock)
+        c.body do
+          div(class: "flex flex-col") do
+            events.each_with_index do |(label, at, color), i|
+              last = i == events.length - 1
+              div(class: "flex gap-[14px]") do
+                div(class: "flex flex-col items-center flex-shrink-0") do
+                  div(class: "w-[10px] h-[10px] rounded-full flex-shrink-0 mt-[3px]", style: "background:#{color}")
+                  div(class: "w-[1px] flex-1 bg-gray-100 mt-1") unless last
+                end
+                div(class: last ? "" : "pb-[18px]") do
+                  p(class: TYPE_BODY_MD) { plain label }
+                  p(class: "#{TYPE_CAPTION} mt-px") { plain at }
+                end
               end
             end
           end
@@ -190,15 +190,6 @@ module Disputes
     end
 
     # ── Helpers ───────────────────────────────────────────────────────────────
-
-    def card_header_row(title, icon)
-      div(class: "flex items-center gap-[10px] px-[22px] py-4 border-b border-gray-100") do
-        span(class: "flex w-[14px] h-[14px] text-gray-400") do
-          render UI::Icon.new(icon, class: "w-full h-full")
-        end
-        p(class: TYPE_TITLE) { plain title }
-      end
-    end
 
     def detail_row_inline(label, value)
       div(class: "flex items-center justify-between") do

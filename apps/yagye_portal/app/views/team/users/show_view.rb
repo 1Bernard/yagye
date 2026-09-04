@@ -104,15 +104,14 @@ module Team
       # ── Roles card ────────────────────────────────────────────────────────────
 
       def roles_card
-        div(class: "bg-white border border-gray-100 rounded-2xl overflow-hidden") do
-          div(class: "px-6 py-5 border-b border-gray-100 flex items-center justify-between") do
-            p(class: TYPE_TITLE) { plain "Assigned roles" }
+        render UI::Card.new do |c|
+          c.header("Assigned roles") do
             render UI::Button.new(variant: :secondary, hidden: !@can_manage) do
               render UI::Icon.new(:edit, class: ICON_SM)
               plain "Edit roles"
             end
           end
-          div(class: "px-6 py-5") do
+          c.body do
             if @roles.empty?
               p(class: TYPE_CAPTION) { plain "No roles assigned. Assign a role to grant access." }
             else
@@ -145,16 +144,13 @@ module Team
       def permissions_card
         all_perms = @roles.flat_map(&:permissions).uniq
 
-        div(class: "bg-white border border-gray-100 rounded-2xl overflow-hidden") do
-          div(class: "px-6 py-5 border-b border-gray-100") do
-            div(class: "flex items-center justify-between") do
-              p(class: TYPE_TITLE) { plain "Effective permissions" }
-              p(class: TYPE_CAPTION) do
-                plain "#{all_perms.size} permissions from #{@roles.size} #{@roles.size == 1 ? 'role' : 'roles'}"
-              end
+        render UI::Card.new do |c|
+          c.header("Effective permissions") do
+            p(class: TYPE_CAPTION) do
+              plain "#{all_perms.size} permissions from #{@roles.size} #{@roles.size == 1 ? 'role' : 'roles'}"
             end
           end
-          div(class: "px-6 py-4") do
+          c.body do
             if all_perms.empty?
               p(class: TYPE_CAPTION) { plain "No permissions. Assign a role to grant access." }
             else
@@ -188,15 +184,15 @@ module Team
       # ── Activity card ─────────────────────────────────────────────────────────
 
       def activity_card
-        div(class: "bg-white border border-gray-100 rounded-2xl overflow-hidden") do
-          div(class: "px-6 py-5 border-b border-gray-100") do
-            p(class: TYPE_TITLE) { plain "Recent activity" }
-          end
-          div(class: "py-10 px-6 text-center") do
-            span(class: "flex w-8 h-8 text-gray-300 mx-auto mb-[10px]") do
-              render UI::Icon.new(:clock, class: "w-full h-full")
+        render UI::Card.new do |c|
+          c.header("Recent activity")
+          c.body do
+            div(class: "py-5 text-center") do
+              span(class: "flex w-8 h-8 text-gray-300 mx-auto mb-[10px]") do
+                render UI::Icon.new(:clock, class: "w-full h-full")
+              end
+              p(class: TYPE_CAPTION) { plain "Activity log will be available in a future release." }
             end
-            p(class: TYPE_CAPTION) { plain "Activity log will be available in a future release." }
           end
         end
       end

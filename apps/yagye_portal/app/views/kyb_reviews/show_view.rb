@@ -75,52 +75,53 @@ module KybReviews
     # ── Business details ──────────────────────────────────────────────────────
 
     def business_details_card
-      div(class: "bg-white border border-gray-100 rounded-2xl overflow-hidden") do
-        card_header("Business details", :building)
-        detail_row("Legal name",     @app.legal_name)
-        detail_row("Trading name",   @app.trading_name.presence || "—")
-        detail_row("Country",        country_label)
-        detail_row("Industry",       @app.industry&.humanize || "—")
-        detail_row("Employee range", @app.employee_range || "—")
-        detail_row("Merchant code",  @app.merchant_code.presence || "Pending assignment", mono: true)
-        detail_row("Application",    @app.application_code, mono: true)
+      render UI::Card.new do |c|
+        c.header("Business details", icon: :building)
+        c.body(padding: false) do
+          detail_row("Legal name",     @app.legal_name)
+          detail_row("Trading name",   @app.trading_name.presence || "—")
+          detail_row("Country",        country_label)
+          detail_row("Industry",       @app.industry&.humanize || "—")
+          detail_row("Employee range", @app.employee_range || "—")
+          detail_row("Merchant code",  @app.merchant_code.presence || "Pending assignment", mono: true)
+          detail_row("Application",    @app.application_code, mono: true)
+        end
       end
     end
 
     # ── Beneficial owners ─────────────────────────────────────────────────────
 
     def ubos_card
-      div(class: "bg-white border border-gray-100 rounded-2xl overflow-hidden") do
-        div(class: "flex items-center justify-between px-[22px] py-4 border-b border-gray-100") do
-          div(class: "flex items-center gap-[10px]") do
-            span(class: "flex w-[14px] h-[14px] text-gray-400") do
-              render UI::Icon.new(:users, class: "w-full h-full")
-            end
-            p(class: TYPE_TITLE) { plain "Beneficial owners (25%+ threshold)" }
-          end
+      render UI::Card.new do |c|
+        c.header("Beneficial owners (25%+ threshold)", icon: :users)
+        c.body(padding: false) do
+          empty_state(:users, "No beneficial owners on record",
+                      "UBO data will appear here once submitted via the API (P21b).")
         end
-        empty_state(:users, "No beneficial owners on record",
-                    "UBO data will appear here once submitted via the API (P21b).")
       end
     end
 
     # ── AML / screening ───────────────────────────────────────────────────────
 
     def aml_card
-      div(class: "bg-white border border-gray-100 rounded-2xl overflow-hidden") do
-        card_header("AML & sanctions screening", :shield)
-        empty_state(:shield, "Screening not yet run",
-                    "Automated AML screening will be triggered upon approval (P21b).")
+      render UI::Card.new do |c|
+        c.header("AML & sanctions screening", icon: :shield)
+        c.body(padding: false) do
+          empty_state(:shield, "Screening not yet run",
+                      "Automated AML screening will be triggered upon approval (P21b).")
+        end
       end
     end
 
     # ── Documents ─────────────────────────────────────────────────────────────
 
     def documents_card
-      div(class: "bg-white border border-gray-100 rounded-2xl overflow-hidden") do
-        card_header("KYB documents", :file)
-        empty_state(:file, "No documents uploaded",
-                    "Document upload will be available once the KYB documents endpoint ships (P21).")
+      render UI::Card.new do |c|
+        c.header("KYB documents", icon: :file)
+        c.body(padding: false) do
+          empty_state(:file, "No documents uploaded",
+                      "Document upload will be available once the KYB documents endpoint ships (P21).")
+        end
       end
     end
 
@@ -134,17 +135,17 @@ module KybReviews
     end
 
     def review_actions_card
-      div(class: "bg-white border border-gray-100 rounded-2xl overflow-hidden") do
-        div(class: "px-[18px] py-4 border-b border-gray-100") do
-          p(class: TYPE_TITLE) { plain "Review decision" }
-        end
-        div(class: "px-[18px] py-4 flex flex-col gap-3") do
-          if @app.pending?
-            approve_form
-            hr(class: "border-0 border-t border-gray-100 my-1")
-            reject_form
-          else
-            decided_state
+      render UI::Card.new do |c|
+        c.header("Review decision")
+        c.body do
+          div(class: "flex flex-col gap-3") do
+            if @app.pending?
+              approve_form
+              hr(class: "border-0 border-t border-gray-100 my-1")
+              reject_form
+            else
+              decided_state
+            end
           end
         end
       end
@@ -225,15 +226,6 @@ module KybReviews
     end
 
     # ── Shared helpers ────────────────────────────────────────────────────────
-
-    def card_header(title, icon)
-      div(class: "flex items-center gap-[10px] px-[22px] py-4 border-b border-gray-100") do
-        span(class: "flex w-[14px] h-[14px] text-gray-400 flex-shrink-0") do
-          render UI::Icon.new(icon, class: "w-full h-full")
-        end
-        p(class: TYPE_TITLE) { plain title }
-      end
-    end
 
     def detail_row(label, value, mono: false)
       div(class: "flex items-center justify-between px-[22px] py-3 border-b border-gray-100") do
