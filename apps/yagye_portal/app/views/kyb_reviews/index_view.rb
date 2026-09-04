@@ -33,10 +33,10 @@ module KybReviews
 
     def stat_band
       render UI::Grid.new(columns: 4) do
-        stat_cell("Pending Review", "0", icon: :clock,        color: "#d97706", tint: "rgba(217,119,6,0.08)")
-        stat_cell("In Review",      "0", icon: :eye,          color: "#6d28d9", tint: "rgba(109,40,217,0.08)")
-        stat_cell("Approved (30d)", "0", icon: :check_circle, color: "#16a34a", tint: "rgba(22,163,74,0.08)")
-        stat_cell("Rejected (30d)", "0", icon: :alert_circle, color: "#dc2626", tint: "rgba(220,38,38,0.08)")
+        stat_cell("Pending Review", "0", icon: :clock,        color: AMBER,  tint: TINT_AMBER)
+        stat_cell("In Review",      "0", icon: :eye,          color: PURPLE, tint: TINT_PURPLE)
+        stat_cell("Approved (30d)", "0", icon: :check_circle, color: GREEN,  tint: TINT_GREEN)
+        stat_cell("Rejected (30d)", "0", icon: :alert_circle, color: RED,    tint: TINT_RED)
       end
     end
 

@@ -236,7 +236,7 @@ module KybReviews
 
     def empty_state(icon, title, subtitle)
       div(class: "py-10 px-6 flex flex-col items-center justify-center gap-2 text-center") do
-        div(class: "w-10 h-10 rounded-xl bg-gray-50 flex items-center justify-center mb-1") do
+        div(class: "w-10 h-10 rounded-xl bg-gray-100 flex items-center justify-center mb-1") do
           span(class: "text-gray-300 flex w-5 h-5") do
             render UI::Icon.new(icon, class: "w-full h-full")
           end

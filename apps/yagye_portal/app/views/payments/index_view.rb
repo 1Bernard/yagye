@@ -29,10 +29,10 @@ module Payments
 
     def stat_band
       render UI::Grid.new(columns: 4) do
-        stat_cell("Volume (MTD)",       "GHS 0.00", icon: :trending_up,  color: "#3D47F5", tint: "rgba(61,71,245,0.08)")
-        stat_cell("Transactions (MTD)", "0",         icon: :layers,       color: "#6d28d9", tint: "rgba(109,40,217,0.08)")
-        stat_cell("Pending",            "0",         icon: :clock,        color: "#d97706", tint: "rgba(217,119,6,0.08)")
-        stat_cell("Failed",             "0",         icon: :alert_circle, color: "#dc2626", tint: "rgba(220,38,38,0.08)")
+        stat_cell("Volume (MTD)",       "GHS 0.00", icon: :trending_up,  color: BRAND,  tint: TINT_BRAND)
+        stat_cell("Transactions (MTD)", "0",         icon: :layers,       color: PURPLE, tint: TINT_PURPLE)
+        stat_cell("Pending",            "0",         icon: :clock,        color: AMBER,  tint: TINT_AMBER)
+        stat_cell("Failed",             "0",         icon: :alert_circle, color: RED,    tint: TINT_RED)
       end
     end
 

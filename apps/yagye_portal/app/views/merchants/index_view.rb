@@ -26,10 +26,10 @@ module Merchants
 
     def stat_band
       render UI::Grid.new(columns: 4) do
-        stat_cell("Active Merchants", "0", icon: :check_circle, color: "#16a34a", tint: "rgba(22,163,74,0.08)")
-        stat_cell("Pending KYB",      "0", icon: :clock,        color: "#d97706", tint: "rgba(217,119,6,0.08)")
-        stat_cell("Suspended",        "0", icon: :alert_circle, color: "#dc2626", tint: "rgba(220,38,38,0.08)")
-        stat_cell("Onboarded (30d)",  "0", icon: :trending_up,  color: "#3D47F5", tint: "rgba(61,71,245,0.08)")
+        stat_cell("Active Merchants", "0", icon: :check_circle, color: GREEN, tint: TINT_GREEN)
+        stat_cell("Pending KYB",      "0", icon: :clock,        color: AMBER, tint: TINT_AMBER)
+        stat_cell("Suspended",        "0", icon: :alert_circle, color: RED,   tint: TINT_RED)
+        stat_cell("Onboarded (30d)",  "0", icon: :trending_up,  color: BRAND, tint: TINT_BRAND)
       end
     end
 

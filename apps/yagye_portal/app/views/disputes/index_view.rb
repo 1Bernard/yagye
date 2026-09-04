@@ -38,10 +38,10 @@ module Disputes
 
     def stat_band
       render UI::Grid.new(columns: 4) do
-        stat_cell("Open Disputes", "0", icon: :flag,         color: "#d97706", tint: "rgba(217,119,6,0.08)")
-        stat_cell("Won",           "0", icon: :check_circle, color: "#16a34a", tint: "rgba(22,163,74,0.08)")
-        stat_cell("Lost",          "0", icon: :alert_circle, color: "#dc2626", tint: "rgba(220,38,38,0.08)")
-        stat_cell("SLA Breached",  "0", icon: :clock,        color: "#dc2626", tint: "rgba(220,38,38,0.08)")
+        stat_cell("Open Disputes", "0", icon: :flag,         color: AMBER, tint: TINT_AMBER)
+        stat_cell("Won",           "0", icon: :check_circle, color: GREEN, tint: TINT_GREEN)
+        stat_cell("Lost",          "0", icon: :alert_circle, color: RED,   tint: TINT_RED)
+        stat_cell("SLA Breached",  "0", icon: :clock,        color: RED,   tint: TINT_RED)
       end
     end
 

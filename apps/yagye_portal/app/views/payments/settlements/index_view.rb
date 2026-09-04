@@ -27,10 +27,10 @@ module Payments
 
       def stat_band
         render UI::Grid.new(columns: 4) do
-          stat_cell("Total settled (MTD)", "GHS 0.00", icon: :trending_up,  color: "#16a34a", tint: "rgba(22,163,74,0.08)")
-          stat_cell("Pending",             "0",         icon: :clock,        color: "#d97706", tint: "rgba(217,119,6,0.08)")
-          stat_cell("Reconciled",          "0",         icon: :check_circle, color: "#3D47F5", tint: "rgba(61,71,245,0.08)")
-          stat_cell("Disputed",            "0",         icon: :alert_circle, color: "#dc2626", tint: "rgba(220,38,38,0.08)")
+          stat_cell("Total settled (MTD)", "GHS 0.00", icon: :trending_up,  color: GREEN,  tint: TINT_GREEN)
+          stat_cell("Pending",             "0",         icon: :clock,        color: AMBER,  tint: TINT_AMBER)
+          stat_cell("Reconciled",          "0",         icon: :check_circle, color: BRAND,  tint: TINT_BRAND)
+          stat_cell("Disputed",            "0",         icon: :alert_circle, color: RED,    tint: TINT_RED)
         end
       end
 

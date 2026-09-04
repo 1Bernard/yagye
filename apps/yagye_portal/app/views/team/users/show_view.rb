@@ -124,13 +124,11 @@ module Team
       end
 
       def role_row(role)
-        scope_color = role.scope == "internal" ? "#1d4ed8" : MUTED_TEXT
-        scope_bg    = role.scope == "internal" ? "#dbeafe" : "#f3f4f6"
+        badge = role.scope == "internal" ? "badge-blue" : "badge-gray"
 
-        div(class: "flex items-center justify-between px-[14px] py-3 bg-gray-50 rounded-xl border border-gray-100") do
+        div(class: "flex items-center justify-between px-[14px] py-3 bg-gray-100 rounded-xl border border-gray-100") do
           div(class: "flex items-center gap-[10px]") do
-            span(class: "text-[11px] font-semibold px-[9px] py-[2px] rounded-2xl",
-                 style: "background:#{scope_bg};color:#{scope_color}") do
+            span(class: "#{badge} text-[11px] font-semibold px-[9px] py-[2px] rounded-2xl") do
               plain role.scope.capitalize
             end
             p(class: TYPE_BODY_MD) { plain role.name }

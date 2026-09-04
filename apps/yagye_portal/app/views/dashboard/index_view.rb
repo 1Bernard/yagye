@@ -242,15 +242,14 @@ module Dashboard
     end
 
     def method_badge(method)
-      cfg = case method
-      when "mobile_money" then { label: "Mobile Money", bg: "#fef9c3", text: "#854d0e" }
-      when "card"         then { label: "Card",         bg: "#eff6ff", text: "#1d4ed8" }
-      when "bank_transfer" then { label: "Bank",        bg: "#f0fdf4", text: "#166534" }
-      else                     { label: "—",            bg: "#f9fafb", text: "#9ca3af" }
+      badge, label = case method
+      when "mobile_money"  then [ "badge-amber", "Mobile Money" ]
+      when "card"          then [ "badge-blue",  "Card" ]
+      when "bank_transfer" then [ "badge-green", "Bank" ]
+      else                      [ "badge-gray",  "—" ]
       end
-      span(class: "inline-flex items-center px-2 py-[2px] rounded text-[11.5px] font-medium",
-           style: "background:#{cfg[:bg]};color:#{cfg[:text]}") do
-        plain cfg[:label]
+      span(class: "#{badge} inline-flex items-center px-2 py-[2px] rounded text-[11.5px] font-medium") do
+        plain label
       end
     end
 
@@ -270,7 +269,7 @@ module Dashboard
 
     def table_empty_state
       div(class: "py-14 px-5 flex flex-col items-center justify-center gap-[10px] text-center") do
-        div(class: "w-11 h-11 rounded-xl bg-gray-50 flex items-center justify-center mb-1") do
+        div(class: "w-11 h-11 rounded-xl bg-gray-100 flex items-center justify-center mb-1") do
           span(class: "text-gray-300 flex w-[22px] h-[22px]") do
             render UI::Icon.new(:layers, class: "w-full h-full")
           end

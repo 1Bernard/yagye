@@ -46,10 +46,10 @@ module Team
         pending = 0
 
         render UI::Grid.new(columns: 4) do
-          stat_cell("Total members",  total.to_s,   icon: :users,        color: "#3D47F5", tint: "rgba(61,71,245,0.08)")
-          stat_cell("Active",         active.to_s,  icon: :check_circle, color: "#16a34a", tint: "rgba(22,163,74,0.08)")
-          stat_cell("Pending invite", pending.to_s, icon: :clock,        color: "#d97706", tint: "rgba(217,119,6,0.08)")
-          stat_cell("Roles defined",  "8",          icon: :key,          color: "#6d28d9", tint: "rgba(109,40,217,0.08)")
+          stat_cell("Total members",  total.to_s,   icon: :users,        color: BRAND,  tint: TINT_BRAND)
+          stat_cell("Active",         active.to_s,  icon: :check_circle, color: GREEN,  tint: TINT_GREEN)
+          stat_cell("Pending invite", pending.to_s, icon: :clock,        color: AMBER,  tint: TINT_AMBER)
+          stat_cell("Roles defined",  "8",          icon: :key,          color: PURPLE, tint: TINT_PURPLE)
         end
       end
 
@@ -143,10 +143,10 @@ module Team
             else
               div(class: "flex flex-wrap gap-1") do
                 roles.first(2).each do |role_obj|
-                  bg = role_obj.scope == "internal" ? "#dbeafe" : "#f3f4f6"
-                  fg = role_obj.scope == "internal" ? "#1d4ed8" : MUTED_TEXT
-                  span(class: "text-[11px] font-semibold px-2 py-[2px] rounded-full",
-                       style: "background:#{bg};color:#{fg}") { plain role_obj.name }
+                  badge = role_obj.scope == "internal" ? "badge-blue" : "badge-gray"
+                  span(class: "#{badge} text-[11px] font-semibold px-2 py-[2px] rounded-full") do
+                    plain role_obj.name
+                  end
                 end
                 if roles.size > 2
                   span(class: "text-[11px] text-gray-400") { plain "+#{roles.size - 2}" }
