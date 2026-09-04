@@ -207,13 +207,6 @@ module Disputes
       end
     end
 
-    def meta_cell(label, value, mono: false)
-      div(class: "bg-white px-4 py-[14px]") do
-        p(class: "#{TYPE_MICRO} mb-1") { plain label }
-        p(class: (mono ? TYPE_MONO : TYPE_BODY_MD)) { plain value.to_s }
-      end
-    end
-
     def status_color
       case @dispute.status
       when "won"          then "#16a34a"

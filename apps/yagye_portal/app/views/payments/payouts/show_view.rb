@@ -125,13 +125,6 @@ module Payments
           end
         end
       end
-
-      def meta_cell(label, value)
-        div(class: "bg-white px-[18px] py-[14px]") do
-          p(class: "#{TYPE_MICRO} mb-[3px]") { plain label }
-          p(class: TYPE_BODY_MD) { plain value }
-        end
-      end
     end
   end
 end

@@ -242,13 +242,6 @@ module KybReviews
       end
     end
 
-    def meta_cell(label, value)
-      div(class: "bg-white px-4 py-[14px]") do
-        p(class: "#{TYPE_MICRO} mb-1") { plain label }
-        p(class: "text-[12px] font-medium text-gray-900") { plain value.to_s }
-      end
-    end
-
     def empty_state(icon, title, subtitle)
       div(class: "py-10 px-6 flex flex-col items-center justify-center gap-2 text-center") do
         div(class: "w-10 h-10 rounded-xl bg-gray-50 flex items-center justify-center mb-1") do

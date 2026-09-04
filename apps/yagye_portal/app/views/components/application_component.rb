@@ -46,7 +46,7 @@ class ApplicationComponent < Phlex::HTML
   end
 
   def stat_cell(label, value, color: UI::Theme::INK, icon: nil, tint: nil, delta: nil)
-    tint_bg = tint || "rgba(107,114,128,0.08)"
+    tint_bg = tint || UI::Theme::TINT_GRAY
 
     div(class: "bg-white border border-gray-100 rounded-2xl p-[22px]") do
       if icon
@@ -59,8 +59,8 @@ class ApplicationComponent < Phlex::HTML
           end
           if delta
             positive = delta.to_f >= 0
-            dc = positive ? "#16a34a" : "#dc2626"
-            db = positive ? "rgba(22,163,74,0.08)" : "rgba(220,38,38,0.08)"
+            dc = positive ? UI::Theme::GREEN : UI::Theme::RED
+            db = positive ? UI::Theme::TINT_GREEN : UI::Theme::TINT_RED
             span(class: "text-[11px] font-semibold px-[7px] py-[2px] rounded-full",
                  style: "color:#{dc};background:#{db}") do
               plain "#{positive ? '+' : ''}#{delta}%"
@@ -71,6 +71,32 @@ class ApplicationComponent < Phlex::HTML
       p(class: "#{UI::Theme::TYPE_HEADING} mb-2") { plain label }
       p(class: "#{UI::Theme::TYPE_STAT} mt-2", style: "color:#{color}") { plain value }
     end
+  end
+
+  def meta_cell(label, value, mono: false)
+    div(class: "bg-white px-[18px] py-[14px]") do
+      p(class: "#{UI::Theme::TYPE_MICRO} mb-1") { plain label }
+      p(class: mono ? UI::Theme::TYPE_MONO : UI::Theme::TYPE_BODY_MD) { plain value.to_s }
+    end
+  end
+
+  def timeline_item(label, timestamp, color, last: false)
+    div(class: "flex gap-[14px]") do
+      div(class: "flex flex-col items-center flex-shrink-0") do
+        div(class: "w-[10px] h-[10px] rounded-full flex-shrink-0 mt-[3px]", style: "background:#{color}")
+        div(class: "w-[1px] flex-1 bg-gray-100 mt-1") unless last
+      end
+      div(class: last ? "" : "pb-4") do
+        p(class: UI::Theme::TYPE_BODY_MD) { plain label }
+        p(class: UI::Theme::TYPE_CAPTION) { plain timestamp&.strftime("%d %b %Y, %H:%M") || "—" }
+      end
+    end
+  end
+
+  def format_ghs(cents)
+    n = cents.to_f / 100
+    whole, frac = sprintf("%.2f", n).split(".")
+    "GHS #{whole.to_i.to_s.reverse.gsub(/(\d{3})(?=\d)/, '\\1,').reverse}.#{frac}"
   end
 
   def i18n_scope

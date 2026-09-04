@@ -172,26 +172,6 @@ module Payments
 
     # ── Helpers ───────────────────────────────────────────────────────────────
 
-    def meta_cell(label, value, mono: false)
-      div(class: "bg-white px-[18px] py-[14px]") do
-        p(class: "#{TYPE_MICRO} mb-[3px]") { plain label }
-        p(class: (mono ? TYPE_MONO : TYPE_BODY_MD)) { plain value }
-      end
-    end
-
-    def timeline_item(label, timestamp, color, last: false)
-      div(class: "flex gap-[14px]") do
-        div(class: "flex flex-col items-center flex-shrink-0") do
-          div(class: "w-[10px] h-[10px] rounded-full flex-shrink-0 mt-[3px]", style: "background:#{color}")
-          div(class: "w-[1px] flex-1 bg-gray-100 mt-1") unless last
-        end
-        div(class: last ? "" : "pb-4") do
-          p(class: TYPE_BODY_MD) { plain label }
-          p(class: TYPE_CAPTION)  { plain timestamp&.strftime("%d %b %Y, %H:%M") || "—" }
-        end
-      end
-    end
-
     def timeline_events
       events = [ [ "Payment initiated", @payment.created_at, "#6366f1" ] ]
       events << [ "Processing",         @payment.updated_at, "#f59e0b" ] if @payment.status.in?(%w[processing paid failed])

@@ -43,90 +43,17 @@ module Dashboard
 
     def stat_grid
       div(class: "grid grid-cols-3 gap-4 mb-5") do
-        stat_card(
-          label: "Volume (MTD)",
-          value: format_volume,
-          icon:  :trending_up,
-          color: BRAND,
-          tint:  "rgba(61,71,245,0.08)",
-          delta: volume_delta
-        )
-        stat_card(
-          label: "Transactions (MTD)",
-          value: fmt(@tx_count),
-          icon:  :layers,
-          color: PURPLE,
-          tint:  "rgba(109,40,217,0.08)",
-          delta: tx_delta
-        )
-        stat_card(
-          label: "Success Rate",
-          value: rate_label,
-          icon:  :check_circle,
-          color: rate_color,
-          tint:  rate_tint,
-          delta: nil
-        )
-        stat_card(
-          label: "Pending",
-          value: fmt(@pending_count),
-          icon:  :clock,
-          color: AMBER,
-          tint:  "rgba(217,119,6,0.08)",
-          delta: nil
-        )
+        stat_cell("Volume (MTD)", format_volume, icon: :trending_up, color: BRAND, tint: TINT_BRAND, delta: volume_delta)
+        stat_cell("Transactions (MTD)", number_with_delimiter(@tx_count), icon: :layers, color: PURPLE, tint: TINT_PURPLE, delta: tx_delta)
+        stat_cell("Success Rate", rate_label, icon: :check_circle, color: rate_color, tint: rate_tint, delta: nil)
+        stat_cell("Pending", number_with_delimiter(@pending_count), icon: :clock, color: AMBER, tint: TINT_AMBER, delta: nil)
         # Role-split: ops see KYB queue, merchants see their own failures
         if @kyb_pending_count
-          stat_card(
-            label: "KYB Under Review",
-            value: fmt(@kyb_pending_count),
-            icon:  :shield,
-            color: TEAL,
-            tint:  "rgba(13,148,136,0.08)",
-            delta: nil
-          )
+          stat_cell("KYB Under Review", number_with_delimiter(@kyb_pending_count), icon: :shield, color: TEAL, tint: TINT_TEAL, delta: nil)
         else
-          stat_card(
-            label: "Failed (MTD)",
-            value: fmt(@failed_count),
-            icon:  :alert_circle,
-            color: RED,
-            tint:  "rgba(220,38,38,0.08)",
-            delta: nil
-          )
+          stat_cell("Failed (MTD)", number_with_delimiter(@failed_count), icon: :alert_circle, color: RED, tint: TINT_RED, delta: nil)
         end
-        stat_card(
-          label: "Open Disputes",
-          value: @disputes_count.zero? ? "0" : fmt(@disputes_count),
-          icon:  :flag,
-          color: RED,
-          tint:  "rgba(220,38,38,0.08)",
-          delta: nil
-        )
-      end
-    end
-
-    def stat_card(label:, value:, icon:, color:, tint:, delta:)
-      div(class: "bg-white border border-gray-100 rounded-2xl p-[22px]") do
-        div(class: "flex items-start justify-between mb-[14px]") do
-          div(class: "w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0",
-              style: "background:#{tint}") do
-            span(class: "flex w-[17px] h-[17px]", style: "color:#{color}") do
-              render UI::Icon.new(icon, class: "w-full h-full")
-            end
-          end
-          if delta
-            positive    = delta >= 0
-            delta_color = positive ? GREEN : RED
-            delta_bg    = positive ? "rgba(22,163,74,0.08)" : "rgba(220,38,38,0.08)"
-            span(class: "text-[11px] font-semibold px-[7px] py-[2px] rounded-full",
-                 style: "color:#{delta_color};background:#{delta_bg}") do
-              plain "#{positive ? '+' : ''}#{delta}%"
-            end
-          end
-        end
-        p(class: "#{TYPE_HEADING} mb-2") { plain label }
-        p(class: "#{TYPE_STAT} text-gray-900") { plain value }
+        stat_cell("Open Disputes", number_with_delimiter(@disputes_count), icon: :flag, color: RED, tint: TINT_RED, delta: nil)
       end
     end
 
@@ -206,7 +133,7 @@ module Dashboard
         end
         div(class: "flex items-center gap-2") do
           span(class: TYPE_CAPTION) { plain "#{prov[:pct]}%" }
-          span(class: TYPE_MONO) { plain "GHS #{fmt_decimal(prov[:amount_cents] / 100.0)}" }
+          span(class: TYPE_MONO) { plain format_ghs(prov[:amount_cents]) }
         end
       end
     end
@@ -355,9 +282,7 @@ module Dashboard
 
     # ── Helpers ───────────────────────────────────────────────────────────────
 
-    def format_volume
-      "GHS #{fmt_decimal(@volume_cents / 100.0)}"
-    end
+    def format_volume = format_ghs(@volume_cents)
 
     def rate_label
       @success_rate ? "#{@success_rate}%" : "—"
@@ -369,9 +294,9 @@ module Dashboard
     end
 
     def rate_tint
-      return "rgba(156,163,175,0.08)" unless @success_rate
-      @success_rate >= 95 ? "rgba(22,163,74,0.08)" :
-        @success_rate >= 80 ? "rgba(217,119,6,0.08)" : "rgba(220,38,38,0.08)"
+      return TINT_GRAY unless @success_rate
+
+      @success_rate >= 95 ? TINT_GREEN : @success_rate >= 80 ? TINT_AMBER : TINT_RED
     end
 
     def volume_delta
@@ -382,15 +307,6 @@ module Dashboard
     def tx_delta
       return nil if @prev_tx_count.zero?
       ((@tx_count - @prev_tx_count).to_f / @prev_tx_count * 100).round(1)
-    end
-
-    def fmt(n)
-      n.to_s.reverse.gsub(/(\d{3})(?=\d)/, '\\1,').reverse
-    end
-
-    def fmt_decimal(n)
-      whole, frac = sprintf("%.2f", n).split(".")
-      "#{fmt(whole.to_i)}.#{frac}"
     end
   end
 end

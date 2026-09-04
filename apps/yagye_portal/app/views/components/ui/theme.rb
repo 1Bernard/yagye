@@ -35,6 +35,15 @@ module UI
     TEAL   = "#0d9488"   # Secondary accent (KYB, teal contexts)
     PURPLE = "#6d28d9"   # Refunds, secondary data series
 
+    # ── Semantic tints (8% opacity fills for icon containers / delta chips) ──────
+    TINT_BRAND  = "rgba(61,71,245,0.08)"
+    TINT_GREEN  = "rgba(22,163,74,0.08)"
+    TINT_AMBER  = "rgba(217,119,6,0.08)"
+    TINT_RED    = "rgba(220,38,38,0.08)"
+    TINT_PURPLE = "rgba(109,40,217,0.08)"
+    TINT_TEAL   = "rgba(13,148,136,0.08)"
+    TINT_GRAY   = "rgba(107,114,128,0.08)"
+
     # ── Color tokens (CSS vars — auto-adapt to light/dark theme) ─────────────
     # See app/assets/tailwind/application.css for the token definitions.
     INK         = "var(--ink)"          # Titles, key data, primary text
