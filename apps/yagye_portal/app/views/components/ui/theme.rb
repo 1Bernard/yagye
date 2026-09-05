@@ -87,8 +87,6 @@ module UI
     # ── Surfaces ───────────────────────────────────────────────────────────
     CANVAS_BG     = "bg-gray-50 min-h-screen text-gray-900 antialiased"
     SURFACE_CARD  = "bg-white border border-gray-100 rounded-2xl shadow-sm"
-    # Legacy alias — kept for existing StatCard/layout components
-    CARD          = "bg-white rounded-xl border border-gray-100 shadow-sm"
 
     # ── Typography ─────────────────────────────────────────────────────────
     TEXT_H1       = "text-[28px] font-bold tracking-tight text-gray-900"
@@ -99,19 +97,7 @@ module UI
     TEXT_MUTED    = "text-xs text-gray-400"
     TEXT_VALUE    = "text-3xl font-bold tracking-tight text-gray-900"
 
-    # Legacy aliases used by existing components
-    PAGE_TITLE    = "text-lg font-semibold text-gray-900"
-    PAGE_SUBTITLE = "text-sm text-gray-500"
-    SECTION_TITLE = "text-sm font-semibold text-gray-700"
-    LABEL         = "text-xs font-medium text-gray-500 uppercase tracking-wide"
-    MUTED         = "text-sm text-gray-500"
-    BODY          = "text-sm text-gray-700"
-    HEADING       = "font-semibold text-gray-900"
-    AUTH_TITLE    = "text-xl font-semibold text-gray-900"
-    AUTH_TITLE_LG = "text-2xl font-bold text-gray-900 tracking-tight"
-    FORM_LABEL    = "block text-sm font-medium text-gray-700"
     FORM_HINT     = "text-xs text-gray-500"
-    FORM_MUTED    = "text-xs text-gray-400"
 
     # ── Links ──────────────────────────────────────────────────────────────
     LINK_PRIMARY  = "font-medium text-blue-600 hover:text-blue-700 transition-colors"
@@ -133,18 +119,6 @@ module UI
     BTN_ICON      = "w-7 h-7 rounded-[7px] grid place-items-center text-gray-400 " \
                     "hover:text-gray-700 hover:bg-gray-100 transition-colors border-0 cursor-pointer"
 
-    # Legacy aliases used by existing sign-in form / layout components
-    BUTTON_PRIMARY   = "inline-flex items-center gap-[5px] rounded-[8px] px-3 py-[5px] " \
-                       "text-[12.5px] font-medium bg-[#3D47F5] text-white hover:opacity-90 " \
-                       "transition-opacity border-0 cursor-pointer"
-    BUTTON_BRAND     = "inline-flex items-center justify-center rounded-[8px] px-3 py-[5px] " \
-                       "text-[12.5px] font-medium text-white transition-opacity hover:opacity-90 " \
-                       "shadow-sm cursor-pointer"
-    BUTTON_SECONDARY = "inline-flex items-center gap-[5px] rounded-[8px] border border-gray-200 " \
-                       "px-3 py-[5px] text-[12.5px] font-medium text-gray-700 hover:bg-gray-100 " \
-                       "transition-colors cursor-pointer"
-    ICON_BUTTON      = "rounded-[7px] text-gray-400 hover:text-gray-600 hover:bg-gray-100 " \
-                       "transition-colors cursor-pointer"
     CHECKBOX         = "h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
 
     # ── Form controls ──────────────────────────────────────────────────────
@@ -163,13 +137,6 @@ module UI
     CHECKBOX_INPUT = "h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500 " \
                      "accent-blue-600"
 
-    # Legacy aliases
-    INPUT        = "w-full rounded-lg border border-gray-200 px-3 py-2 text-sm " \
-                   "text-gray-900 placeholder:text-gray-400 " \
-                   "focus:outline-none focus:ring-2 focus:ring-blue-400"
-    SEARCH_INPUT = "rounded-lg border border-gray-200 text-sm text-gray-900 " \
-                   "placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-400"
-
     # ── Badges ─────────────────────────────────────────────────────────────
     BADGE_BASE    = "inline-flex items-center gap-1.5 text-[12px] font-semibold " \
                     "px-[9px] py-[3px] rounded-full"
@@ -186,10 +153,6 @@ module UI
     # so Tailwind scanning can't break them.
     TOAST_BASE  = "pointer-events-auto relative overflow-hidden flex items-start gap-3 " \
                   "rounded-2xl transition-[opacity,transform] duration-300 ease-out"
-    # Legacy aliases kept for backward compat.
-    TOAST       = TOAST_BASE
-    TOAST_ALERT = TOAST_BASE
-
     FLASH_NOTICE = "bg-green-50 border border-green-200 text-green-800 rounded-xl p-4 text-sm mb-5"
     FLASH_ALERT  = "bg-red-50 border border-red-200 text-red-700 rounded-xl p-4 text-sm mb-5"
 
@@ -200,10 +163,6 @@ module UI
     TABLE_TH     = "px-3.5 py-2.5 text-left text-[10px] font-semibold uppercase tracking-[0.16em] " \
                    "text-gray-400 whitespace-nowrap first:pl-5"
     TABLE_CARD   = "bg-white border border-gray-100 rounded-2xl overflow-hidden"
-
-    # Legacy table aliases
-    TH = "text-xs font-medium text-gray-500 px-4 py-3 text-left select-none"
-    TD = "text-sm text-gray-800 px-4 py-3"
 
     # ── Pagination ─────────────────────────────────────────────────────────
     PAGER              = "flex items-center gap-1"
@@ -237,10 +196,6 @@ module UI
 
     # ── Avatar ─────────────────────────────────────────────────────────────
     AVATAR     = "rounded-full bg-blue-50 text-blue-700 grid place-items-center font-semibold shrink-0"
-
-    # Legacy icon/avatar teal tints (kept for stat_card.rb)
-    ICON_BG_TEAL = "bg-blue-50 text-blue-600"
-    LOGO_ICON    = "bg-[#3D47F5] text-white"
 
     # ── Sidebar & Nav ──────────────────────────────────────────────────────
     # Width (240px/64px), overflow-x, and transition are in application.css (.sidebar-wrapper)
@@ -324,11 +279,6 @@ module UI
     PRIORITY_HIGH   = "badge-red"
     PRIORITY_MEDIUM = "badge-blue"
     PRIORITY_LOW    = "badge-violet"
-
-    # ── Legacy primary / accent (kept for backward compat) ─────────────────
-    PRIMARY        = "bg-[#3D47F5] text-white hover:opacity-90"
-    PRIMARY_GHOST  = "text-blue-600 hover:bg-blue-50"
-    PRIMARY_ACTIVE = "bg-blue-50 text-blue-700 font-medium"
 
     # ── Status dispatch ────────────────────────────────────────────────────
     STATUS_MAP = {
