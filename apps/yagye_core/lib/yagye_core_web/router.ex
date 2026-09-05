@@ -45,6 +45,10 @@ defmodule YagyeCoreWeb.Router do
     plug :accepts, ["json"]
   end
 
+  scope "/" do
+    get "/health", YagyeCoreWeb.HealthController, :check
+  end
+
   scope "/provider-webhooks" do
     pipe_through :provider_webhooks
     post "/:provider_code", ProviderWebhookController, :receive

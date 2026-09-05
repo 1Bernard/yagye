@@ -1,6 +1,6 @@
 # Versions are pinned to match .tool-versions at the repo root.
 ARG ELIXIR_VERSION=1.19.5
-ARG OTP_VERSION=28.1
+ARG OTP_VERSION=28.1.1
 ARG DEBIAN_VERSION=bookworm-20260803
 
 ARG BUILDER_IMAGE="hexpm/elixir:${ELIXIR_VERSION}-erlang-${OTP_VERSION}-debian-${DEBIAN_VERSION}-slim"

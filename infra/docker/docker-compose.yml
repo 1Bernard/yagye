@@ -53,6 +53,23 @@ services:
     networks:
       - data
 
+  redpanda_console:
+    image: redpandadata/console:latest
+    restart: unless-stopped
+    environment:
+      KAFKA_BROKERS: redpanda:9092
+      KAFKA_SCHEMAREGISTRY_ENABLED: "true"
+      KAFKA_SCHEMAREGISTRY_URLS: http://redpanda:8081
+      REDPANDA_ADMINAPI_ENABLED: "true"
+      REDPANDA_ADMINAPI_URLS: http://redpanda:9644
+    ports:
+      - "8080:8080"
+    depends_on:
+      redpanda:
+        condition: service_healthy
+    networks:
+      - data
+
   # ---------------------------------------------------------------------------
   # Application services
   #
@@ -121,6 +138,7 @@ services:
       CORE_API_URL: http://yagye_core:4000
       PORT: "4001"
       PHX_HOST: localhost
+      DB_SSL_VERIFY_NONE: "1"
     command: >
       /bin/sh -c "
         /app/bin/simulator eval 'Simulator.Release.migrate()' &&
@@ -145,6 +163,9 @@ services:
     restart: unless-stopped
     environment:
       DATABASE_URL: postgresql://postgres:postgres@db/yagye_portal_development
+      CACHE_DATABASE_URL: postgresql://postgres:postgres@db/yagye_portal_development
+      QUEUE_DATABASE_URL: postgresql://postgres:postgres@db/yagye_portal_development
+      CABLE_DATABASE_URL: postgresql://postgres:postgres@db/yagye_portal_development
       SECRET_KEY_BASE: dev_secret_key_base_replace_in_production_min_64_chars_long_abc123
       RAILS_MASTER_KEY: ""
       CORE_API_URL: http://yagye_core:4000

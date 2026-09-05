@@ -1,4 +1,6 @@
 [
   router: "lib/simulator/web/router.ex",
-  verbose: false
+  verbose: false,
+  # Simulator is internal-only (Docker network); HTTPS terminated at load balancer
+  ignore: ["Config.HTTPS"]
 ]

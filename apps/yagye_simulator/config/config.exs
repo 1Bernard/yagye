@@ -8,6 +8,7 @@ config :simulator, Simulator.Repo,
   pool_size: 10
 
 config :simulator, Simulator.Web.Endpoint,
+  adapter: Bandit.PhoenixAdapter,
   http: [ip: {127, 0, 0, 1}, port: 4100],
   server: true,
   render_errors: [
