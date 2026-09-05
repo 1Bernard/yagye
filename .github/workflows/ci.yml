@@ -39,6 +39,9 @@ jobs:
             AFTER="${{ github.sha }}"
             if [ "$BEFORE" = "0000000000000000000000000000000000000000" ]; then
               COMMITS=$(git log --format="%s" -1 "$AFTER")
+            elif ! git cat-file -e "$BEFORE" 2>/dev/null; then
+              # Force push rewrote history; before SHA no longer exists — check HEAD only
+              COMMITS=$(git log --format="%s" -1 "$AFTER")
             else
               COMMITS=$(git log --format="%s" "$BEFORE".."$AFTER")
             fi
@@ -77,6 +80,8 @@ jobs:
             BEFORE="${{ github.event.before }}"
             AFTER="${{ github.sha }}"
             if [ "$BEFORE" = "0000000000000000000000000000000000000000" ]; then
+              FILES=$(git diff --name-only --diff-filter=AM HEAD~1..HEAD 2>/dev/null || git ls-files)
+            elif ! git cat-file -e "$BEFORE" 2>/dev/null; then
               FILES=$(git diff --name-only --diff-filter=AM HEAD~1..HEAD 2>/dev/null || git ls-files)
             else
               FILES=$(git diff --name-only --diff-filter=AM "$BEFORE".."$AFTER")
