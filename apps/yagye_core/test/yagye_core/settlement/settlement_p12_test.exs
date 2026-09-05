@@ -13,7 +13,7 @@ defmodule YagyeCore.Settlement.SettlementP12Test do
     %{merchant: merchant, provider: provider}
   end
 
-  defp batch_with_attempts(merchant, provider, payment_count \\ 2) do
+  defp batch_with_attempts(merchant, provider, payment_count) do
     payments =
       for _ <- 1..payment_count do
         payment =
