@@ -9,6 +9,7 @@ class User < ApplicationRecord
          :timeoutable
 
   encrypts :otp_secret
+  encrypts :otp_recovery_codes
 
   has_paper_trail only: %i[first_name last_name otp_required_for_login theme_preference language_preference]
   has_many :user_audit_events, dependent: :destroy
@@ -22,6 +23,30 @@ class User < ApplicationRecord
   has_one :active_membership, -> { active }, class_name: "MerchantMembership"
 
   validates :kind, inclusion: { in: %w[merchant_user internal_staff] }
+
+  RECOVERY_CODE_COUNT = 10
+
+  def generate_recovery_codes!
+    plain = Array.new(RECOVERY_CODE_COUNT) do
+      raw = SecureRandom.hex(5).upcase
+      "#{raw[0, 5]}-#{raw[5, 5]}"
+    end
+    hashes = plain.map { |c| BCrypt::Password.create(c) }
+    update!(otp_recovery_codes: hashes.to_json)
+    plain
+  end
+
+  def consume_recovery_code!(input)
+    return false unless otp_recovery_codes.present?
+
+    normalized = input.to_s.upcase.delete("-")
+    hashes = JSON.parse(otp_recovery_codes)
+    match = hashes.find { |h| BCrypt::Password.new(h) == normalized }
+    return false unless match
+
+    update!(otp_recovery_codes: (hashes - [match]).to_json)
+    true
+  end
 
   def full_name
     [ first_name, last_name ].compact.join(" ").presence || email

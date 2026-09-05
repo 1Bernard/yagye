@@ -4,7 +4,7 @@ defmodule YagyeCore.Pricing do
   import Ecto.Query
 
   alias YagyeCore.Merchants.Schemas.Merchant
-  alias YagyeCore.Pricing.Schemas.{FeeRecord, PricingPlan, PricingRule}
+  alias YagyeCore.Pricing.Schemas.{FeeRecord, PlatformFeeInvoice, PricingPlan, PricingRule}
   alias YagyeCore.Repo
 
   # ── Public API ───────────────────────────────────────────────────────────────
@@ -114,6 +114,30 @@ defmodule YagyeCore.Pricing do
       |> Repo.all()
 
     {:ok, plans}
+  end
+
+  def create_rule(plan_id, attrs, actor) do
+    %PricingRule{}
+    |> PricingRule.create_changeset(Map.merge(attrs, %{plan_id: plan_id, created_by: actor}))
+    |> Repo.insert()
+  end
+
+  def approve_rule(%PricingRule{} = rule, actor) do
+    rule
+    |> PricingRule.approve_changeset(actor)
+    |> Repo.update()
+  end
+
+  def initiate_write_off_invoice(%PlatformFeeInvoice{} = invoice, actor) do
+    invoice
+    |> PlatformFeeInvoice.initiate_write_off_changeset(actor)
+    |> Repo.update()
+  end
+
+  def approve_write_off_invoice(%PlatformFeeInvoice{} = invoice, actor) do
+    invoice
+    |> PlatformFeeInvoice.approve_write_off_changeset(actor)
+    |> Repo.update()
   end
 
   # ── Private ──────────────────────────────────────────────────────────────────

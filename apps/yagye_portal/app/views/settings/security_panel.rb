@@ -45,7 +45,7 @@ module Settings
           end
         end
         unless totp_on
-          render UI::Button.new(variant: :primary) do
+          render UI::Button.new(variant: :primary, href: settings_totp_new_path) do
             render UI::Icon.new(:shield, class: ICON_SM)
             plain "Enable 2FA"
           end
@@ -108,7 +108,11 @@ module Settings
             auth_method_row("Email one-time code",       :mail,
                             desc: "Receive a code to your email address", coming_soon: true)
           end
-          totp_setup_panel unless totp_on
+          if totp_on
+            totp_enabled_panel
+          else
+            totp_setup_panel
+          end
         end
       end
     end
@@ -133,83 +137,81 @@ module Settings
       end
     end
 
-    def totp_setup_panel
-      div(class: "rounded-2xl border border-dashed border-gray-200 p-5",
-          style: "background:rgba(61,71,245,0.02)") do
-        div(class: "flex items-start gap-5") do
-          qr_code_placeholder
+    def totp_enabled_panel
+      div(class: "rounded-2xl border border-dashed border-green-200 p-5",
+          style: "background:rgba(22,163,74,0.03)") do
+        div(class: "flex items-center gap-4") do
+          div(class: "w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0",
+              style: "background:rgba(22,163,74,0.1)") do
+            span(class: "flex w-[16px] h-[16px] text-green-600") do
+              render UI::Icon.new(:check_circle, class: "w-full h-full")
+            end
+          end
           div(class: "flex-1 min-w-0") do
-            p(class: "text-[13px] font-semibold text-gray-900 mb-[3px]") { plain "Set up authenticator app" }
+            p(class: "text-[13px] font-semibold text-gray-900 mb-[2px]") { plain "Authenticator app enabled" }
             p(class: TYPE_CAPTION) do
-              plain "Open Google Authenticator, Authy, or 1Password. Scan the QR code, then enter the 6-digit code to verify."
+              plain "Your account is protected. Keep your recovery codes in a safe place."
             end
-            div(class: "flex gap-2 mt-[14px]") do
-              6.times do |i|
-                input(type: "text", maxlength: "1", inputmode: "numeric",
-                      pattern: "[0-9]*", autocomplete: i == 0 ? "one-time-code" : "off",
-                      class: "w-10 h-11 rounded-xl border border-gray-200 text-center text-[16px] font-semibold text-gray-900 bg-white outline-none",
-                      style: "transition:border-color 150ms,box-shadow 150ms;caret-color:#{BRAND}",
-                      data: { otp_index: i })
-              end
+          end
+          render UI::Button.new(variant: :danger,
+                 data: { action: "click->dialog#open", dialog_target_param: "disable-totp-dialog" }) do
+            render UI::Icon.new(:shield_off, class: ICON_SM)
+            plain "Disable"
+          end
+        end
+        disable_totp_dialog
+      end
+    end
+
+    def disable_totp_dialog
+      dialog(id: "disable-totp-dialog",
+             class: "border-0 rounded-2xl p-0 shadow-2xl w-full max-w-[400px] bg-white") do
+        div(class: "px-6 py-[22px] border-b border-gray-100") do
+          p(class: TYPE_TITLE) { plain "Disable two-factor authentication" }
+          p(class: "#{TYPE_CAPTION} mt-[3px]") do
+            plain "Confirm your password to turn off 2FA. Your account will be less secure."
+          end
+        end
+        form(action: settings_totp_delete_path, method: "post",
+             class: "px-6 py-[22px] flex flex-col gap-4") do
+          input(type: "hidden", name: "_method",            value: "delete")
+          input(type: "hidden", name: "authenticity_token", value: form_authenticity_token)
+          render UI::InputField.new(name: "current_password", label: "Current password", type: "password")
+          div(class: "flex gap-[10px] justify-end mt-1") do
+            render UI::Button.new(variant: :secondary,
+                   data: { action: "click->dialog#close", dialog_target_param: "disable-totp-dialog" }) do
+              render UI::Icon.new(:x, class: ICON_SM)
+              plain "Cancel"
             end
-            div(class: "flex items-center gap-4 mt-4") do
-              render UI::Button.new(variant: :primary) do
-                render UI::Icon.new(:check_circle, class: ICON_SM)
-                plain "Verify & enable"
-              end
-              a(href: "#", class: "text-[12.5px] font-medium no-underline", style: "color:#{BRAND}") do
-                plain "View setup guide"
-              end
+            render UI::Button.new(variant: :danger, type: "submit") do
+              render UI::Icon.new(:shield_off, class: ICON_SM)
+              plain "Disable 2FA"
             end
           end
         end
       end
     end
 
-    def qr_code_placeholder
-      div(class: "w-[88px] h-[88px] rounded-xl bg-white border border-gray-100 p-[8px] flex-shrink-0 flex items-center justify-center") do
-        # Placeholder SVG — replaced with a real OTP URI QR code at P13.5
-        svg(<<~SVG)
-          <svg width="72" height="72" viewBox="0 0 72 72" fill="none" xmlns="http://www.w3.org/2000/svg">
-            <!-- top-left finder -->
-            <rect x="2" y="2" width="20" height="20" rx="3" fill="#1f2937"/>
-            <rect x="6" y="6" width="12" height="12" rx="1.5" fill="white"/>
-            <rect x="9" y="9" width="6" height="6" rx="1" fill="#1f2937"/>
-            <!-- top-right finder -->
-            <rect x="50" y="2" width="20" height="20" rx="3" fill="#1f2937"/>
-            <rect x="54" y="6" width="12" height="12" rx="1.5" fill="white"/>
-            <rect x="57" y="9" width="6" height="6" rx="1" fill="#1f2937"/>
-            <!-- bottom-left finder -->
-            <rect x="2" y="50" width="20" height="20" rx="3" fill="#1f2937"/>
-            <rect x="6" y="54" width="12" height="12" rx="1.5" fill="white"/>
-            <rect x="9" y="57" width="6" height="6" rx="1" fill="#1f2937"/>
-            <!-- data dots -->
-            <rect x="26" y="4" width="5" height="5" rx="1" fill="#1f2937"/>
-            <rect x="34" y="4" width="5" height="5" rx="1" fill="#1f2937"/>
-            <rect x="26" y="12" width="5" height="5" rx="1" fill="#1f2937"/>
-            <rect x="34" y="18" width="5" height="5" rx="1" fill="#1f2937"/>
-            <rect x="26" y="26" width="5" height="5" rx="1" fill="#1f2937"/>
-            <rect x="34" y="26" width="5" height="5" rx="1" fill="#1f2937"/>
-            <rect x="42" y="26" width="5" height="5" rx="1" fill="#1f2937"/>
-            <rect x="4" y="26" width="5" height="5" rx="1" fill="#1f2937"/>
-            <rect x="12" y="26" width="5" height="5" rx="1" fill="#1f2937"/>
-            <rect x="26" y="34" width="5" height="5" rx="1" fill="#1f2937"/>
-            <rect x="42" y="34" width="5" height="5" rx="1" fill="#1f2937"/>
-            <rect x="52" y="26" width="5" height="5" rx="1" fill="#1f2937"/>
-            <rect x="60" y="26" width="5" height="5" rx="1" fill="#1f2937"/>
-            <rect x="52" y="34" width="5" height="5" rx="1" fill="#1f2937"/>
-            <rect x="60" y="34" width="5" height="5" rx="1" fill="#1f2937"/>
-            <rect x="34" y="42" width="5" height="5" rx="1" fill="#1f2937"/>
-            <rect x="42" y="42" width="5" height="5" rx="1" fill="#1f2937"/>
-            <rect x="26" y="50" width="5" height="5" rx="1" fill="#1f2937"/>
-            <rect x="34" y="58" width="5" height="5" rx="1" fill="#1f2937"/>
-            <rect x="42" y="50" width="5" height="5" rx="1" fill="#1f2937"/>
-            <rect x="52" y="42" width="5" height="5" rx="1" fill="#1f2937"/>
-            <rect x="60" y="50" width="5" height="5" rx="1" fill="#1f2937"/>
-            <rect x="52" y="58" width="5" height="5" rx="1" fill="#1f2937"/>
-            <rect x="60" y="58" width="5" height="5" rx="1" fill="#1f2937"/>
-          </svg>
-        SVG
+    def totp_setup_panel
+      div(class: "rounded-2xl border border-dashed border-gray-200 p-5",
+          style: "background:rgba(61,71,245,0.02)") do
+        div(class: "flex items-center gap-5") do
+          div(class: "w-10 h-10 rounded-xl bg-gray-100 flex items-center justify-center flex-shrink-0") do
+            span(class: "flex w-[16px] h-[16px] text-gray-400") do
+              render UI::Icon.new(:smartphone, class: "w-full h-full")
+            end
+          end
+          div(class: "flex-1 min-w-0") do
+            p(class: "text-[13px] font-semibold text-gray-900 mb-[2px]") { plain "Set up authenticator app" }
+            p(class: TYPE_CAPTION) do
+              plain "Scan a QR code with Google Authenticator, Authy, or 1Password."
+            end
+          end
+          render UI::Button.new(variant: :primary, href: settings_totp_new_path) do
+            render UI::Icon.new(:shield, class: ICON_SM)
+            plain "Set up"
+          end
+        end
       end
     end
 

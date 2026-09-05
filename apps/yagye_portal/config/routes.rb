@@ -96,5 +96,10 @@ Rails.application.routes.draw do
     delete "settings/allowlists/ip/:id",     to: "allowlists#destroy_ip",     as: :settings_remove_ip
     post   "settings/allowlists/msisdn",     to: "allowlists#create_msisdn",  as: :settings_add_msisdn
     delete "settings/allowlists/msisdn/:id", to: "allowlists#destroy_msisdn", as: :settings_remove_msisdn
+
+    get    "settings/totp/new",              to: "totp#new",           as: :settings_totp_new
+    post   "settings/totp",                  to: "totp#create",        as: :settings_totp
+    delete "settings/totp",                  to: "totp#destroy",       as: :settings_totp_delete
+    get    "settings/totp/recovery-codes",   to: "totp#recovery_codes", as: :settings_totp_recovery_codes
   end
 end

@@ -16,6 +16,7 @@ module UI
       alert_circle info_circle check_circle
       home flag key grid list magnet headset trending_up trending_down
       external_link link layers tag hash
+      smartphone shield_off alert_triangle
     ].freeze
 
     def initialize(name, **attrs)
@@ -424,6 +425,23 @@ module UI
       s.line(x1: "4", x2: "20", y1: "15", y2: "15")
       s.line(x1: "10", x2: "8", y1: "3", y2: "21")
       s.line(x1: "16", x2: "14", y1: "3", y2: "21")
+    end
+
+    def smartphone(s)
+      s.rect(x: "5", y: "2", width: "14", height: "20", rx: "2", ry: "2")
+      s.line(x1: "12", y1: "18", x2: "12.01", y2: "18")
+    end
+
+    def shield_off(s)
+      s.path(d: "M19.69 14a6.9 6.9 0 0 0 .31-2V5l-8-3-3.16 1.18")
+      s.path(d: "M4.73 4.73 4 5v7a11.64 11.64 0 0 0 8 10 11.05 11.05 0 0 0 4-1.73")
+      s.line(x1: "2", y1: "2", x2: "22", y2: "22")
+    end
+
+    def alert_triangle(s)
+      s.path(d: "m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3")
+      s.path(d: "M12 9v4")
+      s.path(d: "M12 17h.01")
     end
   end
 end

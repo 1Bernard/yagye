@@ -24,6 +24,9 @@ defmodule YagyeCore.Pricing.Schemas.PricingRule do
     field(:maximum_fee, :integer)
     field(:rounding, :string, default: "half_up")
 
+    field(:created_by, :string)
+    field(:approved_by, :string)
+
     belongs_to(:plan, PricingPlan)
 
     timestamps(inserted_at: :inserted_at, updated_at: false)
@@ -43,7 +46,8 @@ defmodule YagyeCore.Pricing.Schemas.PricingRule do
       :fixed_amount,
       :minimum_fee,
       :maximum_fee,
-      :rounding
+      :rounding,
+      :created_by
     ])
     |> validate_required([:plan_id, :percentage_bps, :fixed_amount])
     |> validate_number(:percentage_bps, greater_than_or_equal_to: 0)
@@ -51,6 +55,13 @@ defmodule YagyeCore.Pricing.Schemas.PricingRule do
     |> validate_inclusion(:rounding, @valid_roundings)
     |> foreign_key_constraint(:plan_id)
     |> put_specificity()
+  end
+
+  def approve_changeset(rule, approved_by) do
+    rule
+    |> cast(%{approved_by: approved_by}, [:approved_by])
+    |> validate_required([:approved_by])
+    |> validate_sod(:created_by, :approved_by)
   end
 
   defp put_specificity(%Ecto.Changeset{valid?: true} = cs) do
@@ -72,4 +83,15 @@ defmodule YagyeCore.Pricing.Schemas.PricingRule do
   end
 
   defp put_specificity(cs), do: cs
+
+  defp validate_sod(cs, initiator_field, approver_field) do
+    initiator = get_field(cs, initiator_field)
+    approver = get_field(cs, approver_field)
+
+    if initiator && approver && initiator == approver do
+      add_error(cs, approver_field, "must differ from #{initiator_field}", validation: :sod)
+    else
+      cs
+    end
+  end
 end

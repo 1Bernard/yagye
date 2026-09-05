@@ -109,6 +109,18 @@ defmodule YagyeCore.Settlement do
     |> Repo.update()
   end
 
+  def initiate_write_off(%Settlement{} = settlement, actor) do
+    settlement
+    |> Settlement.initiate_write_off_changeset(actor)
+    |> Repo.update()
+  end
+
+  def approve_write_off(%Settlement{} = settlement, actor) do
+    settlement
+    |> Settlement.approve_write_off_changeset(actor)
+    |> Repo.update()
+  end
+
   @doc """
   Records a provider-reported settlement and moves to "reported" state.
   Triggers the matching step immediately.

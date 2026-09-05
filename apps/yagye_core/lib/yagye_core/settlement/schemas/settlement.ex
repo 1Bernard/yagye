@@ -34,6 +34,8 @@ defmodule YagyeCore.Settlement.Schemas.Settlement do
     field :provider_settlement_reference, :string
     field :value_date, :date
     field :reconciliation_run_id, :binary_id
+    field :write_off_initiated_by, :string
+    field :write_off_approved_by, :string
 
     belongs_to :merchant, Merchant
     belongs_to :provider, Provider
@@ -96,6 +98,33 @@ defmodule YagyeCore.Settlement.Schemas.Settlement do
       :reconciliation_run_id
     ])
     |> put_change(:state, to_state)
+  end
+
+  def initiate_write_off_changeset(settlement, initiated_by) do
+    settlement
+    |> cast(%{write_off_initiated_by: initiated_by}, [:write_off_initiated_by])
+    |> validate_required([:write_off_initiated_by])
+  end
+
+  def approve_write_off_changeset(settlement, approved_by) do
+    settlement
+    |> cast(%{write_off_approved_by: approved_by}, [:write_off_approved_by])
+    |> validate_required([:write_off_approved_by])
+    |> put_change(:state, "written_off")
+    |> validate_write_off_sod()
+  end
+
+  defp validate_write_off_sod(cs) do
+    initiated_by = get_field(cs, :write_off_initiated_by)
+    approved_by = get_field(cs, :write_off_approved_by)
+
+    if initiated_by && approved_by && initiated_by == approved_by do
+      add_error(cs, :write_off_approved_by, "must differ from write_off_initiated_by",
+        validation: :sod
+      )
+    else
+      cs
+    end
   end
 
   defp put_public_id(%Ecto.Changeset{valid?: true} = cs) do

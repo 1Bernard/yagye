@@ -26,6 +26,8 @@ defmodule YagyeCore.Pricing.Schemas.PlatformFeeInvoice do
     field(:due_at, :utc_datetime_usec)
     field(:collected_at, :utc_datetime_usec)
     field(:collection_reference, :string)
+    field(:write_off_initiated_by, :string)
+    field(:write_off_approved_by, :string)
 
     belongs_to(:merchant, Merchant)
 
@@ -65,6 +67,33 @@ defmodule YagyeCore.Pricing.Schemas.PlatformFeeInvoice do
 
   def transition_changeset(invoice, to_state) when to_state in @valid_states do
     change(invoice, state: to_state)
+  end
+
+  def initiate_write_off_changeset(invoice, initiated_by) do
+    invoice
+    |> cast(%{write_off_initiated_by: initiated_by}, [:write_off_initiated_by])
+    |> validate_required([:write_off_initiated_by])
+  end
+
+  def approve_write_off_changeset(invoice, approved_by) do
+    invoice
+    |> cast(%{write_off_approved_by: approved_by}, [:write_off_approved_by])
+    |> validate_required([:write_off_approved_by])
+    |> put_change(:state, "written_off")
+    |> validate_write_off_sod()
+  end
+
+  defp validate_write_off_sod(cs) do
+    initiated_by = get_field(cs, :write_off_initiated_by)
+    approved_by = get_field(cs, :write_off_approved_by)
+
+    if initiated_by && approved_by && initiated_by == approved_by do
+      add_error(cs, :write_off_approved_by, "must differ from write_off_initiated_by",
+        validation: :sod
+      )
+    else
+      cs
+    end
   end
 
   defp put_public_id(%Ecto.Changeset{valid?: true} = cs) do
