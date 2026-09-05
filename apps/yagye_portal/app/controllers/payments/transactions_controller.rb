@@ -15,7 +15,7 @@ module Payments
     end
 
     def show
-      payment = policy_scope(Payment).find(params[:id])
+      payment = decode_id(Payment)
       authorize payment
       render Payments::ShowView.new(
         payment: payment,
@@ -25,7 +25,7 @@ module Payments
     end
 
     def refund
-      payment = policy_scope(Payment).find(params[:id])
+      payment = decode_id(Payment)
       authorize payment, :refund?
       amount_cents = params[:amount_cents].present? ? params[:amount_cents].to_i : payment.amount_cents
       result = CoreApiClient.new.create_refund(

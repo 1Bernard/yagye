@@ -29,8 +29,17 @@ module Account
         end
         redirect_to settings_path(tab: "profile"), notice: notice
       else
-        redirect_to settings_path(tab: "profile"),
-                    alert: current_user.errors.full_messages.first
+        ip_allowlists     = PortalIpAllowlist.for_merchant(current_user.merchant_code).order(:created_at)
+        msisdn_allowlists = PortalMsisdnAllowlist.for_merchant(current_user.merchant_code).order(:created_at)
+        audit_events      = current_user.user_audit_events.recent.limit(15)
+        render Settings::IndexView.new(
+          tab: "profile",
+          current_user: current_user,
+          ip_allowlists: ip_allowlists,
+          msisdn_allowlists: msisdn_allowlists,
+          audit_events: audit_events,
+          profile_dialog_open: true
+        ), status: :unprocessable_entity
       end
     end
 
@@ -53,7 +62,11 @@ module Account
     private
 
     def profile_params
-      params.permit(:first_name, :last_name, :theme_preference, :language_preference)
+      if params[:user]
+        params.require(:user).permit(:first_name, :last_name)
+      else
+        params.permit(:theme_preference, :language_preference)
+      end
     end
   end
 end

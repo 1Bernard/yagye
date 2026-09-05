@@ -13,7 +13,7 @@ module Payments
     end
 
     def show
-      settlement = policy_scope(PortalSettlement).find(params[:id])
+      settlement = decode_id(PortalSettlement)
       authorize settlement
       render Payments::Settlements::ShowView.new(settlement: settlement)
     end

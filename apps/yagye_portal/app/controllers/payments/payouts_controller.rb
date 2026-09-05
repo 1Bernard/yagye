@@ -13,7 +13,7 @@ module Payments
     end
 
     def show
-      payout = policy_scope(PortalPayout).find(params[:id])
+      payout = decode_id(PortalPayout)
       authorize payout
       render Payments::Payouts::ShowView.new(payout: payout)
     end

@@ -7,12 +7,13 @@ module Team
       users = Team::UsersQuery.new(policy_scope(User)).call(filters)
       render Team::Users::IndexView.new(
         users: users, can_invite: policy(User).invite?,
-        query: params[:q], role: params[:role], status: params[:status]
+        query: params[:q], role: params[:role], status: params[:status],
+        view: params.fetch(:view, "list")
       )
     end
 
     def show
-      user = policy_scope(User).find(params[:id])
+      user = decode_id(User)
       authorize user
       roles = user.user_roles.includes(:role).where(revoked_at: nil).order(:created_at)
       render Team::Users::ShowView.new(
@@ -41,7 +42,7 @@ module Team
     end
 
     def suspend
-      user = policy_scope(User).find(params[:id])
+      user = decode_id(User)
       authorize user, :suspend?
       result = Team::SuspendUser.new(user: user, suspended_by: current_user, request: request).call
       if result.success?
@@ -52,7 +53,7 @@ module Team
     end
 
     def assign_role
-      user = policy_scope(User).find(params[:id])
+      user = decode_id(User)
       authorize user, :update?
       result = Team::AssignRole.new(
         user:          user,

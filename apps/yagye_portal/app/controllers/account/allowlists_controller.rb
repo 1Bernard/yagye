@@ -20,7 +20,7 @@ module Account
     end
 
     def destroy_ip
-      entry = PortalIpAllowlist.find(params[:id])
+      entry = decode_id(PortalIpAllowlist)
       authorize entry, policy_class: PortalIpAllowlistPolicy
       cidr = entry.cidr
       entry.destroy
@@ -47,7 +47,7 @@ module Account
     end
 
     def destroy_msisdn
-      entry = PortalMsisdnAllowlist.find(params[:id])
+      entry = decode_id(PortalMsisdnAllowlist)
       authorize entry, policy_class: PortalMsisdnAllowlistPolicy
       msisdn = entry.msisdn
       entry.destroy

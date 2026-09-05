@@ -27,14 +27,30 @@ export default class extends Controller {
   }
 
   open() {
+    const rect = this.element.getBoundingClientRect()
+    const menu = this.menuTarget
+
+    // Escape any overflow:hidden ancestor by switching to viewport-relative positioning
+    menu.style.position   = 'fixed'
+    menu.style.marginTop  = '0'
+    menu.style.top        = (rect.bottom + 4) + 'px'
+    menu.style.right      = (window.innerWidth - rect.right) + 'px'
+    menu.style.left       = 'auto'
+
     document.dispatchEvent(new CustomEvent("dropdown:opened", { detail: { source: this.element } }))
-    this.menuTarget.classList.remove(...HIDDEN)
-    this.menuTarget.classList.add(...SHOWN)
+    menu.classList.remove(...HIDDEN)
+    menu.classList.add(...SHOWN)
   }
 
   close() {
-    this.menuTarget.classList.remove(...SHOWN)
-    this.menuTarget.classList.add(...HIDDEN)
+    const menu = this.menuTarget
+    menu.classList.remove(...SHOWN)
+    menu.classList.add(...HIDDEN)
+    menu.style.position  = ''
+    menu.style.marginTop = ''
+    menu.style.top       = ''
+    menu.style.right     = ''
+    menu.style.left      = ''
   }
 
   get isOpen() {

@@ -1,10 +1,14 @@
 # frozen_string_literal: true
 
 module UI
-  # Column-definition table with the vanish pattern.
+  # Borderless column-definition table with the vanish pattern.
   #
   # Usage:
   #   render UI::Datatable.new(records: @payments, pagy: @pagy) do |t|
+  #     t.header do
+  #       div { "Section title" }           # left side
+  #       form { ... }                      # right side (filters / actions)
+  #     end
   #     t.column("Reference") { |r| r.reference }
   #     t.column("Amount", class: "text-right tabular-nums") { |r| r.formatted_amount }
   #     t.column("Status") { |r| render UI::StatusBadge.new(status: r.status) }
@@ -12,9 +16,6 @@ module UI
   #       a(href: payment_path(r), class: UI::Theme::DROPDOWN_ITEM) { "View" }
   #     end
   #   end
-  #
-  # With `pagy:` the table wraps itself in a TABLE_CARD with the pager
-  # in a tfoot. Without it the caller provides the wrapping card.
   class Datatable < ApplicationComponent
     include UI::Theme
 
@@ -45,7 +46,7 @@ module UI
           render_table
         end
       else
-        render_table
+        div(class: TABLE_CARD) { render_table }
       end
     end
 
@@ -73,28 +74,25 @@ module UI
     end
 
     def render_table
-      div(class: "overflow-x-auto", data_controller: (@selectable ? "datatable" : nil)) do
-        if @records.empty?
-          empty_state
-        else
-          table(class: "w-full border-collapse") do
-            thead { render_header }
-            tbody { render_body }
-          end
+      if @records.empty?
+        empty_state
+      else
+        table(class: "w-full border-collapse",
+              data_controller: (@selectable ? "datatable" : nil)) do
+          thead(class: "sticky top-0 z-10") { render_header }
+          tbody { render_body }
         end
       end
     end
 
     def empty_state
-      div(style: "padding:56px 20px;display:flex;flex-direction:column;align-items:center;" \
-                 "justify-content:center;gap:10px;text-align:center") do
-        div(class: "w-11 h-11 rounded-xl bg-gray-100 border border-gray-200 " \
-                   "flex items-center justify-center mb-1 flex-shrink-0") do
-          span(class: "text-gray-400 flex w-[20px] h-[20px]") do
+      div(class: "py-14 flex flex-col items-center justify-center gap-2 text-center") do
+        div(class: "w-10 h-10 rounded-xl bg-gray-100 flex items-center justify-center mb-1") do
+          span(class: "flex w-5 h-5 text-gray-400") do
             render UI::Icon.new(@empty_icon, class: "w-full h-full")
           end
         end
-        p(class: TYPE_BODY_MD) { @empty_message }
+        p(class: TYPE_BODY_MD) { plain @empty_message }
       end
     end
 
@@ -107,19 +105,14 @@ module UI
           end
         end
         @columns.each do |col|
-          th(class: "#{TABLE_TH} #{col[:cls]}") do
-            div(style: "display:inline-flex;align-items:center;gap:3px") do
-              plain col[:name]
-              span(class: "text-gray-300 text-[10px] leading-none") { "↕" }
-            end
-          end
+          th(class: "#{TABLE_TH} #{col[:cls]}") { plain col[:name] }
         end
         th(class: "#{TABLE_TH} w-10") if @actions
       end
     end
 
     def render_body
-      @records.each_with_index do |record, i|
+      @records.each do |record|
         row_attrs = { class: TABLE_ROW }
         row_attrs[:data] = { datatable_target: "row" } if @selectable
 
@@ -138,12 +131,12 @@ module UI
               end
             end
           end
-          action_cell(record, i) if @actions
+          action_cell(record) if @actions
         end
       end
     end
 
-    def action_cell(record, index)
+    def action_cell(record)
       td(class: "#{TABLE_CELL} text-right pr-5") do
         div(class: "relative inline-block", data_controller: "dropdown") do
           button(type: "button", class: ROWBTN,

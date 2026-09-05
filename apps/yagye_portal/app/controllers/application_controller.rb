@@ -66,6 +66,25 @@ class ApplicationController < ActionController::Base
     redirect_back_or_to root_path, status: :see_other
   end
 
+  # Looks up a record by its primary key (UUID or string code) and verifies
+  # merchant ownership. Raises RecordNotFound on missing or cross-merchant records.
+  # Internal staff bypass the ownership check and see all records.
+  def decode_id(model_class, param = params[:id])
+    pk  = model_class.primary_key
+    record = model_class.find_by(pk => param)
+    raise ActiveRecord::RecordNotFound unless record
+    raise ActiveRecord::RecordNotFound unless merchant_owns?(record)
+
+    record
+  end
+
+  def merchant_owns?(record)
+    return true if current_user.internal_staff?
+    return true unless record.respond_to?(:merchant_code)
+
+    record.merchant_code == current_user.merchant_code
+  end
+
   def not_implemented
     skip_authorization
     head :not_implemented

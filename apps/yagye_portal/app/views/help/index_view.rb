@@ -121,7 +121,7 @@ module Help
     def merchant_guide_card(guide)
       p = guide[:palette]
       a(href: "#",
-        class: "flex flex-col gap-4 p-5 bg-white border border-gray-100 rounded-2xl no-underline hover:border-gray-200 hover:shadow-sm transition-all group") do
+        class: "group flex flex-col gap-4 p-5 bg-white border border-gray-100 rounded-2xl no-underline #{CARD_HOVER}") do
         div(class: "w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 icon-#{p}") do
           span(class: "flex w-[18px] h-[18px]") do
             render UI::Icon.new(guide[:icon], class: "w-full h-full")
@@ -154,7 +154,7 @@ module Help
     def developer_doc_card(doc)
       p = doc[:palette]
       a(href: "#",
-        class: "flex items-start gap-4 p-5 bg-white border border-gray-100 rounded-2xl no-underline hover:border-gray-200 hover:shadow-sm transition-all") do
+        class: "flex items-start gap-4 p-5 bg-white border border-gray-100 rounded-2xl no-underline #{CARD_HOVER}") do
         div(class: "w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 icon-#{p}") do
           span(class: "flex w-[15px] h-[15px]") do
             render UI::Icon.new(doc[:icon], class: "w-full h-full")

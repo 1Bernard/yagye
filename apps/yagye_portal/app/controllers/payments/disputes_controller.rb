@@ -22,7 +22,7 @@ module Payments
 
     def show
       authorize :disputes, :show?
-      dispute = policy_scope(Dispute).find(params[:id])
+      dispute = decode_id(Dispute)
       render Disputes::ShowView.new(dispute: dispute)
     end
   end

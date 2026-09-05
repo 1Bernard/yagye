@@ -16,11 +16,11 @@ module Team
           active_nav: :team_users,
           title:      @user.full_name,
           breadcrumbs: [
-            { label: "Team",  url: team_users_path },
-            { label: "Users", url: team_users_path },
+            { label: "Team members", url: team_users_path },
             { label: @user.full_name }
           ]
         ) do
+          back_link
           render UI::Grid.new(columns: :profile) do
             left_panel
             right_panel
@@ -30,10 +30,36 @@ module Team
 
       private
 
+      def back_link
+        a(href: team_users_path,
+          class: "group inline-flex items-center gap-[6px] text-[12.5px] font-medium " \
+                 "text-gray-400 hover:text-gray-700 no-underline mb-5 transition-colors") do
+          span(class: "flex w-[13px] h-[13px] group-hover:-translate-x-[2px] transition-transform") do
+            render UI::Icon.new(:chev_left, class: "w-full h-full")
+          end
+          plain "Team members"
+        end
+      end
+
       def left_panel
         div(class: "flex flex-col gap-5") do
           profile_card
-          danger_zone if @can_manage
+          if @can_manage
+            render UI::DangerZone.new(
+              title:       "Suspend user",
+              description: "Immediately revokes access. The user cannot sign in until reinstated.",
+              icon:        :archive
+            ) do
+              form(action: suspend_team_user_path(@user), method: "post",
+                   data: { turbo_confirm: "Suspend #{@user.full_name}? They will lose access immediately." }) do
+                input(type: "hidden", name: "authenticity_token", value: form_authenticity_token)
+                render UI::Button.new(variant: :danger, type: "submit") do
+                  render UI::Icon.new(:archive, class: ICON_SM)
+                  plain "Suspend user"
+                end
+              end
+            end
+          end
         end
       end
 
@@ -48,55 +74,43 @@ module Team
       # ── Profile card ──────────────────────────────────────────────────────────
 
       def profile_card
-        div(class: "bg-white border border-gray-100 rounded-2xl p-6") do
-          div(class: "flex flex-col items-center gap-3 mb-5 pb-5 border-b border-gray-100") do
-            render UI::Avatar.new(initials, size: :xl)
-            div(class: "text-center") do
-              p(class: TYPE_TITLE) { plain @user.full_name }
-              p(class: TYPE_CAPTION) { plain @user.email }
+        u         = @user
+        suspended = u.respond_to?(:suspended_at) && u.suspended_at.present?
+        totp_on   = u.otp_required_for_login
+
+        div(class: "bg-white border border-gray-100 rounded-2xl overflow-hidden") do
+          div(class: "px-6 py-6") do
+            div(class: "relative inline-block mb-4") do
+              render UI::Avatar.new(initials, size: :xl)
+              div(class: "absolute -bottom-[3px] -right-[3px] w-4 h-4 rounded-full border-2 border-white",
+                  style: "background:#{suspended ? '#9CA3AF' : '#22c55e'}")
             end
-            kind_badge
-          end
-          div(class: "flex flex-col gap-3") do
-            profile_row("Joined",        @user.created_at.strftime("%d %b %Y"))
-            profile_row("Last sign in",  @user.last_sign_in_at&.strftime("%d %b %Y, %H:%M") || "Never")
-            profile_row("Sign in count", @user.sign_in_count.to_s)
-            profile_row("2FA",           @user.otp_required_for_login ? "Enabled" : "Disabled")
-          end
-        end
-      end
-
-      def profile_row(label, value)
-        div(class: "flex items-center justify-between") do
-          p(class: TYPE_CAPTION) { plain label }
-          p(class: TYPE_BODY_MD) { plain value }
-        end
-      end
-
-      def kind_badge
-        if @user.internal_staff?
-          span(class: "badge-blue text-[11px] font-semibold px-3 py-[3px] rounded-2xl") do
-            plain "Yagye Staff"
-          end
-        else
-          span(class: "text-[11px] font-semibold px-3 py-[3px] rounded-2xl bg-gray-100 text-gray-500") do
-            plain "Merchant user"
-          end
-        end
-      end
-
-      def danger_zone
-        div(class: "bg-white border border-red-300 rounded-2xl px-6 py-5") do
-          p(class: "text-[13px] font-semibold text-red-600 mb-3") { plain "Danger zone" }
-          div(class: "flex flex-col gap-2") do
-            form(action: suspend_team_user_path(@user), method: "post",
-                 data: { turbo_confirm: "Suspend #{@user.full_name}? They will lose access immediately." }) do
-              input(type: "hidden", name: "authenticity_token", value: form_authenticity_token)
-              render UI::Button.new(variant: :danger, type: "submit", class: "w-full justify-center") do
-                render UI::Icon.new(:archive, class: ICON_SM)
-                plain "Suspend user"
+            p(class: "text-[16px] font-bold text-gray-900 tracking-[-0.02em] leading-tight mb-[3px]") do
+              plain u.full_name
+            end
+            p(class: "#{TYPE_CAPTION} mb-3") { plain u.email }
+            div(class: "flex items-center gap-[6px] flex-wrap") do
+              if u.internal_staff?
+                span(class: "badge-blue text-[11px] font-semibold px-[9px] py-[3px] rounded-full") { plain "Yagye Staff" }
+              else
+                span(class: "badge-gray text-[11px] font-semibold px-[9px] py-[3px] rounded-full") { plain "Merchant" }
+              end
+              if suspended
+                span(class: "badge-amber text-[11px] font-semibold px-[9px] py-[3px] rounded-full") { plain "Suspended" }
+              else
+                span(class: "badge-green text-[11px] font-semibold px-[9px] py-[3px] rounded-full") { plain "Active" }
+              end
+              if totp_on
+                span(class: "badge-green text-[11px] font-semibold px-[9px] py-[3px] rounded-full") { plain "2FA on" }
               end
             end
+          end
+
+          div(class: "border-t border-gray-100") do
+            render UI::DetailRow.new(icon: :calendar,     label: "Joined",       value: u.created_at.strftime("%d %b %Y"))
+            render UI::DetailRow.new(icon: :clock,        label: "Last sign-in", value: u.last_sign_in_at&.strftime("%d %b %Y") || "Never")
+            render UI::DetailRow.new(icon: :check_circle, label: "Sign-ins",     value: u.sign_in_count.to_s)
+            render UI::DetailRow.new(icon: :shield,       label: "Two-factor",   value: totp_on ? "Enabled" : "Not set")
           end
         end
       end
@@ -123,24 +137,23 @@ module Team
         end
       end
 
-      def role_row(role)
-        badge = role.scope == "internal" ? "badge-blue" : "badge-gray"
+      def role_row(user_role)
+        r     = user_role.role
+        badge = r.scope == "internal" ? "badge-blue" : "badge-gray"
 
         div(class: "flex items-center justify-between px-[14px] py-3 bg-gray-100 rounded-xl border border-gray-100") do
           div(class: "flex items-center gap-[10px]") do
-            span(class: "#{badge} text-[11px] font-semibold px-[9px] py-[2px] rounded-2xl") do
-              plain role.scope.capitalize
-            end
-            p(class: TYPE_BODY_MD) { plain role.name }
+            span(class: "#{badge} text-[11px] font-semibold px-[9px] py-[2px] rounded-2xl") { plain r.scope.capitalize }
+            p(class: TYPE_BODY_MD) { plain r.name }
           end
-          p(class: TYPE_CAPTION) { plain "#{role.permissions.size} permissions" }
+          p(class: TYPE_CAPTION) { plain "#{r.permissions.size} permissions" }
         end
       end
 
       # ── Permissions card ──────────────────────────────────────────────────────
 
       def permissions_card
-        all_perms = @roles.flat_map(&:permissions).uniq
+        all_perms = @roles.flat_map { |ur| ur.role.permissions }.uniq
 
         render UI::Card.new do |c|
           c.header("Effective permissions") do
@@ -153,7 +166,7 @@ module Team
               p(class: TYPE_CAPTION) { plain "No permissions. Assign a role to grant access." }
             else
               grouped = all_perms.group_by { |p| p.key.split(".").first }
-              div(class: "grid grid-cols-2 gap-3") do
+              div(class: "grid grid-cols-2 gap-x-8 gap-y-5") do
                 grouped.each { |group, perms| perm_group(group, perms) }
               end
             end
@@ -162,17 +175,15 @@ module Team
       end
 
       def perm_group(group, perms)
-        div(class: "bg-gray-50 rounded-xl px-[14px] py-3 border border-gray-100") do
+        div do
           p(class: "#{TYPE_MICRO} mb-2") { plain group.gsub("_", " ") }
-          div(class: "flex flex-col gap-[5px]") do
+          div(class: "flex flex-col gap-[7px]") do
             perms.each do |perm|
-              div(class: "flex items-center gap-1.5") do
-                span(class: "flex w-3 h-3 text-green-600 flex-shrink-0") do
+              div(class: "flex items-center gap-[7px]") do
+                span(class: "flex w-[12px] h-[12px] text-green-500 flex-shrink-0") do
                   render UI::Icon.new(:check, class: "w-full h-full")
                 end
-                p(class: "text-[11.5px] text-gray-700") do
-                  plain perm.key.split(".").last.gsub("_", " ").capitalize
-                end
+                p(class: TYPE_BODY) { plain perm.key.split(".").last.gsub("_", " ").capitalize }
               end
             end
           end
@@ -187,9 +198,7 @@ module Team
           c.body do
             div(class: "py-5 flex flex-col items-center text-center gap-2") do
               div(class: "w-10 h-10 rounded-xl icon-brand flex items-center justify-center mb-1") do
-                span(class: "flex w-5 h-5") do
-                  render UI::Icon.new(:clock, class: "w-full h-full")
-                end
+                span(class: "flex w-5 h-5") { render UI::Icon.new(:clock, class: "w-full h-full") }
               end
               p(class: TYPE_CAPTION) { plain "Activity log will be available in a future release." }
             end

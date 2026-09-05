@@ -78,7 +78,7 @@ module Developers
           end
 
           t.column("Name")       { |k| span(class: TYPE_BODY_MD) { plain(k.label.presence || k.kind.capitalize) } }
-          t.column("Key prefix") { |k| code(class: TYPE_MONO) { plain(k.key_prefix + "...") } }
+          t.column("Key prefix") { |k| key_prefix_cell(k) }
           t.column("Created")    { |k| span(class: TYPE_CAPTION) { plain k.created_at.strftime("%d %b %Y") } }
           t.column("Last used")  { |k| span(class: TYPE_CAPTION) { plain(k.last_used_at&.strftime("%d %b %Y") || "Never") } }
           t.column("Status")     { |k| render UI::StatusBadge.new(status: k.active ? "active" : "revoked") }
@@ -95,6 +95,116 @@ module Developers
                 end
               end
             end
+          end
+        end
+
+        quick_start_card(live) unless @api_keys.empty?
+      end
+    end
+
+    def key_prefix_cell(key)
+      prefix = key.key_prefix + "..."
+      div(class: "flex items-center gap-2") do
+        code(class: TYPE_MONO) { plain prefix }
+        button(type: "button",
+               title: "Copy key prefix",
+               class: "flex w-6 h-6 rounded-md items-center justify-center text-gray-300 " \
+                      "hover:text-gray-600 hover:bg-gray-100 transition-colors border-0 bg-transparent cursor-pointer",
+               onclick: "navigator.clipboard.writeText(this.dataset.val);" \
+                        "this.classList.add('!text-green-600');" \
+                        "setTimeout(()=>this.classList.remove('!text-green-600'),1200)",
+               data: { val: prefix }) do
+          span(class: "flex w-3 h-3") do
+            render UI::Icon.new(:copy, class: "w-full h-full")
+          end
+        end
+      end
+    end
+
+    def quick_start_card(live)
+      env_prefix = live ? "sk_live" : "sk_test"
+      first_key  = @api_keys.select(&:active?).first
+      display_key = first_key ? "#{first_key.key_prefix}..." : "#{env_prefix}_YOUR_SECRET_KEY"
+
+      snippet = <<~CURL.strip
+        curl -X POST https://api.yagye.com/v1/payments \\
+          -H "Authorization: Bearer #{display_key}" \\
+          -H "Content-Type: application/json" \\
+          -d '{
+            "amount": 10000,
+            "currency": "GHS",
+            "method": "mobile_money",
+            "msisdn": "0241234567",
+            "reference": "order_abc123"
+          }'
+      CURL
+
+      div(class: "mt-5 bg-white border border-gray-100 rounded-2xl overflow-hidden") do
+        div(class: "flex items-center justify-between px-6 py-5 border-b border-gray-100") do
+          div do
+            p(class: TYPE_TITLE) { plain "Quick start" }
+            p(class: "#{TYPE_CAPTION} mt-[3px]") do
+              plain "Test your key with a cURL request. "
+              span(class: "text-amber-600 font-medium") { plain "Replace the key before going live." } unless first_key
+            end
+          end
+          button(type: "button",
+                 class: "flex items-center gap-[6px] text-[12px] font-medium text-gray-500 " \
+                        "hover:text-gray-800 transition-colors border border-gray-200 rounded-lg " \
+                        "px-[10px] py-[5px] bg-white cursor-pointer",
+                 onclick: "navigator.clipboard.writeText(this.dataset.val);" \
+                          "this.querySelector('span').textContent='Copied!';" \
+                          "setTimeout(()=>this.querySelector('span').textContent='Copy snippet',1500)",
+                 data: { val: snippet }) do
+            render UI::Icon.new(:copy, class: "w-[12px] h-[12px]")
+            span { plain "Copy snippet" }
+          end
+        end
+        div(class: "bg-[#0d1117] rounded-b-2xl px-6 py-5 overflow-x-auto") do
+          pre(class: "text-[12.5px] leading-[1.7] font-mono m-0 whitespace-pre") do
+            span(class: "text-[#79c0ff]") { plain "curl" }
+            span(class: "text-[#ff7b72]") { plain " -X POST" }
+            plain " "
+            span(class: "text-[#a5d6ff]") { plain "https://api.yagye.com/v1/payments" }
+            plain " \\\n"
+            span(class: "text-[#ff7b72]") { plain "  -H" }
+            plain " \""
+            span(class: "text-[#ffa657]") { plain "Authorization" }
+            plain ": Bearer "
+            span(class: first_key ? "text-[#7ee787]" : "text-[#f2cc60]") { plain display_key }
+            plain "\" \\\n"
+            span(class: "text-[#ff7b72]") { plain "  -H" }
+            plain " \""
+            span(class: "text-[#ffa657]") { plain "Content-Type" }
+            plain ": application/json\" \\\n"
+            span(class: "text-[#ff7b72]") { plain "  -d" }
+            plain " '{\n"
+            plain "    \""
+            span(class: "text-[#79c0ff]") { plain "amount" }
+            plain "\": "
+            span(class: "text-[#a5d6ff]") { plain "10000" }
+            plain ",\n"
+            plain "    \""
+            span(class: "text-[#79c0ff]") { plain "currency" }
+            plain "\": \""
+            span(class: "text-[#a5d6ff]") { plain "GHS" }
+            plain "\",\n"
+            plain "    \""
+            span(class: "text-[#79c0ff]") { plain "method" }
+            plain "\": \""
+            span(class: "text-[#a5d6ff]") { plain "mobile_money" }
+            plain "\",\n"
+            plain "    \""
+            span(class: "text-[#79c0ff]") { plain "msisdn" }
+            plain "\": \""
+            span(class: "text-[#a5d6ff]") { plain "0241234567" }
+            plain "\",\n"
+            plain "    \""
+            span(class: "text-[#79c0ff]") { plain "reference" }
+            plain "\": \""
+            span(class: "text-[#a5d6ff]") { plain "order_abc123" }
+            plain "\"\n"
+            plain "  }'"
           end
         end
       end
@@ -209,13 +319,13 @@ module Developers
         t.column("Sent")     { |d| span(class: TYPE_CAPTION) { plain d.last_applied_at.strftime("%d %b, %H:%M") } }
 
         t.actions do |d|
-          a(href: developers_delivery_path(d.delivery_id),
+          a(href: developers_delivery_path(d),
             class: DROPDOWN_ITEM,
             data: { turbo_frame: "drawer-frame" }) do
             render UI::Icon.new(:eye, class: ICON_SM)
             plain "Inspect"
           end
-          a(href: developers_delivery_path(d.delivery_id), class: DROPDOWN_ITEM) do
+          a(href: developers_delivery_path(d), class: DROPDOWN_ITEM) do
             render UI::Icon.new(:refresh, class: ICON_SM)
             plain "Retry"
           end

@@ -20,7 +20,7 @@ module Layout
     end
 
     def view_template
-      header(style: "background:#{CARD_BG};border-bottom:1px solid #{BORDER};position:sticky;top:0;z-index:10") do
+      header(style: "background:#{CARD_BG};border-bottom:1px solid #{BORDER};position:sticky;top:0;z-index:20") do
         div(style: "display:flex;align-items:center;justify-content:space-between;" \
                    "padding:0 24px;height:56px") do
           left_block

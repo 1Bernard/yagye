@@ -14,7 +14,7 @@ module UI
       bell chart bar_chart line_chart download upload copy pin globe
       swap refresh phone wallet credit_card bank building
       alert_circle info_circle check_circle
-      home flag key grid magnet headset trending_up trending_down
+      home flag key grid list magnet headset trending_up trending_down
       external_link link layers tag hash
     ].freeze
 
@@ -353,6 +353,12 @@ module UI
       s.rect(width: "7", height: "7", x: "14", y: "3", rx: "1")
       s.rect(width: "7", height: "7", x: "14", y: "14", rx: "1")
       s.rect(width: "7", height: "7", x: "3", y: "14", rx: "1")
+    end
+
+    def list(s)
+      s.rect(width: "18", height: "4", x: "3", y: "4",  rx: "1")
+      s.rect(width: "18", height: "4", x: "3", y: "10", rx: "1")
+      s.rect(width: "18", height: "4", x: "3", y: "16", rx: "1")
     end
 
     def building(s)

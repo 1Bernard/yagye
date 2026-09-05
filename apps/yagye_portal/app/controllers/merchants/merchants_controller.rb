@@ -13,13 +13,13 @@ module Merchants
 
     def show
       authorize :merchants, :show?
-      application = PortalMerchantApplication.find(params[:id])
+      application = decode_id(PortalMerchantApplication)
       render Merchants::ShowView.new(application: application)
     end
 
     def update
       authorize :merchants, :update?
-      application = PortalMerchantApplication.find(params[:id])
+      application = decode_id(PortalMerchantApplication)
       new_status  = params[:status].to_s.strip
       result = CoreApiClient.new.update_merchant_status(
         application.merchant_code || application.application_code,

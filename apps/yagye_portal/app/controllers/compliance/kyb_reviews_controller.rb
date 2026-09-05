@@ -11,13 +11,13 @@ module Compliance
 
     def show
       authorize :kyb_reviews, :show?
-      application = PortalMerchantApplication.find(params[:id])
+      application = decode_id(PortalMerchantApplication)
       render KybReviews::ShowView.new(application: application)
     end
 
     def approve
       authorize :kyb_reviews, :approve?
-      application = PortalMerchantApplication.find(params[:id])
+      application = decode_id(PortalMerchantApplication)
       result = Compliance::ApproveApplication.new.call(
         application_code: application.application_code,
         approved_by:      current_user.email
@@ -31,7 +31,7 @@ module Compliance
 
     def reject
       authorize :kyb_reviews, :approve?
-      application = PortalMerchantApplication.find(params[:id])
+      application = decode_id(PortalMerchantApplication)
       result = Compliance::RejectApplication.new.call(
         application_code: application.application_code,
         rejected_by:      current_user.email,

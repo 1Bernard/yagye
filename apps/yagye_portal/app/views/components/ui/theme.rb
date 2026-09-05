@@ -86,7 +86,7 @@ module UI
 
     # ── Surfaces ───────────────────────────────────────────────────────────
     CANVAS_BG     = "bg-gray-50 min-h-screen text-gray-900 antialiased"
-    SURFACE_CARD  = "bg-white border border-gray-100 rounded-2xl shadow-sm"
+    SURFACE_CARD  = "bg-white border border-gray-100 rounded-2xl"
 
     # ── Typography ─────────────────────────────────────────────────────────
     TEXT_H1       = "text-[28px] font-bold tracking-tight text-gray-900"
@@ -157,12 +157,25 @@ module UI
     FLASH_ALERT  = "bg-red-50 border border-red-200 text-red-700 rounded-xl p-4 text-sm mb-5"
 
     # ── Tables ─────────────────────────────────────────────────────────────
-    TABLE_HEADER = "border-b border-gray-100"
-    TABLE_ROW    = "border-b border-gray-50 hover:bg-gray-50 transition-colors cursor-pointer"
-    TABLE_CELL   = "px-3.5 py-3 text-sm text-gray-700 first:pl-5"
-    TABLE_TH     = "px-3.5 py-2.5 text-left text-[10px] font-semibold uppercase tracking-[0.16em] " \
-                   "text-gray-400 whitespace-nowrap first:pl-5"
-    TABLE_CARD   = "bg-white border border-gray-100 rounded-2xl overflow-hidden"
+    # UI::Datatable is borderless — rows float on the page canvas.
+    # TABLE_CARD remains for hand-built card tables (e.g. dashboard recent payments).
+    TABLE_CARD    = "bg-white border border-gray-100 rounded-2xl overflow-hidden"
+    TABLE_HEADER  = "border-t border-b border-gray-200"
+    TABLE_ROW     = "bg-white border-b border-gray-100 hover:bg-gray-50 transition-colors group"
+    TABLE_CELL    = "px-4 py-3.5 text-[13px] text-gray-700 first:pl-5"
+    TABLE_TH      = "px-4 py-2.5 text-left text-[10px] font-semibold uppercase tracking-[0.14em] " \
+                    "text-gray-400 whitespace-nowrap first:pl-5 bg-gray-50"
+
+    # ── Filter toolbar controls (compact h-8 — for use inside table toolbars) ──
+    FILTER_SEARCH_WRAP  = "flex items-center gap-2 px-3 h-8 border border-gray-200 " \
+                          "rounded-[9px] bg-white"
+    FILTER_SEARCH_INPUT = "border-0 outline-none bg-transparent text-[12.5px] text-gray-700 " \
+                          "w-[180px] min-w-0 placeholder:text-gray-400"
+    FILTER_SELECT       = "h-8 border border-gray-200 rounded-[9px] px-[10px] pr-8 " \
+                          "text-[12.5px] font-medium text-gray-600 bg-white outline-none cursor-pointer"
+    FILTER_DATE         = "h-8 border border-gray-200 rounded-[9px] px-3 " \
+                          "text-[12.5px] text-gray-600 bg-white outline-none cursor-pointer"
+    FILTER_CLEAR_LINK   = "text-[12px] text-gray-400 hover:text-gray-600 px-1 whitespace-nowrap transition-colors"
 
     # ── Pagination ─────────────────────────────────────────────────────────
     PAGER              = "flex items-center gap-1"
@@ -171,7 +184,7 @@ module UI
     PAGER_BTN_ON       = "w-8 h-8 rounded-lg grid place-items-center bg-[#3D47F5] " \
                          "text-white font-semibold"
     PAGER_GAP          = "w-8 h-8 grid place-items-center text-gray-400"
-    PAGINATION_STANDALONE = "flex items-center justify-between mt-4 text-[12.5px] text-gray-400"
+    PAGINATION_STANDALONE = "flex items-center justify-between pt-4 pb-1 text-[12.5px] text-gray-400"
     PAGINATION_TFOOT   = "flex items-center justify-between px-6 py-4 border-t border-gray-100 " \
                          "text-[12.5px] text-gray-400"
 
@@ -246,9 +259,14 @@ module UI
            "inline-flex items-center border border-gray-200 rounded-full px-3.5 py-1.5 text-xs " \
            "font-medium text-gray-500 transition-colors cursor-pointer"
 
+    # ── Interactive card hover (navigable link-cards only) ────────────────
+    CARD_HOVER = "hover:border-gray-200 hover:shadow-[0_4px_24px_rgba(0,0,0,0.07)] " \
+                 "transition-all duration-200"
+
     # ── Row action button ──────────────────────────────────────────────────
     ROWBTN = "w-8 h-8 rounded-full grid place-items-center text-gray-400 " \
-             "hover:bg-gray-100 hover:text-gray-700 transition-colors"
+             "opacity-0 group-hover:opacity-100 " \
+             "hover:bg-gray-100 hover:text-gray-700 transition-all duration-150"
 
     # ── Close / X button ───────────────────────────────────────────────────
     XBTN = "w-8 h-8 rounded-lg border border-gray-200 grid place-items-center " \

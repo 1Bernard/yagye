@@ -2,7 +2,7 @@
 
 module UI
   # Composable card shell. Yields |self| so callers can call the slot methods,
-  # which render HTML directly into the output buffer via yield_content.
+  # which render HTML directly into the output buffer via __yield_content__.
   #
   # Full usage:
   #   render UI::Card.new do |c|
@@ -21,7 +21,7 @@ module UI
 
     def view_template(&block)
       div(class: "#{SURFACE_CARD} flex flex-col overflow-hidden") do
-        yield_content(&block)
+        __yield_content__(&block)
       end
     end
 
@@ -38,23 +38,23 @@ module UI
           end
           p(class: TYPE_TITLE) { plain title }
         end
-        yield_content(&action) if action
+        __yield_content__(&action) if action
       end
     end
 
     # Renders a card body. padding: true wraps content in px-6 py-5; padding: false renders directly.
     def body(padding: true, &block)
       if padding
-        div(class: "px-6 py-5") { yield_content(&block) }
+        div(class: "px-6 py-5") { __yield_content__(&block) }
       else
-        yield_content(&block)
+        __yield_content__(&block)
       end
     end
 
     # Renders a card footer row with a top border.
     def footer(&block)
       div(class: "flex items-center justify-between px-5 py-3 border-t border-gray-100") do
-        yield_content(&block)
+        __yield_content__(&block)
       end
     end
   end
