@@ -16,7 +16,7 @@ defmodule YagyeCoreWeb.Controllers.Internal.ApplicationsController do
 
     case Merchants.approve_application(application_id, approved_by) do
       {:ok, _result} ->
-        send_resp(conn, 200, Jason.encode!(%{ok: true}))
+        json(conn, %{ok: true})
 
       {:error, :not_found} ->
         conn
@@ -51,7 +51,7 @@ defmodule YagyeCoreWeb.Controllers.Internal.ApplicationsController do
     else
       case Merchants.reject_application(application_id, rejected_by, reason) do
         {:ok, _result} ->
-          send_resp(conn, 200, Jason.encode!(%{ok: true}))
+          json(conn, %{ok: true})
 
         {:error, :not_found} ->
           conn
