@@ -176,16 +176,34 @@ must exist and return real data shapes.
   - [x] Recon trigger guard — skips `start_run` for external PSP batches
   - [x] Credential resolution two-tier lookup (merchant → platform fallback) — was pre-existing
 
+- [x] **Portal UI layer (2026-09-05)**
+  - [x] Settings panels: profile (Superform-backed), security, MSISDN allowlists, notifications
+  - [x] Phlex form component suite: `Forms::Portal::{Base,Input,Select,Textarea,Checkbox,Field,FieldWrapper}`
+  - [x] UI primitives: `UI::PageHeader`, `UI::DetailRow`, `UI::DangerZone`, `UI::Toggle`
+  - [x] `Portal::RoleMetadata` model for display-layer role/permission labeling
+  - [x] Controllers wired with typed assigns: settings, allowlists, approvals, KYB reviews,
+        merchants, disputes, payouts, settlements, transactions, team/users
+  - [x] Docker stack fully operational: Core + Portal + Simulator + Redpanda all healthy
+
 - [ ] TOTP enrolment UI — `Settings::TotpEnrolmentSection`, `Settings::TotpController`,
-      QR code via `rqrcode` gem, 8–10 recovery codes stored hashed. Needs
-      `otp_secret_encrypted` + `otp_required_for_login` columns (already in DBML).
+      QR code via `rqrcode` gem, 8–10 recovery codes stored hashed.
+      `otp_secret` + `otp_required_for_login` columns already in portal DBML.
 
 - [ ] **SoD: ops-managed financial operations** — add DB CHECK constraints + changeset
       guards for:
       - `pricing_rules`: `created_by ≠ approved_by`
       - `settlements` write-off transition: `write_off_initiated_by ≠ write_off_approved_by`
       - `platform_fee_invoices` write-off: same pattern
-      (Fields exist in DBML; migrations and guards not yet written.)
+      (DBML updated 2026-09-05 — columns now defined. Write migration + changeset guards next.)
+
+- [ ] **Routing rules editor (ReactFlow)** — ops staff visual graph UI for creating and
+      activating routing rule sets. `GET/POST /internal/routing-rules` API already exists in
+      Core (tagged P13 in router). Build:
+      - `Developers::RoutingRulesController` (portal-side, ops-only)
+      - `Developers::RoutingGraphView` with ReactFlow canvas (Vite + `reactflow` npm pkg)
+      - Closed node vocabulary v1: `ProviderNode`, `ConditionNode`, `SplitNode`, `FallbackNode`
+      - Persisted as `routing_configurations` JSONB via Core's internal API
+      - Enterprise merchant variant (entitlement-gated) deferred to P16
 
 ---
 
@@ -225,6 +243,73 @@ must exist and return real data shapes.
       Add `belongs_to :payment_link, PaymentLink` to `Invoice` schema.
       Add `has_many :invoices, Invoice` to `PaymentLink` schema.
       (Column exists in portal DB — nullable, no constraint — safe until P16.)
+- [ ] **Checkout layout builder (dnd-kit)** — merchant drag-and-drop editor for payment
+      method ordering, rail visibility, and tile layout on hosted checkout pages.
+      Vite + Stimulus + `@dnd-kit/core` mounted at `/checkout/layout`. Layout persists
+      as a JSONB column on `payment_links`. Enterprise merchants only get routing graph
+      control here (ReactFlow entitlement-gated variant from P13).
+
+---
+
+### P17 — Horizontal Scale & Distributed State
+
+- [ ] Redis for distributed rate limiting — replace in-process ETS rate-limit counters
+      with Redis-backed sliding window (key: `rate_limit:{merchant_id}:{window}`)
+- [ ] Redis-backed session store for portal (replace cookie store at scale)
+- [ ] Horizontal pod autoscaling validation — Core + Portal stateless check,
+      Oban queue uniqueness under multi-node (`:global` vs `:local` queue config)
+- [ ] Connection pool tuning: PgBouncer or Ecto pool_size review under load
+
+---
+
+### P18 — Observability II: Tracing & SLOs
+
+- [ ] OpenTelemetry collector in docker-compose (Jaeger or Grafana Tempo for local dev)
+- [ ] SLO definitions: payment success rate p99 latency, settlement sweep lag,
+      reconciliation break mean-time-to-resolution
+- [ ] Dashboards: Grafana (or equivalent) wired to OTLP collector
+- [ ] Alert rules: settlement stuck > 4h, recon break spike, fraud scorer p95 latency > 50ms
+
+---
+
+### P19 — The Data Platform
+
+- [ ] **Floci in docker-compose** — local AWS S3 + KMS emulator; add to `data` network.
+      Provision `yagye-lake-raw` and `yagye-lake-curated` buckets on startup.
+- [ ] **Synthetic data generator** — `mix simulator.generate_load` Mix task in
+      `gateway_simulator`. Fires N payments at Core API using deterministic MSISDN
+      prefixes to produce labeled outcome classes (success / insufficient_funds /
+      timeout / fraud-burst). Target: 50k events in < 2 minutes locally.
+- [ ] **Redpanda → Parquet sink** — Redpanda Connect pipeline consuming outbox topics
+      (`payment.*`, `dispute.*`, `reconciliation.*`) and writing partitioned Parquet to
+      Floci S3: `s3://yagye-lake-raw/events/year=YYYY/month=MM/day=DD/`.
+- [ ] **DuckDB feature extraction layer** — Python notebook + scripts querying Floci S3
+      directly (`SET s3_endpoint='floci:4566'`). Computes: inter-arrival times,
+      provider success rates by 15-min window, merchant baseline deviation, T+1 drift stats.
+- [ ] See ADR-0022 for architecture decisions.
+
+---
+
+### P20 — Risk & Machine Learning
+
+- [ ] **Scoring service** (`apps/yagye_scoring`) — FastAPI + Uvicorn container on
+      `core_mesh` network. Loads `.onnx` model weights. Exposes:
+      - `POST /score/routing` → `{provider_scores: [{provider_code, score}]}`
+      - `POST /score/risk` → `{risk_score: float, signals: [...]}`
+      Fallback: if service unreachable, Core falls back to rule-based routing.
+- [ ] **Model 1 — Smart routing predictor** — LightGBM trained on P19 Parquet data.
+      Features: provider, network, amount_bucket, hour_of_day, recent_error_rate (15m window).
+      Target: P(success). Replaces static provider priority in `PaymentDispatchWorker`.
+- [ ] **Model 2 — MoMo velocity & burst anomaly scorer** — time-series anomaly model
+      on inter-arrival times, hour-of-day, amount deviation from merchant baseline.
+      Plugs into `VelocityChecker` — scores > 0.85 → `:hold` instead of `:ok`.
+- [ ] **Model 3 — Reconciliation break classifier** — trained on historical break types.
+      Classifies: T+1 timing lag / fee schedule drift / dropped webhook / true shortfall.
+      Auto-generates compensating posting suggestion for confidence > 0.99.
+      Plugs into `Reconciliation.classify_break/1`.
+- [ ] **Model 4 — Dynamic rolling reserve predictor** — predicts 90-day dispute probability
+      per merchant. Replaces flat reserve percentage in `YagyeCore.Reserves.compute_rate/1`.
+- [ ] See ADR-0023 for ML scoring architecture decisions.
 
 ---
 

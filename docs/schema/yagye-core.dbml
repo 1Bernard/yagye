@@ -916,7 +916,10 @@ Table pricing_rules [headercolor: #2E4A73] {
   minimum_fee bigint
   maximum_fee bigint
   rounding text [not null, note: 'half_up|bankers']
+  created_by text [note: 'SoD: opaque actor ref who created this rule. Must differ from approved_by when both non-NULL.']
+  approved_by text [note: 'SoD: CHECK (approved_by IS NULL OR created_by IS NULL OR approved_by <> created_by). Set by a second ops officer at P13+.']
   inserted_at timestamptz [not null]
+  Note: 'SoD: created_by <> approved_by when both non-NULL — DB CHECK enforced, changeset guard in approve_changeset/2. NULL on both = system-managed rule, no human SoD required.'
 }
 
 Table fee_records [headercolor: #B4531F] {
@@ -951,12 +954,14 @@ Table platform_fee_invoices [headercolor: #B4531F] {
   due_at timestamptz [note: 'NULL for cross_net — collection is synchronous with the native_rail settlement run']
   collected_at timestamptz
   collection_reference text [note: 'direct debit mandate reference or invoice payment reference']
+  write_off_initiated_by text [note: 'SoD: ops actor who initiated the write-off (state → written_off). Must differ from write_off_approved_by when both non-NULL.']
+  write_off_approved_by text [note: 'SoD: CHECK (write_off_approved_by IS NULL OR write_off_initiated_by IS NULL OR write_off_approved_by <> write_off_initiated_by). Set by a second ops officer.']
   inserted_at timestamptz [not null]
   updated_at timestamptz [not null]
   indexes {
     (merchant_id, mode, period_start, period_end) [unique]
   }
-  Note: '[FIN] The billing record for Yagye orchestration fees on Model B external_psp transactions. fee_records captures individual fee lines; this table is the collection cycle aggregate. cross_net: the settlements worker creates this row and deducts from the native_rail settlement in the same transaction — atomic, no separate billing run needed. monthly_invoice and direct_debit: created by a billing job at period close.'
+  Note: '[FIN] The billing record for Yagye orchestration fees on Model B external_psp transactions. fee_records captures individual fee lines; this table is the collection cycle aggregate. cross_net: the settlements worker creates this row and deducts from the native_rail settlement in the same transaction — atomic, no separate billing run needed. monthly_invoice and direct_debit: created by a billing job at period close. SoD: write_off_initiated_by <> write_off_approved_by when both non-NULL — DB CHECK enforced.'
 }
 
 Table fx_rates [headercolor: #2E4A73] {
@@ -1022,9 +1027,12 @@ Table settlements [headercolor: #1A2B4C] {
   provider_settlement_reference text
   value_date date
   reconciliation_run_id uuid
+  write_off_initiated_by text [note: 'SoD: ops actor who initiated the write-off (state → written_off). Must differ from write_off_approved_by when both non-NULL.']
+  write_off_approved_by text [note: 'SoD: CHECK (write_off_approved_by IS NULL OR write_off_initiated_by IS NULL OR write_off_approved_by <> write_off_initiated_by). Set by a second ops officer.']
   inserted_at timestamptz [not null]
   updated_at timestamptz [not null]
   indexes { (merchant_id, provider_id, mode, currency, period_start, period_end) [unique] }
+  Note: 'SoD: write_off_initiated_by <> write_off_approved_by when both non-NULL — DB CHECK enforced, changeset guard in write_off_changeset/2.'
 }
 
 Table settlement_items [headercolor: #2E4A73] {
