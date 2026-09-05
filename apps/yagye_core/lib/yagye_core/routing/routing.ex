@@ -4,7 +4,13 @@ defmodule YagyeCore.Routing do
   import Ecto.Query
 
   alias YagyeCore.Repo
-  alias YagyeCore.Routing.Schemas.{RoutingRule, RoutingRuleAction, RoutingRuleCondition}
+
+  alias YagyeCore.Routing.Schemas.{
+    RoutingConfiguration,
+    RoutingRule,
+    RoutingRuleAction,
+    RoutingRuleCondition
+  }
 
   # ── Public API ───────────────────────────────────────────────────────────────
 
@@ -113,4 +119,51 @@ defmodule YagyeCore.Routing do
     do: to_string(a) not in Enum.map(list, &to_string/1)
 
   defp apply_operator(_, _, _), do: false
+
+  # ── Routing Configurations ──────────────────────────────────────────────────
+
+  def list_configurations(opts \\ []) do
+    scope = Keyword.get(opts, :scope, "platform")
+    state = Keyword.get(opts, :state)
+
+    base =
+      from(c in RoutingConfiguration,
+        where: c.scope == ^scope,
+        order_by: [desc: c.inserted_at]
+      )
+
+    query = if state, do: where(base, [c], c.state == ^state), else: base
+    {:ok, Repo.all(query)}
+  end
+
+  def get_configuration(id) do
+    case Repo.get(RoutingConfiguration, id) do
+      nil -> {:error, :not_found}
+      config -> {:ok, config}
+    end
+  end
+
+  def create_configuration(attrs) do
+    %RoutingConfiguration{}
+    |> RoutingConfiguration.create_changeset(attrs)
+    |> Repo.insert()
+  end
+
+  def update_configuration(%RoutingConfiguration{} = config, attrs) do
+    config
+    |> RoutingConfiguration.update_changeset(attrs)
+    |> Repo.update()
+  end
+
+  def publish_configuration(%RoutingConfiguration{} = config) do
+    config
+    |> RoutingConfiguration.publish_changeset()
+    |> Repo.update()
+  end
+
+  def archive_configuration(%RoutingConfiguration{} = config) do
+    config
+    |> RoutingConfiguration.archive_changeset()
+    |> Repo.update()
+  end
 end

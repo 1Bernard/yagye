@@ -83,6 +83,30 @@ class CoreApiClient
     post("/v1/webhooks/#{endpoint_id}/test", {})
   end
 
+  # ── Routing configurations ─────────────────────────────────────────────────
+
+  def list_routing_configurations(scope: "platform")
+    get("/internal/routing-configurations?scope=#{scope}")
+  end
+
+  def get_routing_configuration(id)
+    get("/internal/routing-configurations/#{id}")
+  end
+
+  def create_routing_configuration(name:, scope: "platform", description: nil, graph_payload:)
+    post("/internal/routing-configurations",
+         { name: name, scope: scope, description: description, graph_payload: graph_payload })
+  end
+
+  def update_routing_configuration(id, name:, description: nil, graph_payload:)
+    patch("/internal/routing-configurations/#{id}",
+          { name: name, description: description, graph_payload: graph_payload })
+  end
+
+  def publish_routing_configuration(id)
+    post("/internal/routing-configurations/#{id}/publish", {})
+  end
+
   # ── Adjustment approvals (ops — SoD enforced in Core) ─────────────────────
 
   # POST /internal/adjustment_approvals/:break_id/approve
@@ -113,6 +137,13 @@ class CoreApiClient
 
   def delete(path, body)
     response = @conn.delete(path, body, request_headers)
+    handle(response)
+  rescue Faraday::TimeoutError, Faraday::ConnectionFailed => e
+    Result.new(success?: false, error_code: "network_error", error_message: e.message)
+  end
+
+  def patch(path, body)
+    response = @conn.patch(path, body, request_headers)
     handle(response)
   rescue Faraday::TimeoutError, Faraday::ConnectionFailed => e
     Result.new(success?: false, error_code: "network_error", error_message: e.message)

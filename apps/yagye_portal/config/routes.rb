@@ -48,9 +48,12 @@ Rails.application.routes.draw do
 
   # ── Developers domain ────────────────────────────────────────────────────
   scope module: "developers" do
-    get "developers",                  to: "api_keys#index",              as: :developers
-    get "developers/deliveries",       to: "webhook_deliveries#index",    as: :developers_deliveries
-    get "developers/deliveries/:id",   to: "webhook_deliveries#show",     as: :developers_delivery
+    get "developers",                          to: "api_keys#index",              as: :developers
+    get "developers/deliveries",               to: "webhook_deliveries#index",    as: :developers_deliveries
+    get "developers/deliveries/:id",           to: "webhook_deliveries#show",     as: :developers_delivery
+    get "developers/routing-rules",            to: "routing_rules#index",         as: :developers_routing_rules
+    get "developers/routing-rules/new",        to: "routing_rules#new",           as: :new_developers_routing_rule
+    get "developers/routing-rules/:id/edit",   to: "routing_rules#edit",          as: :edit_developers_routing_rule
   end
 
   # ── Payments — refund ────────────────────────────────────────────────────
@@ -67,6 +70,9 @@ Rails.application.routes.draw do
 
   # ── Developers — write actions ───────────────────────────────────────────
   scope module: "developers" do
+    post  "developers/routing-rules",                    to: "routing_rules#create"
+    patch "developers/routing-rules/:id",                to: "routing_rules#update",  as: :developers_routing_rule
+    post  "developers/routing-rules/:id/publish",        to: "routing_rules#publish", as: :publish_developers_routing_rule
     post   "developers/keys",                    to: "api_keys#create",   as: :developers_keys
     delete "developers/keys/:key_id",            to: "api_keys#destroy",  as: :developers_key
     post   "developers/webhooks",                to: "webhooks#create",   as: :developers_webhooks

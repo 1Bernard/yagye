@@ -28,6 +28,7 @@ defmodule YagyeCoreWeb.Router do
   alias YagyeCoreWeb.Controllers.Merchants.MerchantController
   alias YagyeCoreWeb.Controllers.Payments.PaymentController
   alias YagyeCoreWeb.Controllers.Payouts.PayoutController
+  alias YagyeCoreWeb.Controllers.Routing.RoutingConfigurationsController
   alias YagyeCoreWeb.Controllers.Routing.RoutingController
   alias YagyeCoreWeb.Controllers.Settlement.SettlementController
   alias YagyeCoreWeb.Controllers.Webhooks.ProviderWebhookController
@@ -76,6 +77,13 @@ defmodule YagyeCoreWeb.Router do
     post "/routing-rules", RoutingController, :create
     get "/routing-rules/:id", RoutingController, :show
     post "/routing-rules/:id/deactivate", RoutingController, :deactivate
+
+    # P13 — Routing configurations (graph-based editor)
+    get "/routing-configurations", RoutingConfigurationsController, :index
+    post "/routing-configurations", RoutingConfigurationsController, :create
+    get "/routing-configurations/:id", RoutingConfigurationsController, :show
+    patch "/routing-configurations/:id", RoutingConfigurationsController, :update
+    post "/routing-configurations/:id/publish", RoutingConfigurationsController, :publish
   end
 
   # v1 merchant-facing API
