@@ -118,8 +118,7 @@ defmodule YagyeCore.Customers.VelocityChecker do
       |> Repo.one()
       |> to_integer()
 
-    # sobelow_skip ["DOS.BinToAtom"] — period is always a compile-time atom (:daily/:monthly)
-    reason = :"#{period}_limit_exceeded"
+    reason = period_error(period)
     if volume < max, do: :ok, else: {:error, reason}
   end
 
@@ -140,12 +139,14 @@ defmodule YagyeCore.Customers.VelocityChecker do
       |> Repo.one()
       |> to_integer()
 
-    # sobelow_skip ["DOS.BinToAtom"] — period is always a compile-time atom (:daily/:monthly)
-    reason = :"#{period}_limit_exceeded"
+    reason = period_error(period)
     if volume < max, do: :ok, else: {:error, reason}
   end
 
   defp check_customer_period(_, _, _, _, nil, _period), do: :ok
+
+  defp period_error(:daily), do: :daily_limit_exceeded
+  defp period_error(:monthly), do: :monthly_limit_exceeded
 
   defp to_integer(nil), do: 0
   defp to_integer(%Decimal{} = d), do: Decimal.to_integer(d)
