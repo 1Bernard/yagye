@@ -97,8 +97,8 @@ module Disputes
         end
         c.body(padding: false) do
           div(class: "py-12 px-6 flex flex-col items-center justify-center gap-[10px] text-center") do
-            div(class: "w-11 h-11 rounded-xl bg-gray-100 flex items-center justify-center mb-1") do
-              span(class: "text-gray-300 flex w-[22px] h-[22px]") do
+            div(class: "w-11 h-11 rounded-xl icon-purple flex items-center justify-center mb-1") do
+              span(class: "flex w-[22px] h-[22px]") do
                 render UI::Icon.new(:file, class: "w-full h-full")
               end
             end

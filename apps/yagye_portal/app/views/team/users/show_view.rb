@@ -185,9 +185,11 @@ module Team
         render UI::Card.new do |c|
           c.header("Recent activity")
           c.body do
-            div(class: "py-5 text-center") do
-              span(class: "flex w-8 h-8 text-gray-300 mx-auto mb-[10px]") do
-                render UI::Icon.new(:clock, class: "w-full h-full")
+            div(class: "py-5 flex flex-col items-center text-center gap-2") do
+              div(class: "w-10 h-10 rounded-xl icon-brand flex items-center justify-center mb-1") do
+                span(class: "flex w-5 h-5") do
+                  render UI::Icon.new(:clock, class: "w-full h-full")
+                end
               end
               p(class: TYPE_CAPTION) { plain "Activity log will be available in a future release." }
             end

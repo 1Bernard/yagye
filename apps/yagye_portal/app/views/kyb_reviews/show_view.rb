@@ -96,7 +96,7 @@ module KybReviews
         c.header("Beneficial owners (25%+ threshold)", icon: :users)
         c.body(padding: false) do
           empty_state(:users, "No beneficial owners on record",
-                      "UBO data will appear here once submitted via the API (P21b).")
+                      "UBO data will appear here once submitted via the API (P21b).", palette: "blue")
         end
       end
     end
@@ -108,7 +108,7 @@ module KybReviews
         c.header("AML & sanctions screening", icon: :shield)
         c.body(padding: false) do
           empty_state(:shield, "Screening not yet run",
-                      "Automated AML screening will be triggered upon approval (P21b).")
+                      "Automated AML screening will be triggered upon approval (P21b).", palette: "amber")
         end
       end
     end
@@ -120,7 +120,7 @@ module KybReviews
         c.header("KYB documents", icon: :file)
         c.body(padding: false) do
           empty_state(:file, "No documents uploaded",
-                      "Document upload will be available once the KYB documents endpoint ships (P21).")
+                      "Document upload will be available once the KYB documents endpoint ships (P21).", palette: "teal")
         end
       end
     end
@@ -234,10 +234,10 @@ module KybReviews
       end
     end
 
-    def empty_state(icon, title, subtitle)
+    def empty_state(icon, title, subtitle, palette: "brand")
       div(class: "py-10 px-6 flex flex-col items-center justify-center gap-2 text-center") do
-        div(class: "w-10 h-10 rounded-xl bg-gray-100 flex items-center justify-center mb-1") do
-          span(class: "text-gray-300 flex w-5 h-5") do
+        div(class: "w-10 h-10 rounded-xl icon-#{palette} flex items-center justify-center mb-1") do
+          span(class: "flex w-5 h-5") do
             render UI::Icon.new(icon, class: "w-full h-full")
           end
         end

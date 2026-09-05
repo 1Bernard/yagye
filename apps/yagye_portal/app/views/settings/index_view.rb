@@ -494,9 +494,9 @@ module Settings
         end
 
         if @audit_events.empty?
-          div(class: "px-5 py-10 text-center") do
-            div(class: "w-9 h-9 rounded-xl bg-gray-100 border border-gray-200 flex items-center justify-center mx-auto mb-3") do
-              span(class: "flex w-4 h-4 text-gray-400") do
+          div(class: "px-5 py-10 flex flex-col items-center text-center gap-2") do
+            div(class: "w-10 h-10 rounded-xl icon-brand flex items-center justify-center mb-1") do
+              span(class: "flex w-5 h-5") do
                 render UI::Icon.new(:clock, class: "w-full h-full")
               end
             end
