@@ -26,35 +26,36 @@ step is completed or a decision is made. Status values: `todo`, `in-progress`, `
 ### Act I — The Correct Core
 | Phase | Name | Status | Notes |
 |---|---|---|---|
-| P0 | Foundations | **in-progress** | Step 1 (empty repo skeleton) done. Next: Elixir project boots. |
-| P1 | Merchants, Onboarding & Access | todo | |
-| P2 | The Payment Lifecycle | todo | |
-| P3 | The Ledger | todo | |
+| P0 | Foundations | **done** | All 8 steps complete. |
+| P1 | Merchants, Onboarding & Access | **done** | Merchants, compliance, beneficial owners, KYB docs, idempotency, API keys |
+| P2 | The Payment Lifecycle | **done** | Payments context, dispatch worker, provider adapters |
+| P3 | The Ledger | **done** | Double-entry accounts, entries, postings, balances |
 
 ### Act II — The Distributed Boundary
-| Phase | Name | Status |
-|---|---|---|
-| P4 | Gateway Simulator + Anti-Corruption Layer | todo |
-| P5 | Failure, Indeterminacy & Transaction Reconciliation | todo |
-| P6 | Inbound Webhooks, the Inbox & Asynchrony | todo |
-| P7 | The Outbox, Event Envelope & Projections | todo |
-| P8 | Observability I | todo |
+| Phase | Name | Status | Notes |
+|---|---|---|---|
+| P4 | Gateway Simulator + Anti-Corruption Layer | **done** | Full simulator app (charges, refunds, outcome engine, webhook delivery, scenarios LiveView) |
+| P5 | Failure, Indeterminacy & Transaction Reconciliation | **done** | Bank reconciliation, recon workers |
+| P6 | Inbound Webhooks, the Inbox & Asynchrony | **done** | Webhooks context + processor worker |
+| P7 | The Outbox, Event Envelope & Projections | **done** | Outbox context + payment summary projections |
+| P8 | Observability I | **done** | OpenTelemetry (API, exporter, Phoenix, Ecto, Oban, Req) |
 
 ### Act III — The Money Operations
-| Phase | Name | Status |
-|---|---|---|
-| P9 | Settlement | todo |
-| P10 | Reconciliation | todo |
-| P11 | Pricing, Fees & Unit Economics | todo |
-| P12 | Refunds, Disputes, Reserves, Payouts | todo |
+| Phase | Name | Status | Notes |
+|---|---|---|---|
+| P9 | Settlement | **done** | Settlement batches, scheduler + processor workers |
+| P10 | Reconciliation | **done** | Reconciliation context, breaks, workers |
+| P11 | Pricing, Fees & Unit Economics | **done** | Pricing context and schemas |
+| P12 | Refunds, Disputes, Reserves, Payouts | **done** | All four contexts with workers |
 
 ### Act IV — The Product Surface
-| Phase | Name | Status |
-|---|---|---|
-| P13 | The Rails Portal | todo |
-| P14 | Kafka & the Event Backbone | todo |
-| P15 | RabbitMQ & Outbound Webhook Delivery | todo |
-| P16 | Hosted Checkout, Payment Methods, 3DS | todo |
+| Phase | Name | Status | Notes |
+|---|---|---|---|
+| P13 | The Rails Portal | **done** | Full portal UI, TOTP, SoD, routing graph, team management, role governance |
+| P13.5 | Passkeys | **done** | WebAuthn registration + authentication |
+| P14 | Kafka & the Event Backbone | **todo** | ← next |
+| P15 | RabbitMQ & Outbound Webhook Delivery | **todo** | |
+| P16 | Hosted Checkout, Payment Methods, 3DS | **todo** | |
 
 ### Act V — Scale, Data, Risk, Real Money
 | Phase | Name | Status |
@@ -75,17 +76,17 @@ step is completed or a decision is made. Status values: `todo`, `in-progress`, `
 - [x] Step 3 — `Yagye.Money` type + allocation property test (6 properties, 17 tests, 0 failures)
 - [x] Step 4 — structured JSON logging with correlation ids (logger_json 7.0, Basic formatter, CorrelationId plug)
 - [x] Step 5 — Dockerfile + docker-compose.yml (Postgres only, multi-stage build verified)
-- [ ] Step 6 — CI (`.github/workflows/ci.yml`): format, credo, dialyzer, test
-- [ ] Step 7 — ADR process + first ADRs (0000–0005)
-- [ ] Step 8 — `mix yagye.schema.export` task wired into CI
+- [x] Step 6 — CI (`.github/workflows/ci.yml`): format, credo, dialyzer, test
+- [x] Step 7 — ADR process + first ADRs (0000–0005)
+- [x] Step 8 — `mix yagye.schema.export` task wired into CI
 
 Definition of done for P0 (from the book, checked off as we go):
-- [ ] Repo, compose, ADRs 0000–0005 written
-- [ ] Money type with conserving allocation and property tests
-- [ ] JSON logging with correlation ids
-- [ ] Four test layers wired (unit / property / contract / acceptance)
-- [ ] `mix yagye.schema.export` wired into CI
-- [ ] Budget alarm set (AWS cost guard — comes later once Terraform touches real AWS)
+- [x] Repo, compose, ADRs 0000–0024 written
+- [x] Money type with conserving allocation and property tests
+- [x] JSON logging with correlation ids
+- [x] Four test layers wired (unit / property / contract / acceptance)
+- [x] `mix yagye.schema.export` wired into CI
+- [ ] Budget alarm set (AWS cost guard — deferred to P22 when Terraform touches real AWS)
 
 **What breaks next (per the book):** there is no caller. Anyone can hit the API, and
 if a caller retries a request we have no way to avoid creating two payments. That's P1.
@@ -185,35 +186,39 @@ must exist and return real data shapes.
         merchants, disputes, payouts, settlements, transactions, team/users
   - [x] Docker stack fully operational: Core + Portal + Simulator + Redpanda all healthy
 
-- [ ] TOTP enrolment UI — `Settings::TotpEnrolmentSection`, `Settings::TotpController`,
-      QR code via `rqrcode` gem, 8–10 recovery codes stored hashed.
-      `otp_secret` + `otp_required_for_login` columns already in portal DBML.
+- [x] **TOTP enrolment UI (2026-09-05)** — `Account::TotpController` (new/create/recovery_codes/destroy),
+      `Settings::TotpSetupView` (QR + manual key + 6-digit verify form), `Settings::TotpRecoveryCodesView`
+      (10 codes shown once, copy-all), `Auth::OtpView` (login challenge), `Users::SessionsController`
+      intercept + OTP challenge flow. Recovery codes hashed + encrypted at rest. Disable requires
+      password confirmation. Security panel shows health score + enable/disable panel.
 
-- [ ] **SoD: ops-managed financial operations** — add DB CHECK constraints + changeset
-      guards for:
-      - `pricing_rules`: `created_by ≠ approved_by`
-      - `settlements` write-off transition: `write_off_initiated_by ≠ write_off_approved_by`
-      - `platform_fee_invoices` write-off: same pattern
-      (DBML updated 2026-09-05 — columns now defined. Write migration + changeset guards next.)
+- [x] **SoD: ops-managed financial operations (2026-09-05)** — DB CHECK constraints added via
+      migrations (`pricing_rules_sod`, `settlements_write_off_sod`, `platform_fee_invoices_write_off_sod`);
+      changeset guards (`validate_sod/3`, `validate_write_off_sod/1`) in all three schemas.
 
-- [ ] **Routing rules editor (ReactFlow)** — ops staff visual graph UI for creating and
-      activating routing rule sets. `GET/POST /internal/routing-rules` API already exists in
-      Core (tagged P13 in router). Build:
-      - `Developers::RoutingRulesController` (portal-side, ops-only)
-      - `Developers::RoutingGraphView` with ReactFlow canvas (Vite + `reactflow` npm pkg)
+- [x] **Routing rules editor — Drawflow (2026-09-05)** — ops-only visual graph UI:
+      - `Developers::RoutingRulesController` + full CRUD + publish action
+      - `Developers::RoutingGraphView` with Drawflow canvas (CDN UMD; Stimulus controller)
       - Closed node vocabulary v1: `ProviderNode`, `ConditionNode`, `SplitNode`, `FallbackNode`
+      - Inline embedded form controls per node; no separate properties panel
       - Persisted as `routing_configurations` JSONB via Core's internal API
       - Enterprise merchant variant (entitlement-gated) deferred to P16
+      - Note: `compiled_rules` and payment-engine integration deferred (graph stored but not yet evaluated)
 
 ---
 
-### P13.5 — Passkeys
+### P13.5 — Passkeys ✓ (2026-09-05)
 
-- [ ] `devise-passkeys` gem + `create_passkey_credentials` migration
+- [x] `webauthn` gem (3.4.3) + `create_passkey_credentials` migration
       (uuid PK, `external_id` unique, `public_key`, `sign_count`, `nickname`, `last_used_at`)
-- [ ] `Auth::PasskeyButton` + `Settings::PasskeysSection`
-- [ ] Stimulus `passkey_controller.js` using `navigator.credentials` API
-- [ ] Sign-in page: divider + passkey button below primary "Sign in" button
+- [x] `Settings::PasskeysSection` — enrolled passkey list, hover-reveal delete, "Add passkey" button
+- [x] `passkey_controller.js` + `passkey_auth_controller.js` — registration and sign-in Stimulus controllers
+- [x] Sign-in page: divider + "Sign in with a passkey" button below primary "Sign in" button
+- [x] `Account::PasskeysController` (register_challenge, create, destroy) — Pundit-gated
+- [x] `Users::PasskeySessionsController` (challenge, authenticate) — unauthenticated; JSON-based auth
+      (avoids Turbo interception of form POST); audit event via `after_sign_in_path_for`
+- [x] `PORTAL_ORIGIN` env var drives rpId — set to `http://localhost:3000` in docker-compose
+- [x] Double audit-event bug fixed — `after_sign_in_path_for` is the single log site for all sign-in paths
 
 ---
 

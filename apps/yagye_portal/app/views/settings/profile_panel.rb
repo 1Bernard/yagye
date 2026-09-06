@@ -4,11 +4,10 @@ module Settings
   class ProfilePanel < ApplicationComponent
     include UI::Theme
 
-    def initialize(current_user:, roles: [], audit_events: [], profile_dialog_open: false)
-      @current_user        = current_user
-      @roles               = roles
-      @audit_events        = audit_events
-      @profile_dialog_open = profile_dialog_open
+    def initialize(current_user:, roles: [], audit_events: [])
+      @current_user = current_user
+      @roles        = roles
+      @audit_events = audit_events
     end
 
     def view_template
@@ -35,13 +34,16 @@ module Settings
       last_seen = u&.last_sign_in_at&.strftime("%d %b %Y") || "Never"
       sign_ins  = u&.sign_in_count&.to_s                   || "0"
 
-      div(class: "bg-white border border-gray-100 rounded-2xl px-7 py-7") do
+      div(class: "bg-white border border-gray-100 rounded-2xl px-7 py-7",
+          data: { controller: "inline-edit" }) do
         div(class: "flex items-start gap-5 mb-6") do
           div(class: "relative flex-shrink-0") do
             render UI::Avatar.new(initials, size: :xl)
             div(class: "absolute -bottom-[3px] -right-[3px] w-5 h-5 rounded-full bg-green-500 border-2 border-white")
           end
-          div(class: "flex-1 min-w-0 pt-1") do
+
+          # ── Display state ────────────────────────────────────────────────
+          div(class: "flex-1 min-w-0 pt-1", data: { inline_edit_target: "display" }) do
             h2(class: "text-[18px] font-bold text-gray-900 tracking-[-0.02em] mb-1") do
               plain u ? "#{u.first_name} #{u.last_name}".strip : "Your Account"
             end
@@ -58,12 +60,38 @@ module Settings
             end
             p(class: "#{TYPE_CAPTION} mt-1") { plain u&.email || "" }
           end
-          render UI::Button.new(variant: :secondary,
-                 data: { action: "click->dialog#open", dialog_target_param: "edit-profile-dialog" }) do
-            render UI::Icon.new(:edit, class: ICON_SM)
-            plain "Edit"
+
+          # ── Edit state (hidden) ──────────────────────────────────────────
+          div(class: "flex-1 min-w-0", hidden: true, data: { inline_edit_target: "form" }) do
+            form(action: settings_profile_path, method: "post", class: "flex flex-col gap-3") do
+              input(type: "hidden", name: "_method",            value: "patch")
+              input(type: "hidden", name: "authenticity_token", value: form_authenticity_token)
+              div(class: "grid grid-cols-2 gap-2") do
+                inline_field("first_name", "First name", u&.first_name)
+                inline_field("last_name",  "Last name",  u&.last_name)
+              end
+              p(class: TYPE_CAPTION) { plain u&.email || "" }
+              div(class: "flex items-center gap-3 pt-1") do
+                render UI::Button.new(variant: :primary, type: "submit", size: :sm) do
+                  plain "Save changes"
+                end
+                button(type: "button",
+                       class: "text-[12.5px] font-medium text-gray-400 hover:text-gray-700 transition-colors bg-transparent border-0 cursor-pointer p-0",
+                       data: { action: "click->inline-edit#cancel" }) do
+                  plain "Cancel"
+                end
+              end
+            end
           end
-          edit_profile_dialog
+
+          # ── Edit trigger ─────────────────────────────────────────────────
+          div(data: { inline_edit_target: "trigger" }) do
+            render UI::Button.new(variant: :secondary,
+                   data: { action: "click->inline-edit#edit" }) do
+              render UI::Icon.new(:edit, class: ICON_SM)
+              plain "Edit"
+            end
+          end
         end
 
         div(class: "grid grid-cols-3 gap-[1px] bg-gray-100 rounded-xl overflow-hidden") do
@@ -71,6 +99,19 @@ module Settings
           profile_stat("Last active", last_seen, :clock)
           profile_stat("Sign-ins",    sign_ins,  :check_circle)
         end
+      end
+    end
+
+    def inline_field(name, label, value)
+      div(class: "flex flex-col gap-1") do
+        label(for: name,
+              class: "text-[10.5px] font-semibold text-gray-400 uppercase tracking-widest") do
+          plain label
+        end
+        input(id: name, name: "user[#{name}]", type: "text", value: value,
+              class: "rounded-xl border border-gray-200 bg-gray-50 px-3 py-[7px] text-[13px] " \
+                     "font-medium text-gray-900 outline-none focus:bg-white focus:border-blue-400 " \
+                     "focus:ring-2 focus:ring-blue-500/10 transition-all w-full")
       end
     end
 
@@ -85,24 +126,6 @@ module Settings
           p(class: "text-[10.5px] font-semibold text-gray-400 uppercase tracking-widest mb-px") { plain label }
           p(class: "text-[12.5px] font-semibold text-gray-900") { plain value }
         end
-      end
-    end
-
-    def edit_profile_dialog
-      dialog(id: "edit-profile-dialog",
-             class: "border-0 rounded-2xl p-0 shadow-2xl w-full max-w-[460px] bg-white") do
-        div(class: "px-6 py-[22px] border-b border-gray-100") do
-          p(class: TYPE_TITLE) { plain "Edit profile" }
-          p(class: "#{TYPE_CAPTION} mt-[3px]") { plain "Update your name and contact details." }
-        end
-        div(class: "px-6 py-[22px]") do
-          render Settings::ProfileForm.new(@current_user,
-                                          action: settings_profile_path,
-                                          method: :patch)
-        end
-      end
-      if @profile_dialog_open
-        script { plain "document.getElementById('edit-profile-dialog').showModal()" }
       end
     end
 

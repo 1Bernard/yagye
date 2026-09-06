@@ -25,6 +25,7 @@ gem "tailwindcss-rails"
 gem "devise"
 gem "devise-two-factor"
 gem "rqrcode"
+gem "webauthn"
 
 # Authorization
 gem "pundit"

@@ -26,8 +26,8 @@ module Team
           div(data: { controller: "dialog" }) do
             render UI::PageHeader.new(title: "Team members", subtitle: "Manage who has access to your account.") do
               if @can_invite
-                render UI::Button.new(variant: :primary,
-                       data: { action: "click->dialog#open", dialog_target_param: "invite-member-dialog" }) do
+                render UI::Button.new(variant: :primary, href: new_team_user_path,
+                                      data: { turbo_frame: "drawer-frame" }) do
                   render UI::Icon.new(:plus, class: ICON_SM)
                   plain "Invite member"
                 end
@@ -35,7 +35,6 @@ module Team
             end
             @view == "grid" ? users_grid_section : users_list_section
             filter_dialog
-            invite_dialog if @can_invite
           end
         end
       end
@@ -350,93 +349,6 @@ module Team
           div do
             span(class: TYPE_BODY_MD) { plain label_text }
             p(class: TYPE_CAPTION) { plain hint } if hint
-          end
-        end
-      end
-
-      # ── Invite drawer ─────────────────────────────────────────────────────────
-
-      def invite_dialog
-        dialog(id: "invite-member-dialog", class: "side-panel bg-white w-[520px] max-w-[95vw]") do
-          div(class: "flex flex-col h-full") do
-            div(class: "flex-shrink-0 flex items-start justify-between px-6 py-5 border-b border-gray-100") do
-              div do
-                p(class: TYPE_TITLE) { plain "Invite team member" }
-                p(class: "#{TYPE_CAPTION} mt-[3px]") { plain "They'll receive an email to set up their account." }
-              end
-              button(type: "button", class: XBTN,
-                     data: { action: "click->dialog#close", dialog_target_param: "invite-member-dialog" }) do
-                plain "✕"
-              end
-            end
-
-            form(action: team_invite_user_path, method: "post",
-                 class: "flex flex-col flex-1 overflow-hidden") do
-              input(type: "hidden", name: "authenticity_token", value: form_authenticity_token)
-
-              div(class: "flex-1 overflow-y-auto px-6 py-5 flex flex-col gap-6") do
-                div(class: "flex flex-col gap-4") do
-                  div do
-                    p(class: "text-[10.5px] font-semibold text-gray-400 uppercase tracking-widest mb-3") { plain "Contact details" }
-                    div(class: "flex flex-col gap-3") do
-                      div(class: "grid grid-cols-2 gap-3") do
-                        render UI::InputField.new(name: "first_name", label: "First name", required: true)
-                        render UI::InputField.new(name: "last_name",  label: "Last name",  required: true)
-                      end
-                      render UI::InputField.new(name: "email", label: "Email address", type: "email", required: true)
-                    end
-                  end
-                end
-
-                div do
-                  p(class: "text-[10.5px] font-semibold text-gray-400 uppercase tracking-widest mb-3") { plain "Assign a role" }
-                  p(class: "#{TYPE_CAPTION} mb-4") { plain "Choose the role that best matches this person's responsibilities." }
-
-                  div(class: "flex flex-col gap-2") do
-                    p(class: "#{TYPE_MICRO} text-gray-400 mb-1") { plain "Merchant" }
-                    Portal::RoleMetadata::MERCHANT.each do |r|
-                      invite_role_card(r[:label], r[:key], r[:hint], icon: r[:icon], palette: r[:palette])
-                    end
-                  end
-
-                  div(class: "flex flex-col gap-2 mt-5") do
-                    p(class: "#{TYPE_MICRO} text-gray-400 mb-1") { plain "Internal" }
-                    Portal::RoleMetadata::INTERNAL.each do |r|
-                      invite_role_card(r[:label], r[:key], r[:hint], icon: r[:icon], palette: r[:palette])
-                    end
-                  end
-                end
-              end
-
-              div(class: "flex-shrink-0 flex items-center justify-between px-6 py-4 border-t border-gray-100 bg-white") do
-                render UI::Button.new(variant: :secondary,
-                       data: { action: "click->dialog#close", dialog_target_param: "invite-member-dialog" }) { plain "Cancel" }
-                render UI::Button.new(variant: :primary, type: "submit") do
-                  render UI::Icon.new(:plus, class: ICON_SM)
-                  plain "Send invitation"
-                end
-              end
-            end
-          end
-        end
-      end
-
-      def invite_role_card(lbl, val, hint, icon:, palette:)
-        card_id = "role-#{val}"
-        label(for: card_id,
-              class: "flex items-center gap-3 px-4 py-3 rounded-xl border border-gray-200 " \
-                     "cursor-pointer transition-all hover:border-gray-300 " \
-                     "has-[:checked]:border-[#3D47F5] has-[:checked]:bg-[rgba(61,71,245,0.04)]") do
-          input(type: "radio", name: "role_key", value: val, id: card_id, required: true, class: "sr-only")
-          div(class: "w-8 h-8 rounded-[10px] flex items-center justify-center flex-shrink-0 icon-#{palette}") do
-            span(class: "flex w-[14px] h-[14px]") { render UI::Icon.new(icon, class: "w-full h-full") }
-          end
-          div(class: "flex-1 min-w-0") do
-            p(class: "text-[13px] font-semibold text-gray-800 leading-tight") { plain lbl }
-            p(class: "text-[11px] text-gray-400 leading-tight mt-px") { plain hint }
-          end
-          span(class: "role-card-check flex w-[15px] h-[15px] flex-shrink-0 text-[#3D47F5]") do
-            render UI::Icon.new(:check, class: "w-full h-full")
           end
         end
       end

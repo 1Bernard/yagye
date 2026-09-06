@@ -178,6 +178,16 @@ jobs:
       - name: Run tests
         run: mix test --warnings-as-errors
 
+      - name: Export schema snapshot
+        run: mix yagye.schema.export
+
+      - name: Upload schema snapshot
+        uses: actions/upload-artifact@v4
+        with:
+          name: schema-snapshot-${{ github.sha }}
+          path: docs/schema/exports/
+          retention-days: 90
+
       - name: Dump logs on failure
         if: failure()
         run: |

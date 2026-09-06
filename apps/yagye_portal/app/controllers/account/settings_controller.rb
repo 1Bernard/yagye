@@ -29,29 +29,18 @@ module Account
         end
         redirect_to settings_path(tab: "profile"), notice: notice
       else
-        ip_allowlists     = PortalIpAllowlist.for_merchant(current_user.merchant_code).order(:created_at)
-        msisdn_allowlists = PortalMsisdnAllowlist.for_merchant(current_user.merchant_code).order(:created_at)
-        audit_events      = current_user.user_audit_events.recent.limit(15)
-        render Settings::IndexView.new(
-          tab: "profile",
-          current_user: current_user,
-          ip_allowlists: ip_allowlists,
-          msisdn_allowlists: msisdn_allowlists,
-          audit_events: audit_events,
-          profile_dialog_open: true
-        ), status: :unprocessable_entity
+        redirect_to settings_path(tab: "profile"),
+                    alert: current_user.errors.full_messages.first || "Could not update profile."
       end
     end
 
     def update_password
       authorize :settings, :update?
       unless current_user.valid_password?(params[:current_password])
-        return redirect_to settings_path(tab: "security"),
-                           alert: "Current password is incorrect."
+        return redirect_to settings_path(tab: "security"), alert: "Current password is incorrect."
       end
       if params[:password] != params[:password_confirmation]
-        return redirect_to settings_path(tab: "security"),
-                           alert: "New passwords do not match."
+        return redirect_to settings_path(tab: "security"), alert: "New passwords do not match."
       end
       current_user.update!(password: params[:password])
       bypass_sign_in(current_user)

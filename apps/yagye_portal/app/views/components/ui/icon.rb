@@ -17,6 +17,7 @@ module UI
       home flag key grid list magnet headset trending_up trending_down
       external_link link layers tag hash
       smartphone shield_off alert_triangle
+      minus paper_plane
     ].freeze
 
     def initialize(name, **attrs)
@@ -442,6 +443,15 @@ module UI
       s.path(d: "m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3")
       s.path(d: "M12 9v4")
       s.path(d: "M12 17h.01")
+    end
+
+    def minus(s)
+      s.path(d: "M5 12h14")
+    end
+
+    def paper_plane(s)
+      s.path(d: "M22 2 11 13")
+      s.path(d: "M22 2 15 22 11 13 2 9l20-7z")
     end
   end
 end

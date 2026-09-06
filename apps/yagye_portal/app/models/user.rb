@@ -21,6 +21,7 @@ class User < ApplicationRecord
   has_many :roles, through: :active_user_roles
   has_many :merchant_memberships, dependent: :destroy
   has_one :active_membership, -> { active }, class_name: "MerchantMembership"
+  has_many :passkey_credentials, dependent: :destroy
 
   validates :kind, inclusion: { in: %w[merchant_user internal_staff] }
 
@@ -44,7 +45,7 @@ class User < ApplicationRecord
     match = hashes.find { |h| BCrypt::Password.new(h) == normalized }
     return false unless match
 
-    update!(otp_recovery_codes: (hashes - [match]).to_json)
+    update!(otp_recovery_codes: (hashes - [ match ]).to_json)
     true
   end
 

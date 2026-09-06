@@ -103,6 +103,33 @@ module Auth
               end
             end
           end
+
+          # ── Passkey alternative ────────────────────────────────────────────
+          div(class: "flex items-center gap-3") do
+            div(class: "flex-1 h-px bg-gray-200")
+            span(class: "text-[11px] text-gray-400 font-medium flex-shrink-0") { plain "or" }
+            div(class: "flex-1 h-px bg-gray-200")
+          end
+
+          div(
+            data: {
+              controller: "passkey-auth",
+              passkey_auth_challenge_url_value: users_passkey_challenge_path,
+              passkey_auth_auth_url_value:      users_passkey_auth_path,
+              passkey_auth_csrf_token_value:    @csrf_token
+            }
+          ) do
+            button(
+              type: "button",
+              class: "w-full inline-flex items-center justify-center gap-2 rounded-xl px-4 py-3.5 " \
+                     "text-[13.5px] font-semibold text-gray-700 bg-white border border-gray-200 " \
+                     "hover:bg-gray-50 transition-colors cursor-pointer shadow-sm",
+              data: { action: "click->passkey-auth#authenticate" }
+            ) do
+              raw safe('<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>')
+              plain "Sign in with a passkey"
+            end
+          end
         end
       end
     end

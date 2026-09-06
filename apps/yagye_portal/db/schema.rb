@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_09_05_150001) do
+ActiveRecord::Schema[8.1].define(version: 2026_09_06_100001) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pgcrypto"
@@ -51,6 +51,19 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_05_150001) do
     t.index ["user_id", "merchant_code"], name: "merchant_memberships_one_active_per_user", unique: true, where: "(state = 'active'::text)"
     t.index ["user_id"], name: "index_merchant_memberships_on_user_id"
     t.check_constraint "state = ANY (ARRAY['invited'::text, 'active'::text, 'suspended'::text, 'removed'::text])", name: "valid_membership_state"
+  end
+
+  create_table "passkey_credentials", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+    t.datetime "created_at", null: false
+    t.string "external_id", null: false
+    t.datetime "last_used_at"
+    t.string "nickname"
+    t.text "public_key", null: false
+    t.integer "sign_count", default: 0, null: false
+    t.datetime "updated_at", null: false
+    t.uuid "user_id", null: false
+    t.index ["external_id"], name: "index_passkey_credentials_on_external_id", unique: true
+    t.index ["user_id"], name: "index_passkey_credentials_on_user_id"
   end
 
   create_table "permissions", primary_key: "key", id: :text, force: :cascade do |t|
@@ -274,6 +287,27 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_05_150001) do
     t.index ["merchant_code"], name: "index_portal_webhook_endpoints_on_merchant_code"
   end
 
+  create_table "role_assignment_requests", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+    t.datetime "created_at", null: false
+    t.string "current_role_keys", default: [], null: false, array: true
+    t.text "rejection_reason"
+    t.uuid "requested_by_id", null: false
+    t.string "requested_role_keys", default: [], null: false, array: true
+    t.timestamptz "reviewed_at"
+    t.uuid "reviewed_by_id"
+    t.string "status", default: "pending", null: false
+    t.uuid "target_user_id", null: false
+    t.datetime "updated_at", null: false
+    t.index ["requested_by_id"], name: "index_role_assignment_requests_on_requested_by_id"
+    t.index ["reviewed_by_id"], name: "index_role_assignment_requests_on_reviewed_by_id"
+    t.index ["status"], name: "index_role_assignment_requests_on_status"
+    t.index ["target_user_id", "status"], name: "index_role_assignment_requests_on_target_user_id_and_status"
+    t.index ["target_user_id"], name: "index_role_assignment_requests_on_target_user_id"
+    t.check_constraint "reviewed_by_id IS NULL OR reviewed_by_id <> requested_by_id", name: "no_self_approve"
+    t.check_constraint "status::text = ANY (ARRAY['pending'::character varying, 'approved'::character varying, 'rejected'::character varying, 'cancelled'::character varying]::text[])", name: "valid_status"
+    t.check_constraint "target_user_id <> requested_by_id", name: "no_self_request"
+  end
+
   create_table "role_permissions", primary_key: ["role_key", "permission_key"], force: :cascade do |t|
     t.datetime "granted_at", null: false
     t.text "permission_key", null: false
@@ -363,6 +397,10 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_05_150001) do
   add_foreign_key "audit_logs", "users"
   add_foreign_key "merchant_memberships", "users"
   add_foreign_key "merchant_memberships", "users", column: "invited_by_id"
+  add_foreign_key "passkey_credentials", "users"
+  add_foreign_key "role_assignment_requests", "users", column: "requested_by_id"
+  add_foreign_key "role_assignment_requests", "users", column: "reviewed_by_id"
+  add_foreign_key "role_assignment_requests", "users", column: "target_user_id"
   add_foreign_key "role_permissions", "permissions", column: "permission_key", primary_key: "key"
   add_foreign_key "role_permissions", "roles", column: "role_key", primary_key: "key"
   add_foreign_key "user_audit_events", "users"

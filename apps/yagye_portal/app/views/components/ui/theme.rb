@@ -230,10 +230,10 @@ module UI
     ICON_SM  = "w-[13px] h-[13px]"
 
     # ── Drawer ─────────────────────────────────────────────────────────────
-    DRAWER_OVERLAY = "fixed inset-0 bg-gray-900/30 z-50 opacity-0 pointer-events-none " \
+    DRAWER_OVERLAY = "fixed inset-0 bg-black/40 z-50 opacity-0 pointer-events-none " \
                      "transition-opacity duration-300"
     DRAWER_PANEL   = "fixed top-0 right-0 bottom-0 w-full sm:w-[min(640px,100vw)] bg-white " \
-                     "border-l border-gray-100 z-[60] translate-x-full overflow-y-auto " \
+                     "border-l border-gray-100 z-[60] translate-x-full flex flex-col overflow-hidden " \
                      "transition-transform duration-300 ease-out"
     DRAWER_HEAD    = "sticky top-0 z-10 flex items-center justify-between bg-white/90 " \
                      "backdrop-blur border-b border-gray-100 px-7 py-4"

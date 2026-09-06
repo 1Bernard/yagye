@@ -109,9 +109,9 @@ module Developers
 
     def state_badge(state)
       css, label = case state
-        when "published" then [BADGE_SUCCESS, "Published"]
-        when "archived"  then [BADGE_NEUTRAL, "Archived"]
-        else                  [BADGE_WARNING, "Draft"]
+      when "published" then [ BADGE_SUCCESS, "Published" ]
+      when "archived"  then [ BADGE_NEUTRAL, "Archived" ]
+      else                  [ BADGE_WARNING, "Draft" ]
       end
       span(class: css) { plain label }
     end

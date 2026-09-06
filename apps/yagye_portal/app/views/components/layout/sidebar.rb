@@ -16,8 +16,10 @@ module Layout
       {
         label: "TEAM",
         items: [
-          { key: :team_users, icon: :users,  label: "Users",             path: :team_users_path },
-          { key: :team_roles, icon: :shield, label: "Roles & Permissions", path: :team_roles_path }
+          { key: :team_users,        icon: :users,  label: "Users",             path: :team_users_path },
+          { key: :team_role_requests, icon: :clock,  label: "Role Requests",     path: :team_role_requests_path,
+            internal_only: true },
+          { key: :team_roles,        icon: :shield, label: "Roles & Permissions", path: :team_roles_path }
         ]
       },
       {
@@ -110,6 +112,8 @@ module Layout
     end
 
     def nav_item(item)
+      return if item[:internal_only] && !internal_staff?
+
       active = @active == item[:key]
       path   = (send(item[:path]) rescue "#")
       base   = active ? NAV_ITEM_ON : NAV_ITEM

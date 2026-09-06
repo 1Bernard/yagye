@@ -172,6 +172,7 @@ services:
       CORE_PORTAL_SERVICE_SECRET: dev_portal_service_secret_change_in_production
       KAFKA_BOOTSTRAP_SERVERS: redpanda:9092
       RAILS_LOG_TO_STDOUT: "true"
+      PORTAL_ORIGIN: http://localhost:3000
     ports:
       - "3000:80"  # Thruster listens on :80 inside the container
     depends_on:

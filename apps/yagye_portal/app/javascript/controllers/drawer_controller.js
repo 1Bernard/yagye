@@ -4,6 +4,13 @@ export default class extends Controller {
   static targets = ["panel", "overlay"]
 
   open() {
+    // If the frame loaded empty content (e.g. after a successful form redirect),
+    // close the drawer instead of opening it with nothing.
+    const frame = this.element.querySelector("[id='drawer-frame']")
+    if (frame && !frame.firstElementChild) {
+      this.close()
+      return
+    }
     document.body.classList.add("overflow-hidden")
     this.overlayTarget.classList.remove("opacity-0", "pointer-events-none")
     this.panelTarget.classList.remove("translate-x-full")

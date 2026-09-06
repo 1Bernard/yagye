@@ -4,11 +4,12 @@ module Layout
   class Shell < ApplicationComponent
     include UI::Theme
 
-    def initialize(active_nav:, title:, subtitle: nil, breadcrumbs: nil)
+    def initialize(active_nav:, title:, subtitle: nil, breadcrumbs: nil, padded: true)
       @active_nav  = active_nav
       @title       = title
       @subtitle    = subtitle
       @breadcrumbs = breadcrumbs
+      @padded      = padded
     end
 
     def view_template
@@ -16,7 +17,7 @@ module Layout
         render Layout::Sidebar.new(active: @active_nav)
         div(class: "flex-1 flex flex-col min-w-0 overflow-hidden") do
           render Layout::Topbar.new(title: @title, subtitle: @subtitle, breadcrumbs: @breadcrumbs)
-          main(class: "flex-1 p-6 overflow-y-auto") { yield }
+          main(class: "flex-1 min-h-0 #{@padded ? 'p-6 overflow-y-auto' : 'overflow-hidden'}") { yield }
         end
       end
 

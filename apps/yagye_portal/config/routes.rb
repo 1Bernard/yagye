@@ -84,11 +84,22 @@ Rails.application.routes.draw do
   scope module: "team" do
     get  "team",                        to: "users#index",      as: :team
     get  "team/users",                  to: "users#index",      as: :team_users
+    get  "team/users/new",              to: "users#new",        as: :new_team_user
     get  "team/users/:id",              to: "users#show",       as: :team_user
+    get  "team/users/:id/edit-roles",   to: "users#edit_roles", as: :edit_roles_team_user
     post "team/users",                  to: "users#create",     as: :team_invite_user
-    post "team/users/:id/suspend",      to: "users#suspend",    as: :suspend_team_user
+    post "team/users/:id/suspend",      to: "users#suspend",     as: :suspend_team_user
     post "team/users/:id/roles",        to: "users#assign_role", as: :assign_team_user_role
-    get  "team/roles",                  to: "roles#index",      as: :team_roles
+    put  "team/users/:id/roles",        to: "users#set_roles",   as: :set_team_user_roles
+    get  "team/role-requests",              to: "role_requests#index",   as: :team_role_requests
+    post "team/role-requests/:id/approve", to: "role_requests#approve", as: :approve_team_role_request
+    post "team/role-requests/:id/reject",  to: "role_requests#reject",  as: :reject_team_role_request
+    get    "team/roles",          to: "roles#index",   as: :team_roles
+    get    "team/roles/new",      to: "roles#new",     as: :new_team_role
+    post   "team/roles",          to: "roles#create"
+    get    "team/roles/:key/edit", to: "roles#edit",   as: :edit_team_role
+    patch  "team/roles/:key",     to: "roles#update",  as: :team_role
+    delete "team/roles/:key",     to: "roles#destroy"
   end
 
   # ── Account domain ───────────────────────────────────────────────────────
@@ -107,5 +118,14 @@ Rails.application.routes.draw do
     post   "settings/totp",                  to: "totp#create",        as: :settings_totp
     delete "settings/totp",                  to: "totp#destroy",       as: :settings_totp_delete
     get    "settings/totp/recovery-codes",   to: "totp#recovery_codes", as: :settings_totp_recovery_codes
+
+    post   "settings/passkeys/register-challenge", to: "passkeys#register_challenge", as: :settings_passkey_register_challenge
+    post   "settings/passkeys",                    to: "passkeys#create",             as: :settings_passkeys
+    delete "settings/passkeys/:id",                to: "passkeys#destroy",            as: :settings_remove_passkey
+  end
+
+  devise_scope :user do
+    post "users/passkey-challenge", to: "users/passkey_sessions#challenge",    as: :users_passkey_challenge
+    post "users/passkey-auth",      to: "users/passkey_sessions#authenticate", as: :users_passkey_auth
   end
 end

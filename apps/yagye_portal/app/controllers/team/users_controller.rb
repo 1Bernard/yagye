@@ -15,10 +15,44 @@ module Team
     def show
       user = decode_id(User)
       authorize user
-      roles = user.user_roles.includes(:role).where(revoked_at: nil).order(:created_at)
+      roles           = user.user_roles.includes(:role).where(revoked_at: nil).order(:created_at)
+      scope           = user.internal_staff? ? "internal" : "merchant"
+      available_roles = Role.where(scope: scope).order(:name)
+      audit_events    = UserAuditEvent.where(user: user).recent.limit(15)
+      pending_request = RoleAssignmentRequest.pending.find_by(target_user: user)
       render Team::Users::ShowView.new(
         user: user, roles: roles,
-        can_manage: policy(user).update?
+        can_manage:      policy(user).update?,
+        available_roles: available_roles,
+        audit_events:    audit_events,
+        pending_request: pending_request
+      )
+    end
+
+    def new
+      authorize User, :invite?
+      render Team::Users::InviteView.new
+    end
+
+    def edit_roles
+      user = decode_id(User)
+      authorize user, :update?
+      if user == current_user
+        redirect_to team_user_path(user), alert: "You cannot modify your own roles."
+        return
+      end
+      if RoleAssignmentRequest.pending.exists?(target_user: user)
+        redirect_to team_user_path(user),
+                    alert: "A role change request for #{user.full_name} is already awaiting approval."
+        return
+      end
+      scope           = user.internal_staff? ? "internal" : "merchant"
+      available_roles = Role.where(scope: scope).includes(:permissions).order(:name)
+      current_keys    = user.user_roles.active.pluck(:role_key)
+      render Team::Users::EditRolesView.new(
+        user:            user,
+        available_roles: available_roles,
+        current_keys:    current_keys
       )
     end
 
@@ -47,6 +81,29 @@ module Team
       result = Team::SuspendUser.new(user: user, suspended_by: current_user, request: request).call
       if result.success?
         redirect_to team_user_path(user), notice: "#{user.full_name} has been suspended."
+      else
+        redirect_to team_user_path(user), alert: result.error
+      end
+    end
+
+    def set_roles
+      user = decode_id(User)
+      authorize user, :update?
+      if user == current_user
+        redirect_to team_user_path(user), alert: "You cannot modify your own roles."
+        return
+      end
+      requested = Array(params[:role_keys]).reject(&:blank?)
+      current   = user.user_roles.active.pluck(:role_key)
+      result = Team::RequestRoleChange.new(
+        target_user:    user,
+        requested_by:   current_user,
+        requested_keys: requested,
+        current_keys:   current
+      ).call
+      if result.success?
+        redirect_to team_role_requests_path,
+                    notice: "Role change request submitted for #{user.full_name} — pending a second approver."
       else
         redirect_to team_user_path(user), alert: result.error
       end

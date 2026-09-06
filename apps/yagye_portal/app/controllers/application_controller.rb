@@ -55,7 +55,6 @@ class ApplicationController < ActionController::Base
     current_user&.email
   end
 
-  # Log sign-in for the non-TOTP path; TOTP path is logged in Sessions::verify_otp.
   def after_sign_in_path_for(resource)
     UserAuditEvents::Record.call(user: resource, event_type: :signed_in, request: request)
     super

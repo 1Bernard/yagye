@@ -2,6 +2,9 @@
 @source "../../app/views/**/*.rb";
 @source "../../app/javascript/**/*.js";
 
+/* ── Lock outer scroll — only the inner overflow-y-auto area scrolls ─────── */
+html, body { height: 100%; overflow: hidden; }
+
 /* ── Tailwind brand theme extensions ────────────────────────────────────── */
 @theme {
   --font-sans:    "Inter", ui-sans-serif, system-ui, sans-serif;
@@ -118,6 +121,15 @@ body[data-theme="dark"] .bg-white {
   }
 }
 
+/* ── bg-white/90 dark override (drawer sticky header) ───────────────────── */
+/* DRAWER_HEAD uses bg-white/90 for the frosted-glass sticky effect.          */
+/* The .bg-white override above doesn't catch the opacity-suffixed class,     */
+/* so it stays pure white in dark mode. Override to card-bg at 92% opacity.  */
+body[data-theme="dark"] .bg-white\/90 { background-color: rgba(22,27,34,0.92); }
+@media (prefers-color-scheme: dark) {
+  body:not([data-theme="light"]) .bg-white\/90 { background-color: rgba(22,27,34,0.92); }
+}
+
 /* ── focus:bg-white dark override ───────────────────────────────────────── */
 /* Tailwind generates .focus\:bg-white:focus { background: white } as a     */
 /* separate rule — the .bg-white override above doesn't catch it.           */
@@ -163,6 +175,22 @@ body[data-theme="dark"] .hover\:bg-gray-50\/60:hover { background-color: rgba(33
 body[data-theme="dark"] .hover\:bg-gray-50\/70:hover { background-color: rgba(33,38,45,0.7); }
 body[data-theme="dark"] .hover\:bg-gray-100:hover    { background-color: var(--surface); }
 body[data-theme="dark"] .hover\:bg-gray-200:hover    { background-color: var(--border-med); }
+
+/* ── Drawer panel — 3-zone flex layout ─────────────────────────────────── */
+/* turbo-frame is a custom element; display/flex-grow won't reliably apply   */
+/* via Tailwind utility classes. Target it with CSS directly so the frame    */
+/* always fills the panel and its header/footer stay pinned at the edges.    */
+aside[data-drawer-target="panel"] {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+aside[data-drawer-target="panel"] > turbo-frame {
+  flex: 1 1 0%;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
 
 /* Custom row-divider — avoids Tailwind specificity battles entirely.         */
 /* Light: gray-100 (#F3F4F6). Dark: --border (#21262D). Owns its own selector. */

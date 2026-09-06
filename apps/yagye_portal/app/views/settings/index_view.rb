@@ -21,14 +21,13 @@ module Settings
       }
     ].freeze
 
-    def initialize(tab: "profile", current_user: nil, roles: [], ip_allowlists: [], msisdn_allowlists: [], audit_events: [], profile_dialog_open: false)
-      @tab                 = tab
-      @current_user        = current_user
-      @roles               = roles
-      @ip_allowlists       = ip_allowlists
-      @msisdn_allowlists   = msisdn_allowlists
-      @audit_events        = audit_events
-      @profile_dialog_open = profile_dialog_open
+    def initialize(tab: "profile", current_user: nil, roles: [], ip_allowlists: [], msisdn_allowlists: [], audit_events: [])
+      @tab               = tab
+      @current_user      = current_user
+      @roles             = roles
+      @ip_allowlists     = ip_allowlists
+      @msisdn_allowlists = msisdn_allowlists
+      @audit_events      = audit_events
     end
 
     def view_template
@@ -47,7 +46,7 @@ module Settings
             when "profile"
               render Settings::ProfilePanel.new(
                 current_user: @current_user, roles: @roles,
-                audit_events: @audit_events, profile_dialog_open: @profile_dialog_open
+                audit_events: @audit_events
               )
             when "security"
               render Settings::SecurityPanel.new(current_user: @current_user, audit_events: @audit_events)

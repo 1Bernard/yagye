@@ -2,8 +2,6 @@
 
 module Developers
   class RoutingRulesController < ApplicationController
-    before_action :require_internal_staff!
-
     PROVIDERS = [
       { code: "mtn_momo",     label: "MTN MoMo",    color: "#FFCC00", kind: "native_rail" },
       { code: "telecel_cash", label: "Telecel Cash", color: "#E2001A", kind: "native_rail" },
@@ -13,12 +11,14 @@ module Developers
     ].freeze
 
     def index
+      authorize :developers, :manage_routing_rules?
       result = core.list_routing_configurations(scope: "platform")
       @configurations = result.success? ? result.body["data"] : []
       render Developers::RoutingRulesIndexView.new(configurations: @configurations)
     end
 
     def new
+      authorize :developers, :manage_routing_rules?
       render Developers::RoutingGraphView.new(
         configuration: nil,
         providers: PROVIDERS,
@@ -27,6 +27,7 @@ module Developers
     end
 
     def edit
+      authorize :developers, :manage_routing_rules?
       result = core.get_routing_configuration(params[:id])
       return redirect_to developers_routing_rules_path, alert: result.error_message unless result.success?
 
@@ -38,6 +39,7 @@ module Developers
     end
 
     def create
+      authorize :developers, :manage_routing_rules?
       payload = JSON.parse(params[:graph_payload] || "{}")
       result = core.create_routing_configuration(
         name: params[:name].presence || "Untitled configuration",
@@ -54,6 +56,7 @@ module Developers
     end
 
     def update
+      authorize :developers, :manage_routing_rules?
       payload = JSON.parse(params[:graph_payload] || "{}")
       result = core.update_routing_configuration(
         params[:id],
@@ -72,6 +75,7 @@ module Developers
     end
 
     def publish
+      authorize :developers, :manage_routing_rules?
       result = core.publish_routing_configuration(params[:id])
 
       if result.success?
@@ -85,9 +89,5 @@ module Developers
     private
 
     def core = CoreApiClient.new
-
-    def require_internal_staff!
-      redirect_to root_path, alert: "Not authorised." unless current_user&.internal_staff?
-    end
   end
 end

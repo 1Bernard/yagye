@@ -5,10 +5,13 @@ module Team
     class ShowView < ApplicationComponent
       include UI::Theme
 
-      def initialize(user:, roles: [], can_manage: false)
-        @user       = user
-        @roles      = roles
-        @can_manage = can_manage
+      def initialize(user:, roles: [], can_manage: false, available_roles: [], audit_events: [], pending_request: nil)
+        @user            = user
+        @roles           = roles
+        @can_manage      = can_manage
+        @available_roles = available_roles
+        @audit_events    = audit_events
+        @pending_request = pending_request
       end
 
       def view_template
@@ -120,9 +123,20 @@ module Team
       def roles_card
         render UI::Card.new do |c|
           c.header("Assigned roles") do
-            render UI::Button.new(variant: :secondary, hidden: !@can_manage) do
-              render UI::Icon.new(:edit, class: ICON_SM)
-              plain "Edit roles"
+            if @pending_request
+              a(href: team_role_requests_path,
+                class: "inline-flex items-center gap-[6px] text-[11.5px] font-semibold px-3 py-[5px] rounded-lg " \
+                       "badge-amber no-underline") do
+                span(class: "flex w-[10px] h-[10px]") { render UI::Icon.new(:clock, class: "w-full h-full") }
+                plain "Change pending"
+              end
+            elsif @can_manage
+              render UI::Button.new(variant: :secondary,
+                                    href: edit_roles_team_user_path(@user),
+                                    data: { turbo_frame: "drawer-frame" }) do
+                render UI::Icon.new(:edit, class: ICON_SM)
+                plain "Edit roles"
+              end
             end
           end
           c.body do
@@ -195,13 +209,37 @@ module Team
       def activity_card
         render UI::Card.new do |c|
           c.header("Recent activity")
-          c.body do
-            div(class: "py-5 flex flex-col items-center text-center gap-2") do
-              div(class: "w-10 h-10 rounded-xl icon-brand flex items-center justify-center mb-1") do
-                span(class: "flex w-5 h-5") { render UI::Icon.new(:clock, class: "w-full h-full") }
+          c.body(padding: false) do
+            if @audit_events.empty?
+              div(class: "px-5 py-10 flex flex-col items-center text-center gap-2") do
+                div(class: "w-10 h-10 rounded-xl icon-brand flex items-center justify-center mb-1") do
+                  span(class: "flex w-5 h-5") { render UI::Icon.new(:clock, class: "w-full h-full") }
+                end
+                p(class: "#{TYPE_BODY_MD} mb-1") { plain "No activity yet" }
+                p(class: TYPE_CAPTION) { plain "Sign-ins and account changes will appear here." }
               end
-              p(class: TYPE_CAPTION) { plain "Activity log will be available in a future release." }
+            else
+              div(class: "divide-rows") do
+                @audit_events.each { |event| activity_row(event) }
+              end
             end
+          end
+        end
+      end
+
+      def activity_row(event)
+        div(class: "flex items-center gap-3 px-5 py-[11px]") do
+          div(class: "w-[30px] h-[30px] rounded-[9px] bg-gray-100 border border-gray-200 flex items-center justify-center flex-shrink-0") do
+            span(class: "flex w-[13px] h-[13px] text-gray-400") do
+              render UI::Icon.new(event.icon, class: "w-full h-full")
+            end
+          end
+          div(class: "flex-1 min-w-0") do
+            p(class: "text-[12.5px] font-medium text-gray-800 leading-tight") { plain event.label }
+            p(class: TYPE_CAPTION) { plain event.ip_address.present? ? "from #{event.ip_address}" : "—" }
+          end
+          span(class: "text-[11px] text-gray-400 flex-shrink-0 tabular-nums") do
+            plain event.created_at.strftime("%d %b, %H:%M")
           end
         end
       end
