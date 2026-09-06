@@ -41,4 +41,8 @@ config :yagye_core, Oban, testing: :manual
 # Use Mox mock adapter in tests — no real HTTP calls
 config :yagye_core, :provider_adapter, YagyeCore.MockProviderAdapter
 
+# No-op Kafka stub in tests — no Redpanda required
+config :yagye_core, :kafka_producer, YagyeCore.Outbox.KafkaProducer.Stub
+config :brod, clients: []
+
 config :opentelemetry, traces_exporter: :none

@@ -68,3 +68,12 @@ config :open_api_spex, :cache_adapter, OpenApiSpex.Plug.NoneCache
 config :opentelemetry_exporter,
   otlp_protocol: :http_protobuf,
   otlp_endpoint: "http://localhost:4318"
+
+# Redpanda (Kafka-compatible) running locally via Docker
+config :brod,
+  clients: [
+    yagye_kafka_client: [
+      endpoints: [{"localhost", 19092}],
+      auto_start_producers: true
+    ]
+  ]

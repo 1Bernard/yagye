@@ -76,6 +76,7 @@ defmodule YagyeCore.MixProject do
       {:opentelemetry_ecto, "~> 1.0"},
       {:opentelemetry_req, "~> 1.0.0-beta.1"},
       {:opentelemetry_oban, "~> 1.0"},
+      {:brod, "~> 4.6"},
       {:ex_machina, "~> 2.8.2", only: :test},
       {:mox, "~> 1.0", only: :test}
     ]

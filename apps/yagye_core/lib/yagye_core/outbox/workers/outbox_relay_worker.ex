@@ -12,9 +12,12 @@ defmodule YagyeCore.Outbox.Workers.OutboxRelayWorker do
 
   use Oban.Worker, queue: :events, max_attempts: 1
 
+  require Logger
+
   import Ecto.Query
 
   alias YagyeCore.Outbox.EventEnvelope
+  alias YagyeCore.Outbox.KafkaProducer
   alias YagyeCore.Outbox.Schemas.OutboxMessage
   alias YagyeCore.Projections.Workers.{MerchantBalanceProjection, PaymentSummaryProjection}
   alias YagyeCore.Reconciliation.Workers.ReconciliationTriggerWorker
@@ -59,15 +62,36 @@ defmodule YagyeCore.Outbox.Workers.OutboxRelayWorker do
       end)
 
     if Enum.all?(results, &match?({:ok, _}, &1)) do
+      kafka_producer().publish(envelope)
       msg |> OutboxMessage.mark_published_changeset() |> Repo.update()
     else
       msg |> OutboxMessage.mark_failed_changeset(:dispatch_error) |> Repo.update()
     end
   end
 
+  defp dispatch(%OutboxMessage{destination: "kafka:" <> _} = msg) do
+    envelope = EventEnvelope.from_map(msg.envelope)
+
+    case kafka_producer().publish(envelope) do
+      :ok ->
+        msg |> OutboxMessage.mark_published_changeset() |> Repo.update()
+
+      {:error, reason} ->
+        Logger.warning("Kafka-only outbox publish failed",
+          event_type: envelope.event_type,
+          reason: inspect(reason)
+        )
+
+        msg |> OutboxMessage.mark_failed_changeset(:kafka_error) |> Repo.update()
+    end
+  end
+
   defp dispatch(%OutboxMessage{} = msg) do
-    # P14: kafka:* destinations handled here
     msg |> OutboxMessage.mark_failed_changeset(:unknown_destination) |> Repo.update()
+  end
+
+  defp kafka_producer do
+    Application.get_env(:yagye_core, :kafka_producer, KafkaProducer)
   end
 
   # Maps event_type → list of projection workers that care about it

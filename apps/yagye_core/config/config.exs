@@ -45,6 +45,7 @@ config :phoenix, :json_library, Jason
 # testing: Oban.Testing is used in tests instead of running real queues.
 config :yagye_core,
   provider_adapter: YagyeCore.Payments.Adapters.SimulatorAdapter,
+  kafka_producer: YagyeCore.Outbox.KafkaProducer,
   # 32-byte hex key for AES-256-GCM credential encryption. Override in prod via env.
   credential_encryption_key: "0000000000000000000000000000000000000000000000000000000000000001"
 

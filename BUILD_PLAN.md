@@ -53,7 +53,7 @@ step is completed or a decision is made. Status values: `todo`, `in-progress`, `
 |---|---|---|---|
 | P13 | The Rails Portal | **done** | Full portal UI, TOTP, SoD, routing graph, team management, role governance |
 | P13.5 | Passkeys | **done** | WebAuthn registration + authentication |
-| P14 | Kafka & the Event Backbone | **todo** | ← next |
+| P14 | Kafka & the Event Backbone | **done** | Core Kafka producer (brod 4.6) + outbox relay + topic routing + Portal consumers already built |
 | P15 | RabbitMQ & Outbound Webhook Delivery | **todo** | |
 | P16 | Hosted Checkout, Payment Methods, 3DS | **todo** | |
 
@@ -222,8 +222,20 @@ must exist and return real data shapes.
 
 ---
 
-### P14 — Kafka & the Event Backbone
+### P14 — Kafka & the Event Backbone ✓ (2026-09-06)
 
+Core event backbone complete:
+- `brod 4.6` added to `yagye_core` — Kafka/Redpanda client (Erlang, auto-start producers)
+- `YagyeCore.Outbox.KafkaProducer` — topic routing (8 topics), hash partitioning by merchant_id,
+  flattened envelope + payload merged at top level for consumers
+- `YagyeCore.Outbox.KafkaProducer.Stub` — no-op for test env
+- `OutboxRelayWorker` updated — dual-dispatch: internal projection workers + Kafka publish on
+  every `internal:projections` event; separate `kafka:*` destination clause for Kafka-only events
+- Portal consumers (all 8) already fully implemented in earlier session — ready to receive
+
+Redpanda config: `localhost:19092` (dev), `KAFKA_BOOTSTRAP_SERVERS` env (prod), no clients (test).
+
+Remaining P14 items:
 - [ ] SSO/SAML (enterprise-gated): `omniauth-saml` + `create_sso_configurations` migration +
       `Settings::SsoSection` (ops config + enterprise merchant config) + `Auth::SsoButton`
       shown only when `SsoConfiguration.active_for_email_domain?(email)` returns true.

@@ -99,6 +99,22 @@ if config_env() == :prod do
   #
   # Check `Plug.SSL` for all available options in `force_ssl`.
 
+  kafka_endpoints =
+    System.get_env("KAFKA_BOOTSTRAP_SERVERS", "localhost:19092")
+    |> String.split(",")
+    |> Enum.map(fn server ->
+      [host, port] = server |> String.trim() |> String.split(":")
+      {host, String.to_integer(port)}
+    end)
+
+  config :brod,
+    clients: [
+      yagye_kafka_client: [
+        endpoints: kafka_endpoints,
+        auto_start_producers: true
+      ]
+    ]
+
   # ## Configuring the mailer
   #
   # In production you need to configure the mailer to use a different adapter.
