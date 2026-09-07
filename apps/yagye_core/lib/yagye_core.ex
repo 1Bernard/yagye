@@ -56,6 +56,8 @@ defmodule YagyeCore do
       Invoices.Schemas.Invoice,
       Invoices.Schemas.InvoiceLineItem,
       Invoices.Schemas.InvoiceDelivery,
+      PaymentLinks,
+      PaymentLinks.Schemas.PaymentLink,
       Routing,
       Routing.Schemas.RoutingRule,
       Routing.Schemas.RoutingRuleCondition,

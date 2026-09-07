@@ -32,50 +32,27 @@ defmodule YagyeCore.PaymentLinks.Schemas.PaymentLink do
   end
 
   @required ~w[merchant_id mode url_slug kind currency description]a
+  @optional ~w[amount image_url allowed_methods collect_email collect_phone collect_name
+               reusable max_uses use_count active expires_at metadata]a
 
   def changeset(link, attrs) do
     link
-    |> cast(attrs, [
-      :merchant_id,
-      :mode,
-      :url_slug,
-      :kind,
-      :amount,
-      :currency,
-      :description,
-      :image_url,
-      :allowed_methods,
-      :collect_email,
-      :collect_phone,
-      :collect_name,
-      :reusable,
-      :max_uses,
-      :use_count,
-      :active,
-      :expires_at,
-      :metadata
-    ])
+    |> cast(attrs, @required ++ @optional)
     |> validate_required(@required)
     |> validate_inclusion(:mode, @valid_modes)
     |> validate_inclusion(:kind, @valid_kinds)
     |> validate_length(:currency, is: 3)
     |> validate_amount_for_kind()
+    |> validate_number(:max_uses, greater_than: 0)
+    |> validate_number(:use_count, greater_than_or_equal_to: 0)
     |> put_public_id()
     |> unique_constraint(:public_id)
     |> unique_constraint(:url_slug)
     |> foreign_key_constraint(:merchant_id)
   end
 
-  defp validate_amount_for_kind(changeset) do
-    kind = get_field(changeset, :kind)
-    amount = get_field(changeset, :amount)
-
-    cond do
-      kind == "customer_specified" -> changeset
-      is_nil(amount) -> add_error(changeset, :amount, "is required for #{kind} links")
-      amount < 0 -> add_error(changeset, :amount, "must be non-negative")
-      true -> changeset
-    end
+  def deactivate_changeset(link) do
+    change(link, active: false)
   end
 
   defp put_public_id(changeset) do
@@ -83,6 +60,25 @@ defmodule YagyeCore.PaymentLinks.Schemas.PaymentLink do
       changeset
     else
       put_change(changeset, :public_id, "plk_" <> Uniq.UUID.uuid7())
+    end
+  end
+
+  defp validate_amount_for_kind(changeset) do
+    kind = get_field(changeset, :kind)
+    amount = get_field(changeset, :amount)
+
+    cond do
+      kind == "fixed_amount" and is_nil(amount) ->
+        add_error(changeset, :amount, "is required for fixed_amount links")
+
+      kind == "fixed_amount" and not is_nil(amount) and amount <= 0 ->
+        add_error(changeset, :amount, "must be greater than 0")
+
+      kind == "customer_specified" and not is_nil(amount) ->
+        add_error(changeset, :amount, "must be nil for customer_specified links")
+
+      true ->
+        changeset
     end
   end
 end

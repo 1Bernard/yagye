@@ -27,6 +27,7 @@ defmodule YagyeCoreWeb.Router do
   alias YagyeCoreWeb.Controllers.Internal.ApplicationsController
   alias YagyeCoreWeb.Controllers.Invoices.InvoiceController
   alias YagyeCoreWeb.Controllers.Merchants.MerchantController
+  alias YagyeCoreWeb.Controllers.PaymentLinks.PaymentLinkController
   alias YagyeCoreWeb.Controllers.Payments.PaymentController
   alias YagyeCoreWeb.Controllers.Payouts.PayoutController
   alias YagyeCoreWeb.Controllers.Routing.RoutingConfigurationsController
@@ -147,6 +148,13 @@ defmodule YagyeCoreWeb.Router do
     resources "/invoices", InvoiceController, only: [:create, :index, :show], param: "id" do
       post "/issue", InvoiceController, :issue
       post "/void", InvoiceController, :void
+    end
+
+    # P16 — Payment Links
+    resources "/payment-links", PaymentLinkController,
+      only: [:create, :index, :show],
+      param: "id" do
+      post "/deactivate", PaymentLinkController, :deactivate
     end
   end
 
