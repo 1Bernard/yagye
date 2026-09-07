@@ -80,6 +80,7 @@ defmodule YagyeCore.Invoices.Schemas.Invoice do
     |> unique_constraint([:merchant_id, :number])
     |> foreign_key_constraint(:merchant_id)
     |> foreign_key_constraint(:customer_id)
+    |> foreign_key_constraint(:payment_link_id)
   end
 
   def state_changeset(invoice, new_state, extra \\ %{}) do

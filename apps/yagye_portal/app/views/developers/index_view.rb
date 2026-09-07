@@ -31,6 +31,7 @@ module Developers
         title:      "Developers",
         breadcrumbs: [ { label: "Developers" } ]
       ) do
+        test_mode_notice unless Current.mode == "live"
         tab_bar
         case @tab
         when "api_keys" then api_keys_panel
@@ -60,27 +61,37 @@ module Developers
       div do
         reveal_key_banner if @reveal_key
 
-        div(class: "flex items-center justify-end mb-5") do
-          render UI::Button.new(variant: :primary, href: new_developers_key_path,
-                                data: { turbo_frame: "drawer-frame" }) do
-            render UI::Icon.new(:plus, class: ICON_SM)
-            plain "Generate Key"
-          end
-        end
-
-        test_mode_notice unless live
-
         render UI::Datatable.new(records: @api_keys,
                                  empty_message: "No API keys yet. Generate your first key to start integrating.") do |t|
           t.header do
-            div do
-              p(class: TYPE_TITLE) { plain "#{live ? 'Live' : 'Test'} API keys" }
-              p(class: "#{TYPE_CAPTION} mt-0.5") { plain "Keys are shown once at creation. Store them securely." }
+            div(class: "flex items-center justify-between w-full") do
+              div do
+                p(class: TYPE_TITLE) { plain "#{live ? 'Live' : 'Test'} API keys" }
+                p(class: "#{TYPE_CAPTION} mt-0.5") { plain "Keys are shown once at creation. Store them securely." }
+              end
+              render UI::Button.new(variant: :primary, href: new_developers_key_path,
+                                    data: { turbo_frame: "drawer-frame" }) do
+                render UI::Icon.new(:plus, class: ICON_SM)
+                plain "Generate Key"
+              end
             end
           end
 
           t.column("Name")       { |k| span(class: TYPE_BODY_MD) { plain(k.label.presence || k.kind.capitalize) } }
-          t.column("Key prefix") { |k| key_prefix_cell(k) }
+          t.column("Key prefix") do |k|
+            prefix = "#{k.key_prefix}..."
+            div(class: "flex items-center gap-2") do
+              code(class: TYPE_MONO) { plain prefix }
+              button(type: "button",
+                     title: "Copy key prefix",
+                     class: "flex w-6 h-6 rounded-md items-center justify-center text-gray-300 " \
+                            "hover:text-gray-600 hover:bg-gray-100 transition-colors border-0 bg-transparent cursor-pointer",
+                     data: { controller: "clipboard", clipboard_text_value: prefix,
+                             action: "click->clipboard#copy" }) do
+                span(class: "flex w-3 h-3") { render UI::Icon.new(:copy, class: "w-full h-full") }
+              end
+            end
+          end
           t.column("Created")    { |k| span(class: TYPE_CAPTION) { plain k.created_at.strftime("%d %b %Y") } }
           t.column("Last used")  { |k| span(class: TYPE_CAPTION) { plain(k.last_used_at&.strftime("%d %b %Y") || "Never") } }
           t.column("Status")     { |k| render UI::StatusBadge.new(status: k.active ? "active" : "revoked") }
@@ -101,25 +112,6 @@ module Developers
         end
 
         quick_start_card(live) unless @api_keys.empty?
-      end
-    end
-
-    def key_prefix_cell(key)
-      prefix = key.key_prefix + "..."
-      div(class: "flex items-center gap-2") do
-        code(class: TYPE_MONO) { plain prefix }
-        button(type: "button",
-               title: "Copy key prefix",
-               class: "flex w-6 h-6 rounded-md items-center justify-center text-gray-300 " \
-                      "hover:text-gray-600 hover:bg-gray-100 transition-colors border-0 bg-transparent cursor-pointer",
-               onclick: "navigator.clipboard.writeText(this.dataset.val);" \
-                        "this.classList.add('!text-green-600');" \
-                        "setTimeout(()=>this.classList.remove('!text-green-600'),1200)",
-               data: { val: prefix }) do
-          span(class: "flex w-3 h-3") do
-            render UI::Icon.new(:copy, class: "w-full h-full")
-          end
-        end
       end
     end
 
@@ -154,12 +146,10 @@ module Developers
                  class: "flex items-center gap-[6px] text-[12px] font-medium text-gray-500 " \
                         "hover:text-gray-800 transition-colors border border-gray-200 rounded-lg " \
                         "px-[10px] py-[5px] bg-white cursor-pointer",
-                 onclick: "navigator.clipboard.writeText(this.dataset.val);" \
-                          "this.querySelector('span').textContent='Copied!';" \
-                          "setTimeout(()=>this.querySelector('span').textContent='Copy snippet',1500)",
-                 data: { val: snippet }) do
+                 data: { controller: "clipboard", clipboard_text_value: snippet,
+                         action: "click->clipboard#copy" }) do
             render UI::Icon.new(:copy, class: "w-[12px] h-[12px]")
-            span { plain "Copy snippet" }
+            span(data: { clipboard_target: "label" }) { plain "Copy snippet" }
           end
         end
         div(class: "bg-[#0d1117] rounded-b-2xl px-6 py-5 overflow-x-auto") do
@@ -213,7 +203,6 @@ module Developers
     end
 
     def reveal_key_banner
-      safe_key = @reveal_key.to_s.gsub("'", "\\'")
       div(class: "mb-5 bg-emerald-50 border border-emerald-200 rounded-2xl overflow-hidden") do
         div(class: "flex items-start gap-3 px-6 py-4 border-b border-emerald-100") do
           span(class: "flex w-4 h-4 text-emerald-500 flex-shrink-0 mt-[2px]") do
@@ -235,18 +224,17 @@ module Developers
                  class: "flex-shrink-0 flex items-center gap-[6px] text-[12px] font-semibold " \
                         "text-emerald-700 border border-emerald-300 rounded-lg px-3 py-2 " \
                         "bg-white hover:bg-emerald-50 transition-colors cursor-pointer",
-                 onclick: "navigator.clipboard.writeText('#{safe_key}');" \
-                          "this.querySelector('span').textContent='Copied!';" \
-                          "setTimeout(()=>this.querySelector('span').textContent='Copy key',2000)") do
+                 data: { controller: "clipboard", clipboard_text_value: @reveal_key.to_s,
+                         action: "click->clipboard#copy" }) do
             render UI::Icon.new(:copy, class: "w-[13px] h-[13px]")
-            span { plain "Copy key" }
+            span(data: { clipboard_target: "label" }) { plain "Copy key" }
           end
         end
       end
     end
 
     def test_mode_notice
-      div(class: "bg-amber-50 border border-amber-200 rounded-xl px-[18px] py-[14px] mb-4 flex gap-[10px] items-start") do
+      div(class: "bg-amber-50 border border-amber-200 rounded-xl px-[18px] py-[14px] mb-5 flex gap-[10px] items-start") do
         span(class: "flex w-4 h-4 text-amber-500 flex-shrink-0 mt-px") do
           render UI::Icon.new(:info_circle, class: "w-full h-full")
         end
@@ -264,22 +252,20 @@ module Developers
 
     def webhooks_panel
       div do
-        div(class: "flex items-center justify-between mb-5") do
-          div do
-            p(class: TYPE_BODY_MD) { plain "Webhook endpoints" }
-            p(class: TYPE_CAPTION) { plain "Yagye sends signed POST requests to your endpoints for each event." }
-          end
-          render UI::Button.new(variant: :primary, href: new_developers_webhook_path,
-                                data: { turbo_frame: "drawer-frame" }) do
-            render UI::Icon.new(:plus, class: ICON_SM)
-            plain "Add Endpoint"
-          end
-        end
-
         render UI::Datatable.new(records: @webhooks,
                                  empty_message: "No webhook endpoints. Add one to receive real-time payment events.") do |t|
           t.header do
-            p(class: TYPE_TITLE) { plain "Endpoints" }
+            div(class: "flex items-center justify-between w-full") do
+              div do
+                p(class: TYPE_TITLE) { plain "Webhook endpoints" }
+                p(class: "#{TYPE_CAPTION} mt-0.5") { plain "Yagye sends signed POST requests to your endpoints for each event." }
+              end
+              render UI::Button.new(variant: :primary, href: new_developers_webhook_path,
+                                    data: { turbo_frame: "drawer-frame" }) do
+                render UI::Icon.new(:plus, class: ICON_SM)
+                plain "Add Endpoint"
+              end
+            end
           end
 
           t.column("URL")     { |wh| code(class: TYPE_MONO) { plain wh.url } }
@@ -321,7 +307,7 @@ module Developers
         a(href: "#", class: "#{TYPE_CAPTION} text-[#3D47F5] no-underline mt-2 inline-flex items-center gap-1") do
           plain "View verification guide"
           span(class: "flex w-3 h-3") do
-            render UI::Icon.new(:external_link, class: "w-full h-full")
+            render UI::Icon.new(:arrow_right, class: "w-full h-full")
           end
         end
       end
@@ -347,7 +333,16 @@ module Developers
         end
         t.column("Endpoint") { |d| code(class: "#{TYPE_MONO} text-[11px]") { plain(d.portal_webhook_endpoint&.url || "—") } }
         t.column("Status")   { |d| render UI::StatusBadge.new(status: d.state) }
-        t.column("HTTP")     { |d| http_status_chip(d) }
+        t.column("HTTP") do |d|
+          if d.response_status
+            color = d.response_status.between?(200, 299) ? "#16a34a" : "#dc2626"
+            bg    = d.response_status.between?(200, 299) ? "#f0fdf4" : "#fef2f2"
+            span(class: "text-[11.5px] font-semibold px-2 py-[2px] rounded-full font-mono",
+                 style: "color:#{color};background:#{bg}") { plain d.response_status.to_s }
+          else
+            span(class: TYPE_CAPTION) { plain "—" }
+          end
+        end
         t.column("Duration") { |d| span(class: TYPE_CAPTION) { plain d.formatted_duration } }
         t.column("Attempt")  { |d| span(class: TYPE_CAPTION) { plain d.attempt.to_s } }
         t.column("Sent")     { |d| span(class: TYPE_CAPTION) { plain d.last_applied_at.strftime("%d %b, %H:%M") } }
@@ -367,15 +362,5 @@ module Developers
       end
     end
 
-    def http_status_chip(delivery)
-      status_code = delivery.response_status
-      return span(class: TYPE_CAPTION) { plain "—" } unless status_code
-
-      color = status_code.between?(200, 299) ? "#16a34a" : "#dc2626"
-      bg    = status_code.between?(200, 299) ? "#f0fdf4" : "#fef2f2"
-
-      span(class: "text-[11.5px] font-semibold px-2 py-[2px] rounded-full font-mono",
-           style: "color:#{color};background:#{bg}") { plain status_code.to_s }
-    end
   end
 end

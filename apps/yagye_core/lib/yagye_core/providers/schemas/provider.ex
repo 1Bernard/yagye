@@ -13,13 +13,22 @@ defmodule YagyeCore.Providers.Schemas.Provider do
     field :kind, :string, default: "native_rail"
     field :active, :boolean, default: true
     field :settlement_cadence, :map, default: %{}
+    field :capabilities, :map, default: %{}
 
     timestamps(inserted_at: :inserted_at)
   end
 
   def changeset(provider, attrs) do
     provider
-    |> cast(attrs, [:code, :display_name, :adapter_module, :kind, :active, :settlement_cadence])
+    |> cast(attrs, [
+      :code,
+      :display_name,
+      :adapter_module,
+      :kind,
+      :active,
+      :settlement_cadence,
+      :capabilities
+    ])
     |> validate_required([:code, :display_name, :adapter_module, :kind])
     |> validate_inclusion(:kind, @valid_kinds)
     |> validate_settlement_cadence()

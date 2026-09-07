@@ -264,8 +264,8 @@ module Settings
       button(type: "button",
              class: "flex w-7 h-7 rounded-lg items-center justify-center text-gray-300 " \
                     "hover:text-gray-600 hover:bg-gray-100 transition-colors border-0 bg-transparent cursor-pointer",
-             onclick: "navigator.clipboard.writeText(this.dataset.val);this.classList.add('!text-green-600');setTimeout(()=>this.classList.remove('!text-green-600'),1200)",
-             data: { val: value }) do
+             data: { controller: "clipboard", clipboard_text_value: value,
+                     action: "click->clipboard#copy" }) do
         span(class: "flex w-[13px] h-[13px]") { render UI::Icon.new(:copy, class: "w-full h-full") }
       end
     end

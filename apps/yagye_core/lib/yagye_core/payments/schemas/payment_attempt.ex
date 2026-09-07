@@ -21,6 +21,8 @@ defmodule YagyeCore.Payments.Schemas.PaymentAttempt do
     field :latency_ms, :integer
     field :dispatched_at, :utc_datetime_usec
     field :raw_response, :map
+    field :routing_configuration_id, Uniq.UUID
+    field :routing_node_id, :string
 
     belongs_to :payment, YagyeCore.Payments.Schemas.Payment
     belongs_to :provider, YagyeCore.Providers.Schemas.Provider
@@ -43,7 +45,9 @@ defmodule YagyeCore.Payments.Schemas.PaymentAttempt do
       :error_class,
       :latency_ms,
       :dispatched_at,
-      :raw_response
+      :raw_response,
+      :routing_configuration_id,
+      :routing_node_id
     ])
     |> validate_required([:payment_id, :provider_id, :attempt_number, :idempotency_token])
     |> validate_inclusion(:state, @valid_states)
@@ -52,6 +56,7 @@ defmodule YagyeCore.Payments.Schemas.PaymentAttempt do
     |> unique_constraint(:public_id)
     |> foreign_key_constraint(:payment_id)
     |> foreign_key_constraint(:provider_id)
+    |> foreign_key_constraint(:routing_configuration_id)
   end
 
   defp put_public_id(%{data: %{public_id: nil}} = changeset) do
