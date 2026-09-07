@@ -99,6 +99,10 @@ if config_env() == :prod do
   #
   # Check `Plug.SSL` for all available options in `force_ssl`.
 
+  config :yagye_core,
+    rabbitmq_url: System.get_env("RABBITMQ_URL", "amqp://guest:guest@localhost:5672"),
+    enable_rabbitmq: true
+
   kafka_endpoints =
     System.get_env("KAFKA_BOOTSTRAP_SERVERS", "localhost:19092")
     |> String.split(",")

@@ -23,6 +23,7 @@ defmodule YagyeCoreWeb.Router do
   alias YagyeCoreWeb.Controllers.Compliance.ComplianceController
   alias YagyeCoreWeb.Controllers.Customers.CustomerController
   alias YagyeCoreWeb.Controllers.Disputes.{DisputeController, RefundController}
+  alias YagyeCoreWeb.Controllers.Internal.ApiKeysController, as: InternalApiKeysController
   alias YagyeCoreWeb.Controllers.Internal.ApplicationsController
   alias YagyeCoreWeb.Controllers.Invoices.InvoiceController
   alias YagyeCoreWeb.Controllers.Merchants.MerchantController
@@ -31,7 +32,7 @@ defmodule YagyeCoreWeb.Router do
   alias YagyeCoreWeb.Controllers.Routing.RoutingConfigurationsController
   alias YagyeCoreWeb.Controllers.Routing.RoutingController
   alias YagyeCoreWeb.Controllers.Settlement.SettlementController
-  alias YagyeCoreWeb.Controllers.Webhooks.ProviderWebhookController
+  alias YagyeCoreWeb.Controllers.Webhooks.{ProviderWebhookController, WebhookEndpointsController}
 
   # Internal service-to-service pipeline — portal → core ops actions.
   # Authenticated by X-Service-Token shared secret (see AuthenticateInternal plug).
@@ -71,6 +72,9 @@ defmodule YagyeCoreWeb.Router do
 
     post "/applications/:application_id/approve", ApplicationsController, :approve
     post "/applications/:application_id/reject", ApplicationsController, :reject
+
+    # Internal key provisioning — portal uses service token, not merchant API key
+    post "/merchants/:code/keys", InternalApiKeysController, :create
 
     # P13 — Routing rules management (Yagye ops + enterprise merchants at P16)
     get "/routing-rules", RoutingController, :index
@@ -133,6 +137,11 @@ defmodule YagyeCoreWeb.Router do
     post "/payouts", PayoutController, :create
     get "/payouts", PayoutController, :index
     get "/payouts/:id", PayoutController, :show
+
+    # P15 — Outbound webhook endpoints
+    post "/webhook-endpoints", WebhookEndpointsController, :create
+    delete "/webhook-endpoints/:endpoint_id", WebhookEndpointsController, :delete
+    post "/webhook-endpoints/:endpoint_id/test", WebhookEndpointsController, :test
 
     # P13 — Invoices
     resources "/invoices", InvoiceController, only: [:create, :index, :show], param: "id" do

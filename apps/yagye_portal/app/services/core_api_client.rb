@@ -52,11 +52,11 @@ class CoreApiClient
 
   # ── API keys ───────────────────────────────────────────────────────────────
 
-  # POST /v1/keys
+  # POST /internal/merchants/:code/keys
+  # Uses service-token auth — safe to call before the merchant has any API keys.
   def generate_api_key(merchant_code:, label:, mode:, scopes: [], created_by:)
-    post("/v1/keys",
-         { merchant_code: merchant_code, label: label, mode: mode,
-           scopes: scopes, created_by: created_by })
+    post("/internal/merchants/#{merchant_code}/keys",
+         { label: label, mode: mode, scopes: scopes, created_by: created_by })
   end
 
   # DELETE /v1/keys/:key_id
@@ -66,21 +66,20 @@ class CoreApiClient
 
   # ── Webhooks ───────────────────────────────────────────────────────────────
 
-  # POST /v1/webhooks
+  # POST /v1/webhook-endpoints
   def add_webhook_endpoint(merchant_code:, url:, subscribed_events:, mode:)
-    post("/v1/webhooks",
-         { merchant_code: merchant_code, url: url,
-           subscribed_events: subscribed_events, mode: mode })
+    post("/v1/webhook-endpoints",
+         { url: url, subscribed_events: subscribed_events, mode: mode })
   end
 
-  # DELETE /v1/webhooks/:endpoint_id
+  # DELETE /v1/webhook-endpoints/:endpoint_id
   def remove_webhook_endpoint(endpoint_id)
-    delete("/v1/webhooks/#{endpoint_id}", {})
+    delete("/v1/webhook-endpoints/#{endpoint_id}", {})
   end
 
-  # POST /v1/webhooks/:endpoint_id/test
+  # POST /v1/webhook-endpoints/:endpoint_id/test
   def test_webhook_endpoint(endpoint_id)
-    post("/v1/webhooks/#{endpoint_id}/test", {})
+    post("/v1/webhook-endpoints/#{endpoint_id}/test", {})
   end
 
   # ── Routing configurations ─────────────────────────────────────────────────

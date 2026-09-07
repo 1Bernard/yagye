@@ -61,6 +61,9 @@ defmodule YagyeCore do
       Routing.Schemas.RoutingRuleCondition,
       Routing.Schemas.RoutingRuleAction,
       Payments.Schemas.MomoNetworkConfig,
+      MerchantWebhooks,
+      MerchantWebhooks.Schemas.MerchantWebhookEndpoint,
+      MerchantWebhooks.Schemas.MerchantWebhookDelivery,
       Repo
     ]
 

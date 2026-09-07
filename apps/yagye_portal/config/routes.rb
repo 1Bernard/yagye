@@ -12,6 +12,11 @@ Rails.application.routes.draw do
     get  "users/otp-challenge", to: "users/sessions#otp_challenge", as: :users_otp_challenge
     post "users/otp-challenge", to: "users/sessions#verify_otp",    as: :users_verify_otp
     root "users/sessions#new"
+
+    # SSO / SAML
+    get  "auth/sso/check",    to: "users/sso#check",    as: :sso_check
+    get  "auth/sso/initiate", to: "users/sso#initiate", as: :sso_initiate
+    post "auth/saml/callback", to: "users/sso#callback", as: :sso_callback
   end
 
   get  "up" => "rails/health#show", as: :rails_health_check
@@ -128,4 +133,10 @@ Rails.application.routes.draw do
     post "users/passkey-challenge", to: "users/passkey_sessions#challenge",    as: :users_passkey_challenge
     post "users/passkey-auth",      to: "users/passkey_sessions#authenticate", as: :users_passkey_auth
   end
+
+  # Ops-only SSO configuration CRUD (top-level controller, settings URL namespace)
+  resources "settings/sso",
+            controller: "sso_configurations",
+            only:       %i[new create edit update destroy],
+            as:         :settings_sso
 end

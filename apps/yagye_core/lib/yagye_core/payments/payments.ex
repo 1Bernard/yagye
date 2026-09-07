@@ -11,8 +11,14 @@ defmodule YagyeCore.Payments do
   alias YagyeCore.Ledger
   alias YagyeCore.Merchants.Schemas.Merchant
   alias YagyeCore.Outbox
-  alias YagyeCore.Payments.Schemas.{Payment, PaymentAttempt, PaymentEvent}
-  alias YagyeCore.Payments.Workers.PaymentDispatchWorker
+  alias YagyeCore.Payments.Schemas.{MomoNetworkConfig, Payment, PaymentAttempt, PaymentEvent}
+
+  alias YagyeCore.Payments.Workers.{
+    PaymentDispatchWorker,
+    PaymentStatusCheckWorker,
+    PaymentTimeoutWorker
+  }
+
   alias YagyeCore.Pricing
   alias YagyeCore.Repo
   alias YagyeCore.Shared.Pagination
@@ -269,6 +275,46 @@ defmodule YagyeCore.Payments do
     end)
     |> Repo.transaction()
     |> case do
+      {:ok, %{payment: payment, attempt: attempt}} ->
+        schedule_momo_recovery_workers(payment, attempt)
+        {:ok, payment}
+
+      {:error, _step, reason, _changes} ->
+        {:error, reason}
+    end
+  end
+
+  def handle_prompt_timeout(payment, attempt) do
+    Multi.new()
+    |> Multi.update(
+      :attempt,
+      PaymentAttempt.result_changeset(attempt, %{
+        state: "abandoned",
+        error_class: "definite_failure",
+        response_code: "prompt_timeout"
+      })
+    )
+    |> Multi.update(:payment, Payment.transition_changeset(payment, "failed"))
+    |> Multi.run(:event, fn _repo, %{payment: p} ->
+      insert_event(p, "payment.failed", "requires_action", "failed")
+    end)
+    |> Multi.insert(:outbox, fn %{payment: p} ->
+      Outbox.build_changeset(
+        p,
+        "payment.failed",
+        %{
+          public_id: p.public_id,
+          state: p.state,
+          merchant_code: merchant_code(p.merchant_id),
+          error_class: "definite_failure",
+          response_code: "prompt_timeout",
+          currency: p.currency
+        },
+        correlation_id: p.public_id
+      )
+    end)
+    |> Repo.transaction()
+    |> case do
       {:ok, %{payment: payment}} -> {:ok, payment}
       {:error, _step, reason, _changes} -> {:error, reason}
     end
@@ -307,6 +353,28 @@ defmodule YagyeCore.Payments do
   end
 
   # ── Private ──────────────────────────────────────────────────────────────────
+
+  defp schedule_momo_recovery_workers(payment, attempt) do
+    network = get_in(payment.metadata, ["network"])
+    config = network && Repo.get(MomoNetworkConfig, network)
+
+    poll_interval = (config && config.poll_interval_seconds) || 30
+    prompt_timeout = (config && config.prompt_timeout_seconds) || 120
+
+    %{
+      "payment_id" => payment.id,
+      "attempt_id" => attempt.id,
+      "poll_number" => 1
+    }
+    |> PaymentStatusCheckWorker.new(schedule_in: poll_interval)
+    |> Oban.insert()
+
+    %{"payment_id" => payment.id, "attempt_id" => attempt.id}
+    |> PaymentTimeoutWorker.new(schedule_in: prompt_timeout)
+    |> Oban.insert()
+
+    :ok
+  end
 
   defp resolve_customer(_merchant_id, nil), do: {:ok, nil}
 

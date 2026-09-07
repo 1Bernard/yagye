@@ -54,7 +54,7 @@ step is completed or a decision is made. Status values: `todo`, `in-progress`, `
 | P13 | The Rails Portal | **done** | Full portal UI, TOTP, SoD, routing graph, team management, role governance |
 | P13.5 | Passkeys | **done** | WebAuthn registration + authentication |
 | P14 | Kafka & the Event Backbone | **done** | Core Kafka producer (brod 4.6) + outbox relay + topic routing + Portal consumers already built |
-| P15 | RabbitMQ & Outbound Webhook Delivery | **todo** | |
+| P15 | RabbitMQ & Outbound Webhook Delivery | **done** | amqp 4.2 + broadway_rabbitmq 0.8; yagye.webhooks exchange → delivery queue → Broadway processor → HMAC-signed HTTP POST; outbox relay fans out to endpoints; portal WebhookEventsConsumer already wired |
 | P16 | Hosted Checkout, Payment Methods, 3DS | **todo** | |
 
 ### Act V — Scale, Data, Risk, Real Money

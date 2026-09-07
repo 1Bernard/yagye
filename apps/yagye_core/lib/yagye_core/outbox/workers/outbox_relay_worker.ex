@@ -16,6 +16,7 @@ defmodule YagyeCore.Outbox.Workers.OutboxRelayWorker do
 
   import Ecto.Query
 
+  alias YagyeCore.MerchantWebhooks.Workers.WebhookDispatchWorker
   alias YagyeCore.Outbox.EventEnvelope
   alias YagyeCore.Outbox.KafkaProducer
   alias YagyeCore.Outbox.Schemas.OutboxMessage
@@ -63,6 +64,7 @@ defmodule YagyeCore.Outbox.Workers.OutboxRelayWorker do
 
     if Enum.all?(results, &match?({:ok, _}, &1)) do
       kafka_producer().publish(envelope)
+      maybe_dispatch_webhooks(msg, envelope)
       msg |> OutboxMessage.mark_published_changeset() |> Repo.update()
     else
       msg |> OutboxMessage.mark_failed_changeset(:dispatch_error) |> Repo.update()
@@ -107,4 +109,23 @@ defmodule YagyeCore.Outbox.Workers.OutboxRelayWorker do
 
   defp maybe_add(list, true, worker), do: [worker | list]
   defp maybe_add(list, false, _worker), do: list
+
+  # Event types that merchants can subscribe to via webhook endpoints
+  @webhook_eligible ~w[
+    payment.succeeded payment.failed payment.refunded payment.disputed
+    dispute.opened dispute.evidence_submitted dispute.resolved
+    refund.created refund.failed
+    payout.created payout.paid payout.failed
+  ]
+
+  defp maybe_dispatch_webhooks(msg, %EventEnvelope{event_type: event_type} = envelope)
+       when event_type in @webhook_eligible do
+    WebhookDispatchWorker.new(%{
+      "outbox_id" => msg.id,
+      "envelope" => envelope |> EventEnvelope.to_map()
+    })
+    |> Oban.insert()
+  end
+
+  defp maybe_dispatch_webhooks(_msg, _envelope), do: :ok
 end

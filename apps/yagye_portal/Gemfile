@@ -26,6 +26,7 @@ gem "devise"
 gem "devise-two-factor"
 gem "rqrcode"
 gem "webauthn"
+gem "ruby-saml", "~> 1.17"
 
 # Authorization
 gem "pundit"

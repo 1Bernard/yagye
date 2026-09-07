@@ -173,6 +173,13 @@ defmodule YagyeCore.Merchants do
     end
   end
 
+  def get_merchant_by_id(id) do
+    case Repo.get(Merchant, id) do
+      nil -> {:error, :not_found}
+      merchant -> {:ok, merchant}
+    end
+  end
+
   def list_merchants(opts \\ []) do
     limit = Keyword.get(opts, :limit, 50)
     offset = Keyword.get(opts, :offset, 0)

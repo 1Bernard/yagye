@@ -4,30 +4,14 @@ module Settings
   class IndexView < ApplicationComponent
     include UI::Theme
 
-    NAV_GROUPS = [
-      {
-        label: "Account",
-        items: [
-          { key: "profile",       label: "Profile",       icon: :user   },
-          { key: "security",      label: "Security",      icon: :shield },
-          { key: "notifications", label: "Notifications", icon: :bell   }
-        ]
-      },
-      {
-        label: "Access",
-        items: [
-          { key: "allowlists", label: "Allowlists", icon: :lock }
-        ]
-      }
-    ].freeze
-
-    def initialize(tab: "profile", current_user: nil, roles: [], ip_allowlists: [], msisdn_allowlists: [], audit_events: [])
+    def initialize(tab: "profile", current_user: nil, roles: [], ip_allowlists: [], msisdn_allowlists: [], audit_events: [], sso_configs: [])
       @tab               = tab
       @current_user      = current_user
       @roles             = roles
       @ip_allowlists     = ip_allowlists
       @msisdn_allowlists = msisdn_allowlists
       @audit_events      = audit_events
+      @sso_configs       = sso_configs
     end
 
     def view_template
@@ -56,6 +40,8 @@ module Settings
               render Settings::AllowlistsPanel.new(
                 ip_allowlists: @ip_allowlists, msisdn_allowlists: @msisdn_allowlists
               )
+            when "sso"
+              render Settings::SsoSection.new(current_user: @current_user, configs: @sso_configs)
             end
           end
         end
@@ -64,13 +50,41 @@ module Settings
 
     private
 
+    def nav_groups
+      groups = [
+        {
+          label: "Account",
+          items: [
+            { key: "profile",       label: "Profile",       icon: :user   },
+            { key: "security",      label: "Security",      icon: :shield },
+            { key: "notifications", label: "Notifications", icon: :bell   }
+          ]
+        },
+        {
+          label: "Access",
+          items: [
+            { key: "allowlists", label: "Allowlists", icon: :lock }
+          ]
+        }
+      ]
+
+      show_sso = @current_user.internal_staff? ||
+                 SsoConfiguration.active_for_email_domain?(@current_user.email.to_s)
+
+      if show_sso
+        groups << { label: "Enterprise", items: [{ key: "sso", label: "Single Sign-On", icon: :building }] }
+      end
+
+      groups
+    end
+
     def current_tab_label
-      NAV_GROUPS.flat_map { |g| g[:items] }.find { |i| i[:key] == @tab }&.dig(:label) || @tab.capitalize
+      nav_groups.flat_map { |g| g[:items] }.find { |i| i[:key] == @tab }&.dig(:label) || @tab.capitalize
     end
 
     def settings_sidebar
       nav(class: "w-[172px] flex-shrink-0 sticky top-6 flex flex-col gap-5") do
-        NAV_GROUPS.each { |group| sidebar_group(group) }
+        nav_groups.each { |group| sidebar_group(group) }
       end
     end
 

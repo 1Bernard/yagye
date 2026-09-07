@@ -103,6 +103,7 @@ services:
       DATABASE_URL: ecto://postgres:postgres@db/yagye_core_dev
       SECRET_KEY_BASE: dev_secret_key_base_replace_in_production_min_64_chars_long_abc123
       CORE_PORTAL_SERVICE_SECRET: dev_portal_service_secret_change_in_production
+      RABBITMQ_URL: amqp://guest:guest@rabbitmq:5672
       PORT: "4000"
       PHX_HOST: localhost
     # Run migrations then start server. YagyeCore.Release.migrate/0 is idempotent.
@@ -115,6 +116,8 @@ services:
       - "4000:4000"
     depends_on:
       db:
+        condition: service_healthy
+      rabbitmq:
         condition: service_healthy
     healthcheck:
       test: ["CMD-SHELL", "curl -sf http://localhost:4000/health || exit 1"]
@@ -187,6 +190,25 @@ services:
       - edge  # Portal → Core HTTP via CoreApiClient
     # NOT on core_mesh — Portal must go through Core's API, never Simulator directly
 
+  rabbitmq:
+    image: rabbitmq:4-management
+    restart: unless-stopped
+    environment:
+      RABBITMQ_DEFAULT_USER: guest
+      RABBITMQ_DEFAULT_PASS: guest
+    ports:
+      - "5672:5672"    # AMQP — Core's Broadway consumer connects here
+      - "15672:15672"  # Management UI — http://localhost:15672
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "ping"]
+      interval: 10s
+      timeout: 10s
+      retries: 10
+    networks:
+      - data
+
   # Karafka consumer — separate process, scales independently from the web tier.
   # Reads events from Redpanda and writes to portal_* read model tables.
   yagye_portal_karafka:
@@ -212,13 +234,13 @@ services:
     # NOT on edge or core_mesh — consumers write to DB, they don't call other services
 
 # Services added in later phases:
-#   rabbitmq   — P15 (outbound merchant webhooks: exchange → per-merchant queue → DLX)
 #   redis      — P17 (distributed rate limiting, session store)
 #   Floci      — P21 (local AWS emulator; S3 + KMS for KYB documents)
 
 volumes:
   postgres_data:
   redpanda_data:
+  rabbitmq_data:
 
 networks:
   data:

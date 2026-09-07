@@ -18,6 +18,12 @@ module Auth
       ) do
         render UI::ErrorSummary.new(errors: @resource.errors)
 
+        div(data: {
+          controller:                    "sso-domain",
+          sso_domain_check_url_value:    sso_check_path,
+          sso_domain_initiate_url_value: sso_initiate_path
+        }) do
+
         form action: user_session_path, method: :post, class: "space-y-5" do
           input type: :hidden, name: :authenticity_token, value: @csrf_token
 
@@ -39,7 +45,8 @@ module Auth
                 autofocus: true,
                 required: true,
                 placeholder: "you@company.com",
-                class: ICON_INPUT
+                class: ICON_INPUT,
+                data: { action: "blur->sso-domain#check", sso_domain_target: "email" }
               )
             end
           end
@@ -131,6 +138,10 @@ module Auth
             end
           end
         end
+
+        render Auth::SsoButton.new(check_url: sso_check_path, initiate_url: sso_initiate_path)
+
+        end # sso-domain controller div
       end
     end
   end

@@ -62,7 +62,9 @@ config :yagye_core, Oban,
        # Settlement scheduler runs hourly; cutoff check is inside the worker
        {"0 * * * *", YagyeCore.Settlement.Workers.SettlementSchedulerWorker},
        # Reserve release runs every 6 hours; batches up to 200 holds per run
-       {"0 */6 * * *", YagyeCore.Reserves.Workers.ReserveReleaseWorker}
+       {"0 */6 * * *", YagyeCore.Reserves.Workers.ReserveReleaseWorker},
+       # Recover processing-orphaned payments every 5 minutes
+       {"*/5 * * * *", YagyeCore.Payments.Workers.StuckPaymentScannerWorker}
      ]}
   ],
   queues: [

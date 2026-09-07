@@ -18,6 +18,7 @@ defmodule Simulator.OutcomeEngine do
   @type wallet_outcome :: :approved | :declined | :expired | :insufficient_funds | :not_registered
 
   @fixed_msisdn_outcomes %{
+    # Standard outcomes
     "0241000001" => :approved,
     "0241000002" => :insufficient_funds,
     "0241000003" => :expired,
@@ -25,8 +26,20 @@ defmodule Simulator.OutcomeEngine do
     "0501000001" => :approved,
     "0501000002" => :insufficient_funds,
     "0571000001" => :approved,
-    "0571000002" => :insufficient_funds
+    "0571000002" => :insufficient_funds,
+    # Stuck-payment recovery test MSISDNs.
+    # 0241000005: charge resolves AUTHORISED but webhook is not delivered —
+    #   forces yagye_core to rely on PaymentStatusCheckWorker polling.
+    # 0241000006: charge stays PENDING_AUTH forever (webhook delivery skipped) —
+    #   exercises PaymentTimeoutWorker hard deadline.
+    "0241000005" => :approved_no_webhook,
+    "0241000006" => :pending_no_webhook
   }
+
+  # MSISDNs for which the simulator intentionally suppresses webhook delivery.
+  # The charge is still transitioned on the simulator side (so query_charge
+  # returns the real state), but no POST is sent to yagye_core.
+  @suppress_webhook_msisdns MapSet.new(["0241000005", "0241000006"])
 
   @spec msisdn_wallet_outcome(binary()) :: wallet_outcome() | nil
   def msisdn_wallet_outcome(msisdn) do
@@ -35,6 +48,9 @@ defmodule Simulator.OutcomeEngine do
 
   @spec fixed_msisdn_outcomes() :: %{binary() => wallet_outcome()}
   def fixed_msisdn_outcomes, do: @fixed_msisdn_outcomes
+
+  @spec suppress_webhook?(binary() | nil) :: boolean()
+  def suppress_webhook?(msisdn), do: MapSet.member?(@suppress_webhook_msisdns, msisdn || "")
 
   @spec card_outcome(Scenario.t() | nil, integer() | nil) :: card_outcome()
   def card_outcome(scenario, seed) do

@@ -77,6 +77,9 @@ defmodule YagyeCore.MixProject do
       {:opentelemetry_req, "~> 1.0.0-beta.1"},
       {:opentelemetry_oban, "~> 1.0"},
       {:brod, "~> 4.6"},
+      # P15 — RabbitMQ outbound webhook delivery
+      {:amqp, "~> 4.2"},
+      {:broadway_rabbitmq, "~> 0.8"},
       {:ex_machina, "~> 2.8.2", only: :test},
       {:mox, "~> 1.0", only: :test}
     ]

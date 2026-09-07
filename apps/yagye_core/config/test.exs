@@ -46,3 +46,6 @@ config :yagye_core, :kafka_producer, YagyeCore.Outbox.KafkaProducer.Stub
 config :brod, clients: []
 
 config :opentelemetry, traces_exporter: :none
+
+# Disable RabbitMQ connection in tests — no broker required
+config :yagye_core, :enable_rabbitmq, false

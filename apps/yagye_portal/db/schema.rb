@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_09_06_120001) do
+ActiveRecord::Schema[8.1].define(version: 2026_09_07_100001) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pgcrypto"
@@ -322,6 +322,20 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_06_120001) do
     t.boolean "system_role", default: true, null: false
     t.datetime "updated_at", null: false
     t.check_constraint "scope = ANY (ARRAY['merchant'::text, 'internal'::text])", name: "valid_role_scope"
+  end
+
+  create_table "sso_configurations", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+    t.boolean "active", default: true, null: false
+    t.datetime "created_at", null: false
+    t.string "email_domain", null: false
+    t.text "idp_cert", null: false
+    t.string "idp_entity_id"
+    t.string "idp_sso_target_url", null: false
+    t.string "merchant_code", null: false
+    t.string "name", null: false
+    t.datetime "updated_at", null: false
+    t.index ["email_domain"], name: "index_sso_configurations_on_email_domain", unique: true
+    t.index ["merchant_code"], name: "index_sso_configurations_on_merchant_code"
   end
 
   create_table "user_audit_events", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|

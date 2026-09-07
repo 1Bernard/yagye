@@ -10,20 +10,32 @@ defmodule YagyeCore.Application do
     OpentelemetryEcto.setup([:yagye_core, :repo])
     OpentelemetryOban.setup()
 
-    children = [
-      YagyeCoreWeb.Telemetry,
-      YagyeCore.Repo,
-      YagyeCore.Shared.RateLimiter,
-      {DNSCluster, query: Application.get_env(:yagye_core, :dns_cluster_query) || :ignore},
-      {Phoenix.PubSub, name: YagyeCore.PubSub},
-      {Oban, Application.fetch_env!(:yagye_core, Oban)},
-      YagyeCoreWeb.Endpoint
-    ]
+    children =
+      [
+        YagyeCoreWeb.Telemetry,
+        YagyeCore.Repo,
+        YagyeCore.Shared.RateLimiter,
+        {DNSCluster, query: Application.get_env(:yagye_core, :dns_cluster_query) || :ignore},
+        {Phoenix.PubSub, name: YagyeCore.PubSub},
+        {Oban, Application.fetch_env!(:yagye_core, Oban)},
+        YagyeCoreWeb.Endpoint
+      ] ++ rabbitmq_children()
 
     # See https://hexdocs.pm/elixir/Supervisor.html
     # for other strategies and supported options
     opts = [strategy: :one_for_one, name: YagyeCore.Supervisor]
     Supervisor.start_link(children, opts)
+  end
+
+  defp rabbitmq_children do
+    if Application.get_env(:yagye_core, :enable_rabbitmq, true) do
+      [
+        YagyeCore.MerchantWebhooks.RabbitMQ.Connection,
+        YagyeCore.MerchantWebhooks.RabbitMQ.DeliveryPipeline
+      ]
+    else
+      []
+    end
   end
 
   # Tell Phoenix to update the endpoint configuration
