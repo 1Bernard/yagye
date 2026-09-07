@@ -555,17 +555,23 @@ defmodule YagyeCore.Merchants do
       ApiKey.changeset(%ApiKey{}, attrs)
     end)
     |> Multi.insert(:outbox, fn %{api_key: api_key, merchant: merchant} ->
-      Outbox.build_changeset(api_key, "merchant.api_key_issued", %{
-        public_id: api_key.public_id,
-        merchant_code: merchant.public_id,
-        mode: api_key.mode,
-        kind: api_key.kind,
-        label: api_key.label,
-        key_prefix: api_key.key_prefix,
-        scopes: api_key.scopes,
-        expires_at: api_key.expires_at,
-        created_by: api_key.created_by
-      })
+      Outbox.build_changeset(
+        api_key,
+        "api_key.issued",
+        %{
+          key_id: api_key.public_id,
+          merchant_code: merchant.public_id,
+          mode: api_key.mode,
+          kind: api_key.kind,
+          label: api_key.label,
+          key_prefix: api_key.key_prefix,
+          scopes: api_key.scopes,
+          active: true,
+          expires_at: api_key.expires_at && DateTime.to_iso8601(api_key.expires_at),
+          created_by: api_key.created_by
+        },
+        destination: "kafka:yagye.api_keys.v1"
+      )
     end)
     |> Repo.transaction()
     |> case do
@@ -611,11 +617,18 @@ defmodule YagyeCore.Merchants do
       Ecto.Changeset.change(api_key, revoked_at: DateTime.utc_now())
     end)
     |> Multi.insert(:outbox, fn %{revoked: api_key, merchant: merchant} ->
-      Outbox.build_changeset(api_key, "merchant.api_key_revoked", %{
-        public_id: api_key.public_id,
-        merchant_code: merchant.public_id,
-        revoked_by: cmd.revoked_by
-      })
+      Outbox.build_changeset(
+        api_key,
+        "api_key.revoked",
+        %{
+          key_id: api_key.public_id,
+          merchant_code: merchant.public_id,
+          active: false,
+          revoked_at: DateTime.to_iso8601(api_key.revoked_at),
+          revoked_by: cmd.revoked_by
+        },
+        destination: "kafka:yagye.api_keys.v1"
+      )
     end)
     |> Repo.transaction()
     |> case do

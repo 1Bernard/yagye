@@ -10,8 +10,6 @@ defmodule YagyeCore.Outbox.Schemas.OutboxMessage do
   @foreign_key_type Uniq.UUID
   @timestamps_opts [type: :utc_datetime_usec]
 
-  @valid_destinations ~w[internal:projections kafka:payments kafka:merchants kafka:disputes]
-
   schema "outbox_messages" do
     field :event_id, :string
     field :aggregate_type, :string
@@ -61,7 +59,13 @@ defmodule YagyeCore.Outbox.Schemas.OutboxMessage do
       :mode,
       :occurred_at
     ])
-    |> validate_inclusion(:destination, @valid_destinations)
+    |> validate_change(:destination, fn :destination, dest ->
+      if String.starts_with?(dest, ["internal:", "kafka:"]) do
+        []
+      else
+        [destination: "must start with 'internal:' or 'kafka:'"]
+      end
+    end)
     |> unique_constraint(:event_id)
   end
 

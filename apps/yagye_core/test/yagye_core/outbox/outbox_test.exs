@@ -111,7 +111,7 @@ defmodule YagyeCore.Outbox.OutboxTest do
         {:error, changeset} =
           Outbox.emit(payment, "payment.created", %{}, destination: "unknown:nowhere")
 
-        assert "is invalid" in errors_on(changeset).destination
+        assert errors_on(changeset).destination != []
         Repo.rollback(:expected)
       end)
     end
