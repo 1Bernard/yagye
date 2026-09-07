@@ -11,6 +11,7 @@ module Developers
         mode:              current_portal_mode
       )
       if result.success?
+        upsert_endpoint(result.body)
         redirect_to developers_path(tab: "webhooks"), notice: "Webhook endpoint added."
       else
         redirect_to developers_path(tab: "webhooks"), alert: result.error_message
@@ -21,6 +22,7 @@ module Developers
       authorize :developers, :manage_webhooks?
       result = CoreApiClient.new.remove_webhook_endpoint(params[:endpoint_id])
       if result.success?
+        PortalWebhookEndpoint.find_by(endpoint_id: params[:endpoint_id])&.destroy
         redirect_to developers_path(tab: "webhooks"), notice: "Webhook endpoint removed."
       else
         redirect_to developers_path(tab: "webhooks"), alert: result.error_message
@@ -45,6 +47,24 @@ module Developers
 
     def current_portal_mode
       session[:portal_mode] || "test"
+    end
+
+    def upsert_endpoint(body)
+      PortalWebhookEndpoint.upsert(
+        {
+          endpoint_id:          body["id"],
+          merchant_code:        current_user.merchant_code,
+          url:                  body["url"],
+          mode:                 body["mode"] || "test",
+          active:               body["active"] != false,
+          subscribed_events:    Array(body["subscribed_events"]),
+          consecutive_failures: 0,
+          last_event_id:        "",
+          last_applied_at:      Time.current
+        },
+        unique_by: :endpoint_id,
+        update_only: %i[url mode active subscribed_events consecutive_failures last_applied_at]
+      )
     end
   end
 end

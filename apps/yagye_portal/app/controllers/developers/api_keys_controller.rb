@@ -10,6 +10,7 @@ module Developers
       webhooks   = Developers::WebhookEndpointsQuery.new(policy_scope(PortalWebhookEndpoint)).call
       pagy       = nil
       deliveries = []
+      reveal_key = flash.delete(:reveal_key)
 
       if tab == "logs"
         pagy, deliveries = pagy(
@@ -21,7 +22,7 @@ module Developers
 
       render Developers::IndexView.new(
         tab: tab, api_keys: api_keys, webhooks: webhooks,
-        deliveries: deliveries, pagy: pagy
+        deliveries: deliveries, pagy: pagy, reveal_key: reveal_key
       )
     end
 
@@ -35,8 +36,9 @@ module Developers
         created_by:    current_user.email
       )
       if result.success?
-        redirect_to developers_path(tab: "api_keys"),
-                    notice: "API key created. Copy it now — it won't be shown again."
+        upsert_api_key(result.body)
+        flash[:reveal_key] = result.body["key"]
+        redirect_to developers_path(tab: "api_keys")
       else
         redirect_to developers_path(tab: "api_keys"), alert: result.error_message
       end
@@ -46,6 +48,8 @@ module Developers
       authorize :developers, :manage_keys?
       result = CoreApiClient.new.revoke_api_key(params[:key_id], revoked_by: current_user.email)
       if result.success?
+        PortalApiKey.find_by(key_id: params[:key_id])
+                    &.update(revoked_at: Time.current)
         redirect_to developers_path(tab: "api_keys"), notice: "API key revoked."
       else
         redirect_to developers_path(tab: "api_keys"), alert: result.error_message
@@ -56,6 +60,25 @@ module Developers
 
     def key_params
       params.permit(:label, :mode, scopes: [])
+    end
+
+    def upsert_api_key(body)
+      PortalApiKey.upsert(
+        {
+          key_id:          body["id"],
+          merchant_code:   current_user.merchant_code,
+          label:           body["label"] || "",
+          key_prefix:      body["key_prefix"] || "",
+          kind:            body["kind"] || "secret",
+          mode:            body["mode"] || "test",
+          scopes:          body["scopes"] || [],
+          created_by:      body["created_by"],
+          last_event_id:   "",
+          last_applied_at: Time.current
+        },
+        unique_by: :key_id,
+        update_only: %i[label key_prefix kind mode scopes created_by last_applied_at]
+      )
     end
   end
 end

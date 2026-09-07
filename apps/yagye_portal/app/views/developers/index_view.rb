@@ -16,12 +16,13 @@ module Developers
       merchant.kyb.approved merchant.kyb.rejected
     ].freeze
 
-    def initialize(tab: "api_keys", api_keys: [], webhooks: [], deliveries: nil, pagy: nil)
+    def initialize(tab: "api_keys", api_keys: [], webhooks: [], deliveries: nil, pagy: nil, reveal_key: nil)
       @tab        = tab
       @api_keys   = api_keys
       @webhooks   = webhooks
       @deliveries = deliveries || []
       @pagy       = pagy
+      @reveal_key = reveal_key
     end
 
     def view_template
@@ -57,6 +58,8 @@ module Developers
       live = Current.mode == "live"
 
       div do
+        reveal_key_banner if @reveal_key
+
         div(class: "flex items-center justify-end mb-5") do
           render UI::Button.new(variant: :primary,
                  data: { action: "click->dialog#open", dialog_target_param: "generate-key-dialog" }) do
@@ -205,6 +208,39 @@ module Developers
             span(class: "text-[#a5d6ff]") { plain "order_abc123" }
             plain "\"\n"
             plain "  }'"
+          end
+        end
+      end
+    end
+
+    def reveal_key_banner
+      safe_key = @reveal_key.to_s.gsub("'", "\\'")
+      div(class: "mb-5 bg-emerald-50 border border-emerald-200 rounded-2xl overflow-hidden") do
+        div(class: "flex items-start gap-3 px-6 py-4 border-b border-emerald-100") do
+          span(class: "flex w-4 h-4 text-emerald-500 flex-shrink-0 mt-[2px]") do
+            render UI::Icon.new(:check_circle, class: "w-full h-full")
+          end
+          div do
+            p(class: "text-[13px] font-semibold text-emerald-900") { plain "API key created — copy it now" }
+            p(class: "#{TYPE_CAPTION} text-emerald-700 mt-[2px]") do
+              plain "This is the only time your secret key is shown. It cannot be recovered if lost."
+            end
+          end
+        end
+        div(class: "px-6 py-4 flex items-center gap-3") do
+          code(class: "flex-1 min-w-0 font-mono text-[12.5px] text-emerald-900 " \
+                      "bg-emerald-100/60 rounded-xl px-4 py-3 select-all break-all") do
+            plain @reveal_key
+          end
+          button(type: "button",
+                 class: "flex-shrink-0 flex items-center gap-[6px] text-[12px] font-semibold " \
+                        "text-emerald-700 border border-emerald-300 rounded-lg px-3 py-2 " \
+                        "bg-white hover:bg-emerald-50 transition-colors cursor-pointer",
+                 onclick: "navigator.clipboard.writeText('#{safe_key}');" \
+                          "this.querySelector('span').textContent='Copied!';" \
+                          "setTimeout(()=>this.querySelector('span').textContent='Copy key',2000)") do
+            render UI::Icon.new(:copy, class: "w-[13px] h-[13px]")
+            span { plain "Copy key" }
           end
         end
       end
