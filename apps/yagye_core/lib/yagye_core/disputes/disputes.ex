@@ -6,6 +6,7 @@ defmodule YagyeCore.Disputes do
   alias Ecto.Multi
   alias YagyeCore.Disputes.Schemas.{Dispute, Refund}
   alias YagyeCore.Ledger
+  alias YagyeCore.Merchants.Schemas.Merchant
   alias YagyeCore.Outbox
   alias YagyeCore.Payments.Schemas.{Payment, PaymentAttempt, PaymentEvent}
   alias YagyeCore.Repo
@@ -145,12 +146,22 @@ defmodule YagyeCore.Disputes do
     |> Multi.run(:ledger, fn _repo, %{payment: p, settled_refund: r} ->
       post_ledger_reversal_if_settled(p, r, prior_state)
     end)
-    |> Multi.run(:outbox, fn _repo, %{payment: p} ->
-      Outbox.emit(p, "payment.refunded", %{
-        amount: attrs.amount,
-        currency: p.currency,
-        prior_state: prior_state
-      })
+    |> Multi.insert(:outbox, fn %{payment: p} ->
+      Outbox.build_changeset(
+        p,
+        "payment.refunded",
+        %{
+          public_id: p.public_id,
+          state: p.state,
+          merchant_code: merchant_code(p.merchant_id),
+          amount: attrs.amount,
+          currency: p.currency,
+          method: p.method,
+          mode: p.mode,
+          prior_state: prior_state
+        },
+        correlation_id: p.public_id
+      )
     end)
     |> Repo.transaction()
     |> case do
@@ -305,4 +316,11 @@ defmodule YagyeCore.Disputes do
   defp payment_state_for_outcome(:won), do: "succeeded"
   defp payment_state_for_outcome(:lost), do: "chargebacked"
   defp payment_state_for_outcome(:retracted), do: "refunded"
+
+  defp merchant_code(merchant_id) do
+    case Repo.get(Merchant, merchant_id) do
+      %Merchant{public_id: code} -> code
+      nil -> nil
+    end
+  end
 end

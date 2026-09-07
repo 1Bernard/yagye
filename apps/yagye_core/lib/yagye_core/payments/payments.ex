@@ -101,7 +101,11 @@ defmodule YagyeCore.Payments do
         %{
           public_id: p.public_id,
           state: p.state,
-          merchant_code: merchant_code(p.merchant_id)
+          merchant_code: merchant_code(p.merchant_id),
+          amount: p.amount,
+          currency: p.currency,
+          method: p.method,
+          mode: p.mode
         },
         correlation_id: p.public_id
       )
@@ -183,7 +187,10 @@ defmodule YagyeCore.Payments do
           merchant_code: merchant_code(p.merchant_id),
           error_class: Atom.to_string(err.error_class),
           response_code: err.response_code,
-          currency: p.currency
+          amount: p.amount,
+          currency: p.currency,
+          method: p.method,
+          mode: p.mode
         },
         correlation_id: p.public_id
       )
@@ -218,7 +225,10 @@ defmodule YagyeCore.Payments do
           state: p.state,
           merchant_code: merchant_code(p.merchant_id),
           response_code: err.response_code,
-          currency: p.currency
+          amount: p.amount,
+          currency: p.currency,
+          method: p.method,
+          mode: p.mode
         },
         correlation_id: p.public_id
       )
@@ -308,7 +318,10 @@ defmodule YagyeCore.Payments do
           merchant_code: merchant_code(p.merchant_id),
           error_class: "definite_failure",
           response_code: "prompt_timeout",
-          currency: p.currency
+          amount: p.amount,
+          currency: p.currency,
+          method: p.method,
+          mode: p.mode
         },
         correlation_id: p.public_id
       )

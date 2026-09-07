@@ -7,7 +7,9 @@ defmodule YagyeCore.Settlement.Workers.SettlementProcessorWorker do
 
   alias Ecto.Multi
   alias YagyeCore.Ledger
+  alias YagyeCore.Merchants.Schemas.Merchant
   alias YagyeCore.Outbox
+  alias YagyeCore.Providers.Schemas.Provider
   alias YagyeCore.Repo
   alias YagyeCore.Settlement
   alias YagyeCore.Settlement.Schemas.SettlementBatch
@@ -38,8 +40,8 @@ defmodule YagyeCore.Settlement.Workers.SettlementProcessorWorker do
       |> Multi.insert(:outbox_settled, fn %{settled: b} ->
         Outbox.build_changeset(b, "settlement.batch.settled", %{
           batch_id: b.id,
-          merchant_id: b.merchant_id,
-          provider_id: b.provider_id,
+          merchant_code: merchant_code(b.merchant_id),
+          provider_code: provider_code(b.provider_id),
           currency: b.currency,
           payment_count: b.payment_count,
           gross_amount: b.gross_amount,
@@ -70,5 +72,19 @@ defmodule YagyeCore.Settlement.Workers.SettlementProcessorWorker do
     |> SettlementBatch.transition_changeset("failed")
     |> Ecto.Changeset.put_change(:error, inspect(reason))
     |> Repo.update()
+  end
+
+  defp merchant_code(merchant_id) do
+    case Repo.get(Merchant, merchant_id) do
+      %Merchant{public_id: code} -> code
+      nil -> nil
+    end
+  end
+
+  defp provider_code(provider_id) do
+    case Repo.get(Provider, provider_id) do
+      %Provider{code: code} -> code
+      nil -> nil
+    end
   end
 end

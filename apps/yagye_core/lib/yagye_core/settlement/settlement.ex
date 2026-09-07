@@ -4,6 +4,7 @@ defmodule YagyeCore.Settlement do
   import Ecto.Query
 
   alias Ecto.Multi
+  alias YagyeCore.Merchants.Schemas.Merchant
   alias YagyeCore.Outbox
   alias YagyeCore.Payments.Schemas.Payment
   alias YagyeCore.Payments.Schemas.PaymentAttempt
@@ -46,8 +47,8 @@ defmodule YagyeCore.Settlement do
     |> Multi.insert(:outbox, fn %{batch: batch} ->
       Outbox.build_changeset(batch, "settlement.batch.created", %{
         batch_id: batch.id,
-        merchant_id: batch.merchant_id,
-        provider_id: batch.provider_id,
+        merchant_code: merchant_code(batch.merchant_id),
+        provider_code: provider_code(batch.provider_id),
         currency: batch.currency,
         payment_count: batch.payment_count,
         gross_amount: batch.gross_amount
@@ -329,5 +330,19 @@ defmodule YagyeCore.Settlement do
       select: p
     )
     |> Repo.all()
+  end
+
+  defp merchant_code(merchant_id) do
+    case Repo.get(Merchant, merchant_id) do
+      %Merchant{public_id: code} -> code
+      nil -> nil
+    end
+  end
+
+  defp provider_code(provider_id) do
+    case Repo.get(Provider, provider_id) do
+      %Provider{code: code} -> code
+      nil -> nil
+    end
   end
 end
