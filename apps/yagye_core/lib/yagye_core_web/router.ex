@@ -20,6 +20,7 @@ defmodule YagyeCoreWeb.Router do
   end
 
   alias YagyeCoreWeb.Controllers.ApiKeys.ApiKeyController
+  alias YagyeCoreWeb.Controllers.CheckoutSessions.CheckoutSessionController
   alias YagyeCoreWeb.Controllers.Compliance.ComplianceController
   alias YagyeCoreWeb.Controllers.Customers.CustomerController
   alias YagyeCoreWeb.Controllers.Disputes.{DisputeController, RefundController}
@@ -155,6 +156,13 @@ defmodule YagyeCoreWeb.Router do
       only: [:create, :index, :show],
       param: "id" do
       post "/deactivate", PaymentLinkController, :deactivate
+    end
+
+    # P16 — Checkout Sessions (server-side create / read / expire)
+    resources "/checkout-sessions", CheckoutSessionController,
+      only: [:create, :index, :show],
+      param: "id" do
+      post "/expire", CheckoutSessionController, :expire
     end
   end
 
