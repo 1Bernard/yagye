@@ -2,6 +2,11 @@
 
 module Developers
   class WebhooksController < ApplicationController
+    def new
+      authorize :developers, :manage_webhooks?
+      render Developers::WebhookFormView.new(mode: current_portal_mode)
+    end
+
     def create
       authorize :developers, :manage_webhooks?
       result = CoreApiClient.new.add_webhook_endpoint(

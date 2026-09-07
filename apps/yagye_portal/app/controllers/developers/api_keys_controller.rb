@@ -26,6 +26,11 @@ module Developers
       )
     end
 
+    def new
+      authorize :developers, :manage_keys?
+      render Developers::KeyFormView.new(mode: current_portal_mode)
+    end
+
     def create
       authorize :developers, :manage_keys?
       result = CoreApiClient.new.generate_api_key(
@@ -57,6 +62,10 @@ module Developers
     end
 
     private
+
+    def current_portal_mode
+      session[:portal_mode] || "test"
+    end
 
     def key_params
       params.permit(:label, :mode, scopes: [])

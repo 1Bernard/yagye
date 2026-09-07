@@ -61,12 +61,11 @@ module Developers
         reveal_key_banner if @reveal_key
 
         div(class: "flex items-center justify-end mb-5") do
-          render UI::Button.new(variant: :primary,
-                 data: { action: "click->dialog#open", dialog_target_param: "generate-key-dialog" }) do
+          render UI::Button.new(variant: :primary, href: new_developers_key_path,
+                                data: { turbo_frame: "drawer-frame" }) do
             render UI::Icon.new(:plus, class: ICON_SM)
             plain "Generate Key"
           end
-          generate_key_dialog(live)
         end
 
         test_mode_notice unless live
@@ -270,12 +269,11 @@ module Developers
             p(class: TYPE_BODY_MD) { plain "Webhook endpoints" }
             p(class: TYPE_CAPTION) { plain "Yagye sends signed POST requests to your endpoints for each event." }
           end
-          render UI::Button.new(variant: :primary,
-                 data: { action: "click->dialog#open", dialog_target_param: "add-webhook-dialog" }) do
+          render UI::Button.new(variant: :primary, href: new_developers_webhook_path,
+                                data: { turbo_frame: "drawer-frame" }) do
             render UI::Icon.new(:plus, class: ICON_SM)
             plain "Add Endpoint"
           end
-          add_webhook_dialog
         end
 
         render UI::Datatable.new(records: @webhooks,
@@ -364,69 +362,6 @@ module Developers
           a(href: developers_delivery_path(d), class: DROPDOWN_ITEM) do
             render UI::Icon.new(:refresh, class: ICON_SM)
             plain "Retry"
-          end
-        end
-      end
-    end
-
-    # ── Dialogs ───────────────────────────────────────────────────────────────
-
-    def generate_key_dialog(live_mode)
-      dialog(id: "generate-key-dialog",
-             class: "border-0 rounded-2xl p-0 shadow-2xl w-full max-w-[420px] bg-white") do
-        div(class: "px-6 py-[22px] border-b border-gray-100") do
-          p(class: TYPE_TITLE) { plain "Generate API key" }
-          p(class: "#{TYPE_CAPTION} mt-[3px]") { plain "Keys are shown once. Store it immediately after creation." }
-        end
-        form(action: developers_keys_path, method: "post",
-             class: "px-6 py-[22px] flex flex-col gap-[14px]") do
-          input(type: "hidden", name: "authenticity_token", value: form_authenticity_token)
-          input(type: "hidden", name: "mode",               value: live_mode ? "live" : "test")
-          render UI::InputField.new(name: "label", label: "Key label", placeholder: "e.g. Production server", required: true)
-          div(class: "flex gap-[10px] justify-end mt-1") do
-            render UI::Button.new(variant: :secondary,
-                   data: { action: "click->dialog#close", dialog_target_param: "generate-key-dialog" }) { plain "Cancel" }
-            render UI::Button.new(variant: :primary, type: "submit") do
-              render UI::Icon.new(:plus, class: ICON_SM)
-              plain "Generate"
-            end
-          end
-        end
-      end
-    end
-
-    def add_webhook_dialog
-      dialog(id: "add-webhook-dialog",
-             class: "border-0 rounded-2xl p-0 shadow-2xl w-full max-w-[500px] bg-white") do
-        div(class: "px-6 py-[22px] border-b border-gray-100") do
-          p(class: TYPE_TITLE) { plain "Add webhook endpoint" }
-          p(class: "#{TYPE_CAPTION} mt-[3px]") { plain "Yagye will POST signed events to this URL." }
-        end
-        form(action: developers_webhooks_path, method: "post",
-             class: "px-6 py-[22px] flex flex-col gap-[14px]") do
-          input(type: "hidden", name: "authenticity_token", value: form_authenticity_token)
-          render UI::InputField.new(name: "url", label: "Endpoint URL", type: "url",
-                                    placeholder: "https://your-server.com/webhooks", required: true)
-          div do
-            p(class: "#{TYPE_MICRO} mb-2") { plain "Events to receive" }
-            div(class: "flex flex-col gap-1.5") do
-              ALL_EVENTS.each do |event|
-                label(class: "flex items-center gap-2 cursor-pointer") do
-                  input(type: "checkbox", name: "subscribed_events[]", value: event, checked: true,
-                        class: "w-[14px] h-[14px] cursor-pointer",
-                        style: "accent-color:#{BRAND}")
-                  span(class: TYPE_MONO) { plain event }
-                end
-              end
-            end
-          end
-          div(class: "flex gap-[10px] justify-end mt-1") do
-            render UI::Button.new(variant: :secondary,
-                   data: { action: "click->dialog#close", dialog_target_param: "add-webhook-dialog" }) { plain "Cancel" }
-            render UI::Button.new(variant: :primary, type: "submit") do
-              render UI::Icon.new(:plus, class: ICON_SM)
-              plain "Add endpoint"
-            end
           end
         end
       end

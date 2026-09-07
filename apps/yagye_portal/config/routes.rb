@@ -54,6 +54,8 @@ Rails.application.routes.draw do
   # ── Developers domain ────────────────────────────────────────────────────
   scope module: "developers" do
     get "developers",                          to: "api_keys#index",              as: :developers
+    get "developers/keys/new",                 to: "api_keys#new",                as: :new_developers_key
+    get "developers/webhooks/new",             to: "webhooks#new",                as: :new_developers_webhook
     get "developers/deliveries",               to: "webhook_deliveries#index",    as: :developers_deliveries
     get "developers/deliveries/:id",           to: "webhook_deliveries#show",     as: :developers_delivery
     get "developers/routing-rules",            to: "routing_rules#index",         as: :developers_routing_rules
@@ -89,6 +91,7 @@ Rails.application.routes.draw do
   scope module: "team" do
     get  "team",                        to: "users#index",      as: :team
     get  "team/users",                  to: "users#index",      as: :team_users
+    get  "team/users/filter",            to: "users#filter",     as: :filter_team_users
     get  "team/users/new",              to: "users#new",        as: :new_team_user
     get  "team/users/:id",              to: "users#show",       as: :team_user
     get  "team/users/:id/edit-roles",   to: "users#edit_roles", as: :edit_roles_team_user

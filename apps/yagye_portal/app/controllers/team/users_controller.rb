@@ -12,6 +12,11 @@ module Team
       )
     end
 
+    def filter
+      authorize User, :index?
+      render Team::Users::FilterView.new(query: params[:q], role: params[:role], status: params[:status])
+    end
+
     def show
       user = decode_id(User)
       authorize user

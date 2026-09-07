@@ -13,8 +13,7 @@ module Layout
     end
 
     def view_template
-      div(class: "flex h-screen overflow-hidden bg-gray-50 font-sans",
-          data: { controller: "dialog" }) do
+      div(class: "flex h-screen overflow-hidden bg-gray-50 font-sans") do
         render Layout::Sidebar.new(active: @active_nav)
         div(class: "flex-1 flex flex-col min-w-0 overflow-hidden") do
           render Layout::Topbar.new(title: @title, subtitle: @subtitle, breadcrumbs: @breadcrumbs)
