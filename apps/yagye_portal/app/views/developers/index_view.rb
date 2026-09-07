@@ -230,7 +230,7 @@ module Developers
         div(class: "px-6 py-4 flex items-center gap-3") do
           code(class: "flex-1 min-w-0 font-mono text-[12.5px] text-emerald-900 " \
                       "bg-emerald-100/60 rounded-xl px-4 py-3 select-all break-all") do
-            plain @reveal_key
+            plain @reveal_key.to_s
           end
           button(type: "button",
                  class: "flex-shrink-0 flex items-center gap-[6px] text-[12px] font-semibold " \

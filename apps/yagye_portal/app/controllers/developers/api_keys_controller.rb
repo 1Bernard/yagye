@@ -10,7 +10,7 @@ module Developers
       webhooks   = Developers::WebhookEndpointsQuery.new(policy_scope(PortalWebhookEndpoint)).call
       pagy       = nil
       deliveries = []
-      reveal_key = flash.delete(:reveal_key)
+      reveal_key = flash[:reveal_key]
 
       if tab == "logs"
         pagy, deliveries = pagy(
