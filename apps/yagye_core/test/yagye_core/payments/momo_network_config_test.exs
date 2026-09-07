@@ -15,8 +15,8 @@ defmodule YagyeCore.Payments.MomoNetworkConfigTest do
       assert "024" in config.msisdn_prefixes
     end
 
-    test "VODAFONE config exists" do
-      config = Repo.get(MomoNetworkConfig, "VODAFONE")
+    test "TELECEL config exists" do
+      config = Repo.get(MomoNetworkConfig, "TELECEL")
       assert config != nil
       assert config.callback_reliability == "advisory"
       assert config.supports_name_enquiry == false

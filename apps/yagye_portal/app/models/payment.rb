@@ -1,7 +1,7 @@
 class Payment < ApplicationRecord
   self.table_name = "portal_payments"
 
-  STATUSES = %w[initiated processing paid failed refunded disputed].freeze
+  STATUSES = %w[created processing requires_action paid failed cancelled indeterminate refunded disputed].freeze
   PROVIDERS = {
     "mtn_momo" => "MTN MoMo",
     "stripe" => "Stripe",
@@ -21,7 +21,7 @@ class Payment < ApplicationRecord
   end
 
   def formatted_amount
-    major = amount_cents / 100.0
+    major = amount / 100.0
     format("%s %.2f", currency, major)
   end
 

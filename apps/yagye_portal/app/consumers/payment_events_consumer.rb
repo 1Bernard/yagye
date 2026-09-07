@@ -1,29 +1,36 @@
+# frozen_string_literal: true
+
 class PaymentEventsConsumer < ApplicationConsumer
   def consume
     messages.each do |message|
-      upsert_payment(message.payload)
-    rescue StandardError => e
-      Rails.logger.error("PaymentEventsConsumer: failed to process message — #{e.message}")
+      event = Acl::CorePaymentEvent.new(message.payload)
+      next unless event.valid?
+      upsert_payment(event)
     end
   end
 
   private
 
-  def upsert_payment(payload)
-    Payment.find_or_initialize_by(core_payment_id: payload["public_id"]).tap do |p|
-      p.merchant_code   = payload["merchant_code"]
-      p.reference       = payload["reference"]
-      p.customer_msisdn = payload["customer_msisdn"]
-      p.customer_email  = payload["customer_email"]
-      p.amount_cents    = payload["amount_cents"]
-      p.currency        = payload["currency"] || "GHS"
-      p.status          = payload["status"]
-      p.provider        = payload["provider"]
-      p.payment_method  = payload["payment_method"]
-      p.description     = payload["description"]
-      p.metadata        = payload["metadata"] || {}
-      p.paid_at         = payload["paid_at"]
-      p.settled_at      = payload["settled_at"]
+  def upsert_payment(event)
+    attrs = {
+      merchant_code:   event.merchant_code,
+      reference:       event.reference,
+      customer_msisdn: event.customer_msisdn,
+      customer_email:  event.customer_email,
+      amount:          event.amount.nonzero?,
+      currency:        event.currency.presence,
+      status:          event.status.presence,
+      provider:        event.provider,
+      payment_method:  event.payment_method,
+      description:     event.description,
+      metadata:        event.metadata,
+      paid_at:         event.paid_at,
+      settled_at:      event.settled_at,
+      mode:            event.mode
+    }.compact
+
+    Payment.find_or_initialize_by(core_payment_id: event.public_id).tap do |p|
+      p.assign_attributes(attrs)
       p.save!
     end
   end

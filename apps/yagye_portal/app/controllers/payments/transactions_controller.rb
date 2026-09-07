@@ -27,10 +27,10 @@ module Payments
     def refund
       payment = decode_id(Payment)
       authorize payment, :refund?
-      amount_cents = params[:amount_cents].present? ? params[:amount_cents].to_i : payment.amount_cents
+      amount = params[:amount].present? ? params[:amount].to_i : payment.amount
       result = CoreApiClient.new.create_refund(
         payment.core_payment_id,
-        amount_cents: amount_cents,
+        amount: amount,
         reason:       params[:reason].to_s.strip.presence || "requested_by_merchant",
         initiated_by: current_user.email
       )

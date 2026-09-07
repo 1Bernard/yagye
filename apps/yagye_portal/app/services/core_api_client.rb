@@ -40,9 +40,9 @@ class CoreApiClient
   # ── Payments ───────────────────────────────────────────────────────────────
 
   # POST /v1/payments/:id/refunds
-  def create_refund(payment_id, amount_cents:, reason:, initiated_by:)
+  def create_refund(payment_id, amount:, reason:, initiated_by:)
     post("/v1/payments/#{payment_id}/refunds",
-         { amount_cents: amount_cents, reason: reason, initiated_by: initiated_by })
+         { amount: amount, reason: reason, initiated_by: initiated_by })
   end
 
   # GET /v1/payments/:id/events

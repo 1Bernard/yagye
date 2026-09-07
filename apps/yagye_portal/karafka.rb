@@ -58,36 +58,48 @@ class KarafkaApp < Karafka::App
   # end
 
   routes.draw do
+    # max_retries: 3 means Karafka will attempt the message 4 times total before
+    # moving it to the DLQ topic. The DLQ topic is append-only and can be replayed
+    # once the root cause is fixed.
+
     topic "yagye.payments.v1" do
       consumer PaymentEventsConsumer
+      dead_letter_queue(topic: "yagye.payments.v1.dlq", max_retries: 3)
     end
 
     topic "yagye.applications.v1" do
       consumer MerchantApplicationEventsConsumer
+      dead_letter_queue(topic: "yagye.applications.v1.dlq", max_retries: 3)
     end
 
     topic "yagye.api_keys.v1" do
       consumer ApiKeyEventsConsumer
+      dead_letter_queue(topic: "yagye.api_keys.v1.dlq", max_retries: 3)
     end
 
     topic "yagye.webhooks.v1" do
       consumer WebhookEventsConsumer
+      dead_letter_queue(topic: "yagye.webhooks.v1.dlq", max_retries: 3)
     end
 
     topic "yagye.disputes.v1" do
       consumer DisputeEventsConsumer
+      dead_letter_queue(topic: "yagye.disputes.v1.dlq", max_retries: 3)
     end
 
     topic "yagye.adjustment_approvals.v1" do
       consumer AdjustmentApprovalEventsConsumer
+      dead_letter_queue(topic: "yagye.adjustment_approvals.v1.dlq", max_retries: 3)
     end
 
     topic "yagye.payouts.v1" do
       consumer PayoutEventsConsumer
+      dead_letter_queue(topic: "yagye.payouts.v1.dlq", max_retries: 3)
     end
 
     topic "yagye.settlements.v1" do
       consumer SettlementEventsConsumer
+      dead_letter_queue(topic: "yagye.settlements.v1.dlq", max_retries: 3)
     end
   end
 

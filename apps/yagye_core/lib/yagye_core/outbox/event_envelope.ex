@@ -4,6 +4,21 @@ defmodule YagyeCore.Outbox.EventEnvelope do
   # The normalized shape written into outbox_messages.envelope (jsonb).
   # Every domain event travels as this struct — aggregate metadata lives
   # outside the payload so consumers can filter without parsing the payload.
+  #
+  # Field contract
+  # ──────────────
+  # Envelope fields are INFRASTRUCTURE identifiers — opaque to business logic:
+  #   aggregate_id  → the aggregate's internal DB UUID (e.g. payments.id)
+  #   merchant_id   → the merchant's internal DB UUID (merchants.id FK)
+  #   correlation_id → the aggregate's public_id (e.g. "pay_01a..."), set by
+  #                    the caller. Ties all events for one business entity together.
+  #
+  # Payload fields are DOMAIN identifiers — what consumers should read:
+  #   public_id      → aggregate public code (e.g. "pay_01a...")
+  #   merchant_code  → merchant public code  (e.g. "mch_01a...")
+  #
+  # Never use envelope.merchant_id as a merchant code in consumer logic;
+  # always read merchant_code from the payload.
 
   @enforce_keys [
     :event_id,

@@ -17,7 +17,7 @@ class Dispute < ApplicationRecord
   scope :lost,         -> { where(status: "lost") }
 
   def formatted_amount
-    major = amount_cents / 100.0
+    major = amount / 100.0
     format("%s %.2f", currency, major)
   end
 

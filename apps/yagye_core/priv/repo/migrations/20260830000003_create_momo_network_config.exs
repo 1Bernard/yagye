@@ -41,13 +41,13 @@ defmodule YagyeCore.Repo.Migrations.CreateMomoNetworkConfig do
       VALUES
         ('MTN', 'MTN Mobile Money', ARRAY['024','054','055','059'],
          90, 'primary', 10, true, true),
-        ('VODAFONE', 'Vodafone Cash', ARRAY['020','050'],
+        ('TELECEL', 'Telecel Cash', ARRAY['020','050'],
          120, 'advisory', 15, false, false),
         ('AIRTELTIGO', 'AirtelTigo Money', ARRAY['026','027','056','057'],
          90, 'primary', 10, false, true)
       ON CONFLICT (network) DO NOTHING
       """,
-      "DELETE FROM momo_network_config WHERE network IN ('MTN','VODAFONE','AIRTELTIGO')"
+      "DELETE FROM momo_network_config WHERE network IN ('MTN','TELECEL','AIRTELTIGO')"
     )
   end
 end

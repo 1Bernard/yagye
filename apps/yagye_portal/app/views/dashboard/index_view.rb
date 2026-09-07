@@ -4,13 +4,13 @@ module Dashboard
   class IndexView < ApplicationComponent
     include UI::Theme
 
-    def initialize(volume_cents:, tx_count:, success_rate:, pending_count:, failed_count:,
-                   prev_volume_cents: 0, prev_tx_count: 0,
+    def initialize(volume:, tx_count:, success_rate:, pending_count:, failed_count:,
+                   prev_volume: 0, prev_tx_count: 0,
                    disputes_count: 0, kyb_pending_count: nil,
                    chart_dates: [], chart_values: [],
                    provider_data: [], recent_payments: [])
-      @volume_cents      = volume_cents
-      @prev_volume_cents = prev_volume_cents.to_i
+      @volume      = volume
+      @prev_volume = prev_volume.to_i
       @tx_count          = tx_count
       @prev_tx_count     = prev_tx_count.to_i
       @success_rate      = success_rate
@@ -98,7 +98,7 @@ module Dashboard
 
         render UI::Chart::Pie.new(
           labels: @provider_data.map { |p| p[:name] },
-          data:   @provider_data.map { |p| p[:amount_cents] / 100.0 },
+          data:   @provider_data.map { |p| p[:amount] / 100.0 },
           colors: @provider_data.map { |p| p[:color] },
           height: 168
         )
@@ -133,7 +133,7 @@ module Dashboard
         end
         div(class: "flex items-center gap-2") do
           span(class: TYPE_CAPTION) { plain "#{prov[:pct]}%" }
-          span(class: TYPE_MONO) { plain format_ghs(prov[:amount_cents]) }
+          span(class: TYPE_MONO) { plain format_ghs(prov[:amount]) }
         end
       end
     end
@@ -281,7 +281,7 @@ module Dashboard
 
     # ── Helpers ───────────────────────────────────────────────────────────────
 
-    def format_volume = format_ghs(@volume_cents)
+    def format_volume = format_ghs(@volume)
 
     def rate_label
       @success_rate ? "#{@success_rate}%" : "—"
@@ -299,8 +299,8 @@ module Dashboard
     end
 
     def volume_delta
-      return nil if @prev_volume_cents.zero?
-      ((@volume_cents - @prev_volume_cents).to_f / @prev_volume_cents * 100).round(1)
+      return nil if @prev_volume.zero?
+      ((@volume - @prev_volume).to_f / @prev_volume * 100).round(1)
     end
 
     def tx_delta

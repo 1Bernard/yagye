@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_09_06_100001) do
+ActiveRecord::Schema[8.1].define(version: 2026_09_06_120001) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pgcrypto"
@@ -109,7 +109,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_06_100001) do
   end
 
   create_table "portal_disputes", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
-    t.bigint "amount_cents", null: false
+    t.bigint "amount", null: false
     t.text "core_dispute_id", null: false
     t.text "core_payment_id"
     t.datetime "created_at", null: false
@@ -190,7 +190,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_06_100001) do
   end
 
   create_table "portal_payments", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
-    t.bigint "amount_cents", null: false
+    t.bigint "amount", null: false
     t.text "core_payment_id", null: false
     t.datetime "created_at", null: false
     t.text "currency", default: "GHS", null: false

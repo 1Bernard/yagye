@@ -7,8 +7,8 @@ class DashboardController < ApplicationController
     summary = Payments::VolumeSummaryQuery.new(scope).call
 
     render Dashboard::IndexView.new(
-      volume_cents:      summary[:volume_cents],
-      prev_volume_cents: summary[:prev_volume_cents],
+      volume:      summary[:volume],
+      prev_volume: summary[:prev_volume],
       tx_count:          summary[:tx_count],
       prev_tx_count:     summary[:prev_tx_count],
       success_rate:      summary[:success_rate],

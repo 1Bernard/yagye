@@ -89,7 +89,16 @@ defmodule YagyeCore.Payments do
       insert_event(p, "payment.authorised", "processing", "authorised")
     end)
     |> Multi.insert(:authorised_outbox, fn %{authorised: p} ->
-      Outbox.build_changeset(p, "payment.authorised", %{})
+      Outbox.build_changeset(
+        p,
+        "payment.authorised",
+        %{
+          public_id: p.public_id,
+          state: p.state,
+          merchant_code: merchant_code(p.merchant_id)
+        },
+        correlation_id: p.public_id
+      )
     end)
     |> Multi.update(:succeeded, fn %{authorised: p} ->
       Payment.transition_changeset(p, "succeeded")
@@ -98,12 +107,20 @@ defmodule YagyeCore.Payments do
       insert_event(p, "payment.succeeded", "authorised", "succeeded")
     end)
     |> Multi.insert(:succeeded_outbox, fn %{succeeded: p} ->
-      Outbox.build_changeset(p, "payment.succeeded", %{
-        provider_code: result[:provider_code],
-        amount: p.amount,
-        currency: p.currency,
-        net_amount: p.amount
-      })
+      Outbox.build_changeset(
+        p,
+        "payment.succeeded",
+        %{
+          public_id: p.public_id,
+          state: p.state,
+          merchant_code: merchant_code(p.merchant_id),
+          provider_code: result[:provider_code],
+          amount: p.amount,
+          currency: p.currency,
+          net_amount: p.amount
+        },
+        correlation_id: p.public_id
+      )
     end)
     |> Multi.run(:ledger, fn _repo, %{succeeded: p} ->
       Ledger.post_payment_settled(p, attempt)
@@ -151,11 +168,19 @@ defmodule YagyeCore.Payments do
       insert_event(p, "payment.failed", "processing", "failed")
     end)
     |> Multi.insert(:outbox, fn %{payment: p} ->
-      Outbox.build_changeset(p, "payment.failed", %{
-        error_class: Atom.to_string(err.error_class),
-        response_code: err.response_code,
-        currency: p.currency
-      })
+      Outbox.build_changeset(
+        p,
+        "payment.failed",
+        %{
+          public_id: p.public_id,
+          state: p.state,
+          merchant_code: merchant_code(p.merchant_id),
+          error_class: Atom.to_string(err.error_class),
+          response_code: err.response_code,
+          currency: p.currency
+        },
+        correlation_id: p.public_id
+      )
     end)
     |> Repo.transaction()
     |> case do
@@ -179,10 +204,18 @@ defmodule YagyeCore.Payments do
       insert_event(p, "payment.indeterminate", "processing", "indeterminate")
     end)
     |> Multi.insert(:outbox, fn %{payment: p} ->
-      Outbox.build_changeset(p, "payment.indeterminate", %{
-        response_code: err.response_code,
-        currency: p.currency
-      })
+      Outbox.build_changeset(
+        p,
+        "payment.indeterminate",
+        %{
+          public_id: p.public_id,
+          state: p.state,
+          merchant_code: merchant_code(p.merchant_id),
+          response_code: err.response_code,
+          currency: p.currency
+        },
+        correlation_id: p.public_id
+      )
     end)
     |> Repo.transaction()
     |> case do
@@ -220,11 +253,19 @@ defmodule YagyeCore.Payments do
       insert_event(p, "payment.requires_action", "processing", "requires_action")
     end)
     |> Multi.insert(:outbox, fn %{payment: p} ->
-      Outbox.build_changeset(p, "payment.requires_action", %{
-        method: p.method,
-        amount: p.amount,
-        currency: p.currency
-      })
+      Outbox.build_changeset(
+        p,
+        "payment.requires_action",
+        %{
+          public_id: p.public_id,
+          state: p.state,
+          merchant_code: merchant_code(p.merchant_id),
+          method: p.method,
+          amount: p.amount,
+          currency: p.currency
+        },
+        correlation_id: p.public_id
+      )
     end)
     |> Repo.transaction()
     |> case do
@@ -295,14 +336,24 @@ defmodule YagyeCore.Payments do
     |> Multi.run(:event, fn _repo, %{payment: p} ->
       insert_event(p, "payment.created", nil, "created")
     end)
-    |> Multi.insert(:outbox, fn %{payment: p} ->
-      Outbox.build_changeset(p, "payment.created", %{
-        method: p.method,
-        amount: p.amount,
-        currency: p.currency,
-        merchant_reference: p.merchant_reference,
-        customer_reference: Map.get(attrs, :customer_reference)
-      })
+    |> Multi.insert(:outbox, fn %{payment: p, merchant: m} ->
+      Outbox.build_changeset(
+        p,
+        "payment.created",
+        %{
+          public_id: p.public_id,
+          state: p.state,
+          mode: p.mode,
+          method: p.method,
+          amount: p.amount,
+          currency: p.currency,
+          description: p.description,
+          merchant_code: m.public_id,
+          merchant_reference: p.merchant_reference,
+          customer_reference: Map.get(attrs, :customer_reference)
+        },
+        correlation_id: p.public_id
+      )
     end)
     |> Repo.transaction()
     |> case do
@@ -335,6 +386,13 @@ defmodule YagyeCore.Payments do
     case Repo.get(Merchant, merchant_id) do
       nil -> {:error, :not_found}
       merchant -> {:ok, merchant}
+    end
+  end
+
+  defp merchant_code(merchant_id) do
+    case Repo.get(Merchant, merchant_id) do
+      %Merchant{public_id: code} -> code
+      nil -> nil
     end
   end
 

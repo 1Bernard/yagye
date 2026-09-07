@@ -12,12 +12,14 @@ defmodule YagyeCore.Payments.Adapters.SimulatorAdapter do
 
   @impl true
   def charge(%Payment{} = payment, %PaymentAttempt{} = attempt, credential) do
-    body = %{
-      idempotency_key: attempt.idempotency_token,
-      amount_minor: payment.amount,
-      currency: payment.currency,
-      instrument_type: instrument_type(payment.method)
-    }
+    body =
+      %{
+        idempotency_key: attempt.idempotency_token,
+        amount_minor: payment.amount,
+        currency: payment.currency,
+        instrument_type: instrument_type(payment.method)
+      }
+      |> maybe_add_wallet_fields(payment)
 
     case Req.post(url("/charges", credential),
            json: body,
@@ -116,6 +118,17 @@ defmodule YagyeCore.Payments.Adapters.SimulatorAdapter do
       true -> "tier_3"
     end
   end
+
+  # For wallet charges, pass the test MSISDN from metadata (if present) so the
+  # simulator's fixed-MSISDN outcome map is hit instead of the random scenario roll.
+  # Falls back to the default approved test number when metadata has no msisdn.
+  defp maybe_add_wallet_fields(body, %Payment{method: "mobile_money"} = payment) do
+    msisdn = get_in(payment.metadata, ["msisdn"]) || "0241000001"
+    network = get_in(payment.metadata, ["network"]) || "MTN"
+    Map.merge(body, %{msisdn: msisdn, network: network})
+  end
+
+  defp maybe_add_wallet_fields(body, _payment), do: body
 
   defp instrument_type(nil), do: "CARD"
   defp instrument_type("card"), do: "CARD"

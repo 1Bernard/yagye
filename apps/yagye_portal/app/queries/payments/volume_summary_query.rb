@@ -37,17 +37,17 @@ module Payments
                        .where("paid_at >= ?", window_start.beginning_of_day)
                        .group("DATE(paid_at)")
                        .order("DATE(paid_at)")
-                       .sum(:amount_cents)
+                       .sum(:amount)
 
-      provider_totals = mtd_paid.group(:provider).sum(:amount_cents)
+      provider_totals = mtd_paid.group(:provider).sum(:amount)
       total_vol       = provider_totals.values.sum.to_f
 
       success_count = mtd_paid.count
       tx_count      = mtd_all.count
 
       {
-        volume_cents:      mtd_paid.sum(:amount_cents),
-        prev_volume_cents: prev_paid.sum(:amount_cents),
+        volume:      mtd_paid.sum(:amount),
+        prev_volume: prev_paid.sum(:amount),
         tx_count:          tx_count,
         prev_tx_count:     prev_all.count,
         success_count:     success_count,
@@ -75,13 +75,13 @@ module Payments
         next if key.blank?
         pct = total_vol.positive? ? (amt / total_vol * 100).round(1) : 0.0
         {
-          key:          key.to_s,
-          name:         Payment::PROVIDERS.fetch(key.to_s, key.to_s.humanize),
-          amount_cents: amt,
-          pct:          pct,
-          color:        PROVIDER_COLORS.fetch(key.to_s, "#9ca3af")
+          key:    key.to_s,
+          name:   Payment::PROVIDERS.fetch(key.to_s, key.to_s.humanize),
+          amount: amt,
+          pct:    pct,
+          color:  PROVIDER_COLORS.fetch(key.to_s, "#9ca3af")
         }
-      end.sort_by { |p| -p[:amount_cents] }
+      end.sort_by { |p| -p[:amount] }
     end
   end
 end

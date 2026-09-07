@@ -42,7 +42,11 @@ case Repo.get_by(ProviderCredential, provider_id: simulator.id, mode: "simulatio
     IO.puts("Simulator credential  : already exists (#{c.id})")
 
   nil ->
-    payload = Vault.encrypt_map(%{"api_key" => "sim_dev_key"})
+    payload =
+      Vault.encrypt_map(%{
+        "api_key" => "sim_dev_key",
+        "webhook_secret" => "sim_webhook_secret_dev"
+      })
 
     {:ok, c} =
       %ProviderCredential{}

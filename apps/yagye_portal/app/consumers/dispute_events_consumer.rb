@@ -1,33 +1,32 @@
 # frozen_string_literal: true
 
-# Consumes dispute.* events from Core and keeps portal_disputes in sync.
-# Topic:   yagye.portal.dispute_events
-# Pattern: idempotent upsert keyed on core_dispute_id + last_event_id guard
 class DisputeEventsConsumer < ApplicationConsumer
   def consume
-    messages.each { |message| upsert(message.payload) }
+    messages.each do |message|
+      event = Acl::CoreDisputeEvent.new(message.payload)
+      next unless event.valid?
+      upsert_dispute(event)
+    end
   end
 
   private
 
-  def upsert(payload)
-    return unless payload["dispute_id"].present?
-
+  def upsert_dispute(event)
     attrs = {
-      core_dispute_id:   payload["dispute_id"],
-      merchant_code:     payload["merchant_code"],
-      reference:         payload["reference"],
-      core_payment_id:   payload["payment_id"],
-      payment_reference: payload["payment_reference"],
-      amount_cents:      payload["amount_cents"].to_i,
-      currency:          payload["currency"] || "GHS",
-      reason:            payload["reason"],
-      status:            payload["status"],
-      customer_msisdn:   payload["customer_msisdn"],
-      network_deadline:  payload["network_deadline"],
-      opened_at:         payload["opened_at"],
-      resolved_at:       payload["resolved_at"],
-      last_event_id:     payload["event_id"].to_s,
+      core_dispute_id:   event.core_dispute_id,
+      merchant_code:     event.merchant_code,
+      reference:         event.reference,
+      core_payment_id:   event.core_payment_id,
+      payment_reference: event.payment_reference,
+      amount:            event.amount,
+      currency:          event.currency,
+      reason:            event.reason,
+      status:            event.status,
+      customer_msisdn:   event.customer_msisdn,
+      network_deadline:  event.network_deadline,
+      opened_at:         event.opened_at,
+      resolved_at:       event.resolved_at,
+      last_event_id:     event.event_id,
       last_applied_at:   Time.current
     }
 

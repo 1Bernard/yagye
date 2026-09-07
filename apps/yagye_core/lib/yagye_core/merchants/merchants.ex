@@ -504,6 +504,7 @@ defmodule YagyeCore.Merchants do
     end)
     |> Multi.insert(:outbox, fn %{approved: merchant} ->
       Outbox.build_changeset(merchant, "merchant.approved", %{
+        merchant_code: merchant.public_id,
         approved_by: cmd.approved_by
       })
     end)
@@ -546,10 +547,10 @@ defmodule YagyeCore.Merchants do
 
       ApiKey.changeset(%ApiKey{}, attrs)
     end)
-    |> Multi.insert(:outbox, fn %{api_key: api_key} ->
+    |> Multi.insert(:outbox, fn %{api_key: api_key, merchant: merchant} ->
       Outbox.build_changeset(api_key, "merchant.api_key_issued", %{
         public_id: api_key.public_id,
-        merchant_id: api_key.merchant_id,
+        merchant_code: merchant.public_id,
         mode: api_key.mode,
         kind: api_key.kind,
         label: api_key.label,
@@ -602,9 +603,10 @@ defmodule YagyeCore.Merchants do
     |> Multi.update(:revoked, fn %{api_key: api_key} ->
       Ecto.Changeset.change(api_key, revoked_at: DateTime.utc_now())
     end)
-    |> Multi.insert(:outbox, fn %{revoked: api_key} ->
+    |> Multi.insert(:outbox, fn %{revoked: api_key, merchant: merchant} ->
       Outbox.build_changeset(api_key, "merchant.api_key_revoked", %{
-        merchant_id: api_key.merchant_id,
+        public_id: api_key.public_id,
+        merchant_code: merchant.public_id,
         revoked_by: cmd.revoked_by
       })
     end)

@@ -15,7 +15,7 @@ class PortalAdjustmentApproval < ApplicationRecord
   def action_summary
     return "—" unless proposed_action.present?
     type = proposed_action["type"] || proposed_action["action"] || "adjustment"
-    amount = proposed_action["amount_cents"]
+    amount = proposed_action["amount"]
     amount.present? ? "#{type.humanize} · #{Money.new(amount).format}" : type.humanize
   rescue
     proposed_action.to_s.truncate(60)
