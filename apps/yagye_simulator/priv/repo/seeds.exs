@@ -109,7 +109,7 @@ account =
         Accounts.create_account(%{
           account_ref: "acct_yagye_platform",
           display_name: "Yagye Payment Orchestration",
-          webhook_url: "http://localhost:4000/webhooks/simulator",
+          webhook_url: "http://localhost:4000/provider-webhooks/simulator",
           webhook_secret: "sim_webhook_secret_dev",
           webhook_signing_algorithm: "HS256",
           settlement_cadence: "daily",

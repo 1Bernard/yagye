@@ -51,5 +51,13 @@ defmodule Simulator.Web.Router do
     pipe_through :browser
 
     live "/scenarios", Live.ScenarioLive, :index
+    live "/charges", Live.ChargeLive, :index
+    live "/test-data", Live.TestDataLive, :index
+  end
+
+  scope "/", Simulator.Web do
+    pipe_through :browser
+
+    get "/", Controllers.RootController, :index
   end
 end

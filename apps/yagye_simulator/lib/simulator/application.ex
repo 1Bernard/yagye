@@ -11,6 +11,7 @@ defmodule Simulator.Application do
 
     children = [
       Simulator.Repo,
+      {Phoenix.PubSub, name: Simulator.PubSub},
       {Oban, Application.fetch_env!(:simulator, Oban)},
       Simulator.Web.Endpoint
     ]

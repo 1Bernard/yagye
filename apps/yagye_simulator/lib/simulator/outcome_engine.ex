@@ -33,6 +33,9 @@ defmodule Simulator.OutcomeEngine do
     Map.get(@fixed_msisdn_outcomes, msisdn)
   end
 
+  @spec fixed_msisdn_outcomes() :: %{binary() => wallet_outcome()}
+  def fixed_msisdn_outcomes, do: @fixed_msisdn_outcomes
+
   @spec card_outcome(Scenario.t() | nil, integer() | nil) :: card_outcome()
   def card_outcome(scenario, seed) do
     OpenTelemetry.Tracer.with_span "simulator.outcome_engine.card" do

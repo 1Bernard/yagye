@@ -1,5 +1,5 @@
 defmodule Simulator.Web.Live.ScenarioLive do
-  use Phoenix.LiveView, layout: {Simulator.Web.Layouts, :admin}
+  use Phoenix.LiveView
 
   import Ecto.Query
 

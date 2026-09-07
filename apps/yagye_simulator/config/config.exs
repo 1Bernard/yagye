@@ -11,6 +11,9 @@ config :simulator, Simulator.Web.Endpoint,
   adapter: Bandit.PhoenixAdapter,
   http: [ip: {127, 0, 0, 1}, port: 4100],
   server: true,
+  secret_key_base: "dev_simulator_secret_key_base_REPLACE_IN_PROD_via_runtime_exs_min64chars!",
+  live_view: [signing_salt: "GNLnV4OhGjoHTANi"],
+  pubsub_server: Simulator.PubSub,
   render_errors: [
     formats: [json: Simulator.Web.ErrorJSON],
     layout: false
