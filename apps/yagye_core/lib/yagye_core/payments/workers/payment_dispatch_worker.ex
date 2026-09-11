@@ -34,7 +34,7 @@ defmodule YagyeCore.Payments.Workers.PaymentDispatchWorker do
           "provider.code" => provider.code
         })
 
-        case ProviderAdapter.adapter().charge(payment, attempt, credential) do
+        case ProviderAdapter.for_provider(provider).charge(payment, attempt, credential) do
           {:pending, pending_data} ->
             Payments.handle_pending_auth(payment, attempt, pending_data)
 

@@ -60,7 +60,10 @@ defmodule YagyeCoreWeb.Router do
 
   scope "/provider-webhooks" do
     pipe_through(:provider_webhooks)
+    # Native rail + simulator: platform-level credential, HMAC-SHA256
     post("/:provider_code", ProviderWebhookController, :receive)
+    # External PSPs (Model B): merchant-scoped credential, PSP-specific signature
+    post("/:provider_code/merchant/:merchant_id", ProviderWebhookController, :receive_external)
   end
 
   # Spec and interactive docs (unauthenticated)

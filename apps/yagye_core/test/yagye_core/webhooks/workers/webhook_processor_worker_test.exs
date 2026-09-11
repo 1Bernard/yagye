@@ -112,7 +112,7 @@ defmodule YagyeCore.Webhooks.Workers.WebhookProcessorWorkerTest do
       {:ok, webhook} =
         Webhooks.receive_webhook("simulator", event_id, "some.unknown.event", raw_body)
 
-      assert {:error, {:unknown_event_type, "some.unknown.event"}} = run_worker(webhook)
+      assert {:error, {:unknown_event, "simulator", "some.unknown.event"}} = run_worker(webhook)
     end
 
     test "marks the webhook event as failed" do
@@ -124,7 +124,7 @@ defmodule YagyeCore.Webhooks.Workers.WebhookProcessorWorkerTest do
 
       updated = Repo.reload!(webhook)
       assert updated.state == "failed"
-      assert updated.error =~ "unknown_event_type"
+      assert updated.error =~ "unknown_event"
     end
   end
 end

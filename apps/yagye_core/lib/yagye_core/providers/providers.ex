@@ -133,6 +133,25 @@ defmodule YagyeCore.Providers do
     end
   end
 
+  def get_provider(id) do
+    case Repo.get(Provider, id) do
+      nil -> {:error, :no_provider}
+      provider -> {:ok, provider}
+    end
+  end
+
+  # Returns the decrypted merchant-level credential for an external PSP.
+  # Used by the provider webhook controller to verify inbound signatures.
+  def get_merchant_credential_for_psp(provider_code, merchant_id) do
+    with {:ok, provider} <- fetch_provider_by_code(provider_code) do
+      # Try live mode first (production webhooks), fall back to sandbox.
+      case fetch_credential(provider.id, merchant_id, "live") do
+        {:ok, _} = ok -> ok
+        _ -> fetch_credential(provider.id, merchant_id, "sandbox")
+      end
+    end
+  end
+
   defp fetch_provider_by_id(id) do
     case Repo.get(Provider, id) do
       nil -> {:error, :no_provider}

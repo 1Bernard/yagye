@@ -153,4 +153,37 @@ case Repo.get_by(Merchant, legal_name: "Dev Merchant") do
     """)
 end
 
+# ── 6. External PSP providers (Model B — no platform credentials) ─────────────
+# These providers are used when enterprise merchants bring their own PSP accounts.
+# Credentials are merchant-level (provider_credentials.merchant_id IS NOT NULL).
+# Platform-level credentials are NOT seeded — Yagye does not hold Flutterwave
+# or Paystack API keys on behalf of all merchants.
+
+[
+  %{
+    code: "flutterwave",
+    display_name: "Flutterwave",
+    adapter_module: "YagyeCore.Payments.Adapters.FlutterwaveAdapter",
+    kind: "external_psp",
+    capabilities: %{"mobile_money_gh" => true, "card" => false}
+  },
+  %{
+    code: "paystack",
+    display_name: "Paystack",
+    adapter_module: "YagyeCore.Payments.Adapters.PaystackAdapter",
+    kind: "external_psp",
+    capabilities: %{"mobile_money_gh" => true, "card" => false}
+  }
+]
+|> Enum.each(fn attrs ->
+  case Repo.get_by(Provider, code: attrs.code) do
+    %Provider{} = p ->
+      IO.puts("#{String.pad_trailing(attrs.display_name, 22)}: already exists (#{p.id})")
+
+    nil ->
+      {:ok, p} = %Provider{} |> Provider.changeset(attrs) |> Repo.insert()
+      IO.puts("#{String.pad_trailing(attrs.display_name, 22)}: created (#{p.id})")
+  end
+end)
+
 IO.puts("=== Done ===\n")

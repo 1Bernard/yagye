@@ -35,8 +35,9 @@ defmodule YagyeCore.Payments.Workers.PaymentStatusCheckWorker do
     with {:ok, payment} <- Payments.get_payment_by_id(payment_id),
          {:requires_action, true} <- {:requires_action, payment.state == "requires_action"},
          {:ok, attempt} <- get_attempt(attempt_id),
-         {:ok, credential} <- credential_for_attempt(attempt, payment) do
-      case ProviderAdapter.adapter().query_charge(attempt, credential) do
+         {:ok, credential} <- credential_for_attempt(attempt, payment),
+         {:ok, adapter} <- adapter_for_attempt(attempt) do
+      case adapter.query_charge(attempt, credential) do
         {:ok, result} ->
           Payments.handle_provider_response(payment, attempt, {:ok, result})
 
@@ -79,6 +80,16 @@ defmodule YagyeCore.Payments.Workers.PaymentStatusCheckWorker do
   # SAME provider that initiated the payment, not a re-routed one.
   defp credential_for_attempt(%PaymentAttempt{provider_id: provider_id}, payment) do
     Providers.fetch_credential_for_status_check(provider_id, payment.merchant_id, payment.mode)
+  end
+
+  # Resolves the adapter module for the provider that handled this attempt.
+  # Required because external PSPs (Flutterwave, Paystack) have their own adapters
+  # and the adapter is determined by the provider record, not global config.
+  defp adapter_for_attempt(%PaymentAttempt{provider_id: provider_id}) do
+    case Providers.get_provider(provider_id) do
+      {:ok, provider} -> {:ok, ProviderAdapter.for_provider(provider)}
+      {:error, _} = err -> err
+    end
   end
 
   defp maybe_reschedule(payment_id, attempt_id, poll_number, payment) do
