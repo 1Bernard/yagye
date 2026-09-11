@@ -66,7 +66,7 @@ defmodule YagyeCore.Payments do
     end
   end
 
-  def create_attempt(payment, provider_id) do
+  def create_attempt(payment, provider_id, routing_meta \\ %{}) do
     attempt_number = next_attempt_number(payment.id)
 
     %PaymentAttempt{}
@@ -75,10 +75,15 @@ defmodule YagyeCore.Payments do
       provider_id: provider_id,
       attempt_number: attempt_number,
       method: payment.method,
-      idempotency_token: Uniq.UUID.uuid7()
+      idempotency_token: Uniq.UUID.uuid7(),
+      routing_configuration_id: Map.get(routing_meta, :configuration_id),
+      routing_node_id: routing_node_id_for(routing_meta)
     })
     |> Repo.insert()
   end
+
+  defp routing_node_id_for(%{source: :rule, rule_id: rule_id}), do: to_string(rule_id)
+  defp routing_node_id_for(_), do: "static_priority"
 
   def handle_provider_response(payment, attempt, {:ok, result}) do
     Multi.new()
@@ -454,6 +459,17 @@ defmodule YagyeCore.Payments do
   end
 
   defp transition_to_processing(%Payment{state: state}), do: {:error, {:invalid_state, state}}
+
+  # Returns provider UUIDs for all previous attempts on this payment.
+  # Used by PaymentDispatchWorker on retries to route around already-tried providers.
+  def attempted_provider_ids(payment_id) do
+    from(a in PaymentAttempt,
+      where: a.payment_id == ^payment_id,
+      select: a.provider_id,
+      distinct: true
+    )
+    |> Repo.all()
+  end
 
   defp next_attempt_number(payment_id) do
     count =

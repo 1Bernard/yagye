@@ -35,7 +35,7 @@ defmodule YagyeCore.Payments.Workers.PaymentStatusCheckWorker do
     with {:ok, payment} <- Payments.get_payment_by_id(payment_id),
          {:requires_action, true} <- {:requires_action, payment.state == "requires_action"},
          {:ok, attempt} <- get_attempt(attempt_id),
-         {:ok, {_provider, credential}} <- Providers.get_provider_for_payment(payment) do
+         {:ok, credential} <- credential_for_attempt(attempt, payment) do
       case ProviderAdapter.adapter().query_charge(attempt, credential) do
         {:ok, result} ->
           Payments.handle_provider_response(payment, attempt, {:ok, result})
@@ -72,6 +72,13 @@ defmodule YagyeCore.Payments.Workers.PaymentStatusCheckWorker do
       nil -> {:error, :not_found}
       attempt -> {:ok, attempt}
     end
+  end
+
+  # Fetches the credential for the provider that handled this specific attempt.
+  # This is more correct than re-evaluating routing: the status check is for the
+  # SAME provider that initiated the payment, not a re-routed one.
+  defp credential_for_attempt(%PaymentAttempt{provider_id: provider_id}, payment) do
+    Providers.fetch_credential_for_status_check(provider_id, payment.merchant_id, payment.mode)
   end
 
   defp maybe_reschedule(payment_id, attempt_id, poll_number, payment) do

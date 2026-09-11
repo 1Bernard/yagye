@@ -4,7 +4,7 @@ defmodule YagyeCore.Routing.Schemas.RoutingRuleCondition do
   use YagyeCore.Shared.Schema
   import Ecto.Changeset
 
-  @valid_fields ~w[method currency amount_min amount_max card_brand card_funding country
+  @valid_fields ~w[method currency amount amount_min amount_max card_brand card_funding country
                    risk_score customer_dispute_count provider_health]
   @valid_operators ~w[eq neq gt gte lt lte in not_in]
 

@@ -12,6 +12,7 @@ defmodule YagyeCore.Routing.Schemas.RoutingRule do
   schema "routing_rules" do
     field :scope, :string
     field :merchant_id, Uniq.UUID
+    field :routing_configuration_id, Uniq.UUID
     field :mode, :string
     field :name, :string
     field :priority, :integer
@@ -25,7 +26,15 @@ defmodule YagyeCore.Routing.Schemas.RoutingRule do
 
   def changeset(rule, attrs) do
     rule
-    |> cast(attrs, [:scope, :merchant_id, :mode, :name, :priority, :active])
+    |> cast(attrs, [
+      :scope,
+      :merchant_id,
+      :routing_configuration_id,
+      :mode,
+      :name,
+      :priority,
+      :active
+    ])
     |> validate_required([:scope, :mode, :name, :priority])
     |> validate_inclusion(:scope, @valid_scopes)
     |> validate_inclusion(:mode, @valid_modes)

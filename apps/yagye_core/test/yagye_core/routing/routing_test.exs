@@ -204,7 +204,7 @@ defmodule YagyeCore.Routing.RoutingTest do
     end
 
     test "returns matching provider", %{provider: provider} do
-      assert {:ok, provider_id} =
+      assert {:ok, {provider_id, _rule_id, _config_id}} =
                Routing.evaluate(nil, "simulation", %{method: "mobile_money"})
 
       assert provider_id == provider.id
