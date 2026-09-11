@@ -20,6 +20,13 @@ if System.get_env("PHX_SERVER") do
   config :yagye_core, YagyeCoreWeb.Endpoint, server: true
 end
 
+if config_env() == :dev do
+  System.put_env(
+    "CORE_PORTAL_SERVICE_SECRET",
+    System.get_env("CORE_PORTAL_SERVICE_SECRET", "dev_portal_service_secret_change_in_production")
+  )
+end
+
 if config_env() == :prod do
   database_url =
     System.get_env("DATABASE_URL") ||

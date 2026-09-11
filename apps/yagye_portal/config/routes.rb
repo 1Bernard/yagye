@@ -137,6 +137,15 @@ Rails.application.routes.draw do
     post "users/passkey-auth",      to: "users/passkey_sessions#authenticate", as: :users_passkey_auth
   end
 
+  # ── Checkout / Payment links (P16) ──────────────────────────────────────────
+  scope module: "checkout" do
+    get  "payment-links",             to: "payment_links#index",          as: :payment_links
+    get  "payment-links/new",         to: "payment_links#new",            as: :new_payment_link
+    post "payment-links",             to: "payment_links#create"
+    get  "payment-links/:id/layout",  to: "payment_links#layout",         as: :payment_link_layout
+    patch "payment-links/:id/layout", to: "payment_links#update_layout"
+  end
+
   # Ops-only SSO configuration CRUD (top-level controller, settings URL namespace)
   resources "settings/sso",
             controller: "sso_configurations",

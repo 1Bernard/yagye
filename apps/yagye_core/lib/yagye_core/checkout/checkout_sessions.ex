@@ -102,6 +102,13 @@ defmodule YagyeCore.CheckoutSessions do
     end
   end
 
+  def get_session_by_public_id(public_id) do
+    case Repo.get_by(CheckoutSession, public_id: public_id) do
+      nil -> {:error, :not_found}
+      session -> {:ok, session}
+    end
+  end
+
   def list_sessions(merchant_id, opts \\ []) do
     state = Keyword.get(opts, :state)
     payment_link_id = Keyword.get(opts, :payment_link_id)
@@ -228,28 +235,51 @@ defmodule YagyeCore.CheckoutSessions do
 
   # ── Private ──────────────────────────────────────────────────────────────────
 
+  @checkout_base_url Application.compile_env(
+                       :yagye_core,
+                       :checkout_base_url,
+                       "https://pay.yagye.com"
+                     )
+
   defp build_link_session_attrs(link, attrs, url_token_hash) do
+    n = normalize_attrs(link, attrs)
+
     %{
       merchant_id: link.merchant_id,
       mode: link.mode,
       url_token_hash: url_token_hash,
-      subtotal_amount: link.amount || attrs[:subtotal_amount] || 0,
-      tax_amount: attrs[:tax_amount] || 0,
-      shipping_amount: attrs[:shipping_amount] || 0,
-      discount_amount: attrs[:discount_amount] || 0,
-      total_amount: link.amount || attrs[:total_amount] || 0,
+      subtotal_amount: n.subtotal_amount,
+      tax_amount: n.tax_amount,
+      shipping_amount: n.shipping_amount,
+      discount_amount: n.discount_amount,
+      total_amount: n.total_amount,
       currency: link.currency,
       description: link.description,
-      merchant_reference: attrs[:merchant_reference] || generate_reference(),
+      merchant_reference: n.merchant_reference,
       collect_email: link.collect_email,
       collect_phone: link.collect_phone,
       collect_name: link.collect_name,
       allowed_methods: effective_methods(link),
       payment_link_id: link.id,
-      success_url: attrs[:success_url],
-      cancel_url: attrs[:cancel_url],
+      success_url: n.success_url,
+      cancel_url: n.cancel_url,
       metadata: link.metadata,
       expires_at: resolve_expires_at(link, attrs)
+    }
+  end
+
+  defp normalize_attrs(link, attrs) do
+    amount = link.amount
+
+    %{
+      subtotal_amount: amount || Map.get(attrs, :subtotal_amount, 0),
+      total_amount: amount || Map.get(attrs, :total_amount, 0),
+      tax_amount: Map.get(attrs, :tax_amount, 0),
+      shipping_amount: Map.get(attrs, :shipping_amount, 0),
+      discount_amount: Map.get(attrs, :discount_amount, 0),
+      merchant_reference: Map.get(attrs, :merchant_reference) || generate_reference(),
+      success_url: Map.get(attrs, :success_url) || @checkout_base_url,
+      cancel_url: Map.get(attrs, :cancel_url) || @checkout_base_url
     }
   end
 

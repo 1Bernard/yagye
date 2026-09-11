@@ -238,7 +238,11 @@ defmodule YagyeCore.MerchantWebhooks.RabbitMQ.DeliveryPipeline do
       connection:
         Application.get_env(:yagye_core, :rabbitmq_url, "amqp://guest:guest@localhost:5672"),
       qos: [prefetch_count: 20],
-      on_failure: :reject_and_requeue
+      on_failure: :reject_and_requeue,
+      declare: [
+        durable: true,
+        arguments: [{"x-dead-letter-exchange", :longstr, "yagye.webhooks.dead"}]
+      ]
     ]
   end
 end

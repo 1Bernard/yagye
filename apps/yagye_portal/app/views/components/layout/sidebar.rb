@@ -8,9 +8,11 @@ module Layout
       {
         label: nil,
         items: [
-          { key: :dashboard,  icon: :home,        label: "Dashboard", path: :authenticated_root_path },
-          { key: :payments,   icon: :credit_card, label: "Payments",  path: :payments_path },
-          { key: :disputes,   icon: :flag,        label: "Disputes",  path: :disputes_path }
+          { key: :dashboard,     icon: :home,        label: "Dashboard",     path: :authenticated_root_path },
+          { key: :payments,      icon: :credit_card, label: "Payments",      path: :payments_path },
+          { key: :disputes,      icon: :flag,        label: "Disputes",      path: :disputes_path },
+          { key: :payment_links, icon: :link,        label: "Payment Links", path: :payment_links_path,
+            merchant_only: true }
         ]
       },
       {
@@ -113,6 +115,7 @@ module Layout
 
     def nav_item(item)
       return if item[:internal_only] && !internal_staff?
+      return if item[:merchant_only] && internal_staff?
 
       active = @active == item[:key]
       path   = (send(item[:path]) rescue "#")

@@ -82,6 +82,7 @@ gem "image_processing", "~> 1.2"
 
 group :development do
   gem "i18n-tasks"
+  gem "dotenv-rails", "~> 3.1"
 end
 
 group :development, :test do

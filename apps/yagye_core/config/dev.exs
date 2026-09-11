@@ -77,3 +77,5 @@ config :brod,
       auto_start_producers: true
     ]
   ]
+
+config :yagye_core, checkout_base_url: "http://localhost:4010"

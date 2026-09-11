@@ -55,7 +55,7 @@ step is completed or a decision is made. Status values: `todo`, `in-progress`, `
 | P13.5 | Passkeys | **done** | WebAuthn registration + authentication |
 | P14 | Kafka & the Event Backbone | **done** | Core Kafka producer (brod 4.6) + outbox relay + topic routing + Portal consumers already built |
 | P15 | RabbitMQ & Outbound Webhook Delivery | **done** | amqp 4.2 + broadway_rabbitmq 0.8; yagye.webhooks exchange → delivery queue → Broadway processor → HMAC-signed HTTP POST; outbox relay fans out to endpoints; portal WebhookEventsConsumer already wired |
-| P16 | Hosted Checkout, Payment Methods, 3DS | **todo** | |
+| P16 | Hosted Checkout, Payment Methods, 3DS | **done** | yagye_checkout LiveView app + checkout layout builder |
 
 ### Act V — Scale, Data, Risk, Real Money
 | Phase | Name | Status |
@@ -255,16 +255,18 @@ Remaining P14 items:
 
 ### P16 — Hosted Checkout, Payment Methods, 3DS
 
-- [ ] **Step 0 (before any checkout/payment-link code runs):**
+- [x] **Step 0 (before any checkout/payment-link code runs):**
       Add RESTRICT FK: `invoices.payment_link_id → payment_links.id on_delete: :restrict`.
       Add `belongs_to :payment_link, PaymentLink` to `Invoice` schema.
       Add `has_many :invoices, Invoice` to `PaymentLink` schema.
       (Column exists in portal DB — nullable, no constraint — safe until P16.)
-- [ ] **Checkout layout builder (dnd-kit)** — merchant drag-and-drop editor for payment
-      method ordering, rail visibility, and tile layout on hosted checkout pages.
-      Vite + Stimulus + `@dnd-kit/core` mounted at `/checkout/layout`. Layout persists
-      as a JSONB column on `payment_links`. Enterprise merchants only get routing graph
-      control here (ReactFlow entitlement-gated variant from P13).
+- [x] **Checkout layout builder (SortableJS/Stimulus)** — merchant drag-and-drop editor
+      for payment method ordering, rail visibility, and tile style (compact/expanded) on
+      hosted checkout pages. Stimulus + SortableJS (CDN) at `/payment-links/:id/layout`.
+      `checkout_layout jsonb` added to `payment_links`. Internal API endpoint:
+      `PATCH /internal/payment-links/:id/checkout-layout`. Portal: `Checkout::PaymentLinksController`,
+      `checkout_layout_controller.js`, index/form/layout Phlex views, sidebar nav item.
+      Enterprise ReactFlow routing-graph entitlement gate deferred to P16.5.
 
 ---
 

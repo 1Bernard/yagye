@@ -45,8 +45,7 @@ defmodule YagyeCore.Checkout.Schemas.CheckoutSession do
   end
 
   @required ~w[merchant_id mode url_token_hash subtotal_amount tax_amount shipping_amount
-               discount_amount total_amount currency merchant_reference success_url cancel_url
-               expires_at]a
+               discount_amount total_amount currency merchant_reference expires_at]a
 
   def changeset(session, attrs) do
     session

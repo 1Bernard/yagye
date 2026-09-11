@@ -17,7 +17,7 @@ module UI
       home flag key grid list magnet headset trending_up trending_down
       external_link link layers tag hash
       smartphone shield_off alert_triangle
-      minus paper_plane
+      minus paper_plane grip
     ].freeze
 
     def initialize(name, **attrs)
@@ -452,6 +452,15 @@ module UI
     def paper_plane(s)
       s.path(d: "M22 2 11 13")
       s.path(d: "M22 2 15 22 11 13 2 9l20-7z")
+    end
+
+    def grip(s)
+      s.circle(cx: "9", cy: "6", r: "1", fill: "currentColor")
+      s.circle(cx: "15", cy: "6", r: "1", fill: "currentColor")
+      s.circle(cx: "9", cy: "12", r: "1", fill: "currentColor")
+      s.circle(cx: "15", cy: "12", r: "1", fill: "currentColor")
+      s.circle(cx: "9", cy: "18", r: "1", fill: "currentColor")
+      s.circle(cx: "15", cy: "18", r: "1", fill: "currentColor")
     end
   end
 end

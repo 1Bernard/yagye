@@ -97,6 +97,14 @@ defmodule YagyeCore.PaymentLinks do
     end
   end
 
+  def update_checkout_layout(public_id, merchant_id, layout) do
+    with {:ok, link} <- get_link(public_id, merchant_id) do
+      link
+      |> PaymentLink.changeset(%{checkout_layout: layout})
+      |> Repo.update()
+    end
+  end
+
   def increment_use_count(%PaymentLink{} = link) do
     {1, [updated]} =
       Repo.update_all(

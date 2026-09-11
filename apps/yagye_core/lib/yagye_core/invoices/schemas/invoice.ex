@@ -5,6 +5,7 @@ defmodule YagyeCore.Invoices.Schemas.Invoice do
   import Ecto.Changeset
 
   alias YagyeCore.Invoices.Schemas.{InvoiceDelivery, InvoiceLineItem}
+  alias YagyeCore.PaymentLinks.Schemas.PaymentLink
 
   @valid_states ~w[draft open partially_paid paid void uncollectible overdue]
   @valid_modes ~w[simulation sandbox live]
@@ -25,7 +26,7 @@ defmodule YagyeCore.Invoices.Schemas.Invoice do
     field :currency, :string
     field :issue_date, :date
     field :due_date, :date
-    field :payment_link_id, Uniq.UUID
+    belongs_to :payment_link, PaymentLink, foreign_key: :payment_link_id
     field :notes, :string
     field :terms, :string
     field :sent_at, :utc_datetime_usec

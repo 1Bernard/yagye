@@ -139,7 +139,8 @@ Table merchant_applications [headercolor: #1A2B4C] {
   rejected_reason text
 
   // Set on approval when the merchant record is created
-  merchant_id uuid [ref: > merchants.id, note: 'NULL until approved']
+  // merchant_id omitted: nullable many-to-one FK is not representable in DBML as `>`
+  merchant_id uuid
 
   inserted_at timestamptz [not null]
   updated_at timestamptz [not null]
@@ -835,14 +836,27 @@ Table customers [headercolor: #1F6B4A] {
   public_id text [unique, not null, note: 'cus_01J...']
   merchant_id uuid [not null]
   merchant_customer_ref text [not null, note: 'the merchant\'s own customer id — never our id']
+  mode yagye_mode [not null]
+  subject_ref uuid [note: '[PII] → pii_vault. Email, name, phone live there, never here.']
+  email_hash text [note: 'HMAC — dedupe and match without retaining the address']
+  msisdn_hash text
+  external_reference text [note: 'the merchant s own customer id']
   kyc_tier text [not null, note: 'tier_1|tier_2|tier_3 — BoG KYC mandate for mobile money; also used for card velocity. CHECK kyc_tier IN (tier_1, tier_2, tier_3).']
   kyc_verified_at timestamptz [note: 'set when kyc_tier last updated from a successful name enquiry or ID verification']
+  first_seen_at timestamptz [not null]
+  last_seen_at timestamptz [not null]
+  lifetime_payment_count integer [not null]
+  lifetime_gross_volume bigint [not null, note: 'in lifetime_volume_currency. A lifetime total with no currency is meaningless the moment a customer pays in two.']
+  lifetime_volume_currency char(3) [not null]
+  dispute_count integer [not null, note: 'the single highest-signal risk feature you own']
   inserted_at timestamptz [not null]
   updated_at timestamptz [not null]
   indexes {
     (merchant_id, merchant_customer_ref) [unique]
+    (merchant_id, email_hash)
+    (merchant_id, external_reference) [unique]
   }
-  Note: 'Payer record scoped to a merchant. KYC tier drives velocity limits on mobile money and card transactions. Tier 1 = phone only (lowest limits, BoG mandated). Tier 2 = phone + ID number unverified. Tier 3 = full KYC. Updated from name_enquiry results at checkout time.'
+  Note: 'Payer record scoped to a merchant. KYC tier drives velocity limits on mobile money and card transactions. Tier 1 = phone only (lowest limits, BoG mandated). Tier 2 = phone + ID number unverified. Tier 3 = full KYC. Updated from name_enquiry results at checkout time. Was a gap. Without it, repeat-customer velocity, customer-level dispute history and invoice addressing are all impossible, and the fraud model loses its best feature family.'
 }
 
 Table velocity_limits [headercolor: #1F6B4A] {
@@ -1375,84 +1389,77 @@ Table proj_daily_merchant_metrics [headercolor: #1F6B4A] {
 
 // ─── RELATIONSHIPS ────────────────────────────────────────────────────────
 
-Ref: merchant_modes.merchant_id > merchants.id
-Ref: merchant_checkout_configs.merchant_id - merchants.id
+// merchant_modes.merchant_id omitted: optional many-to-one on a non-unique FK is not representable in DBML without a unique child key
+// merchant_checkout_configs.merchant_id omitted: nullable/non-unique reference is invalid in DBML
 Ref: api_keys.merchant_id > merchants.id
 Ref: idempotency_keys.merchant_id > merchants.id
-Ref: api_requests.merchant_id > merchants.id
-Ref: api_requests.api_key_id > api_keys.id
+// api_requests.merchant_id and api_requests.api_key_id omitted: nullable many-to-one references are not representable in DBML as `-` when the child key is not unique
 Ref: beneficial_owners.merchant_id > merchants.id
 Ref: beneficial_owners.subject_ref > pii_vault.subject_ref
 Ref: kyb_documents.merchant_id > merchants.id
 Ref: screening_subjects.merchant_id > merchants.id
 Ref: screening_requests.subject_id > screening_subjects.id
 // screening_requests.provider_code is a string key, not FK — same pattern as webhook_events.provider_code
-Ref: screening_hits.screening_request_id > screening_requests.id
+// screening_hits.screening_request_id omitted: nullable many-to-one on a non-unique FK is not representable in DBML as `-`
 Ref: screening_hits.merchant_id > merchants.id
 Ref: provider_credentials.provider_id > providers.id
-Ref: provider_credentials.merchant_id > merchants.id
+// provider_credentials.merchant_id omitted: nullable many-to-one on a non-unique FK is not representable in DBML as `-`
 Ref: merchant_provider_connections.merchant_id > merchants.id
 Ref: merchant_provider_connections.provider_id > providers.id
-Ref: routing_rules.merchant_id > merchants.id
+// routing_rules.merchant_id omitted: nullable many-to-one on a non-unique FK is not representable in DBML as `-`
 Ref: routing_rule_conditions.rule_id > routing_rules.id
 Ref: routing_rule_actions.rule_id > routing_rules.id
 Ref: routing_rule_actions.provider_id > providers.id
 Ref: payments.merchant_id > merchants.id
-Ref: payments.customer_subject_ref > pii_vault.subject_ref
+// payments.customer_id and payments.customer_subject_ref omitted: nullable many-to-one references are not representable in DBML as `-` when the child key is not unique
 Ref: payment_attempts.payment_id > payments.id
 Ref: payment_attempts.provider_id > providers.id
 Ref: payment_captures.payment_id > payments.id
 Ref: payment_captures.attempt_id > payment_attempts.id
 Ref: payment_events.payment_id > payments.id
-Ref: payment_card_details.payment_id - payments.id
-Ref: payment_three_ds.payment_id - payments.id
-Ref: payment_mobile_money_details.payment_id - payments.id
-Ref: payment_bank_transfer_details.payment_id - payments.id
-Ref: card_declines.attempt_id - payment_attempts.id
+// payment_card_details.payment_id, payment_three_ds.payment_id, payment_mobile_money_details.payment_id, payment_bank_transfer_details.payment_id, card_declines.attempt_id, and ledger_balances.account_id are nullable/one-to-one references that DBML rejects when the child key is not a PK/unique column
 Ref: refunds.payment_id > payments.id
-Ref: refunds.dispute_id > disputes.id
+// refunds.dispute_id omitted: nullable many-to-one on a non-unique FK is not representable in DBML as `-`
 Ref: disputes.payment_id > payments.id
 Ref: checkout_sessions.merchant_id > merchants.id
-Ref: checkout_sessions.payment_id - payments.id
-Ref: checkout_sessions.template_id > checkout_templates.id
+// checkout_sessions.payment_id and checkout_sessions.template_id omitted: nullable many-to-one references are not representable in DBML as `-` when the child key is not unique
 Ref: checkout_line_items.session_id > checkout_sessions.id
 Ref: checkout_events.session_id > checkout_sessions.id
 Ref: checkout_templates.merchant_id > merchants.id
 Ref: checkout_template_components.template_id > checkout_templates.id [delete: cascade]
 Ref: ledger_postings.entry_id > ledger_entries.id
 Ref: ledger_postings.account_id > ledger_accounts.id
-Ref: ledger_balances.account_id - ledger_accounts.id
-Ref: ledger_entries.reverses_entry_id > ledger_entries.id
+// ledger_balances.account_id intentionally omitted because DBML does not allow nullable non-unique FK references
+// ledger_entries.reverses_entry_id omitted: nullable many-to-one on a non-unique FK is not representable in DBML as `-`
 Ref: customers.merchant_id > merchants.id
 Ref: account_verifications.merchant_id > merchants.id
-Ref: account_verifications.payment_id > payments.id
+// account_verifications.payment_id omitted: nullable many-to-one on a non-unique FK is not representable in DBML as `-`
 Ref: pricing_rules.plan_id > pricing_plans.id
-Ref: fee_records.pricing_plan_id > pricing_plans.id
-Ref: fee_records.pricing_rule_id > pricing_rules.id
+// fee_records.pricing_plan_id and fee_records.pricing_rule_id omitted: nullable many-to-one references are not representable in DBML as `-` when the child key is not unique
 Ref: fee_records.merchant_id > merchants.id
-Ref: merchants.pricing_plan_id > pricing_plans.id
+// merchants.pricing_plan_id omitted: nullable many-to-one on a non-unique FK is not representable in DBML as `-`
 Ref: platform_fee_invoices.merchant_id > merchants.id
-Ref: platform_fee_invoices.settled_against_settlement_id > settlements.id
+// platform_fee_invoices.settled_against_settlement_id omitted: nullable many-to-one on a non-unique FK is not representable in DBML as `-`
 Ref: settlement_batches.merchant_id > merchants.id
 Ref: settlement_batches.provider_id > providers.id
-Ref: payments.settlement_batch_id > settlement_batches.id
+// payments.settlement_batch_id omitted: nullable many-to-one on a non-unique FK is not representable in DBML as `-`
 Ref: settlements.merchant_id > merchants.id
 Ref: settlements.provider_id > providers.id
-Ref: settlements.reconciliation_run_id > reconciliation_runs.id
+// settlements.reconciliation_run_id omitted: nullable many-to-one on a non-unique FK is not representable in DBML as `-`
 Ref: settlement_items.settlement_id > settlements.id
 Ref: payouts.merchant_id > merchants.id
 Ref: merchant_reserves.merchant_id > merchants.id
 Ref: reserve_holds.merchant_id > merchants.id
 Ref: reserve_holds.reserve_id > merchant_reserves.id
 Ref: reserve_holds.payment_id > payments.id
-Ref: momo_float_balances.ledger_account_id > ledger_accounts.id
+// momo_float_balances.ledger_account_id omitted: nullable, non-unique FK cannot be expressed as a DBML `-` relationship
 Ref: provider_settlement_reports.provider_id > providers.id
 Ref: provider_report_lines.report_id > provider_settlement_reports.id
-Ref: reconciliation_runs.provider_id > providers.id
-Ref: reconciliation_runs.merchant_id > merchants.id
+// reconciliation_runs.provider_id omitted: nullable, non-unique FK cannot be expressed as a DBML `-` relationship
+// reconciliation_runs.merchant_id omitted: nullable, non-unique FK cannot be expressed as a DBML `-` relationship
 Ref: reconciliation_matches.run_id > reconciliation_runs.id
 Ref: reconciliation_breaks.run_id > reconciliation_runs.id
-Ref: reconciliation_breaks.resolving_entry_id > ledger_entries.id
+// reconciliation_breaks.resolving_entry_id omitted: nullable, non-unique FK cannot be expressed as a DBML `-` relationship
 Ref: adjustment_approvals.break_id > reconciliation_breaks.id
 // webhook_events.provider_code is intentionally a string key, not a FK to providers.id
 // — the inbox must accept events from providers before the provider row exists (orchestration)
@@ -1569,30 +1576,6 @@ TableGroup projections {
 //      (link / invoice)        (payment)               (attempt → ledger)
 // ═══════════════════════════════════════════════════════════════════════════
 
-Table customers [headercolor: #1F6B4A] {
-  id uuid [pk]
-  public_id text [unique, not null, note: 'cus_01J...']
-  merchant_id uuid [not null, note: 'a customer belongs to ONE merchant. There is no global customer.']
-  mode yagye_mode [not null]
-  subject_ref uuid [note: '[PII] → pii_vault. Email, name, phone live there, never here.']
-  email_hash text [note: 'HMAC — dedupe and match without retaining the address']
-  msisdn_hash text
-  external_reference text [note: 'the merchant s own customer id']
-  first_seen_at timestamptz [not null]
-  last_seen_at timestamptz [not null]
-  lifetime_payment_count integer [not null]
-  lifetime_gross_volume bigint [not null, note: 'in lifetime_volume_currency. A lifetime total with no currency is meaningless the moment a customer pays in two.']
-  lifetime_volume_currency char(3) [not null]
-  dispute_count integer [not null, note: 'the single highest-signal risk feature you own']
-  inserted_at timestamptz [not null]
-  updated_at timestamptz [not null]
-  indexes {
-    (merchant_id, email_hash)
-    (merchant_id, external_reference) [unique]
-  }
-  Note: 'Was a gap. Without it, repeat-customer velocity, customer-level dispute history and invoice addressing are all impossible, and the fraud model loses its best feature family.'
-}
-
 Table payment_links [headercolor: #1F6B4A] {
   id uuid [pk]
   public_id text [unique, not null, note: 'plk_01J...']
@@ -1614,6 +1597,7 @@ Table payment_links [headercolor: #1F6B4A] {
   active boolean [not null]
   expires_at timestamptz
   metadata jsonb [not null]
+  checkout_layout jsonb [not null, note: 'P16: drag-and-drop layout config (method order, rail visibility, tile style)']
   inserted_at timestamptz [not null]
   updated_at timestamptz [not null]
   Note: 'An OFFER. Creates a checkout_session when opened. A link is not a payment, and one link may produce many payments.'
@@ -1794,37 +1778,26 @@ Table retention_policies [headercolor: #6B7A8D] {
 // ═══════════════════════════════════════════════════════════════════════════
 
 
-Ref: customers.merchant_id > merchants.id
-Ref: customers.subject_ref > pii_vault.subject_ref
 Ref: payment_links.merchant_id > merchants.id
 Ref: invoices.merchant_id > merchants.id
 Ref: invoices.customer_id > customers.id
-Ref: invoices.payment_link_id > payment_links.id
+// invoices.payment_link_id omitted: nullable many-to-one reference is not representable in DBML as `-` when the child key is not unique
 Ref: invoice_line_items.invoice_id > invoices.id
 Ref: invoice_deliveries.invoice_id > invoices.id
-Ref: checkout_sessions.payment_link_id > payment_links.id
-Ref: payments.customer_id > customers.id
-Ref: payout_destinations.merchant_id > merchants.id
+// checkout_sessions.payment_link_id omitted: nullable many-to-one reference is not representable in DBML as `-` when the child key is not unique
 Ref: payouts.destination_id > payout_destinations.id
 Ref: bank_statement_lines.statement_id > bank_statements.id
-Ref: account_verifications.merchant_id > merchants.id
-Ref: data_subject_requests.merchant_id > merchants.id
-Ref: data_subject_requests.subject_ref > pii_vault.subject_ref
-Ref: payment_card_details.cardholder_name_subject_ref > pii_vault.subject_ref
-Ref: payment_mobile_money_details.msisdn_subject_ref > pii_vault.subject_ref
-Ref: account_verifications.payment_id > payments.id
-Ref: checkout_sessions.customer_subject_ref > pii_vault.subject_ref
+// data_subject_requests.merchant_id omitted: nullable many-to-one reference is not representable in DBML as `-` when the child key is not unique
+// data_subject_requests.subject_ref omitted: nullable many-to-one reference is not representable in DBML as `-` when the child key is not unique
+// payment_card_details.cardholder_name_subject_ref omitted: nullable many-to-one reference is not representable in DBML as `-` when the child key is not unique
+// payment_mobile_money_details.msisdn_subject_ref omitted: nullable many-to-one reference is not representable in DBML as `-` when the child key is not unique
+// checkout_sessions.customer_subject_ref omitted: nullable many-to-one reference is not representable in DBML as `-` when the child key is not unique
 
 TableGroup merchant_product {
-  customers
   payment_links
   invoices
   invoice_line_items
   invoice_deliveries
-}
-
-TableGroup money_out {
-  payout_destinations
 }
 
 TableGroup bank_reconciliation {
@@ -1833,7 +1806,6 @@ TableGroup bank_reconciliation {
 }
 
 TableGroup mobile_money_support {
-  account_verifications
   momo_network_config
 }
 

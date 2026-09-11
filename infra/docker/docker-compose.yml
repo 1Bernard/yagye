@@ -175,6 +175,7 @@ services:
       CORE_PORTAL_SERVICE_SECRET: dev_portal_service_secret_change_in_production
       KAFKA_BOOTSTRAP_SERVERS: redpanda:9092
       RAILS_LOG_TO_STDOUT: "true"
+      RUBY_IO_BUFFERING: "0"
       PORTAL_ORIGIN: http://localhost:3000
     ports:
       - "3000:80"  # Thruster listens on :80 inside the container
@@ -197,8 +198,8 @@ services:
       RABBITMQ_DEFAULT_USER: guest
       RABBITMQ_DEFAULT_PASS: guest
     ports:
-      - "5672:5672"    # AMQP — Core's Broadway consumer connects here
-      - "15672:15672"  # Management UI — http://localhost:15672
+      - "5673:5672"    # AMQP — host:5673 → container:5672 (5672 clashes with Docker Desktop VPN-kit on some machines)
+      - "15673:15672"  # Management UI — http://localhost:15673 (15672 held by Docker Desktop VPN-kit)
     volumes:
       - rabbitmq_data:/var/lib/rabbitmq
     healthcheck:
@@ -221,6 +222,7 @@ services:
       SECRET_KEY_BASE: dev_secret_key_base_replace_in_production_min_64_chars_long_abc123
       KAFKA_BOOTSTRAP_SERVERS: redpanda:9092
       RAILS_LOG_TO_STDOUT: "true"
+      RUBY_IO_BUFFERING: "0"
     command: ["bundle", "exec", "karafka", "server"]
     depends_on:
       db:

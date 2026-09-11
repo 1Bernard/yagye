@@ -13,8 +13,6 @@ defmodule YagyeCore.MerchantWebhooks.RabbitMQ.Topology do
 
   require Logger
 
-  alias YagyeCore.MerchantWebhooks.RabbitMQ.Connection
-
   @exchange "yagye.webhooks"
   @dlx_exchange "yagye.webhooks.dead"
   @queue "yagye.webhooks.delivery"
@@ -22,13 +20,13 @@ defmodule YagyeCore.MerchantWebhooks.RabbitMQ.Topology do
   @routing_key "delivery"
   @max_attempts 5
 
-  def setup! do
-    with {:ok, conn} <- amqp_connection(),
-         {:ok, chan} <- AMQP.Channel.open(conn) do
-      declare_topology(chan)
-      AMQP.Channel.close(chan)
-      Logger.info("RabbitMQ topology declared")
-    else
+  def setup!(conn) do
+    case AMQP.Channel.open(conn) do
+      {:ok, chan} ->
+        declare_topology(chan)
+        AMQP.Channel.close(chan)
+        Logger.info("RabbitMQ topology declared")
+
       {:error, reason} ->
         Logger.error("RabbitMQ topology setup failed", reason: inspect(reason))
         {:error, reason}
@@ -44,21 +42,14 @@ defmodule YagyeCore.MerchantWebhooks.RabbitMQ.Topology do
     # Main exchange
     :ok = AMQP.Exchange.declare(chan, @exchange, :direct, durable: true)
 
-    # Main delivery queue — messages DLX after max-redeliveries
+    # Main delivery queue — DLX on nack; retry limit enforced at application level
     {:ok, _} =
       AMQP.Queue.declare(chan, @queue,
         durable: true,
-        arguments: [
-          {"x-dead-letter-exchange", :longstr, @dlx_exchange},
-          {"x-delivery-limit", :long, @max_attempts}
-        ]
+        arguments: [{"x-dead-letter-exchange", :longstr, @dlx_exchange}]
       )
 
     :ok = AMQP.Queue.bind(chan, @queue, @exchange, routing_key: @routing_key)
-  end
-
-  defp amqp_connection do
-    Connection.get()
   end
 
   def exchange, do: @exchange

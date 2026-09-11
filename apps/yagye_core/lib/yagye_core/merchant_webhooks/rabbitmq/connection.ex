@@ -56,8 +56,8 @@ defmodule YagyeCore.MerchantWebhooks.RabbitMQ.Connection do
     end
   end
 
-  def handle_info(:setup_topology, state) do
-    Topology.setup!()
+  def handle_info(:setup_topology, %{conn: conn} = state) do
+    Topology.setup!(conn)
     {:noreply, state}
   end
 

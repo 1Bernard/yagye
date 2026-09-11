@@ -4,6 +4,8 @@ defmodule YagyeCore.PaymentLinks.Schemas.PaymentLink do
   use YagyeCore.Shared.Schema
   import Ecto.Changeset
 
+  alias YagyeCore.Invoices.Schemas.Invoice
+
   @valid_kinds ~w[fixed_amount customer_specified invoice]
   @valid_modes ~w[simulation sandbox live]
 
@@ -27,13 +29,16 @@ defmodule YagyeCore.PaymentLinks.Schemas.PaymentLink do
     field :active, :boolean, default: true
     field :expires_at, :utc_datetime_usec
     field :metadata, :map, default: %{}
+    field :checkout_layout, :map, default: %{}
+
+    has_many :invoices, Invoice, foreign_key: :payment_link_id
 
     timestamps(inserted_at: :inserted_at)
   end
 
   @required ~w[merchant_id mode url_slug kind currency description]a
   @optional ~w[amount image_url allowed_methods collect_email collect_phone collect_name
-               reusable max_uses use_count active expires_at metadata]a
+               reusable max_uses use_count active expires_at metadata checkout_layout]a
 
   def changeset(link, attrs) do
     link

@@ -106,6 +106,23 @@ class CoreApiClient
     post("/internal/routing-configurations/#{id}/publish", {})
   end
 
+  # ── Payment links (P16) ───────────────────────────────────────────────────
+
+  def list_payment_links(merchant_code:, starting_after: nil)
+    query = { merchant_code: merchant_code }
+    query[:starting_after] = starting_after if starting_after
+    get("/internal/payment-links?#{URI.encode_www_form(query.transform_keys(&:to_s))}")
+  end
+
+  def create_payment_link(merchant_code:, **attrs)
+    post("/internal/payment-links", attrs.merge(merchant_code: merchant_code))
+  end
+
+  def update_payment_link_layout(public_id, merchant_code:, layout:)
+    patch("/internal/payment-links/#{public_id}/checkout-layout",
+          { merchant_code: merchant_code, layout: layout })
+  end
+
   # ── Adjustment approvals (ops — SoD enforced in Core) ─────────────────────
 
   # POST /internal/adjustment_approvals/:break_id/approve
@@ -152,10 +169,11 @@ class CoreApiClient
     if response.success?
       Result.new(success?: true, body: response.body)
     else
-      error = response.body.dig("error") || {}
+      body  = response.body
+      error = body.is_a?(Hash) ? (body.dig("error") || {}) : {}
       Result.new(
         success?:      false,
-        body:          response.body,
+        body:          body,
         error_code:    error["code"]    || response.status.to_s,
         error_message: error["message"] || "Core API error (#{response.status})"
       )

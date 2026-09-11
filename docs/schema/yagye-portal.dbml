@@ -101,10 +101,10 @@ Table permissions [headercolor: #B4531F] {
 }
 
 Table role_permissions [headercolor: #B4531F] {
-  role_key text [pk, ref: > roles.key]
-  permission_key text [pk, ref: > permissions.key]
+  role_key text [pk]
+  permission_key text [pk]
   granted_at timestamptz [not null]
-  Note: 'THE grant matrix. Seeded from db/seeds.rb, version-controlled, tested. permitted?() is a SQL EXISTS against this join cached per-request in Current.permissions. CI asserts no permission key is referenced in a policy but absent here.'
+  Note: 'THE grant matrix. Seeded from db/seeds.rb, version-controlled, tested. permitted?() is a SQL EXISTS against this join cached per-request in Current.permissions. CI asserts no permission key is referenced in a policy but absent here. DBML cannot express the composite join-key FK semantics without conflicting with the PK uniqueness rules, so the FK is enforced in PostgreSQL schema/migration rather than in this diagram.'
 }
 
 Table user_roles [headercolor: #B4531F] {
@@ -112,7 +112,7 @@ Table user_roles [headercolor: #B4531F] {
   user_id bigint [not null, ref: > users.id]
   role_key text [not null, ref: > roles.key]
   merchant_code text [note: 'mch_01J… for merchant-scoped roles; NULL for internal roles. CHECK: (scope=merchant AND merchant_code IS NOT NULL) OR (scope=internal AND merchant_code IS NULL)']
-  granted_by bigint [ref: > users.id]
+  granted_by bigint [not null, ref: > users.id]
   granted_at timestamptz [not null]
   expires_at timestamptz [note: 'time-boxed elevation — NULL means permanent; a scheduler sweeps expired rows nightly']
   revoked_at timestamptz
@@ -128,7 +128,7 @@ Table merchant_memberships [headercolor: #1F6B4A] {
   merchant_code text [not null, note: 'mch_01J… — reference to yagye_core, not a FK across databases']
   merchant_name text [not null, note: 'denormalised from the Kafka merchants topic for display without a core HTTP call']
   state text [not null, note: 'invited|active|suspended|removed']
-  invited_by bigint [ref: > users.id]
+  invited_by bigint
   invitation_token_digest text [note: '[SEC] single use; cleared after acceptance']
   invitation_expires_at timestamptz
   accepted_at timestamptz
@@ -144,7 +144,7 @@ Table merchant_memberships [headercolor: #1F6B4A] {
 
 Table audit_logs [headercolor: #9B3232] {
   id bigserial [pk]
-  user_id uuid [ref: > users.id]
+  user_id uuid
   user_code text [not null, note: 'denormalised — the log must survive the user being deleted/anonymised']
   merchant_code text
   action text [not null, note: 'payments.refund_requested | disputes.evidence_submitted | kyb.disposition_approved']
@@ -574,20 +574,8 @@ Table processed_events [headercolor: #6B7A8D] {
 
 // ─── RELATIONSHIPS ────────────────────────────────────────────────────────
 
-Ref: webauthn_credentials.user_id > users.id
-Ref: user_sessions.user_id > users.id
-Ref: role_permissions.role_key > roles.key
-Ref: role_permissions.permission_key > permissions.key
-Ref: user_roles.user_id > users.id
-Ref: user_roles.role_key > roles.key
-Ref: user_roles.granted_by > users.id
-Ref: merchant_memberships.user_id > users.id
-Ref: merchant_memberships.invited_by > users.id
-Ref: audit_logs.user_id > users.id
-Ref: break_notes.user_id > users.id
-Ref: saved_filters.user_id > users.id
-Ref: notifications.user_id > users.id
-Ref: impersonation_sessions.staff_user_id > users.id
+// Inline `ref:` attributes above are the canonical relationship declarations for this file.
+// Keeping the separate Ref: block would duplicate the same endpoints and trigger DBML validation errors.
 
 // ─── TABLE GROUPS ─────────────────────────────────────────────────────────
 
