@@ -6,7 +6,10 @@ module Compliance
       authorize :kyb_reviews, :index?
       tab          = params[:tab].presence_in(%w[pending in_review approved rejected]) || "pending"
       pagy, applications = pagy(Compliance::ApplicationsQuery.new.call(tab: tab), limit: 25)
-      render KybReviews::IndexView.new(tab: tab, applications: applications, pagy: pagy, stats: review_stats)
+      render KybReviews::IndexView.new(
+        tab: tab, applications: applications, pagy: pagy,
+        stats: review_stats, mtd_volumes: mtd_volumes(applications)
+      )
     end
 
     def show
@@ -64,6 +67,13 @@ module Compliance
       end
     end
 
+    def assign
+      authorize :kyb_reviews, :approve?
+      application = decode_id(PortalMerchantApplication)
+      application.update!(reviewed_by: current_user.email, status: "under_review")
+      redirect_to kyb_reviews_path(tab: "in_review"), notice: "Assigned to #{current_user.email}."
+    end
+
     private
 
     def review_stats
@@ -74,6 +84,17 @@ module Compliance
         approved_30d: all.where(status: "approved").where("last_applied_at >= ?", 30.days.ago).count,
         rejected_30d: all.where(status: "rejected").where("last_applied_at >= ?", 30.days.ago).count
       }
+    end
+
+    def mtd_volumes(applications)
+      codes = applications.filter_map(&:merchant_code).uniq
+      return {} if codes.empty?
+
+      Payment
+        .where(merchant_code: codes, status: "paid")
+        .where("created_at >= ?", Time.current.beginning_of_month)
+        .group(:merchant_code)
+        .sum(:amount)
     end
   end
 end

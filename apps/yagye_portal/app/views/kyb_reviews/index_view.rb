@@ -11,11 +11,12 @@ module KybReviews
       { key: "rejected",  label: "Rejected" }
     ].freeze
 
-    def initialize(tab: "pending", applications: [], pagy: nil, stats: {})
+    def initialize(tab: "pending", applications: [], pagy: nil, stats: {}, mtd_volumes: {})
       @tab          = tab
       @applications = applications
       @pagy         = pagy
       @stats        = stats
+      @mtd_volumes  = mtd_volumes
     end
 
     def view_template
@@ -87,17 +88,32 @@ module KybReviews
           end
         end
 
+        t.column("Volume (MTD)") do |a|
+          cents = @mtd_volumes[a.merchant_code]
+          if cents.nil? || cents == 0
+            span(class: TYPE_CAPTION) { plain a.merchant_code.present? ? "GHS 0.00" : "—" }
+          else
+            span(class: "text-[13px] font-semibold text-gray-800 tabular-nums") do
+              plain "GHS #{format("%.2f", cents / 100.0)}"
+            end
+          end
+        end
+
         t.column("Status") { |a| render UI::StatusBadge.new(status: a.status) }
 
         t.actions do |a|
-          link = a(href: kyb_review_path(a), class: DROPDOWN_ITEM) do
+          a(href: kyb_review_path(a), class: DROPDOWN_ITEM) do
             render UI::Icon.new(:eye, class: ICON_SM)
             plain "Review"
           end
           if tab == "pending"
-            button(type: "button", class: DROPDOWN_ITEM) do
-              render UI::Icon.new(:user, class: ICON_SM)
-              plain "Assign to me"
+            form(action: assign_kyb_review_path(a), method: "post",
+                 style: "display:contents") do
+              input(type: "hidden", name: "authenticity_token", value: form_authenticity_token)
+              button(type: "submit", class: DROPDOWN_ITEM) do
+                render UI::Icon.new(:user, class: ICON_SM)
+                plain "Assign to me"
+              end
             end
           end
         end

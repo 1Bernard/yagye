@@ -48,6 +48,7 @@ Rails.application.routes.draw do
     get  "kyb-reviews/:id",           to: "kyb_reviews#show",    as: :kyb_review
     post "kyb-reviews/:id/approve",   to: "kyb_reviews#approve", as: :approve_kyb_review
     post "kyb-reviews/:id/reject",    to: "kyb_reviews#reject",  as: :reject_kyb_review
+    post "kyb-reviews/:id/assign",    to: "kyb_reviews#assign",  as: :assign_kyb_review
 
     get  "compliance/approvals",          to: "approvals#index",   as: :compliance_approvals
     post "compliance/approvals/:id/approve", to: "approvals#approve", as: :compliance_approve_approval
