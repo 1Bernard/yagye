@@ -98,7 +98,7 @@ module Payments
             color = diff < 0 ? "text-red-600" : "text-green-600"
             currency = b["currency"] || "GHS"
             span(class: "text-[13px] font-semibold #{color}") do
-              plain "#{diff < 0 ? '-' : '+'}#{currency} #{"%.2f" % (diff.abs / 100.0)}"
+              plain format_money_diff(diff, currency: currency)
             end
           end
 

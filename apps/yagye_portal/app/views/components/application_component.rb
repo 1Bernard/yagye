@@ -99,6 +99,11 @@ class ApplicationComponent < Phlex::HTML
     "#{currency} #{whole.to_i.to_s.reverse.gsub(/(\d{3})(?=\d)/, '\\1,').reverse}.#{frac}"
   end
 
+  def format_money_diff(minor_units, currency: "GHS")
+    sign = minor_units.negative? ? "-" : "+"
+    "#{sign}#{format_money(minor_units.abs, currency: currency)}"
+  end
+
   def format_ghs(minor_units)
     format_money(minor_units, currency: "GHS")
   end

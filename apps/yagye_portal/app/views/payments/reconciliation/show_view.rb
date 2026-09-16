@@ -118,17 +118,18 @@ module Payments
         actual   = @break["actual_amount"].to_i
         diff     = @break["difference"].to_i
         diff_color = diff < 0 ? "#dc2626" : "#16a34a"
-        diff_label = "#{diff < 0 ? '-' : '+'}#{currency} #{"%.2f" % (diff.abs / 100.0)}"
 
         render UI::Card.new do |c|
           c.header("Amounts")
           c.body(padding: false) do
             render UI::DetailList.new do |list|
               list.row("Currency",  currency)
-              list.row("Expected",  "#{currency} #{"%.2f" % (expected / 100.0)}")
-              list.row("Actual",    "#{currency} #{"%.2f" % (actual   / 100.0)}")
+              list.row("Expected",  format_money(expected, currency: currency))
+              list.row("Actual",    format_money(actual,   currency: currency))
               list.row("Difference") do
-                span(class: "text-[13px] font-semibold", style: "color:#{diff_color}") { plain diff_label }
+                span(class: "text-[13px] font-semibold", style: "color:#{diff_color}") do
+                  plain format_money_diff(diff, currency: currency)
+                end
               end
             end
           end

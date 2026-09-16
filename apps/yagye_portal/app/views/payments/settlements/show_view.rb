@@ -125,9 +125,8 @@ module Payments
 
       def break_row(b)
         severity_cls = BREAK_SEVERITY_COLORS[b["severity"]] || "text-gray-500 bg-gray-100"
-        diff = b["difference"].to_i
+        diff     = b["difference"].to_i
         currency = b["currency"] || "GHS"
-        diff_label = "#{diff < 0 ? '-' : '+'}#{currency} #{"%.2f" % (diff.abs / 100.0)}"
 
         div(class: "flex items-center justify-between px-5 py-3") do
           div do
@@ -138,7 +137,7 @@ module Payments
           end
           div(class: "flex items-center gap-3") do
             span(class: "text-[12.5px] font-semibold #{diff < 0 ? 'text-red-600' : 'text-green-600'} tabular-nums") do
-              plain diff_label
+              plain format_money_diff(diff, currency: currency)
             end
             span(class: "inline-flex items-center px-2 py-0.5 rounded-full text-[10.5px] font-semibold #{severity_cls}") do
               plain (b["severity"] || "—").capitalize
@@ -257,8 +256,7 @@ module Payments
         v = @settlement.variance
         return "—" unless v
 
-        formatted = "#{@settlement.currency} #{"%.2f" % (v.abs / 100.0)}"
-        v.negative? ? "-#{formatted}" : (v.positive? ? "+#{formatted}" : formatted)
+        format_money_diff(v, currency: @settlement.currency)
       end
 
       def past_state?(state)
