@@ -115,7 +115,7 @@ defmodule YagyeCore.Checkout.Schemas.CheckoutSession do
 
   @allowed_transitions %{
     "open" => ~w[processing cancelled expired],
-    "processing" => ~w[completed cancelled expired],
+    "processing" => ~w[open completed cancelled expired],
     "completed" => [],
     "cancelled" => [],
     "expired" => []

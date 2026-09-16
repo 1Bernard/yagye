@@ -59,7 +59,7 @@ defmodule YagyeCoreWeb.Controllers.Internal.CheckoutController do
   # Body: {method, msisdn, network}
   def pay(conn, %{"public_id" => public_id} = params) do
     with {:ok, session} <- CheckoutSessions.get_session_by_public_id(public_id),
-         :ok <- validate_session_open(session),
+         {:ok, session} <- ensure_session_retriable(session),
          {:ok, {payment, _event}} <- create_payment(session, params),
          {:ok, _updated} <- CheckoutSessions.begin_processing(session, payment.id) do
       conn
@@ -116,8 +116,31 @@ defmodule YagyeCoreWeb.Controllers.Internal.CheckoutController do
 
   # ── Helpers ──────────────────────────────────────────────────────────────────
 
-  defp validate_session_open(%CheckoutSession{state: "open"}), do: :ok
-  defp validate_session_open(_session), do: {:error, :session_not_open}
+  # Already open — proceed immediately.
+  defp ensure_session_retriable(%CheckoutSession{state: "open"} = session), do: {:ok, session}
+
+  # Processing with a known payment — reopen only if that payment has definitively failed.
+  defp ensure_session_retriable(
+         %CheckoutSession{state: "processing", payment_id: payment_id} = session
+       )
+       when not is_nil(payment_id) do
+    case Payments.get_payment_by_id(payment_id) do
+      {:ok, %{state: state}} when state in ["failed", "cancelled"] ->
+        CheckoutSessions.reopen_session(session)
+
+      _ ->
+        {:error, :session_not_open}
+    end
+  end
+
+  # Processing but payment_id not recorded (sessions created before begin_processing wrote
+  # payment_id to the row).  The customer is explicitly retrying, so their prior attempt
+  # has ended — reopen conservatively so they can try again.
+  defp ensure_session_retriable(%CheckoutSession{state: "processing", payment_id: nil} = session) do
+    CheckoutSessions.reopen_session(session)
+  end
+
+  defp ensure_session_retriable(_session), do: {:error, :session_not_open}
 
   defp create_payment(session, params) do
     attrs = %{
@@ -125,13 +148,19 @@ defmodule YagyeCoreWeb.Controllers.Internal.CheckoutController do
       rail: "fiat_provider",
       amount: session.total_amount,
       currency: session.currency,
-      merchant_reference: session.merchant_reference,
+      merchant_reference:
+        session.merchant_reference <>
+          "-" <> Base.url_encode64(:crypto.strong_rand_bytes(4), padding: false),
       description: session.description || "Checkout payment",
-      metadata: %{
-        "msisdn" => params["msisdn"],
-        "network" => params["network"] || "MTN",
-        "checkout_session_id" => session.public_id
-      }
+      metadata:
+        %{
+          "msisdn" => params["msisdn"],
+          "network" => params["network"] || "MTN",
+          "card_number" => params["card_number"],
+          "checkout_session_id" => session.public_id
+        }
+        |> Enum.reject(fn {_, v} -> is_nil(v) end)
+        |> Map.new()
     }
 
     Payments.create_payment(session.merchant_id, attrs)

@@ -143,7 +143,10 @@ defmodule YagyeCore.CheckoutSessions do
 
   def begin_processing(%CheckoutSession{} = session, payment_id) do
     Multi.new()
-    |> Multi.update(:session, CheckoutSession.state_changeset(session, "processing"))
+    |> Multi.update(
+      :session,
+      CheckoutSession.state_changeset(session, "processing", %{payment_id: payment_id})
+    )
     |> Multi.insert(:event, fn %{session: s} ->
       event_changeset(s, "submitted", %{payment_id: payment_id})
     end)
@@ -187,6 +190,27 @@ defmodule YagyeCore.CheckoutSessions do
     |> Multi.update(:session, CheckoutSession.state_changeset(session, "expired"))
     |> Multi.insert(:event, fn %{session: s} ->
       event_changeset(s, "abandoned", %{})
+    end)
+    |> Repo.transaction()
+    |> case do
+      {:ok, %{session: s}} -> {:ok, s}
+      {:error, _, reason, _} -> {:error, reason}
+    end
+  end
+
+  @doc """
+  Transitions a session from `processing` back to `open` so the customer can
+  retry after a failed payment.  Clears `payment_id` so the next `pay` call
+  can set a fresh one.
+  """
+  def reopen_session(%CheckoutSession{} = session) do
+    Multi.new()
+    |> Multi.update(
+      :session,
+      CheckoutSession.state_changeset(session, "open", %{payment_id: nil})
+    )
+    |> Multi.insert(:event, fn %{session: s} ->
+      event_changeset(s, "payment_failed_reopened", %{})
     end)
     |> Repo.transaction()
     |> case do

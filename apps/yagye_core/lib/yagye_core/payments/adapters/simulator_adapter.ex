@@ -20,6 +20,7 @@ defmodule YagyeCore.Payments.Adapters.SimulatorAdapter do
         instrument_type: instrument_type(payment.method)
       }
       |> maybe_add_wallet_fields(payment)
+      |> maybe_add_card_fields(payment)
 
     case Req.post(url("/charges", credential),
            json: body,
@@ -129,6 +130,18 @@ defmodule YagyeCore.Payments.Adapters.SimulatorAdapter do
   end
 
   defp maybe_add_wallet_fields(body, _payment), do: body
+
+  # For card/bank charges, forward the test card number from metadata so the
+  # simulator's fixed-card outcome map is hit instead of rolling a random outcome.
+  defp maybe_add_card_fields(body, %Payment{method: method} = payment)
+       when method in [nil, "card", "bank_transfer"] do
+    case get_in(payment.metadata, ["card_number"]) do
+      nil -> body
+      card_number -> Map.put(body, :card_number, card_number)
+    end
+  end
+
+  defp maybe_add_card_fields(body, _payment), do: body
 
   defp instrument_type(nil), do: "CARD"
   defp instrument_type("card"), do: "CARD"

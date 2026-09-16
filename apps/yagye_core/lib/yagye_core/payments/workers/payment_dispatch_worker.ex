@@ -1,7 +1,6 @@
 defmodule YagyeCore.Payments.Workers.PaymentDispatchWorker do
   @moduledoc false
 
-  require Logger
   require OpenTelemetry.Tracer
 
   use Oban.Worker, queue: :payments, max_attempts: 3
@@ -34,11 +33,13 @@ defmodule YagyeCore.Payments.Workers.PaymentDispatchWorker do
           "provider.code" => provider.code
         })
 
-        case ProviderAdapter.for_provider(provider).charge(payment, attempt, credential) do
+        result = ProviderAdapter.for_provider(provider).charge(payment, attempt, credential)
+
+        case result do
           {:pending, pending_data} ->
             Payments.handle_pending_auth(payment, attempt, pending_data)
 
-          result ->
+          _ ->
             Payments.handle_provider_response(payment, attempt, result)
         end
       end

@@ -5,7 +5,7 @@ defmodule YagyeCore.Checkout.Schemas.CheckoutEvent do
   import Ecto.Changeset
 
   @valid_event_types ~w[viewed method_selected submitted validation_failed
-                        redirected_3ds returned abandoned]
+                        redirected_3ds returned abandoned payment_failed_reopened]
 
   # Append-only telemetry — no updated_at, no standard timestamps()
   schema "checkout_events" do

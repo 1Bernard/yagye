@@ -29,8 +29,25 @@ defmodule YagyeCheckoutWeb.Live.CheckoutLive do
   # ── Event Handlers ───────────────────────────────────────────────────────────
 
   @impl true
+  def handle_event("select_method", %{"method" => method}, socket)
+      when method == socket.assigns.selected_method do
+    {:noreply, socket}
+  end
+
   def handle_event("select_method", %{"method" => method}, socket) do
     {:noreply, assign(socket, selected_method: method, error: nil, phone_error: nil)}
+  end
+
+  def handle_event("change_customer_name", %{"customer_name" => val}, socket) do
+    {:noreply, assign(socket, customer_name: val)}
+  end
+
+  def handle_event("change_customer_email", %{"customer_email" => val}, socket) do
+    {:noreply, assign(socket, customer_email: val)}
+  end
+
+  def handle_event("change_customer_phone", %{"customer_phone" => val}, socket) do
+    {:noreply, assign(socket, customer_phone: val)}
   end
 
   def handle_event("select_network", %{"network" => network}, socket) do
@@ -51,29 +68,74 @@ defmodule YagyeCheckoutWeb.Live.CheckoutLive do
      )}
   end
 
+  def handle_event("change_card_number", %{"card_number" => val}, socket) do
+    digits = String.replace(val, ~r/\D/, "") |> String.slice(0, 16)
+    formatted = digits |> String.graphemes() |> Enum.chunk_every(4) |> Enum.map(&Enum.join/1) |> Enum.join(" ")
+    {:noreply, assign(socket, card_number: formatted, card_brand: detect_card_brand(digits), card_errors: Map.delete(socket.assigns.card_errors, "number"), error: nil)}
+  end
+
+  def handle_event("change_card_expiry", %{"card_expiry" => val}, socket) do
+    digits = String.replace(val, ~r/\D/, "") |> String.slice(0, 4)
+    formatted = if String.length(digits) > 2, do: String.slice(digits, 0, 2) <> "/" <> String.slice(digits, 2, 2), else: digits
+    {:noreply, assign(socket, card_expiry: formatted, card_errors: Map.delete(socket.assigns.card_errors, "expiry"), error: nil)}
+  end
+
+  def handle_event("change_card_cvv", %{"card_cvv" => val}, socket) do
+    {:noreply, assign(socket, card_cvv: String.replace(val, ~r/\D/, "") |> String.slice(0, 4), card_errors: Map.delete(socket.assigns.card_errors, "cvv"), error: nil)}
+  end
+
+  def handle_event("change_card_name", %{"card_name" => val}, socket) do
+    {:noreply, assign(socket, card_name: val, card_errors: Map.delete(socket.assigns.card_errors, "name"), error: nil)}
+  end
+
   def handle_event("submit_checkout", params, socket) do
     collection_errors = validate_collection(params, socket.assigns)
 
     if collection_errors != %{} do
       {:noreply, assign(socket, collection_errors: collection_errors)}
     else
-      phone =
-        Map.get(params, "phone", socket.assigns.phone)
-        |> to_string()
-        |> String.replace(~r/[\s\-()]/, "")
+      socket =
+        assign(socket,
+          customer_email: String.trim(params["customer_email"] || ""),
+          customer_phone: String.trim(params["customer_phone"] || ""),
+          customer_name: String.trim(params["customer_name"] || ""),
+          collection_errors: %{}
+        )
 
-      case validate_phone(phone, socket.assigns.selected_network) do
-        {:error, msg} -> {:noreply, assign(socket, phone_error: msg)}
-        :ok ->
+      case socket.assigns.selected_method do
+        "mobile_money" ->
+          phone =
+            Map.get(params, "phone", socket.assigns.phone)
+            |> to_string()
+            |> String.replace(~r/[\s\-()]/, "")
+
+          case validate_phone(phone, socket.assigns.selected_network) do
+            {:error, msg} -> {:noreply, assign(socket, phone_error: msg)}
+            :ok -> submit_mobile_money(socket, phone)
+          end
+
+        "card" ->
+          # Sync card field assigns from form params in case phx-change events
+          # haven't settled yet (race between typing and clicking Pay).
+          cn_raw = params["card_number"] || socket.assigns.card_number
+          cn_digits = String.replace(cn_raw, ~r/\D/, "") |> String.slice(0, 16)
+          cn_formatted = cn_digits |> String.graphemes() |> Enum.chunk_every(4) |> Enum.map(&Enum.join/1) |> Enum.join(" ")
           socket =
             assign(socket,
-              customer_email: String.trim(params["customer_email"] || ""),
-              customer_phone: String.trim(params["customer_phone"] || ""),
-              customer_name: String.trim(params["customer_name"] || ""),
-              collection_errors: %{}
+              card_number: cn_formatted,
+              card_brand: detect_card_brand(cn_digits),
+              card_expiry: params["card_expiry"] || socket.assigns.card_expiry,
+              card_cvv: String.replace(params["card_cvv"] || socket.assigns.card_cvv, ~r/\D/, "") |> String.slice(0, 4),
+              card_name: params["card_name"] || socket.assigns.card_name
             )
+          errs = validate_card(socket.assigns.card_number, socket.assigns.card_expiry, socket.assigns.card_cvv, socket.assigns.card_name)
+          if errs != %{}, do: {:noreply, assign(socket, card_errors: errs)}, else: submit_card(socket)
 
-          submit_payment(socket, phone)
+        "bank_transfer" ->
+          submit_bank_transfer(socket)
+
+        _ ->
+          {:noreply, socket}
       end
     end
   end
@@ -126,7 +188,14 @@ defmodule YagyeCheckoutWeb.Live.CheckoutLive do
             <div class="co-spinner"><div class="co-spinner-ring"></div></div>
             <h2 class="co-terminal-title">Processing your payment…</h2>
             <p class="co-terminal-desc">
-              Please check your phone. If you received a USSD prompt on <strong>{@phone}</strong>, enter your PIN to approve.
+              <%= case @processing_method do %>
+                <% "card" -> %>
+                  Verifying your card. This takes just a moment.
+                <% "bank_transfer" -> %>
+                  Confirming your transfer. We're checking for your payment now.
+                <% _ -> %>
+                  Please check your phone. If you received a USSD prompt on <strong>{@phone}</strong>, enter your PIN to approve.
+              <% end %>
             </p>
             <div class="co-progress-bar"><div class="co-progress-fill"></div></div>
             <p class="co-terminal-hint">This page updates automatically once your payment is confirmed.</p>
@@ -267,6 +336,8 @@ defmodule YagyeCheckoutWeb.Live.CheckoutLive do
                               value={@customer_name}
                               placeholder="John Doe"
                               autocomplete="name"
+                              phx-change="change_customer_name"
+                              phx-debounce="blur"
                             />
                             <%= if @collection_errors["name"] do %>
                               <span class="co-error-text">
@@ -291,6 +362,8 @@ defmodule YagyeCheckoutWeb.Live.CheckoutLive do
                               placeholder="you@example.com"
                               autocomplete="email"
                               inputmode="email"
+                              phx-change="change_customer_email"
+                              phx-debounce="blur"
                             />
                             <%= if @collection_errors["email"] do %>
                               <span class="co-error-text">
@@ -315,6 +388,8 @@ defmodule YagyeCheckoutWeb.Live.CheckoutLive do
                               placeholder="+233 24 000 0000"
                               autocomplete="tel"
                               inputmode="tel"
+                              phx-change="change_customer_phone"
+                              phx-debounce="blur"
                             />
                             <%= if @collection_errors["phone"] do %>
                               <span class="co-error-text">
@@ -458,15 +533,85 @@ defmodule YagyeCheckoutWeb.Live.CheckoutLive do
                       </div>
                       <%= if @selected_method == "card" do %>
                         <div class="co-option-body">
-                          <div class="co-coming-soon">
-                            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
-                              <rect x="1" y="4" width="22" height="16" rx="2" ry="2"/>
-                              <line x1="1" y1="10" x2="23" y2="10"/>
+                          <%!-- Sandbox test cards hint --%>
+                          <div class="co-sandbox-notice">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;margin-top:2px">
+                              <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
                             </svg>
                             <div>
-                              <p class="co-coming-soon-title">Card payments launching soon</p>
-                              <p class="co-coming-soon-desc">We're finalising card processing. Use Mobile Money to pay now.</p>
+                              <p class="co-sandbox-title">Simulation mode — use test cards</p>
+                              <div class="co-sandbox-cards">
+                                <div><code>4242 4242 4242 4242</code> — Authorised</div>
+                                <div><code>4000 0000 0000 0002</code> — Declined</div>
+                                <div><code>4000 0000 0000 9995</code> — Insufficient funds</div>
+                              </div>
+                              <p style="margin-top:4px;font-size:0.7rem;opacity:0.75">Use any future expiry, any CVV, any name.</p>
                             </div>
+                          </div>
+
+                          <%!-- Card number --%>
+                          <div class="co-field">
+                            <label class="co-field-label" for="card_number">Card number</label>
+                            <div class={"co-card-number-box#{if @card_errors["number"], do: " co-card-box--error"}"}>
+                              <input
+                                id="card_number" name="card_number" type="text" inputmode="numeric"
+                                value={@card_number} placeholder="0000 0000 0000 0000"
+                                maxlength="19" autocomplete="cc-number"
+                                class="co-card-number-input"
+                                phx-change="change_card_number"
+                              />
+                              <%= if @card_brand do %>
+                                <span class="co-card-brand-badge">{raw(card_brand_svg(@card_brand))}</span>
+                              <% end %>
+                            </div>
+                            <%= if @card_errors["number"] do %>
+                              <span class="co-error-text">{@card_errors["number"]}</span>
+                            <% end %>
+                          </div>
+
+                          <%!-- Expiry + CVV --%>
+                          <div class="co-card-row">
+                            <div class="co-field">
+                              <label class="co-field-label" for="card_expiry">Expiry</label>
+                              <input
+                                id="card_expiry" name="card_expiry" type="text" inputmode="numeric"
+                                value={@card_expiry} placeholder="MM/YY"
+                                maxlength="5" autocomplete="cc-exp"
+                                class={"co-input#{if @card_errors["expiry"], do: " co-input--error"}"}
+                                phx-change="change_card_expiry"
+                              />
+                              <%= if @card_errors["expiry"] do %>
+                                <span class="co-error-text">{@card_errors["expiry"]}</span>
+                              <% end %>
+                            </div>
+                            <div class="co-field">
+                              <label class="co-field-label" for="card_cvv">CVV</label>
+                              <input
+                                id="card_cvv" name="card_cvv" type="text" inputmode="numeric"
+                                value={@card_cvv} placeholder="•••"
+                                maxlength="4" autocomplete="cc-csc"
+                                class={"co-input#{if @card_errors["cvv"], do: " co-input--error"}"}
+                                phx-change="change_card_cvv"
+                              />
+                              <%= if @card_errors["cvv"] do %>
+                                <span class="co-error-text">{@card_errors["cvv"]}</span>
+                              <% end %>
+                            </div>
+                          </div>
+
+                          <%!-- Name on card --%>
+                          <div class="co-field">
+                            <label class="co-field-label" for="card_name">Name on card</label>
+                            <input
+                              id="card_name" name="card_name" type="text"
+                              value={@card_name} placeholder="JOHN DOE"
+                              autocomplete="cc-name" style="text-transform:uppercase"
+                              class={"co-input#{if @card_errors["name"], do: " co-input--error"}"}
+                              phx-change="change_card_name"
+                            />
+                            <%= if @card_errors["name"] do %>
+                              <span class="co-error-text">{@card_errors["name"]}</span>
+                            <% end %>
                           </div>
                         </div>
                       <% end %>
@@ -496,20 +641,39 @@ defmodule YagyeCheckoutWeb.Live.CheckoutLive do
                       </div>
                       <%= if @selected_method == "bank_transfer" do %>
                         <div class="co-option-body">
-                          <div class="co-coming-soon">
-                            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
-                              <line x1="3" y1="22" x2="21" y2="22"/>
-                              <line x1="6" y1="18" x2="6" y2="11"/>
-                              <line x1="10" y1="18" x2="10" y2="11"/>
-                              <line x1="14" y1="18" x2="14" y2="11"/>
-                              <line x1="18" y1="18" x2="18" y2="11"/>
-                              <polygon points="12 2 20 7 4 7"/>
-                            </svg>
-                            <div>
-                              <p class="co-coming-soon-title">Instant virtual accounts launching soon</p>
-                              <p class="co-coming-soon-desc">GhIPSS instant bank transfer is coming. Use Mobile Money for now.</p>
+                          <div class="co-bank-block">
+                            <p class="co-bank-heading">Transfer to this account</p>
+                            <div class="co-bank-rows">
+                              <div class="co-bank-row">
+                                <span class="co-bank-label">Bank</span>
+                                <span class="co-bank-value">GCB Bank Ghana</span>
+                              </div>
+                              <div class="co-bank-row">
+                                <span class="co-bank-label">Account name</span>
+                                <span class="co-bank-value">Yagye Collect Ltd</span>
+                              </div>
+                              <div class="co-bank-row">
+                                <span class="co-bank-label">Account number</span>
+                                <span class="co-bank-value co-mono">1020300400</span>
+                              </div>
+                              <div class="co-bank-row co-bank-row--highlight">
+                                <span class="co-bank-label">Reference</span>
+                                <span class="co-bank-value co-mono">{bank_reference(@session)}</span>
+                              </div>
+                              <div class="co-bank-row">
+                                <span class="co-bank-label">Amount</span>
+                                <% {bw, bc} = format_amount_parts(@total_amount) %>
+                                <span class="co-bank-value co-bank-amount">{currency_symbol(@currency)}{bw}.{bc}</span>
+                              </div>
+                            </div>
+                            <div class="co-bank-warn">
+                              <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;margin-top:1px">
+                                <path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>
+                              </svg>
+                              Include the reference exactly — transfers without it cannot be matched.
                             </div>
                           </div>
+                          <p class="co-bank-confirm-hint">Once you've completed the transfer, click the button below.</p>
                         </div>
                       <% end %>
                     </div>
@@ -517,13 +681,16 @@ defmodule YagyeCheckoutWeb.Live.CheckoutLive do
 
                   <%!-- ── Pay Button ── --%>
                   <% {whole, cents} = format_amount_parts(@total_amount) %>
+                  <% pay_label = case @selected_method do
+                    "bank_transfer" -> "I've made the transfer"
+                    _ -> "Pay #{currency_symbol(@currency)}#{whole}.#{cents}"
+                  end %>
                   <button
                     type="submit"
                     class="co-btn-pay"
-                    disabled={@selected_method != "mobile_money"}
-                    phx-disable-with="Securing payment…"
+                    phx-disable-with="Processing…"
                   >
-                    Pay {currency_symbol(@currency)}{whole}.{cents}
+                    {pay_label}
                   </button>
 
                   <div class="co-trust-strip">
@@ -1262,6 +1429,94 @@ defmodule YagyeCheckoutWeb.Live.CheckoutLive do
 
       .co-terminal-hint { font-size: 0.75rem; color: var(--muted-text); }
 
+      /* ── Sandbox notice ── */
+      .co-sandbox-notice {
+        display: flex; align-items: flex-start; gap: 0.625rem;
+        padding: 0.75rem 0.875rem;
+        background: rgba(61,71,245,0.06);
+        border: 1px solid rgba(61,71,245,0.2);
+        border-radius: 10px;
+        color: #3D47F5;
+        font-size: 0.75rem;
+      }
+
+      .co-sandbox-title { font-weight: 700; margin-bottom: 0.35rem; }
+
+      .co-sandbox-cards { display: flex; flex-direction: column; gap: 0.15rem; }
+      .co-sandbox-cards div { color: #374151; }
+      .co-sandbox-cards code {
+        font-family: monospace; font-size: 0.8rem; font-weight: 700;
+        letter-spacing: 0.02em; color: #3D47F5;
+      }
+
+      /* ── Card form ── */
+      .co-card-number-box {
+        display: flex; align-items: center;
+        border: 1px solid var(--border-med); border-radius: 12px;
+        background: var(--canvas); transition: all 0.2s ease; overflow: hidden;
+      }
+
+      .co-card-number-box:focus-within {
+        border-color: var(--brand); background: #FFFFFF;
+        box-shadow: 0 0 0 4px var(--brand-subtle);
+      }
+
+      .co-card-box--error { border-color: var(--error) !important; background: var(--error-bg) !important; }
+
+      .co-card-number-input {
+        flex: 1; padding: 0.75rem 1rem;
+        border: none !important; background: transparent !important; box-shadow: none !important;
+        font-family: monospace; font-size: 0.9375rem; letter-spacing: 0.05em;
+        color: var(--ink);
+      }
+
+      .co-card-number-input:focus { outline: none; }
+
+      .co-card-brand-badge {
+        padding: 0 0.875rem; display: flex; align-items: center; flex-shrink: 0;
+      }
+
+      .co-card-row { display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; }
+
+      /* ── Bank transfer ── */
+      .co-bank-block {
+        display: flex; flex-direction: column; gap: 0.75rem;
+        background: var(--canvas); border: 1px solid var(--border-med);
+        border-radius: 12px; overflow: hidden;
+      }
+
+      .co-bank-heading {
+        padding: 0.75rem 1rem 0;
+        font-size: 0.8125rem; font-weight: 700; color: var(--ink);
+      }
+
+      .co-bank-rows { display: flex; flex-direction: column; padding: 0 1rem; }
+
+      .co-bank-row {
+        display: flex; justify-content: space-between; align-items: center;
+        padding: 0.5rem 0; border-bottom: 1px solid var(--border);
+        gap: 1rem;
+      }
+
+      .co-bank-row:last-child { border-bottom: none; }
+
+      .co-bank-row--highlight { background: rgba(61,71,245,0.04); margin: 0 -1rem; padding: 0.5rem 1rem; }
+
+      .co-bank-label { font-size: 0.75rem; color: var(--muted-text); flex-shrink: 0; }
+      .co-bank-value { font-size: 0.8125rem; font-weight: 600; color: var(--ink); text-align: right; }
+      .co-bank-amount { font-size: 1rem; font-weight: 800; color: var(--brand); }
+      .co-mono { font-family: monospace; letter-spacing: 0.02em; }
+
+      .co-bank-warn {
+        display: flex; align-items: flex-start; gap: 0.4rem;
+        margin: 0 1rem 0.875rem;
+        font-size: 0.75rem; color: #92400e; font-weight: 500; line-height: 1.4;
+      }
+
+      .co-bank-confirm-hint {
+        font-size: 0.8rem; color: var(--muted-text); text-align: center; margin-top: 0.25rem;
+      }
+
       /* ── Footer ── */
       .co-page-footer {
         text-align: center; font-size: 0.75rem;
@@ -1358,7 +1613,14 @@ defmodule YagyeCheckoutWeb.Live.CheckoutLive do
       customer_phone: "",
       customer_name: "",
       collection_errors: %{},
-      logo_url: nil
+      logo_url: nil,
+      card_number: "",
+      card_expiry: "",
+      card_cvv: "",
+      card_name: "",
+      card_errors: %{},
+      card_brand: nil,
+      processing_method: "mobile_money"
     )
   end
 
@@ -1376,42 +1638,67 @@ defmodule YagyeCheckoutWeb.Live.CheckoutLive do
 
   defp maybe_start_poll(socket, _), do: socket
 
-  defp submit_payment(socket, phone) do
-    %{assigns: %{
-      session_public_id: sid,
-      selected_network: sel_net,
-      customer_email: email,
-      customer_phone: customer_phone,
-      customer_name: name
-    }} = socket
+  defp submit_mobile_money(socket, phone) do
+    %{assigns: %{session_public_id: sid, selected_network: sel_net, customer_email: email, customer_phone: cph, customer_name: name}} = socket
     network = sel_net || detect_network(phone)
 
     attrs =
       %{method: "mobile_money", msisdn: phone, network: network}
-      |> then(fn a -> if email != "", do: Map.put(a, :customer_email, email), else: a end)
-      |> then(fn a -> if customer_phone != "", do: Map.put(a, :customer_phone, customer_phone), else: a end)
-      |> then(fn a -> if name != "", do: Map.put(a, :customer_name, name), else: a end)
+      |> maybe_put(:customer_email, email)
+      |> maybe_put(:customer_phone, cph)
+      |> maybe_put(:customer_name, name)
 
     case CoreClient.pay_session(sid, attrs) do
       {:ok, %{"payment_public_id" => pay_id}} ->
         if connected?(socket), do: Process.send_after(self(), :poll, @poll_ms)
-
-        {:noreply,
-         assign(socket,
-           page_state: :processing,
-           payment_public_id: pay_id,
-           poll_count: 0,
-           error: nil,
-           phone_error: nil
-         )}
+        {:noreply, assign(socket, page_state: :processing, payment_public_id: pay_id, poll_count: 0, error: nil, phone_error: nil, processing_method: "mobile_money")}
 
       {:error, _} ->
-        {:noreply,
-         assign(socket,
-           error: "We couldn't process your payment. Please verify your mobile number and balance."
-         )}
+        {:noreply, assign(socket, error: "We couldn't process your payment. Please verify your mobile number and balance.")}
     end
   end
+
+  defp submit_card(socket) do
+    %{assigns: %{session_public_id: sid, card_number: cn, customer_email: email, customer_phone: cph, customer_name: name}} = socket
+    digits = String.replace(cn, " ", "")
+
+    attrs =
+      %{method: "card", card_number: digits}
+      |> maybe_put(:customer_email, email)
+      |> maybe_put(:customer_phone, cph)
+      |> maybe_put(:customer_name, name)
+
+    case CoreClient.pay_session(sid, attrs) do
+      {:ok, %{"payment_public_id" => pay_id}} ->
+        if connected?(socket), do: Process.send_after(self(), :poll, @poll_ms)
+        {:noreply, assign(socket, page_state: :processing, payment_public_id: pay_id, poll_count: 0, error: nil, card_errors: %{}, processing_method: "card")}
+
+      {:error, _} ->
+        {:noreply, assign(socket, error: "Card payment failed. Please check your details and try again.")}
+    end
+  end
+
+  defp submit_bank_transfer(socket) do
+    %{assigns: %{session_public_id: sid, customer_email: email, customer_phone: cph, customer_name: name}} = socket
+
+    attrs =
+      %{method: "bank_transfer"}
+      |> maybe_put(:customer_email, email)
+      |> maybe_put(:customer_phone, cph)
+      |> maybe_put(:customer_name, name)
+
+    case CoreClient.pay_session(sid, attrs) do
+      {:ok, %{"payment_public_id" => pay_id}} ->
+        if connected?(socket), do: Process.send_after(self(), :poll, @poll_ms)
+        {:noreply, assign(socket, page_state: :processing, payment_public_id: pay_id, poll_count: 0, error: nil, processing_method: "bank_transfer")}
+
+      {:error, _} ->
+        {:noreply, assign(socket, error: "We couldn't confirm your transfer. Please try again.")}
+    end
+  end
+
+  defp maybe_put(map, _key, ""), do: map
+  defp maybe_put(map, key, val), do: Map.put(map, key, val)
 
   defp finalize(socket, session_id, pay_id) do
     socket = push_event(socket, "confetti", %{})
@@ -1577,4 +1864,50 @@ defmodule YagyeCheckoutWeb.Live.CheckoutLive do
   defp card_brand_svg(_) do
     ~s(<svg width="34" height="22" viewBox="0 0 40 26" xmlns="http://www.w3.org/2000/svg"><rect width="40" height="26" rx="4" fill="#F3F4F6"/><rect x="5" y="9" width="30" height="8" rx="2" fill="#E5E7EB"/></svg>)
   end
+
+  defp detect_card_brand(digits) when byte_size(digits) >= 1 do
+    cond do
+      String.starts_with?(digits, "4") -> "visa"
+      String.starts_with?(digits, ["51", "52", "53", "54", "55"]) -> "mastercard"
+      Regex.match?(~r/^2[2-7]/, digits) -> "mastercard"
+      String.starts_with?(digits, ["5061", "6500", "6501"]) -> "verve"
+      true -> nil
+    end
+  end
+
+  defp detect_card_brand(_), do: nil
+
+  defp validate_card(card_number, card_expiry, card_cvv, card_name) do
+    digits = String.replace(card_number, " ", "")
+    %{}
+    |> then(fn e -> if String.length(digits) < 13, do: Map.put(e, "number", "Enter a valid card number"), else: e end)
+    |> then(fn e -> if not valid_expiry?(card_expiry), do: Map.put(e, "expiry", "Enter a valid expiry (MM/YY)"), else: e end)
+    |> then(fn e -> if String.length(card_cvv) < 3, do: Map.put(e, "cvv", "Enter your CVV"), else: e end)
+    |> then(fn e -> if String.trim(card_name) == "", do: Map.put(e, "name", "Enter the name on your card"), else: e end)
+  end
+
+  defp valid_expiry?(expiry) do
+    case String.split(expiry, "/") do
+      [mm, yy] ->
+        with {month, ""} <- Integer.parse(String.trim(mm)),
+             {year, ""} <- Integer.parse(String.trim(yy)),
+             true <- month in 1..12 do
+          now = Date.utc_today()
+          full_year = 2000 + year
+          full_year > now.year or (full_year == now.year and month >= now.month)
+        else
+          _ -> false
+        end
+      _ -> false
+    end
+  end
+
+  defp bank_reference(nil), do: "REF-PENDING"
+
+  defp bank_reference(%{"public_id" => id}) when is_binary(id) do
+    suffix = id |> String.upcase() |> String.replace(~r/[^A-Z0-9]/, "") |> String.slice(-8, 8)
+    "YAG-#{suffix}"
+  end
+
+  defp bank_reference(_), do: "REF-PENDING"
 end

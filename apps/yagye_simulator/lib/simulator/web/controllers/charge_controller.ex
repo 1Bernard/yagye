@@ -16,7 +16,9 @@ defmodule Simulator.Web.Controllers.ChargeController do
       # Wallet-specific
       network: params["network"],
       msisdn: params["msisdn"],
-      approval_delay_ms: params["approval_delay_ms"]
+      approval_delay_ms: params["approval_delay_ms"],
+      # Card/bank — optional; fixed test numbers produce deterministic outcomes
+      card_number: params["card_number"]
     }
 
     case validate_create_params(attrs) do

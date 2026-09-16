@@ -17,6 +17,29 @@ defmodule Simulator.OutcomeEngine do
   @type card_outcome :: :authorised | :declined | :timeout | :provider_error
   @type wallet_outcome :: :approved | :declined | :expired | :insufficient_funds | :not_registered
 
+  # Fixed test card numbers for deterministic card/bank outcomes.
+  # Spaces are stripped before lookup so testers can enter "4242 4242 4242 4242".
+  # Tuples carry a specific decline code; plain atoms use the scenario default.
+  @fixed_card_outcomes %{
+    "4242424242424242" => :authorised,
+    "4000000000000002" => {:declined, "DO_NOT_HONOUR"},
+    "4000000000009995" => {:declined, "INSUFFICIENT_FUNDS"},
+    "4000000000000069" => {:declined, "EXPIRED_CARD"},
+    "4000000000000119" => :timeout,
+    "4000000000000259" => :provider_error
+  }
+
+  @spec card_number_outcome(binary() | nil) :: card_outcome() | {:declined, binary()} | nil
+  def card_number_outcome(nil), do: nil
+
+  def card_number_outcome(card_number) when is_binary(card_number) do
+    normalized = String.replace(card_number, ~r/\s+/, "")
+    Map.get(@fixed_card_outcomes, normalized)
+  end
+
+  @spec fixed_card_outcomes() :: map()
+  def fixed_card_outcomes, do: @fixed_card_outcomes
+
   @fixed_msisdn_outcomes %{
     # Standard outcomes
     "0241000001" => :approved,
