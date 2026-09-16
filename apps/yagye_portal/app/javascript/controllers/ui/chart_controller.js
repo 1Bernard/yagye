@@ -170,7 +170,7 @@ export default class extends Controller {
         type:      "category",
         data:      this.labelsValue,
         axisLine:  { lineStyle: { color: chip } },
-        axisLabel: { interval: 0, color: "#9CA3AF", fontFamily: "Inter", fontSize: 11 }
+        axisLabel: { interval: this._xInterval(), color: "#9CA3AF", fontFamily: "Inter", fontSize: 11 }
       },
       yAxis: {
         type:      "value",
@@ -235,6 +235,14 @@ export default class extends Controller {
         itemStyle: { color, borderRadius }
       }
     })
+  }
+
+  // Show every label for ≤14 points, weekly for ≤31, and every ~14 days for 90+.
+  _xInterval() {
+    const n = this.labelsValue.length
+    if (n <= 14) return 0
+    if (n <= 31) return 6       // ~weekly ticks on a 30-day view
+    return 13                   // ~bi-weekly ticks on a 90-day view → ~6 labels
   }
 
   gradientFill(color) {

@@ -33,6 +33,8 @@ PERMISSION_DEFS = [
   { key: "disputes.submit_evidence",  resource: "disputes",        action: "submit_evidence",   description: "Submit evidence for an open dispute before the deadline." },
   # payouts
   { key: "payouts.view",              resource: "payouts",         action: "view",              description: "View payout list and payout details." },
+  { key: "payouts.request",           resource: "payouts",         action: "request",           description: "Submit an early payout request for ops review." },
+  { key: "payouts.review_requests",   resource: "payouts",         action: "review_requests",   description: "Approve or reject merchant early payout requests." },
   # settlements
   { key: "settlements.view",             resource: "settlements", action: "view",             description: "View settlement runs and reconciliation break details." },
   { key: "settlements.approve_dispatch", resource: "settlements", action: "approve_dispatch", description: "Approve or reject a settlement batch before bank dispatch." },
@@ -72,7 +74,7 @@ GRANT_MATRIX = {
   "merchant_owner" => %w[
     payments.view payments.view_customer_pii payments.refund payments.export
     disputes.view disputes.submit_evidence
-    payouts.view
+    payouts.view payouts.request
     settlements.view
     developers.view_api_keys developers.manage_api_keys developers.manage_webhooks
     team.view team.manage
@@ -80,7 +82,7 @@ GRANT_MATRIX = {
   "merchant_finance" => %w[
     payments.view payments.export
     disputes.view
-    payouts.view
+    payouts.view payouts.request
     settlements.view
     team.view
   ],
@@ -105,7 +107,7 @@ GRANT_MATRIX = {
   "ops_manager" => %w[
     payments.view payments.view_customer_pii payments.refund payments.export
     disputes.view
-    payouts.view
+    payouts.view payouts.review_requests
     settlements.view settlements.approve_dispatch
     merchants.view merchants.approve merchants.suspend merchants.impersonate
     kyb.view
@@ -314,4 +316,67 @@ if Rails.env.development? || Rails.env.test?
   end
 
   puts "Seeded #{demo_deliveries.size} demo webhook deliveries for #{DEMO_MERCHANT_CODE}"
+
+  # ── Demo payments (dashboard charts + table) ────────────────────────────────
+  DEMO_PAYMENT_COUNT = Payment.where(merchant_code: DEMO_MERCHANT_CODE).count
+
+  if DEMO_PAYMENT_COUNT < 50
+    puts "\nSeeding demo payments for dashboard charts..."
+
+    providers  = [["mtn_momo", 60], ["telecel_cash", 25], ["airteltigo", 15]]
+    amounts    = [1000, 2500, 2500, 5000, 5000, 10000, 10000, 25000, 50000, 100000]
+    msisdn_pfx = %w[024 025 026 027 054 055 056 057 059]
+    # method weights: 75% mobile_money, 18% card, 7% bank_transfer
+    methods    = [["mobile_money", 75], ["card", 18], ["bank_transfer", 7]]
+
+    seeded = 0
+    90.downto(1) do |days_ago|
+      ts   = days_ago.days.ago
+      wday = ts.wday
+      daily = wday.between?(1, 5) ? rand(5..12) : rand(2..6)
+
+      daily.times do
+        r = rand(100)
+        provider = providers.find { |_, w| (r -= w) < 0 }&.first || "mtn_momo"
+
+        s = rand(100)
+        status, paid_offset = if s < 82
+          ["paid", rand(30..600)]
+        elsif s < 92
+          ["failed", nil]
+        elsif s < 97
+          ["indeterminate", nil]
+        else
+          ["processing", nil]
+        end
+
+        created = ts.beginning_of_day + rand(21600..79200)
+        paid_at = status == "paid" ? created + paid_offset.seconds : nil
+        amount  = amounts.sample
+        ref     = "REF-#{SecureRandom.alphanumeric(10).upcase}"
+        msisdn  = "#{msisdn_pfx.sample}#{rand(1_000_000..9_999_999)}"
+
+        Payment.find_or_create_by!(reference: ref) do |p|
+          p.core_payment_id = SecureRandom.uuid
+          p.merchant_code   = DEMO_MERCHANT_CODE
+          p.mode            = "test"
+          mr = rand(100)
+          p.payment_method  = methods.find { |_, w| (mr -= w) < 0 }&.first || "mobile_money"
+          p.provider        = provider
+          p.amount          = amount
+          p.currency        = "GHS"
+          p.status          = status
+          p.customer_msisdn = msisdn
+          p.created_at      = created
+          p.updated_at      = paid_at || created
+          p.paid_at         = paid_at
+        end
+        seeded += 1
+      end
+    end
+
+    puts "Seeded #{seeded} demo payments for #{DEMO_MERCHANT_CODE}"
+  else
+    puts "\nDemo payments already seeded (#{DEMO_PAYMENT_COUNT} records) — skipping"
+  end
 end

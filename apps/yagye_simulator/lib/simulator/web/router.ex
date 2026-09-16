@@ -34,6 +34,10 @@ defmodule Simulator.Web.Router do
     get "/refunds/:ref", RefundController, :show
 
     post "/name-enquiry", NameEnquiryController, :create
+
+    get "/settlement-reports", SettlementReportController, :show
+
+    post "/disbursements", DisbursementController, :create
   end
 
   # ── OpenAPI spec (unauthenticated — it's a dev tool) ─────────────────────────

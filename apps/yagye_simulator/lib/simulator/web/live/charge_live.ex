@@ -39,12 +39,12 @@ defmodule Simulator.Web.Live.ChargeLive do
     <div class="admin-page">
       <header class="page-header">
         <h1>
-          Live Charge Feed
-          <span class="live-dot" title="Refreshes every 2s"></span>
+          Live Charge Feed <span class="live-dot" title="Refreshes every 2s"></span>
         </h1>
         <p class="subtitle">
           Last {@feed_limit} charges — newest first.
-          Use <strong style="color: #94a3b8;">Resend</strong> to re-deliver a webhook Core may have missed.
+          Use <strong style="color: #94a3b8;">Resend</strong>
+          to re-deliver a webhook Core may have missed.
         </p>
       </header>
 
@@ -81,7 +81,9 @@ defmodule Simulator.Web.Live.ChargeLive do
                     <span style="color: #334155">—</span>
                   <% end %>
                 </td>
-                <td class="amount-cell" style="text-align: right">{format_amount(c.amount_minor, c.currency)}</td>
+                <td class="amount-cell" style="text-align: right">
+                  {format_amount(c.amount_minor, c.currency)}
+                </td>
                 <td><span class={state_badge(c.state)}>{c.state}</span></td>
                 <td>
                   <%= if c.decline_code do %>

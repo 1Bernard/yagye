@@ -11,7 +11,15 @@ defmodule YagyeCore.Settlement do
   alias YagyeCore.Pricing.Schemas.FeeRecord
   alias YagyeCore.Providers.Schemas.Provider
   alias YagyeCore.Repo
-  alias YagyeCore.Settlement.Schemas.{Settlement, SettlementBatch, SettlementItem}
+
+  alias YagyeCore.Settlement.Schemas.{
+    MerchantSettlementControls,
+    Settlement,
+    SettlementBatch,
+    SettlementItem
+  }
+
+  alias YagyeCore.Settlement.Workers.BankDispatchWorker
   alias YagyeCore.Shared.Pagination
 
   @open_states ~w[pending processing]
@@ -152,6 +160,83 @@ defmodule YagyeCore.Settlement do
       end
 
     transition_settlement(settlement, to_state)
+  end
+
+  # ── Settlement controls ───────────────────────────────────────────────────────
+
+  def get_settlement_controls(merchant_id) do
+    Repo.get_by(MerchantSettlementControls, merchant_id: merchant_id)
+  end
+
+  def upsert_settlement_controls(merchant_id, attrs) do
+    existing = get_settlement_controls(merchant_id) || %MerchantSettlementControls{}
+
+    existing
+    |> MerchantSettlementControls.changeset(Map.put(attrs, :merchant_id, merchant_id))
+    |> Repo.insert_or_update()
+  end
+
+  def approve_batch_dispatch(batch_id, approver_code) do
+    batch = Repo.get!(SettlementBatch, batch_id)
+
+    with :ok <- validate_awaiting_approval(batch),
+         :ok <- validate_approver(batch.merchant_id, approver_code) do
+      Multi.new()
+      |> Multi.update(:batch, SettlementBatch.approval_changeset(batch, approver_code))
+      |> Multi.insert(:outbox, fn %{batch: b} ->
+        Outbox.build_changeset(b, "settlement.batch.dispatch_approved", %{
+          settlement_code: b.id,
+          merchant_code: b.merchant_id,
+          state: "settled",
+          dispatch_approved_by: approver_code
+        })
+      end)
+      |> Multi.run(:re_enqueue, fn _repo, %{batch: b} ->
+        BankDispatchWorker.new(%{batch_id: b.id}) |> Oban.insert()
+      end)
+      |> Repo.transaction()
+      |> case do
+        {:ok, %{batch: b}} -> {:ok, b}
+        {:error, _step, reason, _} -> {:error, reason}
+      end
+    end
+  end
+
+  def reject_batch_dispatch(batch_id, rejector_code, reason) do
+    batch = Repo.get!(SettlementBatch, batch_id)
+
+    with :ok <- validate_awaiting_approval(batch),
+         :ok <- validate_approver(batch.merchant_id, rejector_code) do
+      Multi.new()
+      |> Multi.update(:batch, SettlementBatch.rejection_changeset(batch, rejector_code, reason))
+      |> Multi.insert(:outbox, fn %{batch: b} ->
+        Outbox.build_changeset(b, "settlement.batch.dispatch_rejected", %{
+          settlement_code: b.id,
+          merchant_code: b.merchant_id,
+          state: "dispatch_rejected",
+          dispatch_rejected_by: rejector_code,
+          dispatch_rejection_reason: reason
+        })
+      end)
+      |> Repo.transaction()
+      |> case do
+        {:ok, %{batch: b}} -> {:ok, b}
+        {:error, _step, reason, _} -> {:error, reason}
+      end
+    end
+  end
+
+  defp validate_awaiting_approval(%SettlementBatch{state: "awaiting_approval"}), do: :ok
+  defp validate_awaiting_approval(_), do: {:error, :not_awaiting_approval}
+
+  defp validate_approver(merchant_id, user_code) do
+    case get_settlement_controls(merchant_id) do
+      nil ->
+        {:error, :no_controls}
+
+      %{approver_user_codes: codes} ->
+        if user_code in codes, do: :ok, else: {:error, :unauthorized_approver}
+    end
   end
 
   # ── Batch API ─────────────────────────────────────────────────────────────────

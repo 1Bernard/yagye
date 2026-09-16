@@ -27,9 +27,22 @@ defmodule YagyeCore.Reconciliation do
     breaks =
       from(b in ReconciliationBreak,
         where: b.merchant_id == ^merchant_id,
-        order_by: [desc: b.inserted_at],
+        order_by: [desc: b.detected_at],
         limit: ^limit,
         offset: ^offset
+      )
+      |> Repo.all()
+
+    {:ok, breaks}
+  end
+
+  def list_all_breaks(opts \\ []) do
+    limit = Keyword.get(opts, :limit, 100)
+
+    breaks =
+      from(b in ReconciliationBreak,
+        order_by: [desc: b.detected_at],
+        limit: ^limit
       )
       |> Repo.all()
 

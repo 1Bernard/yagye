@@ -53,5 +53,16 @@ defmodule YagyeCoreWeb.FallbackController do
         "Onboarding is not in a submittable state"
       )
 
+  def call(conn, {:error, :unscreened_ubos}),
+    do:
+      Response.unprocessable(
+        conn,
+        "unscreened_ubos",
+        "One or more beneficial owners with ≥25% ownership have not been cleared by AML screening"
+      )
+
+  def call(conn, {:error, :not_kyb_ready}),
+    do: Response.unprocessable(conn, "kyb_incomplete", "KYB must be completed before approval")
+
   def call(conn, {:error, changeset}), do: Response.validation_error(conn, changeset)
 end

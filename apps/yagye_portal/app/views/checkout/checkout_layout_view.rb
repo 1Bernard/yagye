@@ -21,9 +21,7 @@ module Checkout
         "label"      => "Card",
         "visible"    => false,
         "tile_style" => "compact",
-        "rails"      => [
-          { "id" => "stripe", "label" => "Stripe", "visible" => true }
-        ]
+        "rails"      => []
       },
       {
         "id"         => "bank_transfer",
@@ -85,9 +83,17 @@ module Checkout
       payment_link_layout_path(@link["id"])
     end
 
+    # Card and bank_transfer have no configurable rails (they render a form, not
+    # a network selector). Strip any stale rails that may have been persisted when
+    # the layout was first created (e.g. the old "Stripe" placeholder).
+    RAIL_FREE_METHODS = %w[card bank_transfer].freeze
+
     def methods_to_render
       saved = @link["checkout_layout"]&.fetch("methods", nil)
-      saved.present? ? saved : DEFAULT_METHODS
+      methods = saved.present? ? saved : DEFAULT_METHODS
+      methods.map do |m|
+        RAIL_FREE_METHODS.include?(m["id"]) ? m.merge("rails" => []) : m
+      end
     end
 
     # ── Canvas background ─────────────────────────────────────────────────────
@@ -289,7 +295,7 @@ module Checkout
           end
         end
 
-        # Networks section with centered rule label
+        # Networks section — Mobile Money only
         if method["rails"]&.any?
           div(class: "border-t border-gray-50 px-3 pt-2 pb-[10px]") do
             div(class: "flex items-center gap-2 mb-[7px]") do
@@ -299,6 +305,20 @@ module Checkout
             end
             div(class: "flex flex-col gap-[2px]") do
               method["rails"].each { |rail| rail_row(rail) }
+            end
+          end
+        end
+
+        # Card: show accepted scheme logos (informational — not configurable)
+        if method["id"] == "card"
+          div(class: "border-t border-gray-50 px-3 pt-2 pb-[10px]") do
+            div(class: "flex items-center gap-2 mb-[7px]") do
+              div(class: "h-px flex-1 bg-gray-100")
+              span(class: "text-[9px] font-semibold uppercase tracking-[0.12em] text-gray-400") { plain "Accepted cards" }
+              div(class: "h-px flex-1 bg-gray-100")
+            end
+            div(class: "flex items-center gap-[5px]") do
+              raw safe(card_scheme_editor_badges)
             end
           end
         end
@@ -367,7 +387,8 @@ module Checkout
 
     def checkout_card_preview
       div(
-        class: "w-[360px] bg-white rounded-2xl border border-gray-200/70 overflow-hidden " \
+        class: "w-[360px] bg-white rounded-2xl border border-gray-200/70 " \
+               "overflow-x-hidden overflow-y-auto max-h-[calc(100vh-200px)] " \
                "shadow-[0_8px_32px_rgba(0,0,0,0.07),0_2px_8px_rgba(0,0,0,0.04)]"
       ) do
         # Header
@@ -469,15 +490,18 @@ module Checkout
       ) do
         # Header row
         div(class: "flex items-center gap-3 px-4 py-3") do
-          # Radio — filled solid when selected
+          # Radio — data attr lets JS update it without class-string surgery
           div(
-            class: "w-[17px] h-[17px] rounded-full flex items-center justify-center flex-shrink-0 " \
-                   "#{expanded ? 'bg-[#3D47F5] border-2 border-[#3D47F5]' : 'border-2 border-gray-300'}"
+            class: "w-[17px] h-[17px] rounded-full flex items-center justify-center flex-shrink-0 border-2 " \
+                   "#{expanded ? 'bg-[#3D47F5] border-[#3D47F5]' : 'border-gray-300'}",
+            data: { preview_tile_radio: "" }
           ) do
-            div(class: "w-[6px] h-[6px] rounded-full bg-white") {} if expanded
+            # Dot always in DOM; hidden when compact
+            div(class: "w-[6px] h-[6px] rounded-full bg-white",
+                hidden: !expanded,
+                data: { preview_tile_radio_dot: "" }) {}
           end
 
-          # Icon bubble
           span(
             class: "w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0",
             style: "background:#{colors[:bg]}"
@@ -487,34 +511,31 @@ module Checkout
             end
           end
 
-          # Method name
           span(
             class: "flex-1 text-[13.5px] font-semibold " \
-                   "#{expanded ? 'text-gray-900' : 'text-gray-700'}"
+                   "#{expanded ? 'text-gray-900' : 'text-gray-700'}",
+            data: { preview_tile_label: "" }
           ) { plain method["label"] }
 
-          # Chevron
           span(class: "flex w-[15px] h-[15px] flex-shrink-0 " \
                       "#{expanded ? 'text-[#3D47F5]' : 'text-gray-400'}") do
             render UI::Icon.new(expanded ? :chev_up : :chev, class: "w-full h-full")
           end
         end
 
-        # Network tiles — 3-col grid matching the checkout UI
-        if method["rails"]&.any?
-          div(
-            class: "#{expanded ? '' : 'hidden'} border-t border-gray-100 px-3 pt-2 pb-3",
-            data:  { preview_rails_for: method["id"] }
-          ) do
+        # Expanded content — always in DOM so JS can show/hide it without a round-trip.
+        # Each method renders its own content block; hidden when tile_style is compact.
+        case method["id"]
+        when "mobile_money"
+          div(class: "border-t border-gray-100 px-3 pt-2 pb-3",
+              hidden: !expanded,
+              data:   { preview_tile_expanded: "", preview_rails_for: method["id"] }) do
             div(class: "grid grid-cols-3 gap-[5px]") do
-              method["rails"].each do |rail|
-                visible_rail = rail["visible"] != false
-                div(
-                  class: "flex flex-col items-center gap-[5px] py-[8px] px-1 " \
-                         "rounded-lg border border-gray-100 bg-gray-50/60",
-                  data:  { preview_rail: rail["id"] },
-                  hidden: !visible_rail
-                ) do
+              method["rails"]&.each do |rail|
+                div(class: "flex flex-col items-center gap-[5px] py-[8px] px-1 " \
+                           "rounded-lg border border-gray-100 bg-gray-50/60",
+                    hidden: rail["visible"] == false,
+                    data:   { preview_rail: rail["id"] }) do
                   span(class: "w-[22px] h-[22px] rounded-full overflow-hidden flex-shrink-0 flex") do
                     raw safe(rail_svg(rail["id"]))
                   end
@@ -525,8 +546,68 @@ module Checkout
               end
             end
           end
+        when "card"
+          div(class: "border-t border-gray-100 px-4 pt-3 pb-4",
+              hidden: !expanded,
+              data:   { preview_tile_expanded: "" }) do
+            div(class: "flex items-center gap-[5px] mb-3") { raw safe(card_scheme_preview_badges) }
+            div(class: "h-[34px] rounded-lg bg-gray-50 border border-gray-200 mb-[6px] " \
+                       "flex items-center justify-between px-3") do
+              span(class: "text-[11px] text-gray-300 font-mono tracking-widest") { plain "•••• •••• •••• ••••" }
+              span(class: "text-[9px] font-bold text-gray-300") { plain "VISA" }
+            end
+            div(class: "flex gap-[6px] mb-[6px]") do
+              div(class: "flex-1 h-[34px] rounded-lg bg-gray-50 border border-gray-200 flex items-center px-3") do
+                span(class: "text-[11px] text-gray-300") { plain "MM / YY" }
+              end
+              div(class: "flex-1 h-[34px] rounded-lg bg-gray-50 border border-gray-200 flex items-center px-3") do
+                span(class: "text-[11px] text-gray-300") { plain "CVV" }
+              end
+            end
+            div(class: "h-[34px] rounded-lg bg-gray-50 border border-gray-200 flex items-center px-3") do
+              span(class: "text-[11px] text-gray-300") { plain "Name on card" }
+            end
+          end
+        when "bank_transfer"
+          div(class: "border-t border-gray-100 px-4 pt-3 pb-4",
+              hidden: !expanded,
+              data:   { preview_tile_expanded: "" }) do
+            div(class: "bg-gray-50/70 rounded-xl px-3 py-[10px] flex flex-col gap-[5px]") do
+              [["Bank", "GCB Bank Ghana"], ["Account name", "Yagye Collect Ltd"],
+               ["Account no.", "1020300400"], ["Reference", "YAG-XXXXXXXX"]].each do |lbl, val|
+                div(class: "flex items-center justify-between") do
+                  span(class: "text-[9.5px] text-gray-400") { plain lbl }
+                  span(class: "text-[10.5px] font-semibold text-gray-700 font-mono") { plain val }
+                end
+              end
+            end
+            div(class: "flex items-start gap-[4px] mt-[6px]") do
+              span(class: "text-amber-400 text-[10px] leading-tight flex-shrink-0") { plain "⚠" }
+              span(class: "text-[9.5px] text-gray-400 leading-tight") do
+                plain "Transfer exact amount and include your reference."
+              end
+            end
+          end
         end
       end
+    end
+
+    # Card scheme badges for the preview tile (slightly larger)
+    def card_scheme_preview_badges
+      [
+        %(<svg width="36" height="22" viewBox="0 0 36 22" fill="none"><rect width="36" height="22" rx="3" fill="#1A1F71"/><text x="18" y="15" font-family="Arial,sans-serif" font-size="9" font-weight="bold" font-style="italic" fill="white" text-anchor="middle">VISA</text></svg>),
+        %(<svg width="36" height="22" viewBox="0 0 36 22" fill="none"><rect width="36" height="22" rx="3" fill="#FAFAFA" stroke="#E5E7EB" stroke-width="0.75"/><circle cx="14" cy="11" r="7" fill="#EB001B"/><circle cx="22" cy="11" r="7" fill="#F79E1B"/><circle cx="18" cy="11" r="7" fill="#FF5F00" fill-opacity="0.55"/></svg>),
+        %(<svg width="36" height="22" viewBox="0 0 36 22" fill="none"><rect width="36" height="22" rx="3" fill="#006D35"/><text x="18" y="15" font-family="Arial,sans-serif" font-size="8" font-weight="bold" fill="white" text-anchor="middle">VERVE</text></svg>)
+      ].join
+    end
+
+    # Smaller badges for the editor panel info row
+    def card_scheme_editor_badges
+      [
+        %(<svg width="30" height="18" viewBox="0 0 30 18" fill="none"><rect width="30" height="18" rx="3" fill="#1A1F71"/><text x="15" y="13" font-family="Arial,sans-serif" font-size="7.5" font-weight="bold" font-style="italic" fill="white" text-anchor="middle">VISA</text></svg>),
+        %(<svg width="30" height="18" viewBox="0 0 30 18" fill="none"><rect width="30" height="18" rx="3" fill="#FAFAFA" stroke="#E5E7EB" stroke-width="0.75"/><circle cx="11" cy="9" r="5.5" fill="#EB001B"/><circle cx="19" cy="9" r="5.5" fill="#F79E1B"/><circle cx="15" cy="9" r="5.5" fill="#FF5F00" fill-opacity="0.55"/></svg>),
+        %(<svg width="30" height="18" viewBox="0 0 30 18" fill="none"><rect width="30" height="18" rx="3" fill="#006D35"/><text x="15" y="12.5" font-family="Arial,sans-serif" font-size="6.5" font-weight="bold" fill="white" text-anchor="middle">VERVE</text></svg>)
+      ].join
     end
 
     def rail_svg(id)

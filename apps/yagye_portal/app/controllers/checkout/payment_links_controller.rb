@@ -16,28 +16,40 @@ module Checkout
 
     def create
       authorize :checkout, :create?
-      result = core.create_payment_link(
-        merchant_code: current_user.merchant_code,
-        kind:          params[:kind].presence || "fixed_amount",
-        currency:      params[:currency].presence || "GHS",
-        description:   params[:description],
-        amount:        parse_amount(params[:amount]),
-        reusable:      params[:reusable] != "0",
-        collect_email: params[:collect_email] == "1",
-        collect_phone: params[:collect_phone] == "1",
-        collect_name:  params[:collect_name] == "1"
-      )
 
-      if params[:kind].presence == "fixed_amount" && params[:amount].blank?
+      kind = params[:kind].presence || "fixed_amount"
+      if kind == "fixed_amount" && params[:amount].blank?
         return render Checkout::PaymentLinkFormView.new(errors: ["Amount is required for fixed-amount links"]),
                       status: :unprocessable_entity
       end
+
+      allowed_methods = Array(params[:allowed_methods]).reject(&:blank?)
+      if allowed_methods.empty?
+        return render Checkout::PaymentLinkFormView.new(errors: ["Select at least one accepted payment method"]),
+                      status: :unprocessable_entity
+      end
+
+      reusable = params[:reusable] == "1"
+
+      result = core.create_payment_link(
+        merchant_code:   current_user.merchant_code,
+        kind:            kind,
+        currency:        params[:currency].presence || "GHS",
+        description:     params[:description],
+        amount:          parse_amount(params[:amount]),
+        allowed_methods: allowed_methods,
+        collect_email:   params[:collect_email] == "1",
+        collect_phone:   params[:collect_phone] == "1",
+        collect_name:    params[:collect_name] == "1",
+        reusable:        reusable,
+        max_uses:        (reusable && params[:max_uses].present?) ? params[:max_uses].to_i : nil,
+        expires_at:      params[:expires_at].presence
+      )
 
       if result.success?
         redirect_to payment_link_layout_path(result.body["id"]),
                     notice: "Payment link created. Configure the checkout layout below."
       else
-        flash.now[:alert] = result.error_message
         render Checkout::PaymentLinkFormView.new(errors: [ result.error_message ]),
                status: :unprocessable_entity
       end

@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_09_11_130001) do
+ActiveRecord::Schema[8.1].define(version: 2026_09_16_100001) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pgcrypto"
@@ -215,6 +215,23 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_11_130001) do
     t.index ["payment_method"], name: "index_portal_payments_on_payment_method"
     t.index ["reference"], name: "index_portal_payments_on_reference"
     t.index ["status"], name: "index_portal_payments_on_status"
+  end
+
+  create_table "portal_payout_requests", force: :cascade do |t|
+    t.bigint "amount_cents"
+    t.datetime "created_at", null: false
+    t.string "currency", limit: 3, default: "GHS", null: false
+    t.text "merchant_code", null: false
+    t.text "reason", null: false
+    t.text "requested_by", null: false
+    t.datetime "reviewed_at"
+    t.text "reviewed_by"
+    t.text "reviewer_note"
+    t.text "state", default: "pending", null: false
+    t.datetime "updated_at", null: false
+    t.index ["merchant_code", "state"], name: "index_portal_payout_requests_on_merchant_code_and_state"
+    t.index ["merchant_code"], name: "index_portal_payout_requests_on_merchant_code"
+    t.index ["state"], name: "index_portal_payout_requests_on_state"
   end
 
   create_table "portal_payouts", primary_key: "payout_code", id: :text, force: :cascade do |t|

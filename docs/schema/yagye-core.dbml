@@ -1258,6 +1258,7 @@ Table adjustment_approvals [headercolor: #9B3232] {
   approved_by text
   approved_at timestamptz
   rejected_reason text
+  inserted_at timestamptz [not null]
   Note: 'CORE-owned, not portal-owned: the SoD constraint only protects you if it lives in the database that the single writer uses. Rails renders the queue and stores free-text notes; the core owns the decision. CHECK (approved_by IS NULL OR approved_by <> proposed_by), plus the Pundit policy, plus the core command guard.'
 }
 

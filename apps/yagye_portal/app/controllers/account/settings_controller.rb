@@ -4,15 +4,17 @@ module Account
   class SettingsController < ApplicationController
     def index
       authorize :settings, :index?
-      tab = params[:tab].presence_in(%w[profile security notifications allowlists sso verification]) || "profile"
+      tab = params[:tab].presence_in(%w[profile security notifications allowlists sso verification payouts]) || "profile"
       ip_allowlists     = PortalIpAllowlist.for_merchant(current_user.merchant_code).order(:created_at)
       msisdn_allowlists = PortalMsisdnAllowlist.for_merchant(current_user.merchant_code).order(:created_at)
       audit_events      = current_user.user_audit_events.recent.limit(15)
       sso_configs       = tab == "sso" ? SsoConfiguration.order(:name) : []
       tier              = current_user.merchant_tier || 1
+      payout_controls   = tab == "payouts" && current_user.merchant_user? ? load_payout_controls : {}
       render Settings::IndexView.new(tab: tab, current_user: current_user,
                                      ip_allowlists: ip_allowlists, msisdn_allowlists: msisdn_allowlists,
-                                     audit_events: audit_events, sso_configs: sso_configs, tier: tier)
+                                     audit_events: audit_events, sso_configs: sso_configs, tier: tier,
+                                     payout_controls: payout_controls)
     end
 
     def update_profile
@@ -51,6 +53,13 @@ module Account
     end
 
     private
+
+    def load_payout_controls
+      result = CoreApiClient.new.get_settlement_controls(current_user.merchant_code)
+      result.success? ? result.body : {}
+    rescue StandardError
+      {}
+    end
 
     def profile_params
       if params[:user]

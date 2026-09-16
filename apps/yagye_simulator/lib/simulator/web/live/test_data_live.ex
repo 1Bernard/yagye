@@ -32,7 +32,9 @@ defmodule Simulator.Web.Live.TestDataLive do
       |> Enum.map(fn {msisdn, outcome} ->
         prefix = String.slice(msisdn, 0, 3)
         network = Map.get(@network_prefixes, prefix, "Unknown")
-        {label, description, badge} = Map.get(@outcome_labels, outcome, {"#{outcome}", "", "pending"})
+
+        {label, description, badge} =
+          Map.get(@outcome_labels, outcome, {"#{outcome}", "", "pending"})
 
         %{
           msisdn: msisdn,
@@ -62,8 +64,10 @@ defmodule Simulator.Web.Live.TestDataLive do
       <section>
         <h2>Mobile Money — Fixed MSISDN Outcomes</h2>
         <p style="font-size: .8rem; color: #475569; margin-bottom: 1rem;">
-          Pass <code style="background:#1e293b; padding: 1px 5px; border-radius: 3px; font-size: .8rem;">msisdn</code>
-          in your <code style="background:#1e293b; padding: 1px 5px; border-radius: 3px; font-size: .8rem;">POST /charges</code>
+          Pass
+          <code style="background:#1e293b; padding: 1px 5px; border-radius: 3px; font-size: .8rem;">msisdn</code>
+          in your
+          <code style="background:#1e293b; padding: 1px 5px; border-radius: 3px; font-size: .8rem;">POST /charges</code>
           body. Any other MSISDN falls back to the active scenario's rate distribution.
         </p>
         <table>
@@ -115,7 +119,9 @@ defmodule Simulator.Web.Live.TestDataLive do
             <tr>
               <td>All others</td>
               <td><span class="badge badge-authorised">Found</span></td>
-              <td style="font-size: .8rem; color: #64748b;">Returns "MTN Subscriber" / "TELECEL Subscriber" etc.</td>
+              <td style="font-size: .8rem; color: #64748b;">
+                Returns "MTN Subscriber" / "TELECEL Subscriber" etc.
+              </td>
             </tr>
           </tbody>
         </table>
@@ -125,10 +131,11 @@ defmodule Simulator.Web.Live.TestDataLive do
         <h2>Card &amp; Bank Transfer</h2>
         <p style="font-size: .8rem; color: #475569; margin-bottom: 1rem;">
           Card and bank charges are synchronous and outcome is driven by the active
-          scenario's <strong style="color: #94a3b8;">decline_rate</strong> /
-          <strong style="color: #94a3b8;">timeout_rate</strong> /
-          <strong style="color: #94a3b8;">provider_error_rate</strong>. There are no fixed
-          test card numbers yet — use <code style="background:#1e293b; padding: 1px 5px; border-radius: 3px; font-size: .8rem;">seed</code>
+          scenario's <strong style="color: #94a3b8;">decline_rate</strong>
+          / <strong style="color: #94a3b8;">timeout_rate</strong>
+          / <strong style="color: #94a3b8;">provider_error_rate</strong>. There are no fixed
+          test card numbers yet — use
+          <code style="background:#1e293b; padding: 1px 5px; border-radius: 3px; font-size: .8rem;">seed</code>
           in the charge request for a reproducible roll.
         </p>
         <table>
@@ -142,17 +149,23 @@ defmodule Simulator.Web.Live.TestDataLive do
           <tbody>
             <tr>
               <td><code class="mono">CARD</code></td>
-              <td style="font-size: .8rem; color: #64748b;">Synchronous — response contains final state</td>
+              <td style="font-size: .8rem; color: #64748b;">
+                Synchronous — response contains final state
+              </td>
               <td><span class="badge badge-voided">None</span></td>
             </tr>
             <tr>
               <td><code class="mono">BANK</code></td>
-              <td style="font-size: .8rem; color: #64748b;">Synchronous — response contains final state</td>
+              <td style="font-size: .8rem; color: #64748b;">
+                Synchronous — response contains final state
+              </td>
               <td><span class="badge badge-voided">None</span></td>
             </tr>
             <tr>
               <td><code class="mono">WALLET</code></td>
-              <td style="font-size: .8rem; color: #64748b;">Async — starts PENDING_AUTH, webhook delivers final state</td>
+              <td style="font-size: .8rem; color: #64748b;">
+                Async — starts PENDING_AUTH, webhook delivers final state
+              </td>
               <td><span class="badge badge-authorised">Yes</span></td>
             </tr>
           </tbody>

@@ -22,6 +22,7 @@ module Merchants
       ) do
         div(class: "max-w-2xl flex flex-col gap-5") do
           info_banner
+          schedule_card
           controls_card
         end
       end
@@ -29,12 +30,27 @@ module Merchants
 
     private
 
+    WEEKDAYS = [
+      ["Monday",    "1"], ["Tuesday", "2"], ["Wednesday", "3"],
+      ["Thursday",  "4"], ["Friday",  "5"]
+    ].freeze
+
+    MONTH_DAYS = (1..28).map { |d| ["#{d.ordinalize} of the month", d.to_s] }.freeze
+
     def threshold
       @controls["approval_threshold"]
     end
 
     def approver_codes
       Array(@controls["approver_user_codes"])
+    end
+
+    def frequency
+      @controls["settlement_frequency"] || "daily"
+    end
+
+    def settlement_day
+      @controls["settlement_day"].to_s
     end
 
     def info_banner
@@ -71,6 +87,82 @@ module Merchants
           threshold_section
           approvers_section
           save_footer
+        end
+      end
+    end
+
+    def schedule_card
+      div(class: "bg-white border border-gray-100 rounded-2xl overflow-hidden") do
+        div(class: "px-6 py-5 border-b border-gray-100") do
+          p(class: TYPE_TITLE) { plain "Payout Schedule" }
+          p(class: "#{TYPE_CAPTION} mt-[3px]") do
+            plain "When settled funds are released to #{@app.legal_name || @app.merchant_code}'s bank account."
+          end
+        end
+
+        form(action: merchant_settlement_controls_path(@app), method: "post",
+             data: { turbo: false, controller: "schedule-picker" }) do
+          input(type: "hidden", name: "_method",            value: "patch")
+          input(type: "hidden", name: "authenticity_token", value: form_authenticity_token)
+
+          div(class: "px-6 py-5 border-b border-gray-100") do
+            div(class: "flex flex-col gap-4 max-w-sm") do
+              # Frequency
+              div do
+                label(class: "block text-[10.5px] font-semibold text-gray-400 uppercase tracking-widest mb-2") do
+                  plain "Release frequency"
+                end
+                select(
+                  name:  "settlement_frequency",
+                  class: "w-full h-9 border border-gray-200 rounded-xl px-3 text-[13px] font-medium text-gray-800 bg-white outline-none cursor-pointer",
+                  data:  { action: "change->schedule-picker#toggle", schedule_picker_target: "frequency" }
+                ) do
+                  option(value: "daily",   selected: frequency == "daily")   { plain "Daily — every business day" }
+                  option(value: "weekly",  selected: frequency == "weekly")  { plain "Weekly — pick a day" }
+                  option(value: "monthly", selected: frequency == "monthly") { plain "Monthly — pick a date" }
+                end
+              end
+
+              # Weekly day picker
+              div(data: { schedule_picker_target: "weekday" },
+                  style: frequency == "weekly" ? "" : "display:none") do
+                label(class: "block text-[10.5px] font-semibold text-gray-400 uppercase tracking-widest mb-2") do
+                  plain "Day of week"
+                end
+                select(
+                  name:  "settlement_day_weekly",
+                  class: "w-full h-9 border border-gray-200 rounded-xl px-3 text-[13px] font-medium text-gray-800 bg-white outline-none cursor-pointer"
+                ) do
+                  WEEKDAYS.each do |(day_name, val)|
+                    option(value: val, selected: frequency == "weekly" && settlement_day == val) { plain day_name }
+                  end
+                end
+              end
+
+              # Monthly day picker
+              div(data: { schedule_picker_target: "monthday" },
+                  style: frequency == "monthly" ? "" : "display:none") do
+                label(class: "block text-[10.5px] font-semibold text-gray-400 uppercase tracking-widest mb-2") do
+                  plain "Day of month"
+                end
+                select(
+                  name:  "settlement_day_monthly",
+                  class: "w-full h-9 border border-gray-200 rounded-xl px-3 text-[13px] font-medium text-gray-800 bg-white outline-none cursor-pointer"
+                ) do
+                  MONTH_DAYS.each do |(day_label, val)|
+                    option(value: val, selected: frequency == "monthly" && settlement_day == val) { plain day_label }
+                  end
+                end
+              end
+            end
+          end
+
+          div(class: "px-6 py-4 flex justify-end") do
+            render UI::Button.new(variant: :primary, type: "submit") do
+              render UI::Icon.new(:check, class: ICON_SM)
+              plain "Save schedule"
+            end
+          end
         end
       end
     end

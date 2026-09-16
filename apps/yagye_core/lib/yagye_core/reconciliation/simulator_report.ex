@@ -1,40 +1,59 @@
 defmodule YagyeCore.Reconciliation.SimulatorReport do
   @moduledoc """
-  Generates a synthetic settlement report from simulator data in the DB.
+  Fetches a settlement report from the simulator HTTP API.
 
-  Reads succeeded payment_attempts for a given provider, mode, and date, then
-  produces the same payload shape that a real provider's settlement API would
-  return. Used in tests and simulation mode.
+  Calls GET {base_url}/settlement-reports?date={date} using the provider's
+  platform credential, then maps the response to the shape `ingest_report/2`
+  expects. The simulator applies scenario defects (fee drift, missing lines)
+  server-side, so the right-side data reflects the same imperfections a real
+  PSP settlement file would have.
   """
 
-  import Ecto.Query
+  alias YagyeCore.Providers
 
-  alias YagyeCore.Payments.Schemas.{Payment, PaymentAttempt}
-  alias YagyeCore.Repo
-
-  @fee_bps 200
-  @fee_fixed_minor 20
-
-  @spec generate(binary(), String.t(), Date.t()) :: map()
+  @spec generate(binary(), String.t(), Date.t()) :: {:ok, map()} | {:error, term()}
   def generate(provider_id, mode, %Date{} = report_date) do
-    attempts = fetch_succeeded_attempts(provider_id, mode, report_date)
+    with {:ok, credential} <- Providers.fetch_credential_for_status_check(provider_id, nil, mode) do
+      fetch_report(provider_id, mode, report_date, credential)
+    end
+  end
 
-    lines =
-      attempts
-      |> Enum.with_index(1)
-      |> Enum.map(fn {attempt, idx} -> build_line(attempt, idx) end)
+  # ── Private ───────────────────────────────────────────────────────────────────
 
-    currency = detect_currency(lines, "USD")
-    total = lines |> Enum.map(& &1.net_amount) |> Enum.sum()
+  defp fetch_report(provider_id, mode, report_date, credential) do
+    base_url = credential["base_url"]
+    api_key = credential["api_key"]
+    url = "#{base_url}/settlement-reports?date=#{Date.to_iso8601(report_date)}"
+
+    opts =
+      [headers: [{"x-api-key", api_key}], receive_timeout: 15_000] ++
+        Application.get_env(:yagye_core, :simulator_req_opts, [])
+
+    case Req.get(url, opts) do
+      {:ok, %Req.Response{status: 200, body: body}} ->
+        {:ok, build_payload(provider_id, mode, report_date, body)}
+
+      {:ok, %Req.Response{status: status, body: body}} ->
+        {:error, {:simulator_http_error, status, body}}
+
+      {:error, reason} ->
+        {:error, {:simulator_connection_error, reason}}
+    end
+  end
+
+  defp build_payload(provider_id, mode, report_date, body) do
+    currency = body["currency"] || "USD"
+    lines = Enum.map(body["lines"] || [], &map_line(&1, currency))
+    reported_total = body["net_minor"] || 0
 
     payload = %{
       provider_id: provider_id,
       mode: mode,
       report_date: report_date,
       source: "api",
-      raw_uri: "s3://yagye-simulator/reports/#{Uniq.UUID.uuid7()}.json",
+      raw_uri: "sim://#{body["file_ref"]}",
       currency: currency,
-      reported_total: total,
+      reported_total: reported_total,
       line_count: length(lines),
       lines: lines
     }
@@ -48,54 +67,32 @@ defmodule YagyeCore.Reconciliation.SimulatorReport do
     Map.put(payload, :checksum, checksum)
   end
 
-  defp fetch_succeeded_attempts(provider_id, mode, date) do
-    start_dt = DateTime.new!(date, ~T[00:00:00], "Etc/UTC")
-    end_dt = DateTime.new!(Date.add(date, 1), ~T[00:00:00], "Etc/UTC")
+  defp map_line(line, currency) do
+    value_date =
+      case Date.from_iso8601(line["value_date"] || "") do
+        {:ok, d} -> d
+        _ -> Date.utc_today()
+      end
 
-    Repo.all(
-      from a in PaymentAttempt,
-        join: p in Payment,
-        on: a.payment_id == p.id,
-        where: a.provider_id == ^provider_id,
-        where: p.mode == ^mode,
-        where: a.state == "succeeded",
-        where: a.inserted_at >= ^start_dt,
-        where: a.inserted_at < ^end_dt,
-        select: %{
-          provider_reference: a.provider_reference,
-          amount: p.amount,
-          currency: p.currency,
-          occurred_at: a.inserted_at
-        }
-    )
-  end
-
-  defp build_line(attempt, line_number) do
-    gross = attempt.amount
-    fee = div(gross * @fee_bps, 10_000) + @fee_fixed_minor
-    net = gross - fee
+    occurred_at = DateTime.new!(value_date, ~T[00:00:00], "Etc/UTC")
 
     %{
-      line_number: line_number,
-      provider_reference: attempt.provider_reference,
-      transaction_type: "CHARGE",
-      gross_amount: gross,
-      fee_amount: fee,
-      net_amount: net,
-      currency: attempt.currency,
-      occurred_at: attempt.occurred_at,
-      value_date: DateTime.to_date(attempt.occurred_at),
+      line_number: line["line_number"],
+      provider_reference: line["charge_ref"],
+      transaction_type: line["line_type"] || "CHARGE",
+      gross_amount: line["gross_minor"],
+      fee_amount: line["fee_minor"],
+      net_amount: line["net_minor"],
+      currency: currency,
+      occurred_at: occurred_at,
+      value_date: value_date,
       raw: %{
-        "ref" => attempt.provider_reference,
-        "type" => "CHARGE",
-        "gross" => gross,
-        "fee" => fee,
-        "net" => net,
-        "ccy" => attempt.currency
+        "charge_ref" => line["charge_ref"],
+        "line_type" => line["line_type"],
+        "gross_minor" => line["gross_minor"],
+        "fee_minor" => line["fee_minor"],
+        "net_minor" => line["net_minor"]
       }
     }
   end
-
-  defp detect_currency([%{currency: ccy} | _], _default), do: ccy
-  defp detect_currency([], default), do: default
 end

@@ -6,13 +6,19 @@ module Payments
   # enforced before any aggregation runs.
   class VolumeSummaryQuery
     PROVIDER_COLORS = {
-      "mtn_momo"    => "#FFB800",
-      "stripe"      => "#635bff",
-      "paystack"    => "#00C3F7",
-      "flutterwave" => "#F5A623"
+      "mtn_momo"     => "#FFCC00",
+      "telecel_cash" => "#E2001A",
+      "airteltigo"   => "#FF6B00",
+      "simulator"    => "#6b7280"
     }.freeze
 
-    CHART_DAYS = 30
+    METHOD_COLORS = {
+      "mobile_money"  => "#F97316",   # orange  — warm, mobile-feel, distinct from status colors
+      "card"          => "#6366F1",   # indigo  — distinct from brand blue (#3D47F5)
+      "bank_transfer" => "#0EA5E9"    # sky     — distinct from success green (#16a34a)
+    }.freeze
+
+    CHART_DAYS = 90
 
     def initialize(relation = Payment.all)
       @relation = relation
@@ -40,6 +46,7 @@ module Payments
                        .sum(:amount)
 
       provider_totals = mtd_paid.group(:provider).sum(:amount)
+      method_totals   = mtd_paid.group(:payment_method).sum(:amount)
       total_vol       = provider_totals.values.sum.to_f
 
       success_count = mtd_paid.count
@@ -56,7 +63,8 @@ module Payments
         success_rate:      tx_count.positive? ? (success_count.to_f / tx_count * 100).round(1) : nil,
         chart_dates:       build_date_labels(window_start),
         chart_values:      build_chart_values(daily_sums, window_start),
-        provider_data:     build_provider_data(provider_totals, total_vol)
+        provider_data:     build_provider_data(provider_totals, total_vol),
+        method_data:       build_method_data(method_totals, total_vol)
       }
     end
 
@@ -68,6 +76,21 @@ module Payments
 
     def build_chart_values(daily_sums, from)
       (0...CHART_DAYS).map { |i| (daily_sums[from + i] || 0) / 100.0 }
+    end
+
+    def build_method_data(method_totals, total_vol)
+      labels = { "mobile_money" => "Mobile Money", "card" => "Card", "bank_transfer" => "Bank Transfer" }
+      method_totals.filter_map do |key, amt|
+        next if key.blank?
+        pct = total_vol.positive? ? (amt / total_vol * 100).round(1) : 0.0
+        {
+          key:    key.to_s,
+          name:   labels.fetch(key.to_s, key.to_s.humanize),
+          amount: amt,
+          pct:    pct,
+          color:  METHOD_COLORS.fetch(key.to_s, "#9ca3af")
+        }
+      end.sort_by { |m| -m[:amount] }
     end
 
     def build_provider_data(provider_totals, total_vol)

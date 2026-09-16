@@ -69,8 +69,14 @@ Rails.application.routes.draw do
 
   # ── Payments — refund ────────────────────────────────────────────────────
   scope module: "payments" do
-    get "payouts",         to: "payouts#index",     as: :payouts
-    get "payouts/:id",     to: "payouts#show",      as: :payout
+    get  "payouts",                          to: "payouts#index",                   as: :payouts
+    get  "payouts/:id",                     to: "payouts#show",                    as: :payout
+    get  "payout-requests",                 to: "payout_requests#index",           as: :payout_requests
+    get  "payout-requests/new",             to: "payout_requests#new",             as: :new_payout_request
+    post "payout-requests",                 to: "payout_requests#create"
+    get  "payout-requests/:id",             to: "payout_requests#show",            as: :payout_request
+    post "payout-requests/:id/approve",     to: "payout_requests#approve",         as: :approve_payout_request
+    post "payout-requests/:id/reject",      to: "payout_requests#reject",          as: :reject_payout_request
     get  "reconciliation",                                  to: "reconciliation#index",              as: :reconciliation
     get  "reconciliation/:id",                             to: "reconciliation#show",               as: :reconciliation_break
     post "reconciliation/:id/propose-adjustment",          to: "reconciliation#propose_adjustment", as: :reconciliation_propose_adjustment

@@ -13,6 +13,7 @@ defmodule YagyeCore.Settlement.Workers.SettlementProcessorWorker do
   alias YagyeCore.Repo
   alias YagyeCore.Settlement
   alias YagyeCore.Settlement.Schemas.SettlementBatch
+  alias YagyeCore.Settlement.Workers.BankDispatchWorker
 
   @impl Oban.Worker
   def perform(%Oban.Job{args: %{"settlement_batch_id" => id}}) do
@@ -39,14 +40,21 @@ defmodule YagyeCore.Settlement.Workers.SettlementProcessorWorker do
       end)
       |> Multi.insert(:outbox_settled, fn %{settled: b} ->
         Outbox.build_changeset(b, "settlement.batch.settled", %{
-          batch_id: b.id,
+          settlement_code: b.id,
           merchant_code: merchant_code(b.merchant_id),
           provider_code: provider_code(b.provider_id),
+          mode: b.mode,
+          state: "settled",
           currency: b.currency,
           payment_count: b.payment_count,
           gross_amount: b.gross_amount,
-          settled_at: b.settled_at
+          period_start: b.period_start && DateTime.to_iso8601(b.period_start),
+          period_end: b.period_end && DateTime.to_iso8601(b.period_end),
+          settled_at: b.settled_at && DateTime.to_iso8601(b.settled_at)
         })
+      end)
+      |> Multi.run(:bank_dispatch_job, fn _repo, %{settled: b} ->
+        BankDispatchWorker.new(%{batch_id: b.id}) |> Oban.insert()
       end)
       |> Repo.transaction()
 

@@ -4,7 +4,8 @@ module Settings
   class IndexView < ApplicationComponent
     include UI::Theme
 
-    def initialize(tab: "profile", current_user: nil, roles: [], ip_allowlists: [], msisdn_allowlists: [], audit_events: [], sso_configs: [], tier: 1)
+    def initialize(tab: "profile", current_user: nil, roles: [], ip_allowlists: [], msisdn_allowlists: [],
+                   audit_events: [], sso_configs: [], tier: 1, payout_controls: {})
       @tab               = tab
       @current_user      = current_user
       @roles             = roles
@@ -13,6 +14,7 @@ module Settings
       @audit_events      = audit_events
       @sso_configs       = sso_configs
       @tier              = tier
+      @payout_controls   = payout_controls
     end
 
     def view_template
@@ -45,6 +47,22 @@ module Settings
               render Settings::SsoSection.new(current_user: @current_user, configs: @sso_configs)
             when "verification"
               render Settings::VerificationPanel.new(tier: @tier)
+            when "payouts"
+              if @current_user&.merchant_user?
+                merchant_code = @current_user.merchant_code
+                pending_settlements = PortalSettlement
+                  .for_merchant(merchant_code)
+                  .where(state: %w[pending processing awaiting_approval])
+                next_date  = pending_settlements.where.not(value_date: nil).minimum(:value_date)
+                unsettled  = pending_settlements.sum(:expected_net)
+                currency   = pending_settlements.pick(:currency) || "GHS"
+                render Settings::PayoutsPanel.new(
+                  controls:        @payout_controls,
+                  next_value_date: next_date,
+                  unsettled_amount: unsettled,
+                  currency:        currency
+                )
+              end
             end
           end
         end
@@ -72,6 +90,13 @@ module Settings
           ]
         }
       ]
+
+      if @current_user&.merchant_user?
+        groups << {
+          label: "Finance",
+          items: [ { key: "payouts", label: "Payouts", icon: :trending_up } ]
+        }
+      end
 
       show_sso = @current_user.internal_staff? ||
                  SsoConfiguration.active_for_email_domain?(@current_user.email.to_s)

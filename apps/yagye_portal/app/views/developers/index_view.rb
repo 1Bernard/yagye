@@ -153,7 +153,7 @@ module Developers
           end
         end
         div(class: "bg-[#0d1117] rounded-b-2xl px-6 py-5 overflow-x-auto") do
-          pre(class: "text-[12.5px] leading-[1.7] font-mono m-0 whitespace-pre") do
+          pre(class: "text-[12.5px] leading-[1.7] font-mono m-0 whitespace-pre text-[#c9d1d9]") do
             span(class: "text-[#79c0ff]") { plain "curl" }
             span(class: "text-[#ff7b72]") { plain " -X POST" }
             plain " "

@@ -32,6 +32,14 @@ export default class extends Controller {
       label: "Fallback", color: "#6b7280", bg: "rgba(107,114,128,0.08)",
       inputs: 1, outputs: 1,
       defaultData: { provider_code: "", label: "Select provider", max_retries: 3 }
+    },
+    // SimulatorNode has no live-mode credentials — test/development use only.
+    // Publishing a config containing this node will be rejected by Core.
+    SimulatorNode: {
+      label: "Simulator", color: "#6b7280", bg: "rgba(107,114,128,0.08)",
+      inputs: 1, outputs: 1,
+      defaultData: { provider_code: "simulator", label: "Gateway Simulator" },
+      testOnly: true
     }
   }
 
@@ -48,8 +56,8 @@ export default class extends Controller {
       name: "Currency split",
       nodes: [
         { id: 1, type: "ConditionNode", x: 200, y: 200, data: { field: "currency", operator: "eq", value: "GHS" } },
-        { id: 2, type: "ProviderNode",  x: 520, y:  90, data: { provider_code: "mtn_momo", label: "MTN MoMo" } },
-        { id: 3, type: "ProviderNode",  x: 520, y: 310, data: { provider_code: "stripe",   label: "Stripe" } }
+        { id: 2, type: "ProviderNode",  x: 520, y:  90, data: { provider_code: "mtn_momo",     label: "MTN MoMo" } },
+        { id: 3, type: "ProviderNode",  x: 520, y: 310, data: { provider_code: "telecel_cash",  label: "Telecel Cash" } }
       ],
       connections: [
         { from: 1, fromOutput: 1, to: 2, toInput: 1 },
@@ -60,8 +68,8 @@ export default class extends Controller {
       name: "Amount threshold",
       nodes: [
         { id: 1, type: "ConditionNode", x: 200, y: 200, data: { field: "amount", operator: "gt", value: "50000" } },
-        { id: 2, type: "ProviderNode",  x: 520, y:  90, data: { provider_code: "stripe",   label: "Stripe (high value)" } },
-        { id: 3, type: "ProviderNode",  x: 520, y: 310, data: { provider_code: "mtn_momo", label: "MTN MoMo (standard)" } }
+        { id: 2, type: "ProviderNode",  x: 520, y:  90, data: { provider_code: "mtn_momo",    label: "MTN MoMo (high value)" } },
+        { id: 3, type: "ProviderNode",  x: 520, y: 310, data: { provider_code: "airteltigo",  label: "AirtelTigo Money (standard)" } }
       ],
       connections: [
         { from: 1, fromOutput: 1, to: 2, toInput: 1 },
@@ -293,9 +301,18 @@ export default class extends Controller {
     // ── Per-type body with embedded controls ─────────────────────────────────
     let body = ""
 
+    if (type === "SimulatorNode") {
+      body = `<div style="background:#fefce8;border:1px solid #fde68a;border-radius:8px;
+                          padding:8px 10px;font-size:11px;color:#92400e;line-height:1.4;">
+        <strong style="font-weight:700;">Test only</strong> — no live credentials.<br>
+        Publishing a config with this node will be rejected.
+      </div>`
+    }
+
     if (type === "ProviderNode" || type === "FallbackNode") {
+      const nativeProviders = this.providersValue.filter(p => p.kind !== "simulator")
       const provOpts = `<option value="">Choose provider…</option>` +
-        this.providersValue.map(p =>
+        nativeProviders.map(p =>
           `<option value="${p.code}" ${p.code === data.provider_code ? "selected" : ""}>${p.label}</option>`
         ).join("")
       body = fieldDiv("Provider", selectWrap("provider_code", provOpts))
@@ -359,6 +376,7 @@ export default class extends Controller {
   }
 
   _nodeTitle(type, def, data) {
+    if (type === "SimulatorNode") return "Gateway Simulator"
     if (type === "ProviderNode" || type === "FallbackNode") {
       return data.label || `<span style="color:#d1d5db;font-weight:400">Select provider</span>`
     }
@@ -415,6 +433,16 @@ export default class extends Controller {
   save() {
     const payload = this._toGraphPayload(this.editor.export())
     const name    = this.hasNameInputTarget ? this.nameInputTarget.value.trim() : "Untitled"
+    const hasSimulator = payload.nodes.some(n => n.type === "SimulatorNode")
+    if (hasSimulator) {
+      const proceed = window.confirm(
+        "This configuration contains a Simulator node.\n\n" +
+        "The Simulator has no live-mode credentials — publishing this configuration will fail. " +
+        "Remove the Simulator node before publishing.\n\n" +
+        "Save as draft anyway?"
+      )
+      if (!proceed) return
+    }
 
     const form = document.createElement("form")
     form.method = "post"

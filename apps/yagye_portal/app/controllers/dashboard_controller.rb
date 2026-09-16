@@ -7,19 +7,22 @@ class DashboardController < ApplicationController
     summary = Payments::VolumeSummaryQuery.new(scope).call
 
     render Dashboard::IndexView.new(
-      volume:      summary[:volume],
-      prev_volume: summary[:prev_volume],
-      tx_count:          summary[:tx_count],
-      prev_tx_count:     summary[:prev_tx_count],
-      success_rate:      summary[:success_rate],
-      pending_count:     summary[:pending_count],
-      failed_count:      summary[:failed_count],
-      disputes_count:    disputes_count,
-      kyb_pending_count: current_user.internal_staff? ? kyb_pending_count : nil,
-      chart_dates:       summary[:chart_dates],
-      chart_values:      summary[:chart_values],
-      provider_data:     summary[:provider_data],
-      recent_payments:   scope.recent.limit(8)
+      volume:             summary[:volume],
+      prev_volume:        summary[:prev_volume],
+      tx_count:           summary[:tx_count],
+      prev_tx_count:      summary[:prev_tx_count],
+      success_count:      summary[:success_count],
+      success_rate:       summary[:success_rate],
+      pending_count:      summary[:pending_count],
+      failed_count:       summary[:failed_count],
+      disputes_count:     disputes_count,
+      kyb_pending_count:  current_user.internal_staff? ? kyb_pending_count : nil,
+      active_merchant_count: current_user.internal_staff? ? active_merchant_count : nil,
+      chart_dates:        summary[:chart_dates],
+      chart_values:       summary[:chart_values],
+      provider_data:      summary[:provider_data],
+      method_data:        summary[:method_data],
+      recent_payments:    scope.recent.limit(8)
     )
   end
 
@@ -38,6 +41,15 @@ class DashboardController < ApplicationController
 
   def kyb_pending_count
     PortalMerchantApplication.pending_review.count
+  rescue StandardError
+    0
+  end
+
+  def active_merchant_count
+    Payment.where(status: "paid")
+           .where("paid_at >= ?", Time.current.beginning_of_month)
+           .distinct
+           .count(:merchant_code)
   rescue StandardError
     0
   end

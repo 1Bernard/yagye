@@ -5,287 +5,503 @@ module Dashboard
     include UI::Theme
 
     def initialize(volume:, tx_count:, success_rate:, pending_count:, failed_count:,
-                   prev_volume: 0, prev_tx_count: 0,
+                   prev_volume: 0, prev_tx_count: 0, success_count: 0,
                    disputes_count: 0, kyb_pending_count: nil,
+                   active_merchant_count: nil,
                    chart_dates: [], chart_values: [],
-                   provider_data: [], recent_payments: [])
-      @volume      = volume
-      @prev_volume = prev_volume.to_i
-      @tx_count          = tx_count
-      @prev_tx_count     = prev_tx_count.to_i
-      @success_rate      = success_rate
-      @pending_count     = pending_count
-      @failed_count      = failed_count
-      @disputes_count    = disputes_count
-      @kyb_pending_count = kyb_pending_count  # nil for merchant users
-      @chart_dates       = chart_dates
-      @chart_values      = chart_values
-      @provider_data     = provider_data
-      @recent_payments   = recent_payments
+                   provider_data: [], method_data: [],
+                   recent_payments: [])
+      @volume                = volume
+      @prev_volume           = prev_volume.to_i
+      @tx_count              = tx_count
+      @prev_tx_count         = prev_tx_count.to_i
+      @success_count         = success_count.to_i
+      @success_rate          = success_rate
+      @pending_count         = pending_count
+      @failed_count          = failed_count
+      @disputes_count        = disputes_count
+      @kyb_pending_count     = kyb_pending_count
+      @active_merchant_count = active_merchant_count
+      @chart_dates           = chart_dates
+      @chart_values          = chart_values
+      @provider_data         = provider_data
+      @method_data           = method_data
+      @recent_payments       = recent_payments
     end
 
     def view_template
       render Layout::Shell.new(
-        active_nav: :dashboard,
-        title: "Dashboard",
+        active_nav:  :dashboard,
+        title:       "Dashboard",
         breadcrumbs: [ { label: "Dashboard" } ]
       ) do
-        stat_grid
-        charts_row
-        recent_table
+        div(data: { controller: "dashboard-refresh",
+                    dashboard_refresh_interval_value: "60" }) do
+          refresh_bar
+          kpi_row
+          funnel_card
+          chart_card
+          breakdown_row
+        end
       end
     end
 
     private
 
-    # ── Stat grid ─────────────────────────────────────────────────────────────
-    # 6 cards: volume, transactions, success rate, pending, failed/KYB (role-split), disputes
+    # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    # REFRESH BAR
+    # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-    def stat_grid
-      div(class: "grid grid-cols-3 gap-4 mb-5") do
-        stat_cell("Volume (MTD)", format_volume, icon: :trending_up, color: BRAND, tint: TINT_BRAND, delta: volume_delta)
-        stat_cell("Transactions (MTD)", number_with_delimiter(@tx_count), icon: :layers, color: PURPLE, tint: TINT_PURPLE, delta: tx_delta)
-        stat_cell("Success Rate", rate_label, icon: :check_circle, color: rate_color, tint: rate_tint, delta: nil)
-        stat_cell("Pending", number_with_delimiter(@pending_count), icon: :clock, color: AMBER, tint: TINT_AMBER, delta: nil)
-        # Role-split: ops see KYB queue, merchants see their own failures
-        if @kyb_pending_count
-          stat_cell("KYB Under Review", number_with_delimiter(@kyb_pending_count), icon: :shield, color: TEAL, tint: TINT_TEAL, delta: nil)
+    def refresh_bar
+      div(class: "flex items-center justify-end gap-3 mb-4") do
+        span(class: TYPE_CAPTION) do
+          plain "Updated "
+          span(data: { dashboard_refresh_target: "timestamp" }) { plain "just now" }
+          plain " · auto-refreshes every minute"
+        end
+        button(type: "button",
+               class: "flex items-center gap-1.5 #{TYPE_CAPTION} text-[#3D47F5] font-medium " \
+                      "hover:opacity-70 transition-opacity border-0 bg-transparent cursor-pointer p-0",
+               data: { action: "click->dashboard-refresh#reload" }) do
+          span(class: "flex w-[11px] h-[11px]") { render UI::Icon.new(:refresh, class: "w-full h-full") }
+          plain "Refresh"
+        end
+      end
+    end
+
+    # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    # KPI ROW
+    # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+    def kpi_row
+      div(class: "grid grid-cols-2 lg:grid-cols-4 gap-4 mb-5") do
+        kpi_card(
+          label:   "Volume",
+          value:   format_volume,
+          icon:    :trending_up,
+          color:   BRAND,
+          tint:    TINT_BRAND,
+          delta:   volume_delta,
+          sub:     prev_volume_label
+        )
+        kpi_card(
+          label:   "Transactions",
+          value:   number_with_delimiter(@tx_count),
+          icon:    :layers,
+          color:   PURPLE,
+          tint:    TINT_PURPLE,
+          delta:   tx_delta,
+          sub:     failed_sub_label
+        )
+        kpi_card(
+          label:   "Success Rate",
+          value:   rate_label,
+          icon:    :check_circle,
+          color:   rate_color,
+          tint:    rate_tint
+        )
+        if @active_merchant_count
+          kpi_card(
+            label:  "Active Merchants",
+            value:  number_with_delimiter(@active_merchant_count),
+            icon:   :building,
+            color:  BRAND,
+            tint:   TINT_BRAND,
+            sub:    kyb_sub_label
+          )
         else
-          stat_cell("Failed (MTD)", number_with_delimiter(@failed_count), icon: :alert_circle, color: RED, tint: TINT_RED, delta: nil)
-        end
-        stat_cell("Open Disputes", number_with_delimiter(@disputes_count), icon: :flag, color: RED, tint: TINT_RED, delta: nil)
-      end
-    end
-
-    # ── Charts row ────────────────────────────────────────────────────────────
-
-    def charts_row
-      div(style: "display:grid;grid-template-columns:2fr 1fr;gap:16px;margin-bottom:20px") do
-        volume_chart_card
-        provider_split_card
-      end
-    end
-
-    def volume_chart_card
-      div(class: "bg-white border border-gray-100 rounded-2xl overflow-hidden") do
-        div(class: "flex items-center justify-between px-[22px] pt-[18px]") do
-          div do
-            p(class: TYPE_TITLE) { plain "Transaction Volume" }
-            p(class: "#{TYPE_CAPTION} mt-[3px]") { plain "Daily paid volume · last 30 days" }
-          end
-          div(class: "flex items-center gap-1") do
-            period_btn("7D", false)
-            period_btn("30D", true)
-            period_btn("3M", false)
-          end
-        end
-        div(class: "px-[22px] pt-4 pb-5") do
-          render UI::Chart::Line.new(
-            labels: @chart_dates,
-            data:   @chart_values,
-            dataset_label: "Transaction Volume",
-            area:   true,
-            height: 220
+          kpi_card(
+            label:  "Pending",
+            value:  number_with_delimiter(@pending_count),
+            icon:   :clock,
+            color:  AMBER,
+            tint:   TINT_AMBER
           )
         end
       end
     end
 
-    def provider_split_card
-      div(class: "bg-white border border-gray-100 rounded-2xl px-[22px] pt-[18px] pb-[22px]") do
-        p(class: "#{TYPE_TITLE} mb-[3px]") { plain "Provider Split" }
-        p(class: "#{TYPE_CAPTION} mb-4") { plain "Volume by provider (MTD)" }
-
-        render UI::Chart::Pie.new(
-          labels: @provider_data.map { |p| p[:name] },
-          data:   @provider_data.map { |p| p[:amount] / 100.0 },
-          colors: @provider_data.map { |p| p[:color] },
-          height: 168
-        )
-
-        unless @provider_data.empty?
-          div(class: "mt-4 flex flex-col gap-[10px]") do
-            @provider_data.each { |p| provider_row(p) }
+    def kpi_card(label:, value:, icon:, color:, tint:, delta: nil, sub: nil)
+      div(class: "bg-white border border-gray-100 rounded-2xl p-[22px]") do
+        # Icon row + optional delta chip
+        div(class: "flex items-start justify-between mb-4") do
+          div(class: "w-9 h-9 rounded-xl flex items-center justify-center",
+              style: "background:#{tint}") do
+            span(class: "flex w-[17px] h-[17px]", style: "color:#{color}") do
+              render UI::Icon.new(icon, class: "w-full h-full")
+            end
+          end
+          if delta
+            pos = delta.to_f >= 0
+            span(class: "text-[11px] font-semibold px-[7px] py-[2px] rounded-full",
+                 style: "color:#{pos ? GREEN : RED};background:#{pos ? TINT_GREEN : TINT_RED}") do
+              plain "#{pos ? '↑' : '↓'} #{delta.abs}%"
+            end
           end
         end
-      end
-    end
 
-    def period_btn(label, active)
-      if active
-        button(type: "button",
-               class: "text-[11.5px] font-semibold px-[10px] py-1 rounded-md cursor-pointer border-0 text-white bg-[#3D47F5]") do
-          plain label
-        end
-      else
-        button(type: "button",
-               class: "text-[11.5px] font-medium px-[10px] py-1 rounded-md cursor-pointer border-0 bg-transparent text-gray-400") do
-          plain label
+        p(class: TYPE_HEADING) { plain label }
+        p(class: "#{TYPE_STAT} mt-2", style: "color:#{color}") { plain value }
+
+        if sub
+          p(class: "#{TYPE_CAPTION} mt-[10px] truncate") { plain sub }
         end
       end
     end
 
-    def provider_row(prov)
-      div(class: "flex items-center justify-between") do
-        div(class: "flex items-center gap-2") do
-          span(class: "w-2 h-2 rounded-full flex-shrink-0", style: "background:#{prov[:color]}")
-          span(class: TYPE_CAPTION) { plain prov[:name] }
+    def prev_volume_label
+      return nil if @prev_volume.zero?
+      "vs #{format_money(@prev_volume)} last month"
+    end
+
+    def failed_sub_label
+      return nil if @failed_count.to_i.zero?
+      "#{number_with_delimiter(@failed_count)} failed this month"
+    end
+
+    def disputes_sub_label
+      return nil if @disputes_count.to_i.zero?
+      "#{number_with_delimiter(@disputes_count)} open dispute#{'s' if @disputes_count != 1}"
+    end
+
+    def kyb_sub_label
+      return nil if @kyb_pending_count.to_i.zero?
+      "#{number_with_delimiter(@kyb_pending_count)} KYB pending review"
+    end
+
+    # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    # CONVERSION FUNNEL
+    # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+    def funnel_card
+      return if @tx_count.to_i.zero?
+
+      dropped     = @tx_count - @success_count - @pending_count
+      paid_pct    = pct_of(@tx_count, @success_count)
+      failed_pct  = pct_of(@tx_count, dropped)
+      pending_pct = pct_of(@tx_count, @pending_count)
+
+      div(class: "bg-white border border-gray-100 rounded-2xl px-6 py-5 mb-5") do
+        # ── Header ────────────────────────────────────────────────────────────
+        div(class: "flex items-start justify-between mb-1") do
+          div do
+            p(class: TYPE_TITLE) { plain "Payment Funnel" }
+            p(class: "#{TYPE_CAPTION} mt-1") do
+              plain "#{number_with_delimiter(@tx_count)} payment attempts this month"
+            end
+          end
+          div(class: "flex items-baseline gap-[6px]") do
+            span(class: "text-[30px] font-extrabold tracking-[-0.03em] tabular-nums leading-none",
+                 style: "color:#{rate_color}") { plain "#{@success_rate || 0}%" }
+            span(class: TYPE_CAPTION) { plain "success rate" }
+          end
         end
-        div(class: "flex items-center gap-2") do
-          span(class: TYPE_CAPTION) { plain "#{prov[:pct]}%" }
-          span(class: TYPE_MONO) { plain format_ghs(prov[:amount]) }
+
+        # ── Stacked bar ───────────────────────────────────────────────────────
+        div(class: "flex gap-1 my-5", style: "height:8px") do
+          funnel_bar_segment(paid_pct,    GREEN)
+          funnel_bar_segment(failed_pct,  RED)
+          funnel_bar_segment(pending_pct, AMBER)
+        end
+
+        # ── Stat tiles ────────────────────────────────────────────────────────
+        div(class: "flex items-stretch gap-3") do
+          funnel_tile(@success_count, "Paid",              paid_pct,    GREEN,  "#f0fdf4")
+          funnel_tile(dropped,        "Failed",            failed_pct,  RED,    "#fef2f2")
+          funnel_tile(@pending_count, "Pending",            pending_pct, AMBER,  "#fffbeb")
         end
       end
     end
 
-    # ── Recent payments table ─────────────────────────────────────────────────
+    def funnel_bar_segment(pct, color)
+      return if pct.to_f <= 0
+      div(style: "flex:#{pct};background:#{color};border-radius:4px;transition:flex 0.4s ease")
+    end
 
-    def recent_table
-      div(class: TABLE_CARD) do
-        table_action_bar
-        if @recent_payments.empty?
-          table_empty_state
+    def funnel_tile(count, label, pct, color, bg)
+      div(class: "flex-1 rounded-xl px-4 py-3", style: "background:#{bg}") do
+        p(class: "text-[22px] font-extrabold tabular-nums tracking-tight leading-none mb-1",
+          style: "color:#{color}") { plain number_with_delimiter(count) }
+        p(class: TYPE_BODY_MD) { plain label }
+        p(class: "text-[11px] font-semibold mt-0.5", style: "color:#{color};opacity:0.7") do
+          plain "#{pct}% of total"
+        end
+      end
+    end
+
+    def pct_of(total, part)
+      return 0 if total.to_i.zero?
+      (part.to_f / total * 100).round(1)
+    end
+
+    # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    # VOLUME CHART — full width, large, period-toggleable
+    # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+    def chart_card
+      div(class: "bg-white border border-gray-100 rounded-2xl mb-5") do
+        # Header
+        div(class: "flex items-center justify-between px-6 pt-5 pb-0") do
+          div do
+            p(class: TYPE_TITLE) { plain "Transaction Volume" }
+            p(class: "#{TYPE_CAPTION} mt-1") { plain "Daily paid volume · GHS" }
+          end
+          div(class: "flex items-center gap-1 p-1 bg-gray-50 rounded-xl",
+              data: { controller: "period-toggle" }) do
+            period_btn("7D",  "7d",  false)
+            period_btn("30D", "30d", true)
+            period_btn("3M",  "90d", false)
+          end
+        end
+
+        # Charts
+        div(class: "px-6 pt-4 pb-5") do
+          chart_wrap("7d",  false) { render UI::Chart::Line.new(labels: @chart_dates.last(7),  data: @chart_values.last(7),  dataset_label: "Volume", area: true, height: 300) }
+          chart_wrap("30d", true)  { render UI::Chart::Line.new(labels: @chart_dates.last(30), data: @chart_values.last(30), dataset_label: "Volume", area: true, height: 300) }
+          chart_wrap("90d", false) { render UI::Chart::Line.new(labels: @chart_dates,          data: @chart_values,          dataset_label: "Volume", area: true, height: 300) }
+        end
+      end
+    end
+
+    def chart_wrap(period, visible, &)
+      div(data: { period_chart: period }, style: visible ? "" : "display:none", &)
+    end
+
+    def period_btn(label, period, active)
+      cls = active \
+        ? "text-[11.5px] font-semibold px-3 py-1.5 rounded-lg text-white bg-[#3D47F5] cursor-pointer border-0" \
+        : "text-[11.5px] font-medium px-3 py-1.5 rounded-lg text-gray-500 hover:text-gray-700 cursor-pointer border-0 bg-transparent"
+      button(type: "button", class: cls,
+             data: { period_btn: period, action: "click->period-toggle#switch" }) { plain label }
+    end
+
+    # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    # BREAKDOWN ROW — 3 columns, each a card
+    # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+    def breakdown_row
+      div(class: "grid gap-4 #{ @active_merchant_count ? 'grid-cols-3' : 'grid-cols-3' }") do
+        provider_split_card
+        method_split_card
+        if @active_merchant_count
+          review_card
         else
-          div(class: "overflow-x-auto") do
-            table(class: "w-full border-collapse min-w-[780px]") do
-              table_head
-              tbody { @recent_payments.each { |pay| table_row(pay) } }
+          activity_card
+        end
+      end
+    end
+
+    # ── Provider split ────────────────────────────────────────────────────────
+
+    def provider_split_card
+      div(class: "bg-white border border-gray-100 rounded-2xl px-5 pt-5 pb-5") do
+        card_header("Provider Split", "Volume share by rail (MTD)")
+
+        if @provider_data.empty?
+          empty_state("No transaction data yet")
+        else
+          total = @provider_data.sum { |p| p[:amount] }
+          render UI::Chart::Pie.new(
+            labels:          @provider_data.map { |p| p[:name] },
+            data:            @provider_data.map { |p| p[:amount] / 100.0 },
+            colors:          @provider_data.map { |p| p[:color] },
+            center_label:    format_money(total),
+            center_sublabel: "total volume",
+            height:          170
+          )
+          div(class: "mt-4 flex flex-col gap-3") do
+            @provider_data.each { |p| legend_row(p) }
+          end
+        end
+      end
+    end
+
+    # ── Method split ──────────────────────────────────────────────────────────
+
+    def method_split_card
+      div(class: "bg-white border border-gray-100 rounded-2xl px-5 pt-5 pb-5") do
+        card_header("Payment Methods", "Breakdown by method (MTD)")
+
+        if @method_data.empty?
+          empty_state("No transaction data yet")
+        else
+          div(class: "mt-2 flex flex-col gap-4") do
+            @method_data.each { |m| method_bar_row(m) }
+          end
+        end
+      end
+    end
+
+    def method_bar_row(item)
+      div do
+        div(class: "flex items-center justify-between mb-1.5") do
+          div(class: "flex items-center gap-2") do
+            span(class: "w-2 h-2 rounded-full", style: "background:#{item[:color]}")
+            span(class: TYPE_BODY_MD) { plain item[:name] }
+          end
+          div(class: "flex items-center gap-3") do
+            span(class: "#{TYPE_CAPTION} font-semibold") { plain "#{item[:pct]}%" }
+            span(class: "#{TYPE_MONO} text-[12px]")      { plain format_money(item[:amount]) }
+          end
+        end
+        # Progress bar
+        div(class: "w-full bg-gray-100 rounded-full h-1.5") do
+          div(class: "h-1.5 rounded-full", style: "width:#{item[:pct]}%;background:#{item[:color]}")
+        end
+      end
+    end
+
+    # ── Review card (ops only) ────────────────────────────────────────────────
+
+    def review_card
+      items = review_items
+      div(class: "bg-white border border-gray-100 rounded-2xl px-5 pt-5 pb-5") do
+        card_header("Needs Review", "Items requiring action")
+
+        if items.empty?
+          div(class: "mt-4 flex flex-col items-center gap-2 py-6 text-center") do
+            div(class: "w-9 h-9 rounded-xl flex items-center justify-center mb-1",
+                style: "background:#{TINT_GREEN}") do
+              span(class: "flex w-[17px] h-[17px]", style: "color:#{GREEN}") do
+                render UI::Icon.new(:check_circle, class: "w-full h-full")
+              end
             end
+            p(class: TYPE_BODY_MD) { plain "All clear" }
+            p(class: TYPE_CAPTION) { plain "No items need attention right now." }
           end
-          table_footer
-        end
-      end
-    end
-
-    def table_action_bar
-      div(class: "flex items-center justify-between px-5 py-[14px] border-b border-gray-100") do
-        div(class: "flex items-center gap-[10px]") do
-          p(class: TYPE_TITLE) { plain "Recent Payments" }
-          unless @recent_payments.empty?
-            span(class: "text-[11px] font-semibold px-2 py-[2px] bg-gray-50 rounded-full text-gray-500") do
-              plain "Last #{@recent_payments.size}"
-            end
-          end
-        end
-        div(class: "flex items-center gap-2") do
-          div(class: "flex items-center gap-2 px-3 py-[7px] border border-gray-200 rounded-[9px] min-w-[176px] cursor-text") do
-            span(class: "text-gray-300 flex w-[13px] h-[13px] flex-shrink-0") do
-              render UI::Icon.new(:search, class: "w-full h-full")
-            end
-            span(class: TYPE_CAPTION) { plain "Search payments…" }
-          end
-          render UI::Button.new(variant: :secondary, type: "button") do
-            span(class: "flex w-[12px] h-[12px]") { render UI::Icon.new(:filter, class: "w-full h-full") }
-            plain "Filter"
-          end
-          render UI::Button.new(variant: :secondary, type: "button") do
-            span(class: "flex w-[12px] h-[12px]") { render UI::Icon.new(:download, class: "w-full h-full") }
-            plain "Export"
-          end
-          render UI::Button.new(variant: :primary, href: payments_path) do
-            plain "View all"
-            span(class: "flex w-[13px] h-[13px]") { render UI::Icon.new(:arrow_right, class: "w-full h-full") }
+        else
+          div(class: "mt-4 flex flex-col divide-y divide-gray-50") do
+            items.each { |item| review_row(item) }
           end
         end
       end
     end
 
-    def table_head
-      thead do
-        tr(class: "border-b border-gray-100") do
-          th(class: "px-3 py-[10px] pl-5 w-9") do
-            input(type: "checkbox", class: CHECKBOX_INPUT)
-          end
-          th_col("Reference")
-          th_col("Customer")
-          th_col("Amount")
-          th_col("Method")
-          th_col("Provider")
-          th_col("Status")
-          th_col("Date")
-          th(class: "px-5 py-[10px] pl-[14px] w-10")
-        end
+    def review_items
+      [].tap do |list|
+        list << { label: "Failed payments",  count: @failed_count,      color: RED,   tint: TINT_RED,   icon: :alert_circle, href: payments_path(status: "failed") } if @failed_count.to_i > 0
+        list << { label: "Open disputes",    count: @disputes_count,    color: RED,   tint: TINT_RED,   icon: :flag,         href: "#" }                              if @disputes_count.to_i > 0
+        list << { label: "Pending payments", count: @pending_count,     color: AMBER, tint: TINT_AMBER, icon: :clock,        href: payments_path(status: "processing") } if @pending_count.to_i > 0
+        list << { label: "KYB under review", count: @kyb_pending_count, color: TEAL,  tint: TINT_TEAL,  icon: :shield,       href: "#" }                              if @kyb_pending_count.to_i > 0
       end
     end
 
-    def th_col(label)
-      th(class: "px-[14px] py-[10px] text-left whitespace-nowrap cursor-pointer") do
-        div(class: "inline-flex items-center gap-1") do
-          span(class: TYPE_HEADING) { plain label }
-          span(class: "text-gray-200 text-[10px]") { plain "↕" }
-        end
-      end
-    end
-
-    def table_row(pay)
-      tr(class: TABLE_ROW) do
-        td(class: "px-3 py-3 pl-5") do
-          input(type: "checkbox", class: CHECKBOX_INPUT)
-        end
-        td(class: "px-[14px] py-3") { span(class: TYPE_MONO) { plain pay.reference.to_s } }
-        td(class: "px-[14px] py-3") { span(class: TYPE_CAPTION) { plain pay.masked_msisdn } }
-        td(class: "px-[14px] py-3") do
-          span(class: "text-[13px] font-semibold text-gray-900 #{TYPE_NUM}") { plain pay.formatted_amount }
-        end
-        td(class: "px-[14px] py-3") { method_badge(pay.try(:payment_method).to_s) }
-        td(class: "px-[14px] py-3") { span(class: TYPE_BODY) { plain pay.provider_label } }
-        td(class: "px-[14px] py-3") { render UI::StatusBadge.new(pay.status) }
-        td(class: "px-[14px] py-3 whitespace-nowrap") do
-          span(class: TYPE_CAPTION) { plain pay.created_at.strftime("%d %b, %H:%M") }
-        end
-        td(class: "px-5 py-3 pl-[14px]") do
-          render UI::Button.new(variant: :icon) do
-            render UI::Icon.new(:dots_vertical, class: ICON_SM)
+    def review_row(item)
+      a(href: item[:href],
+        class: "flex items-center gap-3 py-3 hover:bg-gray-50 -mx-5 px-5 rounded-xl transition-colors no-underline") do
+        div(class: "w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0",
+            style: "background:#{item[:tint]}") do
+          span(class: "flex w-[14px] h-[14px]", style: "color:#{item[:color]}") do
+            render UI::Icon.new(item[:icon], class: "w-full h-full")
           end
         end
-      end
-    end
-
-    def method_badge(method)
-      badge, label = case method
-      when "mobile_money"  then [ "badge-amber", "Mobile Money" ]
-      when "card"          then [ "badge-blue",  "Card" ]
-      when "bank_transfer" then [ "badge-green", "Bank" ]
-      else                      [ "badge-gray",  "—" ]
-      end
-      span(class: "#{badge} inline-flex items-center px-2 py-[2px] rounded text-[11.5px] font-medium") do
-        plain label
-      end
-    end
-
-    def table_footer
-      div(class: "flex items-center justify-between px-5 py-3 border-t border-gray-100") do
-        p(class: TYPE_CAPTION) do
-          plain "Showing last #{@recent_payments.size} payments · "
-          a(href: payments_path, class: "text-[#3D47F5] no-underline font-medium") { plain "View all →" }
+        div(class: "flex-1 min-w-0") do
+          p(class: TYPE_BODY_MD) { plain item[:label] }
         end
-        div(class: "flex items-center gap-1") do
-          render UI::Button.new(variant: :icon) { render UI::Icon.new(:chev_left, class: ICON_SM) }
-          span(class: "text-[12.5px] font-medium text-gray-700 px-2") { plain "1" }
-          render UI::Button.new(variant: :icon) { render UI::Icon.new(:chev_right, class: ICON_SM) }
+        span(class: "text-[13px] font-bold tabular-nums", style: "color:#{item[:color]}") do
+          plain number_with_delimiter(item[:count])
+        end
+        span(class: "flex w-[13px] h-[13px] text-gray-300 flex-shrink-0") do
+          render UI::Icon.new(:chev_right, class: "w-full h-full")
         end
       end
     end
 
-    def table_empty_state
-      div(class: "py-14 px-5 flex flex-col items-center justify-center gap-[10px] text-center") do
-        div(class: "w-11 h-11 rounded-xl icon-brand flex items-center justify-center mb-1") do
-          span(class: "flex w-[22px] h-[22px]") do
-            render UI::Icon.new(:layers, class: "w-full h-full")
+    # ── Activity feed (merchant only) ─────────────────────────────────────────
+
+    def activity_card
+      div(class: "bg-white border border-gray-100 rounded-2xl overflow-hidden") do
+        div(class: "flex items-center justify-between px-5 pt-5 pb-0") do
+          div do
+            p(class: TYPE_TITLE) { plain "Latest Activity" }
+            p(class: "#{TYPE_CAPTION} mt-1") { plain "Your most recent transactions" }
+          end
+          render UI::Button.new(variant: :ghost, href: payments_path) do
+            plain "See all"
+            span(class: "flex w-[12px] h-[12px]") { render UI::Icon.new(:arrow_right, class: "w-full h-full") }
           end
         end
-        p(class: TYPE_BODY_MD) { plain "No payments yet" }
-        p(class: TYPE_CAPTION) { plain "Transactions will appear here once payments start flowing." }
+
+        if @recent_payments.empty?
+          div(class: "flex flex-col items-center gap-2 py-10 text-center px-5") do
+            p(class: TYPE_BODY_MD) { plain "No payments yet" }
+            p(class: TYPE_CAPTION) { plain "Transactions will appear here." }
+          end
+        else
+          div(class: "mt-3 divide-y divide-gray-50") do
+            @recent_payments.first(6).each { |pay| feed_row(pay) }
+          end
+        end
       end
     end
 
-    # ── Helpers ───────────────────────────────────────────────────────────────
+    def feed_row(pay)
+      dot_color = case pay.status
+                  when "paid"   then GREEN
+                  when "failed" then RED
+                  else               AMBER
+                  end
 
-    def format_volume = format_ghs(@volume)
-
-    def rate_label
-      @success_rate ? "#{@success_rate}%" : "—"
+      div(class: "flex items-center gap-3 px-5 py-[10px] hover:bg-gray-50 transition-colors") do
+        span(class: "w-[7px] h-[7px] rounded-full flex-shrink-0 mt-[1px]",
+             style: "background:#{dot_color}")
+        div(class: "flex-1 min-w-0") do
+          p(class: "#{TYPE_MONO} truncate leading-snug") { plain pay.reference.to_s }
+          p(class: "#{TYPE_CAPTION} mt-[1px]")           { plain pay.masked_msisdn }
+        end
+        div(class: "text-right flex-shrink-0") do
+          p(class: "text-[13px] font-semibold text-gray-900 tabular-nums leading-snug") do
+            plain pay.formatted_amount
+          end
+          p(class: TYPE_CAPTION) { plain time_ago(pay.created_at) }
+        end
+      end
     end
+
+    def time_ago(time)
+      diff = Time.current - time
+      case diff
+      when 0..59        then "just now"
+      when 60..3599     then "#{(diff / 60).to_i}m ago"
+      when 3600..86_399 then "#{(diff / 3600).to_i}h ago"
+      else                   time.strftime("%-d %b")
+      end
+    end
+
+    # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    # SHARED PRIMITIVES
+    # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+    def card_header(title, subtitle)
+      div(class: "mb-4") do
+        p(class: TYPE_TITLE) { plain title }
+        p(class: "#{TYPE_CAPTION} mt-[3px]") { plain subtitle }
+      end
+    end
+
+    def legend_row(item)
+      div(class: "flex items-center justify-between") do
+        div(class: "flex items-center gap-2 min-w-0") do
+          span(class: "w-2 h-2 rounded-full flex-shrink-0", style: "background:#{item[:color]}")
+          span(class: "#{TYPE_CAPTION} truncate") { plain item[:name] }
+        end
+        div(class: "flex items-center gap-2 flex-shrink-0") do
+          span(class: "text-[11.5px] font-semibold text-gray-400") { plain "#{item[:pct]}%" }
+          span(class: "#{TYPE_MONO} text-[11.5px]")                { plain format_money(item[:amount]) }
+        end
+      end
+    end
+
+    def empty_state(message)
+      div(class: "flex items-center justify-center py-10") do
+        p(class: TYPE_CAPTION) { plain message }
+      end
+    end
+
+    # ── Value helpers ─────────────────────────────────────────────────────────
+
+    def format_volume = format_money(@volume)
+    def rate_label    = @success_rate ? "#{@success_rate}%" : "—"
 
     def rate_color
       return SUBTLE_TEXT unless @success_rate
@@ -294,7 +510,6 @@ module Dashboard
 
     def rate_tint
       return TINT_GRAY unless @success_rate
-
       @success_rate >= 95 ? TINT_GREEN : @success_rate >= 80 ? TINT_AMBER : TINT_RED
     end
 

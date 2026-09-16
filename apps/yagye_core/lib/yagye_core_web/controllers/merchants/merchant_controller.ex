@@ -52,6 +52,13 @@ defmodule YagyeCoreWeb.Controllers.Merchants.MerchantController do
 
       {:error, :invalid_state} ->
         Response.unprocessable(conn, "invalid_state", "Merchant is already approved")
+
+      {:error, :unscreened_ubos} ->
+        Response.unprocessable(
+          conn,
+          "unscreened_ubos",
+          "One or more beneficial owners with ≥25% ownership have not been cleared by AML screening"
+        )
     end
   end
 

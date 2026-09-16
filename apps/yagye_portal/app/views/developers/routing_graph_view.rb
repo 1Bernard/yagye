@@ -15,7 +15,7 @@ module Developers
         active_nav: :routing_rules,
         title: @configuration ? @configuration["name"] : "New routing configuration",
         breadcrumbs: [
-          { label: "Developers", href: developers_path },
+          { label: "Operations" },
           { label: "Routing Rules", href: developers_routing_rules_path },
           { label: @configuration ? @configuration["name"] : "New" }
         ],
@@ -239,18 +239,27 @@ module Developers
 
         # Dropdown — hidden by default, toggled via JS
         div(
-          class: "absolute top-full mt-2 left-0 bg-white border border-gray-100 rounded-2xl p-[6px] w-[236px] " \
+          class: "absolute top-full mt-2 left-0 bg-white border border-gray-100 rounded-2xl p-[6px] w-[260px] " \
                  "shadow-[0_8px_32px_rgba(0,0,0,0.10),0_2px_8px_rgba(0,0,0,0.06)]",
           style: "display:none",
           data: { routing_graph_target: "picker" }
         ) do
-          picker_section("Routing")
-          picker_node("ProviderNode",  :bank,    "#16a34a", "rgba(22,163,74,0.10)",   "Provider",  "Route to a payment provider")
+          picker_section("Native Rails")
+          picker_node("ProviderNode",  :bank,    "#16a34a", "rgba(22,163,74,0.10)",   "Provider",  "Route to a live payment rail")
           picker_node("FallbackNode",  :refresh, "#6b7280", "rgba(107,114,128,0.10)", "Fallback",  "Retry with next provider on failure")
           div(class: "h-px bg-gray-100 my-[5px] mx-1")
           picker_section("Logic")
           picker_node("ConditionNode", :filter,  "#d97706", "rgba(217,119,6,0.10)",   "Condition", "Branch on a field value")
           picker_node("SplitNode",     :swap,    "#3D47F5", "rgba(61,71,245,0.10)",   "Split",     "Percentage traffic split")
+          div(class: "h-px bg-gray-100 my-[5px] mx-1")
+          picker_section("Development")
+          div(class: "px-2 pb-[5px]") do
+            p(class: "text-[10.5px] text-gray-400 leading-snug") do
+              plain "Test-mode payments route to the Simulator automatically — no configuration needed. " \
+                    "This node is only for verifying graph logic in a dev environment."
+            end
+          end
+          picker_node("SimulatorNode", :smartphone, "#6b7280", "rgba(107,114,128,0.08)", "Simulator", "Cannot be published — dev/staging only", test_only: true)
         end
       end
     end
@@ -259,7 +268,7 @@ module Developers
       p(class: "text-[9.5px] font-bold uppercase tracking-[0.12em] text-gray-300 px-2 pt-[5px] pb-[3px]") { plain text }
     end
 
-    def picker_node(type, icon, color, bg, label, desc)
+    def picker_node(type, icon, color, bg, label, desc, test_only: false)
       div(
         class: "flex items-center gap-3 px-2 py-[8px] rounded-xl hover:bg-gray-50 " \
                "transition-colors cursor-pointer",
@@ -279,7 +288,15 @@ module Developers
           end
         end
         div(class: "flex-1 min-w-0") do
-          p(class: "text-[12.5px] font-semibold text-gray-800 leading-tight") { plain label }
+          div(class: "flex items-center gap-2") do
+            p(class: "text-[12.5px] font-semibold text-gray-800 leading-tight") { plain label }
+            if test_only
+              span(class: "text-[9px] font-bold uppercase tracking-wide px-[5px] py-[1px] " \
+                          "rounded bg-amber-50 text-amber-600 border border-amber-200 leading-tight flex-shrink-0") do
+                plain "Test only"
+              end
+            end
+          end
           p(class: "text-[11px] text-gray-400 leading-tight mt-[1px]") { plain desc }
         end
       end

@@ -288,10 +288,27 @@ defmodule YagyeCore.Payments do
         correlation_id: p.public_id
       )
     end)
+    |> Multi.run(:status_check_job, fn _repo, %{payment: p, attempt: a} ->
+      network = get_in(p.metadata, ["network"])
+      config = network && Repo.get(MomoNetworkConfig, network)
+      poll_interval = (config && config.poll_interval_seconds) || 30
+
+      %{"payment_id" => p.id, "attempt_id" => a.id, "poll_number" => 1}
+      |> PaymentStatusCheckWorker.new(schedule_in: poll_interval)
+      |> Oban.insert()
+    end)
+    |> Multi.run(:timeout_job, fn _repo, %{payment: p, attempt: a} ->
+      network = get_in(p.metadata, ["network"])
+      config = network && Repo.get(MomoNetworkConfig, network)
+      prompt_timeout = (config && config.prompt_timeout_seconds) || 120
+
+      %{"payment_id" => p.id, "attempt_id" => a.id}
+      |> PaymentTimeoutWorker.new(schedule_in: prompt_timeout)
+      |> Oban.insert()
+    end)
     |> Repo.transaction()
     |> case do
-      {:ok, %{payment: payment, attempt: attempt}} ->
-        schedule_momo_recovery_workers(payment, attempt)
+      {:ok, %{payment: payment}} ->
         {:ok, payment}
 
       {:error, _step, reason, _changes} ->
@@ -371,28 +388,6 @@ defmodule YagyeCore.Payments do
   end
 
   # ── Private ──────────────────────────────────────────────────────────────────
-
-  defp schedule_momo_recovery_workers(payment, attempt) do
-    network = get_in(payment.metadata, ["network"])
-    config = network && Repo.get(MomoNetworkConfig, network)
-
-    poll_interval = (config && config.poll_interval_seconds) || 30
-    prompt_timeout = (config && config.prompt_timeout_seconds) || 120
-
-    %{
-      "payment_id" => payment.id,
-      "attempt_id" => attempt.id,
-      "poll_number" => 1
-    }
-    |> PaymentStatusCheckWorker.new(schedule_in: poll_interval)
-    |> Oban.insert()
-
-    %{"payment_id" => payment.id, "attempt_id" => attempt.id}
-    |> PaymentTimeoutWorker.new(schedule_in: prompt_timeout)
-    |> Oban.insert()
-
-    :ok
-  end
 
   defp resolve_customer(_merchant_id, nil), do: {:ok, nil}
 

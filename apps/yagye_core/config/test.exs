@@ -47,5 +47,8 @@ config :brod, clients: []
 
 config :opentelemetry, traces_exporter: :none
 
+# Req plug for SimulatorReport — intercepts HTTP calls to the simulator in tests
+config :yagye_core, :simulator_req_opts, plug: {Req.Test, :simulator_http}
+
 # Disable RabbitMQ connection in tests — no broker required
 config :yagye_core, :enable_rabbitmq, false

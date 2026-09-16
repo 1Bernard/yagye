@@ -53,7 +53,9 @@ defmodule Simulator.Charges do
   # ── Private ──────────────────────────────────────────────────────────────────
 
   defp create_synchronous_charge(account, attrs, scenario, seed) do
-    outcome = OutcomeEngine.card_outcome(scenario, seed)
+    outcome =
+      OutcomeEngine.card_number_outcome(attrs[:card_number]) ||
+        OutcomeEngine.card_outcome(scenario, seed)
     now = DateTime.utc_now()
 
     charge_attrs =
@@ -167,6 +169,10 @@ defmodule Simulator.Charges do
 
   defp outcome_fields(:declined, _amount, _account, _scenario, _now) do
     %{state: "DECLINED", decline_code: "INSUFFICIENT_FUNDS"}
+  end
+
+  defp outcome_fields({:declined, code}, _amount, _account, _scenario, _now) do
+    %{state: "DECLINED", decline_code: code}
   end
 
   defp outcome_fields(:timeout, _amount, _account, _scenario, _now) do

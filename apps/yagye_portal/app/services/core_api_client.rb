@@ -16,7 +16,8 @@ class CoreApiClient
       f.request  :json
       f.response :json, content_type: /\bjson$/
       f.request  :retry, max: 2, interval: 0.3,
-                         retry_statuses: [ 429, 502, 503, 504 ]
+                         retry_statuses: [ 429, 502, 503, 504 ],
+                         exceptions:     [ Faraday::TooManyRequestsError ]
       f.adapter  Faraday.default_adapter
       f.options.timeout      = TIMEOUT_SECONDS
       f.options.open_timeout = 5
@@ -168,9 +169,15 @@ class CoreApiClient
   end
 
   # PUT /internal/merchants/:merchant_id/settlement-controls
-  def upsert_settlement_controls(merchant_id, approval_threshold:, approver_user_codes:)
+  def upsert_settlement_controls(merchant_id, approval_threshold:, approver_user_codes:,
+                                 settlement_frequency: nil, settlement_day: nil)
     put("/internal/merchants/#{merchant_id}/settlement-controls",
-        { approval_threshold: approval_threshold, approver_user_codes: approver_user_codes })
+        {
+          approval_threshold:   approval_threshold,
+          approver_user_codes:  approver_user_codes,
+          settlement_frequency: settlement_frequency,
+          settlement_day:       settlement_day
+        }.compact)
   end
 
   # ── Reconciliation (ops read-only) ────────────────────────────────────────

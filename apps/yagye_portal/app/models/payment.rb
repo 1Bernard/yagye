@@ -3,10 +3,10 @@ class Payment < ApplicationRecord
 
   STATUSES = %w[created processing requires_action paid failed cancelled indeterminate refunded disputed].freeze
   PROVIDERS = {
-    "mtn_momo" => "MTN MoMo",
-    "stripe" => "Stripe",
-    "flutterwave" => "Flutterwave",
-    "paystack" => "Paystack"
+    "mtn_momo"     => "MTN MoMo",
+    "telecel_cash" => "Telecel Cash",
+    "airteltigo"   => "AirtelTigo Money",
+    "simulator"    => "Gateway Simulator"
   }.freeze
 
   scope :for_merchant, ->(code) { where(merchant_code: code) }

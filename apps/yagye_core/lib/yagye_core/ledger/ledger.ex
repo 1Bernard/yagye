@@ -193,6 +193,59 @@ defmodule YagyeCore.Ledger do
     end
   end
 
+  @doc """
+  Posts the "batch_dispatched" journal entry when the wire is sent to the bank.
+
+  Closes the double-entry loop opened by `post_batch_approved/1`:
+    Debit  : settlement_approved — committed funds have been wired (liability ↓)
+    Credit : settlement_pending  — reduce provider float we were owed (asset ↓)
+  """
+  def post_batch_dispatched(%SettlementBatch{} = batch) do
+    OpenTelemetry.Tracer.with_span "ledger.post_batch_dispatched" do
+      with {:ok, approved_account} <-
+             get_or_create_account(%{
+               account_type: "settlement_approved",
+               normal_balance: "credit",
+               scope_type: "merchant",
+               scope_id: batch.merchant_id,
+               currency: batch.currency,
+               mode: batch.mode,
+               allows_negative: false
+             }),
+           {:ok, pending_account} <-
+             get_or_create_account(%{
+               account_type: "settlement_pending",
+               normal_balance: "debit",
+               scope_type: "provider",
+               scope_id: batch.provider_id,
+               currency: batch.currency,
+               mode: batch.mode,
+               allows_negative: false
+             }),
+           {:ok, entry} <- insert_batch_dispatched_entry(batch),
+           {:ok, debit} <-
+             insert_posting(
+               entry,
+               approved_account,
+               "debit",
+               batch.gross_amount,
+               batch.merchant_id
+             ),
+           {:ok, credit} <-
+             insert_posting(
+               entry,
+               pending_account,
+               "credit",
+               batch.gross_amount,
+               batch.merchant_id
+             ) do
+        apply_balance(approved_account.id, batch.gross_amount, :debit, debit.id)
+        apply_balance(pending_account.id, batch.gross_amount, :credit, credit.id)
+        {:ok, entry}
+      end
+    end
+  end
+
   def get_balance(account_id) do
     case Repo.get(Balance, account_id) do
       nil -> {:ok, 0}
@@ -587,6 +640,38 @@ defmodule YagyeCore.Ledger do
            source_type: "settlement_batch",
            source_id: batch.id,
            entry_type: "batch_approved"
+         )}
+
+      {:error, _} = err ->
+        err
+    end
+  end
+
+  defp insert_batch_dispatched_entry(%SettlementBatch{} = batch) do
+    now = DateTime.utc_now()
+
+    Entry.changeset(%Entry{}, %{
+      mode: batch.mode,
+      currency: batch.currency,
+      entry_type: "batch_dispatched",
+      source_type: "settlement_batch",
+      source_id: batch.id,
+      description: "Batch wire dispatched: #{batch.id}",
+      correlation_id: batch.id,
+      effective_at: now,
+      recorded_at: now
+    })
+    |> Repo.insert(
+      on_conflict: :nothing,
+      conflict_target: [:source_type, :source_id, :entry_type]
+    )
+    |> case do
+      {:ok, _} ->
+        {:ok,
+         Repo.get_by!(Entry,
+           source_type: "settlement_batch",
+           source_id: batch.id,
+           entry_type: "batch_dispatched"
          )}
 
       {:error, _} = err ->

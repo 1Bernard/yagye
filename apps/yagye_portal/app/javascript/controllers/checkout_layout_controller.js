@@ -232,13 +232,38 @@ export default class extends Controller {
   }
 
   setTileStyle(event) {
-    const tile     = event.currentTarget.closest("[data-method-id]")
-    const expanded = event.currentTarget.value === "expanded"
+    const editorTile = event.currentTarget.closest("[data-method-id]")
+    const expanded   = event.currentTarget.value === "expanded"
+    const methodId   = editorTile?.dataset.methodId
 
-    if (tile && this.hasPreviewListTarget) {
-      const methodId      = tile.dataset.methodId
-      const railsContainer = this.previewListTarget.querySelector(`[data-preview-rails-for="${methodId}"]`)
-      if (railsContainer) railsContainer.classList.toggle("hidden", !expanded)
+    if (editorTile && this.hasPreviewListTarget && methodId) {
+      const pt = this.previewListTarget.querySelector(`[data-preview-method="${methodId}"]`)
+      if (pt) {
+        // Tile border + shadow
+        pt.className = expanded
+          ? "rounded-xl overflow-hidden bg-white border-2 border-[#3D47F5] shadow-[0_4px_20px_rgba(61,71,245,0.13)]"
+          : "rounded-xl overflow-hidden bg-white border border-gray-200"
+
+        // Radio circle fill
+        const radio = pt.querySelector("[data-preview-tile-radio]")
+        if (radio) {
+          radio.className = `w-[17px] h-[17px] rounded-full flex items-center justify-center flex-shrink-0 border-2 ${
+            expanded ? "bg-[#3D47F5] border-[#3D47F5]" : "border-gray-300"
+          }`
+          const dot = radio.querySelector("[data-preview-tile-radio-dot]")
+          if (dot) dot.hidden = !expanded
+        }
+
+        // Label colour
+        const label = pt.querySelector("[data-preview-tile-label]")
+        if (label) {
+          label.className = `flex-1 text-[13.5px] font-semibold ${expanded ? "text-gray-900" : "text-gray-700"}`
+        }
+
+        // Show / hide expanded content block
+        const content = pt.querySelector("[data-preview-tile-expanded]")
+        if (content) content.hidden = !expanded
+      }
     }
 
     this._markDirty()

@@ -159,6 +159,26 @@ defmodule YagyeCore.Providers do
     end
   end
 
+  # Fetch platform-level credential (merchant_id IS NULL). Used for simulator and
+  # native-rail platform keys where no merchant scope is needed.
+  defp fetch_credential(provider_id, nil, mode) do
+    credential =
+      from(c in ProviderCredential,
+        where:
+          c.provider_id == ^provider_id and
+            c.mode == ^mode and
+            c.active == true and
+            is_nil(c.merchant_id),
+        limit: 1
+      )
+      |> Repo.one()
+
+    case credential do
+      nil -> {:error, :no_credential}
+      cred -> decrypt_credential(cred)
+    end
+  end
+
   # Fetch merchant-level credential first; fall back to platform-level (merchant_id IS NULL).
   defp fetch_credential(provider_id, merchant_id, mode) do
     credential =

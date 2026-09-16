@@ -19,8 +19,8 @@ module UI
           plain "#{@pagy.from}–#{@pagy.to} of #{@pagy.count}"
         end
         div(class: PAGER) do
-          nav_btn(@pagy.prev, "‹")
-          @pagy.series.each { |item| series_item(item) }
+          nav_btn(@pagy.previous, "‹")
+          @pagy.send(:series).each { |item| series_item(item) }
           nav_btn(@pagy.next, "›")
         end
       end
