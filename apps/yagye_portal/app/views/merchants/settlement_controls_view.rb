@@ -4,9 +4,10 @@ module Merchants
   class SettlementControlsView < ApplicationComponent
     include UI::Theme
 
-    def initialize(application:, controls: {})
+    def initialize(application:, controls: {}, staff: [])
       @app      = application
       @controls = controls
+      @staff    = staff
     end
 
     def view_template
@@ -47,7 +48,7 @@ module Merchants
             plain "How settlement controls work"
           end
           p(class: "#{TYPE_CAPTION} leading-relaxed") do
-            plain "When a settlement batch exceeds the approval threshold, it must be manually approved by a listed approver before dispatch. Leave the threshold blank to auto-approve all batches."
+            plain "When a settlement batch exceeds the approval threshold, it must be manually approved by one of the listed approvers before dispatch. Leave the threshold blank to auto-approve all batches."
           end
         end
       end
@@ -67,67 +68,95 @@ module Merchants
           input(type: "hidden", name: "_method",            value: "patch")
           input(type: "hidden", name: "authenticity_token", value: form_authenticity_token)
 
-          # Approval threshold
-          div(class: "px-6 py-5 border-b border-gray-100") do
-            label(class: "block text-[10.5px] font-semibold text-gray-400 uppercase tracking-widest mb-3") do
-              plain "Approval threshold (GHS)"
-            end
-            div(class: "flex items-center gap-3") do
-              div(class: "relative flex-1") do
-                span(class: "absolute left-3 top-1/2 -translate-y-1/2 text-[13px] font-medium text-gray-400") { plain "GHS" }
-                input(
-                  type:        "number",
-                  name:        "approval_threshold",
-                  value:       threshold,
-                  min:         "0",
-                  step:        "1",
-                  placeholder: "e.g. 50000",
-                  class:       "w-full pl-12 pr-4 py-2.5 rounded-xl border border-gray-200 text-[13.5px] " \
-                               "focus:outline-none focus:ring-2 focus:ring-brand/30 focus:border-brand/60"
-                )
-              end
-            end
-            p(class: "#{TYPE_CAPTION} mt-2") do
-              plain "Batches at or above this amount require manual approval. Clear to auto-approve all."
-            end
-          end
+          threshold_section
+          approvers_section
+          save_footer
+        end
+      end
+    end
 
-          # Approver user codes
-          div(class: "px-6 py-5 border-b border-gray-100") do
-            label(class: "block text-[10.5px] font-semibold text-gray-400 uppercase tracking-widest mb-3") do
-              plain "Approver user codes"
-            end
-            textarea(
-              name:        "approver_user_codes",
-              rows:        3,
-              placeholder: "USR_ABC123, USR_DEF456",
-              class:       "w-full px-4 py-2.5 rounded-xl border border-gray-200 text-[13.5px] " \
-                           "focus:outline-none focus:ring-2 focus:ring-brand/30 focus:border-brand/60 " \
-                           "font-mono resize-none"
-            ) { plain approver_codes.join(", ") }
-            p(class: "#{TYPE_CAPTION} mt-2") do
-              plain "Comma-separated list of user codes permitted to approve settlement dispatch for this merchant."
-            end
-
-            unless approver_codes.empty?
-              div(class: "mt-3 flex flex-wrap gap-2") do
-                approver_codes.each do |code|
-                  span(class: "inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11.5px] font-mono " \
-                               "font-semibold bg-gray-100 text-gray-700 border border-gray-200") do
-                    plain code
-                  end
-                end
-              end
-            end
+    def threshold_section
+      div(class: "px-6 py-5 border-b border-gray-100") do
+        p(class: "text-[10.5px] font-semibold text-gray-400 uppercase tracking-widest mb-3") do
+          plain "Approval threshold (GHS)"
+        end
+        div(class: "relative max-w-xs") do
+          span(class: "absolute left-3 top-1/2 -translate-y-1/2 text-[13px] font-medium text-gray-400") do
+            plain "GHS"
           end
+          input(
+            type:        "number",
+            name:        "approval_threshold",
+            value:       threshold,
+            min:         "0",
+            step:        "1",
+            placeholder: "e.g. 50000",
+            class:       "w-full pl-12 pr-4 py-2.5 rounded-xl border border-gray-200 text-[13.5px] " \
+                         "focus:outline-none focus:ring-2 focus:ring-brand/30 focus:border-brand/60"
+          )
+        end
+        p(class: "#{TYPE_CAPTION} mt-2") do
+          plain "Batches at or above this amount require manual approval. Clear to auto-approve all."
+        end
+      end
+    end
 
-          # Save
-          div(class: "px-6 py-4 flex justify-end") do
-            render UI::Button.new(variant: :primary, type: "submit") do
-              render UI::Icon.new(:check, class: ICON_SM)
-              plain "Save controls"
-            end
+    def approvers_section
+      div(class: "px-6 py-5 border-b border-gray-100") do
+        p(class: "text-[10.5px] font-semibold text-gray-400 uppercase tracking-widest mb-1") do
+          plain "Approvers"
+        end
+        p(class: "#{TYPE_CAPTION} mb-4") do
+          plain "Select Yagye team members who can approve settlement dispatch for this merchant."
+        end
+
+        if @staff.empty?
+          div(class: "py-6 text-center") do
+            p(class: TYPE_CAPTION) { plain "No internal staff accounts found." }
           end
+        else
+          div(class: "flex flex-col divide-y divide-gray-50") do
+            @staff.each { |u| staff_row(u) }
+          end
+        end
+      end
+    end
+
+    def staff_row(user)
+      checked  = approver_codes.include?(user.user_code)
+      initials = [ user.first_name&.first, user.last_name&.first ].compact.join.upcase.presence || "??"
+
+      label(class: "flex items-center gap-4 py-3 cursor-pointer group") do
+        input(
+          type:    "checkbox",
+          name:    "approver_user_codes[]",
+          value:   user.user_code,
+          checked: checked,
+          class:   "w-4 h-4 rounded border-gray-300 accent-brand flex-shrink-0"
+        )
+        div(class: "w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0 " \
+                   "bg-gray-100 border border-gray-200") do
+          span(class: "text-[10px] font-bold text-gray-600") { plain initials }
+        end
+        div(class: "flex-1 min-w-0") do
+          p(class: "text-[13px] font-semibold text-gray-800 leading-tight") do
+            plain user.full_name.presence || user.email
+          end
+          p(class: "text-[11.5px] text-gray-400 leading-tight") { plain user.email }
+        end
+        span(class: "font-mono text-[11px] text-gray-400 flex-shrink-0") { plain user.user_code }
+      end
+    end
+
+    def save_footer
+      div(class: "px-6 py-4 flex items-center justify-between") do
+        selected = approver_codes.size
+        p(class: TYPE_CAPTION) do
+          plain selected == 0 ? "No approvers selected" : "#{selected} approver#{"s" if selected != 1} selected"
+        end
+        render UI::Button.new(variant: :primary, type: "submit") do
+          render UI::Icon.new(:check, class: ICON_SM)
+          plain "Save controls"
         end
       end
     end
