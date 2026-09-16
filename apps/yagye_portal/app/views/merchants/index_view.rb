@@ -4,13 +4,14 @@ module Merchants
   class IndexView < ApplicationComponent
     include UI::Theme
 
-    def initialize(merchants: [], pagy: nil, status: nil, query: nil, country: nil, stats: {})
+    def initialize(merchants: [], pagy: nil, status: nil, query: nil, country: nil, stats: {}, mtd_volumes: {})
       @merchants = merchants
       @pagy      = pagy
       @status    = status
       @query     = query
       @country   = country
-      @stats     = stats
+      @stats       = stats
+      @mtd_volumes = mtd_volumes
     end
 
     def view_template
@@ -158,8 +159,15 @@ module Merchants
           render UI::StatusBadge.new(status: m.status)
         end
 
-        t.column("Volume (MTD)") do |_m|
-          span(class: TYPE_CAPTION) { plain "—" }
+        t.column("Volume (MTD)") do |m|
+          cents = @mtd_volumes[m.merchant_code]
+          if cents.nil? || cents == 0
+            span(class: TYPE_CAPTION) { plain m.merchant_code.present? ? "GHS 0.00" : "—" }
+          else
+            span(class: "text-[13px] font-semibold text-gray-800 tabular-nums") do
+              plain "GHS #{format("%.2f", cents / 100.0)}"
+            end
+          end
         end
 
         t.column("Applied") do |m|

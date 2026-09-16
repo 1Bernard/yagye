@@ -11,6 +11,8 @@ module Layout
           { key: :dashboard,     icon: :home,        label: "Dashboard",     path: :authenticated_root_path },
           { key: :payments,      icon: :credit_card, label: "Payments",      path: :payments_path },
           { key: :disputes,      icon: :flag,        label: "Disputes",      path: :disputes_path },
+          { key: :payouts,       icon: :send,        label: "Payouts",       path: :payouts_path,
+            merchant_only: true },
           { key: :payment_links, icon: :link,        label: "Payment Links", path: :payment_links_path,
             merchant_only: true }
         ]

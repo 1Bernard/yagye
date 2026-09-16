@@ -3,5 +3,5 @@
 class KybReviewsPolicy < ApplicationPolicy
   def index?   = internal_staff?
   def show?    = internal_staff?
-  def approve? = internal_staff? && permitted?("kyb.approve")
+  def approve? = internal_staff? && permitted?("kyb.approve_merchant")
 end

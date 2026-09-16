@@ -3,16 +3,7 @@
 module Developers
   class WebhookDeliveriesController < ApplicationController
     def index
-      authorize :developers, :index?
-
-      @endpoint_id   = params[:endpoint_id]
-      @state_filter  = params[:state]
-      @event_filter  = params[:event_type]
-
-      deliveries = Developers::WebhookDeliveriesQuery.new(policy_scope(PortalWebhookDelivery))
-                     .call(endpoint_id: @endpoint_id, state: @state_filter, event_type: @event_filter)
-
-      @pagy, @deliveries = pagy(deliveries, limit: 25)
+      redirect_to developers_path(tab: "deliveries")
     end
 
     def show

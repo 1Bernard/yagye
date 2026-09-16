@@ -3,7 +3,7 @@
 class DisputesPolicy < ApplicationPolicy
   def index?  = permitted?("payments.view")
   def show?   = permitted?("payments.view")
-  def update? = permitted?("payments.dispute")
+  def update? = permitted?("disputes.submit_evidence")
 
   class Scope < ApplicationPolicy::Scope
     def resolve

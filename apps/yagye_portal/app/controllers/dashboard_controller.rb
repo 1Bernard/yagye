@@ -14,7 +14,7 @@ class DashboardController < ApplicationController
       success_rate:      summary[:success_rate],
       pending_count:     summary[:pending_count],
       failed_count:      summary[:failed_count],
-      disputes_count:    0,
+      disputes_count:    disputes_count,
       kyb_pending_count: current_user.internal_staff? ? kyb_pending_count : nil,
       chart_dates:       summary[:chart_dates],
       chart_values:      summary[:chart_values],
@@ -27,6 +27,13 @@ class DashboardController < ApplicationController
 
   def payment_scope
     current_user.internal_staff? ? Payment.all : Payment.for_merchant(current_user.merchant_code)
+  end
+
+  def disputes_count
+    scope = current_user.internal_staff? ? Dispute.all : Dispute.for_merchant(current_user.merchant_code)
+    scope.open.count
+  rescue StandardError
+    0
   end
 
   def kyb_pending_count

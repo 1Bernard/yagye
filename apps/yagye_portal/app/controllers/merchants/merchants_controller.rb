@@ -8,7 +8,8 @@ module Merchants
       render Merchants::IndexView.new(
         merchants: merchants, pagy: pagy,
         status: params[:status], query: params[:q], country: params[:country],
-        stats: merchant_stats
+        stats: merchant_stats,
+        mtd_volumes: mtd_volumes(merchants)
       )
     end
 
@@ -77,6 +78,17 @@ module Merchants
 
     def filters
       params.permit(:status, :q, :country).to_h.symbolize_keys
+    end
+
+    def mtd_volumes(merchants)
+      codes = merchants.filter_map(&:merchant_code).uniq
+      return {} if codes.empty?
+
+      Payment
+        .where(merchant_code: codes, status: "paid")
+        .where("created_at >= ?", Time.current.beginning_of_month)
+        .group(:merchant_code)
+        .sum(:amount)
     end
 
     def merchant_stats
