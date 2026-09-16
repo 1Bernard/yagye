@@ -9,7 +9,11 @@ module Merchants
       client   = CoreApiClient.new
       result   = client.get_settlement_controls(@app.merchant_code)
       controls = result.success? ? result.body : {}
-      staff    = User.where(kind: "internal_staff").order(:first_name, :last_name, :email)
+      staff    = User.where(kind: "internal_staff")
+                     .joins(active_user_roles: { role: :role_permissions })
+                     .where(role_permissions: { permission_key: "settlements.approve_dispatch" })
+                     .distinct
+                     .order(:first_name, :last_name, :email)
       render Merchants::SettlementControlsView.new(application: @app, controls: controls, staff: staff)
     end
 

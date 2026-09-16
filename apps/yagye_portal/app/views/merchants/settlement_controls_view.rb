@@ -112,7 +112,11 @@ module Merchants
 
         if @staff.empty?
           div(class: "py-6 text-center") do
-            p(class: TYPE_CAPTION) { plain "No internal staff accounts found." }
+            p(class: "text-[13px] font-semibold text-gray-600 mb-1") { plain "No eligible approvers" }
+            p(class: TYPE_CAPTION) do
+              plain "Only Ops Managers have the settlement approval permission. " \
+                    "Invite a team member and assign them the Ops Manager role to add them here."
+            end
           end
         else
           div(class: "flex flex-col divide-y divide-gray-50") do

@@ -34,7 +34,8 @@ PERMISSION_DEFS = [
   # payouts
   { key: "payouts.view",              resource: "payouts",         action: "view",              description: "View payout list and payout details." },
   # settlements
-  { key: "settlements.view",          resource: "settlements",     action: "view",              description: "View settlement runs and reconciliation break details." },
+  { key: "settlements.view",             resource: "settlements", action: "view",             description: "View settlement runs and reconciliation break details." },
+  { key: "settlements.approve_dispatch", resource: "settlements", action: "approve_dispatch", description: "Approve or reject a settlement batch before bank dispatch." },
   # merchants (ops)
   { key: "merchants.view",            resource: "merchants",       action: "view",              description: "View merchant list and merchant profile pages." },
   { key: "merchants.approve",         resource: "merchants",       action: "approve",           description: "Approve a merchant for live mode processing." },
@@ -105,7 +106,7 @@ GRANT_MATRIX = {
     payments.view payments.view_customer_pii payments.refund payments.export
     disputes.view
     payouts.view
-    settlements.view
+    settlements.view settlements.approve_dispatch
     merchants.view merchants.approve merchants.suspend merchants.impersonate
     kyb.view
     team.view team.manage

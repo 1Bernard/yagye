@@ -11,6 +11,6 @@ class PortalSettlementPolicy < ApplicationPolicy
 
   def index?            = user.permitted?("settlements.view")
   def show?             = user.permitted?("settlements.view")
-  def approve_dispatch? = user.permitted?("settlement.approve_dispatch")
-  def reject_dispatch?  = user.permitted?("settlement.approve_dispatch")
+  def approve_dispatch? = user.permitted?("settlements.approve_dispatch")
+  def reject_dispatch?  = user.permitted?("settlements.approve_dispatch")
 end
