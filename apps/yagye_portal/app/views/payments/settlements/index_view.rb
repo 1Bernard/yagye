@@ -28,7 +28,7 @@ module Payments
 
       def stat_band
         mtd = @stats[:settled_mtd].to_i
-        mtd_label = "GHS #{"%.2f" % (mtd / 100.0)}"
+        mtd_label = format_money(mtd)
         render UI::Grid.new(columns: 4) do
           stat_cell("Settled (MTD)", mtd_label,                      icon: :trending_up,  color: GREEN,  tint: TINT_GREEN)
           stat_cell("Pending",       @stats[:pending].to_s,          icon: :clock,        color: AMBER,  tint: TINT_AMBER)

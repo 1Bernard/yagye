@@ -93,10 +93,14 @@ class ApplicationComponent < Phlex::HTML
     end
   end
 
-  def format_ghs(cents)
-    n = cents.to_f / 100
+  def format_money(minor_units, currency: "GHS")
+    n = minor_units.to_f / 100
     whole, frac = sprintf("%.2f", n).split(".")
-    "GHS #{whole.to_i.to_s.reverse.gsub(/(\d{3})(?=\d)/, '\\1,').reverse}.#{frac}"
+    "#{currency} #{whole.to_i.to_s.reverse.gsub(/(\d{3})(?=\d)/, '\\1,').reverse}.#{frac}"
+  end
+
+  def format_ghs(minor_units)
+    format_money(minor_units, currency: "GHS")
   end
 
   def i18n_scope

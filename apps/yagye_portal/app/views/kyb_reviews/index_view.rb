@@ -90,12 +90,12 @@ module KybReviews
         end
 
         t.column("Volume (MTD)") do |a|
-          cents = mtd_volumes[a.merchant_code]
-          if cents.nil? || cents == 0
+          minor_units = mtd_volumes[a.merchant_code]
+          if minor_units.nil? || minor_units == 0
             span(class: TYPE_CAPTION) { plain a.merchant_code.present? ? "GHS 0.00" : "—" }
           else
             span(class: "text-[13px] font-semibold text-gray-800 tabular-nums") do
-              plain "GHS #{format("%.2f", cents / 100.0)}"
+              plain format_money(minor_units)
             end
           end
         end
