@@ -149,6 +149,68 @@ defmodule Simulator.Web.Layouts do
 
           /* ── Empty state ─────────────────────────────────────────────────── */
           .empty-state { text-align: center; padding: 3rem; color: #334155; font-size: .875rem; }
+
+          /* ── Inline code ─────────────────────────────────────────────────── */
+          .icode { background: #1e293b; padding: 1px 5px; border-radius: 3px; font-size: .8rem; font-family: ui-monospace, monospace; color: #94a3b8; }
+
+          /* ── Simulation page ─────────────────────────────────────────────── */
+          .sim-no-account { background: #1e293b; color: #64748b; padding: 1.5rem; border-radius: 6px; font-size: .875rem; }
+          .sim-layout { display: grid; grid-template-columns: 420px 1fr; gap: 2rem; align-items: start; }
+          .sim-tabs { display: flex; gap: .5rem; margin-bottom: 1.25rem; }
+          .sim-tab {
+            font-size: .8rem; padding: .35rem .8rem; border-radius: 4px;
+            border: 1px solid #1e293b; background: transparent; color: #64748b; cursor: pointer;
+          }
+          .sim-tab:hover { border-color: #334155; color: #94a3b8; }
+          .sim-tab.active { background: #0c4a6e; border-color: #0369a1; color: #7dd3fc; }
+          .sim-presets { display: flex; flex-wrap: wrap; gap: .4rem; margin-bottom: 1.25rem; align-items: center; }
+          .sim-presets-label { font-size: .7rem; color: #334155; text-transform: uppercase; letter-spacing: .05em; margin-right: .25rem; }
+          .sim-preset {
+            font-size: .72rem; padding: .2rem .55rem; border-radius: 3px;
+            border: 1px solid #1e293b; background: transparent; cursor: pointer;
+          }
+          .sim-preset:hover { border-color: #334155; }
+          .sim-preset-authorised { color: #86efac; border-color: #14532d; }
+          .sim-preset-authorised:hover { background: #14532d22; }
+          .sim-preset-declined { color: #fca5a5; border-color: #7f1d1d; }
+          .sim-preset-declined:hover { background: #7f1d1d22; }
+          .sim-preset-pending { color: #fcd34d; border-color: #713f12; }
+          .sim-preset-pending:hover { background: #713f1222; }
+          .sim-form { display: flex; flex-direction: column; gap: .85rem; }
+          .sim-field { display: flex; flex-direction: column; gap: .3rem; }
+          .sim-field-row { display: flex; gap: .75rem; }
+          .sim-field-grow { flex: 1; }
+          .sim-field label { font-size: .75rem; color: #64748b; }
+          .sim-input {
+            width: 100%; background: #0a0e1a; border: 1px solid #1e293b;
+            border-radius: 4px; color: #e2e8f0; padding: .4rem .6rem;
+            font-size: .875rem;
+          }
+          .sim-input:focus { outline: none; border-color: #0369a1; }
+          .sim-input-mono { font-family: ui-monospace, monospace; letter-spacing: .05em; }
+          .sim-input-sm { width: auto; }
+          .sim-select { background: #0a0e1a; border: 1px solid #1e293b; border-radius: 4px; color: #e2e8f0; padding: .4rem .6rem; font-size: .875rem; }
+          .sim-amount-row { display: flex; gap: .75rem; align-items: flex-end; }
+          .sim-note { font-size: .8rem; color: #475569; background: #1e293b; padding: .75rem; border-radius: 4px; }
+          .sim-fire-btn {
+            margin-top: .25rem; padding: .55rem 1.25rem; font-size: .875rem; font-weight: 600;
+            background: #0c4a6e; color: #7dd3fc; border: none; border-radius: 5px; cursor: pointer;
+          }
+          .sim-fire-btn:hover { background: #0369a1; }
+          .sim-result-card { background: #0f172a; border: 1px solid #1e293b; border-radius: 6px; padding: 1rem 1.25rem; margin-bottom: 1.25rem; }
+          .sim-result-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: .75rem; }
+          .sim-result-label { font-size: .7rem; text-transform: uppercase; letter-spacing: .06em; color: #475569; }
+          .sim-result-rows { display: flex; flex-direction: column; gap: .4rem; }
+          .sim-result-note { font-size: .78rem; color: #475569; margin-top: .5rem; }
+          .sim-kv { display: flex; gap: .75rem; align-items: baseline; }
+          .sim-kv-label { font-size: .72rem; color: #334155; width: 56px; flex-shrink: 0; }
+          .sim-kv-value { font-size: .875rem; color: #e2e8f0; }
+          .sim-history { background: #0f172a; border: 1px solid #1e293b; border-radius: 6px; padding: 1rem 1.25rem; }
+          .sim-history-header { font-size: .7rem; text-transform: uppercase; letter-spacing: .06em; color: #475569; margin-bottom: .75rem; }
+          .sim-history-note { font-weight: 400; color: #334155; }
+          .sim-history-table { width: 100%; }
+          .sim-history-table td { padding: .35rem .25rem; border-bottom: 1px solid #1a2234; font-size: .8rem; }
+          .sim-history-table tr:last-child td { border-bottom: none; }
         </style>
       </head>
       <body>
@@ -156,6 +218,7 @@ defmodule Simulator.Web.Layouts do
           <a href="/admin/scenarios" class="brand">Simulator</a>
           <a href="/admin/scenarios">Scenarios</a>
           <a href="/admin/charges">Charges</a>
+          <a href="/admin/simulate">Simulate</a>
           <a href="/admin/test-data">Test Data</a>
         </nav>
         {@inner_content}
