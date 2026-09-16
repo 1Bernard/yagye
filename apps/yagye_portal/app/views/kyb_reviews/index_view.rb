@@ -54,7 +54,8 @@ module KybReviews
     end
 
     def applications_table
-      tab = @tab
+      tab         = @tab
+      mtd_volumes = @mtd_volumes
 
       render UI::Datatable.new(records: @applications, pagy: @pagy,
                                empty_message: empty_message) do |t|
@@ -89,7 +90,7 @@ module KybReviews
         end
 
         t.column("Volume (MTD)") do |a|
-          cents = @mtd_volumes[a.merchant_code]
+          cents = mtd_volumes[a.merchant_code]
           if cents.nil? || cents == 0
             span(class: TYPE_CAPTION) { plain a.merchant_code.present? ? "GHS 0.00" : "—" }
           else

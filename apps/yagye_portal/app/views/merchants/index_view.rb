@@ -132,6 +132,7 @@ module Merchants
     # ── Table ────────────────────────────────────────────────────────────────────
 
     def merchants_table
+      mtd_volumes = @mtd_volumes
       render UI::Datatable.new(records: @merchants, pagy: @pagy,
                                empty_message: "No merchants registered yet.") do |t|
         t.header { toolbar_content }
@@ -160,7 +161,7 @@ module Merchants
         end
 
         t.column("Volume (MTD)") do |m|
-          cents = @mtd_volumes[m.merchant_code]
+          cents = mtd_volumes[m.merchant_code]
           if cents.nil? || cents == 0
             span(class: TYPE_CAPTION) { plain m.merchant_code.present? ? "GHS 0.00" : "—" }
           else
