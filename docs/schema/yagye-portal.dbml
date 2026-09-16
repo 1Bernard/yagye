@@ -53,16 +53,16 @@ Table users [headercolor: #1A2B4C] {
   Note: 'HUMAN credentials only. Machine credentials (API keys) live in yagye_core — see ADR-0011. kind determines which role scope is valid for this user. A merchant_user can never hold an internal role and vice versa — enforced by DB CHECK on user_roles.'
 }
 
-Table webauthn_credentials [headercolor: #1A2B4C] {
+Table passkey_credentials [headercolor: #1A2B4C] {
   id uuid [pk, note: 'gen_random_uuid()']
   user_id uuid [not null, ref: > users.id]
   external_id text [unique, not null]
   public_key text [not null, note: '[SEC] passkey public key — phishing-resistant, bound to origin']
+  sign_count integer [not null, note: 'must increase monotonically; a decrease indicates a cloned authenticator']
   nickname text
-  sign_count bigint [not null, note: 'must increase monotonically; a decrease indicates a cloned authenticator']
-  aaguid text
   last_used_at timestamptz
   created_at timestamptz [not null]
+  updated_at timestamptz [not null]
 }
 
 Table user_sessions [headercolor: #6B7A8D] {
@@ -266,6 +266,11 @@ Table portal_settlements [headercolor: #2E4A73] {
   item_count integer
   last_event_id text [not null]
   last_applied_at timestamptz [not null]
+  bank_dispatch_ref text [note: 'outgoing bank wire reference set once the settlement is dispatched to the merchant bank account']
+  bank_dispatched_at timestamptz [note: 'NULL until bank dispatch is initiated']
+  dispatch_approved_by text [note: 'SoD: ops officer who approved the dispatch. Must differ from the officer who initiated.']
+  dispatch_rejected_by text [note: 'set when dispatch is rejected — stores the reviewer email']
+  dispatch_rejection_reason text [note: 'free-text reason when dispatch is rejected']
 }
 
 Table portal_breaks [headercolor: #B4531F] {
@@ -355,23 +360,26 @@ Table portal_merchant_applications [headercolor: #1A2B4C] {
 }
 
 Table portal_disputes [headercolor: #9B3232] {
-  dispute_code text [pk, note: 'dsp_01J…']
-  payment_code text [not null]
+  id uuid [pk]
+  core_dispute_id text [unique, not null, note: 'dsp_01J… — mirrors disputes.public_id in yagye_core']
   merchant_code text [not null]
-  mode text [not null]
-  aggregate_version integer [not null]
-  state text [not null, note: 'mirrors core: received|under_review|evidence_submitted|won|lost|accepted|expired']
-  stage text
+  reference text [not null, note: 'human-readable dispute reference shown in UI']
+  core_payment_id text [note: 'pay_01J… — nullable; set once the core payment is known']
+  payment_reference text [note: 'merchant-facing payment reference for display']
   amount bigint [not null]
-  currency char(3) [not null]
-  scheme_reason_code text
-  evidence_due_at timestamptz [note: 'THE field — reminders at 72h/24h/4h; missed deadline is automatic loss']
-  evidence_submitted_at timestamptz
-  outcome text
+  currency text [not null]
+  reason text [not null, note: 'fraud|not_received|duplicate|product_unacceptable|other']
+  status text [not null, note: 'open|won|lost|closed — portal-side status; simpler than core stage model']
+  customer_msisdn text [note: '[PII] masked MSISDN of the customer who raised the dispute']
+  network_deadline text [note: 'ISO-8601 date string: THE field — missed deadline is automatic loss']
+  opened_at timestamptz [note: 'when the dispute was first raised at the network']
+  resolved_at timestamptz
   last_event_id text [not null]
   last_applied_at timestamptz [not null]
-  indexes { (state, evidence_due_at) [note: 'partial: WHERE state NOT IN (won, lost, accepted, expired) — open dispute queue'] }
-  Note: 'Evidence-deadline queue. Turbo Stream broadcasts on state change.'
+  created_at timestamptz [not null]
+  updated_at timestamptz [not null]
+  indexes { (merchant_code, status) [note: 'partial: WHERE status = open — open dispute queue'] }
+  Note: 'Evidence-deadline queue. Written by the Dispute AR model; Dispute.open/won/lost scopes drive the portal index view.'
 }
 
 Table portal_payouts [headercolor: #1F6B4A] {
@@ -581,8 +589,7 @@ Table processed_events [headercolor: #6B7A8D] {
 
 TableGroup identity {
   users
-  webauthn_credentials
-  user_sessions
+  passkey_credentials
   merchant_memberships
 }
 
@@ -698,6 +705,48 @@ Table portal_adjustment_approvals [headercolor: #9B3232] {
   Note: 'Read model of Core adjustment_approvals, synced via yagye.adjustment_approvals.v1 Karafka topic. Portal renders the queue and calls Core to record approve/reject decisions; Core owns the SoD enforcement CHECK constraint.'
 }
 
+// ─── IDENTITY EXTENSIONS ─────────────────────────────────────────────────────
+
+Table role_assignment_requests [headercolor: #B4531F] {
+  id uuid [pk]
+  target_user_id uuid [not null, ref: > users.id]
+  requested_by_id uuid [not null, ref: > users.id]
+  reviewed_by_id uuid [note: 'NULL until reviewed; ref: > users.id']
+  current_role_keys text [not null, note: 'comma-separated snapshot of roles before the request — denormalised for audit']
+  requested_role_keys text [not null, note: 'comma-separated target roles — what the requester asked for']
+  status text [not null, note: 'pending|approved|rejected']
+  reviewed_at timestamptz
+  rejection_reason text
+  created_at timestamptz [not null]
+  updated_at timestamptz [not null]
+  Note: 'Workflow for ops role elevation. A user requests a new role assignment; a separate ops officer must review and approve. SoD: target_user_id must differ from reviewed_by_id.'
+}
+
+Table sso_configurations [headercolor: #1A2B4C] {
+  id uuid [pk]
+  name text [not null, note: 'human label for the SSO config, shown in ops console']
+  email_domain text [not null, note: 'e.g. acmecorp.com — restricts which users this config applies to']
+  merchant_code text [not null, note: 'mch_01J… — one SSO config per enterprise merchant']
+  idp_sso_target_url text [not null, note: '[SEC] SAML IdP single sign-on URL']
+  idp_entity_id text [note: '[SEC] SAML entity ID / issuer — NULL for older IdP configurations']
+  idp_cert text [not null, note: '[SEC] PEM-encoded X.509 certificate from the IdP — used to verify SAML assertions']
+  active boolean [not null]
+  created_at timestamptz [not null]
+  updated_at timestamptz [not null]
+  Note: 'SAML SSO configuration for enterprise merchants (P14+). Scoped per merchant domain. Deactivating keeps the history; deletion is permanent and may lock out SSO users.'
+}
+
+Table user_audit_events [headercolor: #9B3232] {
+  id uuid [pk]
+  user_id uuid [not null, ref: > users.id]
+  event_type text [not null, note: 'signed_in|signed_out|mfa_enabled|mfa_disabled|password_changed|email_changed|session_revoked|passkey_registered|passkey_removed|role_granted|role_revoked|sso_signed_in']
+  ip_address text [note: '[PII] raw IP retained for security investigation — swept after 90 days']
+  user_agent text [note: '[PII] raw UA string — swept after 90 days']
+  metadata jsonb [not null, note: 'event-specific context: device fingerprint, changed fields (new/old email as hashes), session token digest prefix']
+  created_at timestamptz [not null]
+  Note: 'Security audit trail for user-identity events. Separate from audit_logs (which tracks resource mutations). Used for suspicious-login detection and compliance review. APPEND ONLY — no updates or deletes.'
+}
+
 TableGroup access_controls {
   portal_ip_allowlists
   portal_msisdn_allowlists
@@ -705,4 +754,10 @@ TableGroup access_controls {
 
 TableGroup approvals_queue {
   portal_adjustment_approvals
+}
+
+TableGroup identity_extensions {
+  role_assignment_requests
+  sso_configurations
+  user_audit_events
 }

@@ -28,9 +28,12 @@ module Layout
         label: "OPERATIONS",
         internal_only: true,
         items: [
-          { key: :merchants,   icon: :building,     label: "Merchants",   path: :merchants_path },
-          { key: :kyb_reviews, icon: :shield,       label: "KYB Review",  path: :kyb_reviews_path },
-          { key: :approvals,   icon: :check_circle, label: "Approvals",   path: :compliance_approvals_path }
+          { key: :merchants,       icon: :building,     label: "Merchants",       path: :merchants_path },
+          { key: :kyb_reviews,     icon: :shield,       label: "KYB Review",      path: :kyb_reviews_path },
+          { key: :approvals,       icon: :check_circle, label: "Approvals",       path: :compliance_approvals_path },
+          { key: :routing_rules,   icon: :swap,         label: "Routing Rules",   path: :developers_routing_rules_path },
+          { key: :reconciliation,  icon: :trending_up,  label: "Reconciliation",  path: :reconciliation_path },
+          { key: :settlements,     icon: :wallet,       label: "Settlements",      path: :settlements_path }
         ]
       },
       {
@@ -140,40 +143,62 @@ module Layout
     end
 
     def tier_card
-      user = Current.user
-      tier = user.merchant_tier rescue 1
-      cfg  = tier_config(tier)
+      user     = Current.user
+      tier     = user.merchant_tier rescue 1
+      cfg      = tier_config(tier)
+      done_pct = tier == 3 ? 100 : tier == 2 ? 60 : 15
+      deg      = (done_pct * 3.6).round(1)
+
 
       div(class: "sidebar-tier-card",
-          style: "margin:0 10px 10px;border-radius:12px;padding:12px 14px;" \
+          style: "margin:0 10px 6px;border-radius:12px;padding:12px 13px;" \
                  "background:#{cfg[:bg]};border:1px solid #{cfg[:border]};flex-shrink:0") do
-        div(style: "display:flex;align-items:center;justify-content:space-between;margin-bottom:8px") do
-          div(style: "display:flex;align-items:center;gap:6px") do
-            span(style: "display:flex;width:13px;height:13px;color:#{cfg[:icon_color]}") do
-              render UI::Icon.new(cfg[:icon], class: "w-full h-full")
+
+        # Top row: conic ring + title + badge
+        div(style: "display:flex;align-items:center;gap:9px;margin-bottom:9px") do
+          # Conic ring — compact version of the settings verification banner ring
+          div(style: "width:28px;height:28px;border-radius:50%;flex-shrink:0;" \
+                     "display:flex;align-items:center;justify-content:center;padding:3px;" \
+                     "background:conic-gradient(#{cfg[:accent]} #{deg}deg, rgba(128,128,128,0.15) #{deg}deg)") do
+            div(style: "width:100%;height:100%;border-radius:50%;background:white;" \
+                       "display:flex;align-items:center;justify-content:center") do
+              span(style: "font-size:8.5px;font-weight:800;color:#{cfg[:accent]};line-height:1") do
+                plain "T#{tier}"
+              end
             end
-            span(style: "font-size:10px;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;" \
-                        "color:#{cfg[:label_color]}") { plain t("tier.label") }
           end
-          span(style: "font-size:10px;font-weight:700;padding:2px 7px;border-radius:20px;" \
-                      "background:#{cfg[:badge_bg]};color:#{cfg[:badge_text]}") do
-            plain "Tier #{tier}"
+
+          div(style: "flex:1;min-width:0") do
+            div(style: "display:flex;align-items:center;justify-content:space-between;gap:4px") do
+              p(style: "font-size:11.5px;font-weight:700;color:#{cfg[:title_color]};line-height:1.2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis") do
+                plain cfg[:title]
+              end
+              span(class: "sidebar-nav-label",
+                   style: "font-size:9px;font-weight:700;padding:2px 6px;border-radius:20px;letter-spacing:0.03em;flex-shrink:0;" \
+                          "background:#{cfg[:badge_bg]};color:#{cfg[:accent]}") do
+                plain "Tier #{tier}"
+              end
+            end
           end
         end
 
-        p(style: "font-size:11.5px;font-weight:600;color:#{cfg[:title_color]};margin-bottom:3px") do
-          plain cfg[:title]
-        end
-        p(style: "font-size:11px;color:#{cfg[:limit_color]};margin-bottom:#{tier < 3 ? '10px' : '0'}") do
+        # Limit
+        p(class: "sidebar-nav-label",
+          style: "font-size:11px;font-weight:500;color:#{cfg[:limit_color]};" \
+                 "margin-bottom:#{tier < 3 ? '9px' : '0'};line-height:1.3") do
           plain t("tier.limits.tier_#{tier}")
         end
 
+        # CTA
         if tier < 3
-          a(href: kyb_reviews_path,
-            style: "display:flex;align-items:center;gap:5px;font-size:11.5px;font-weight:600;" \
-                   "color:#{cfg[:cta_color]};text-decoration:none") do
-            plain t("tier.upgrade_cta")
-            span(style: "display:flex;width:11px;height:11px") do
+          div(style: "height:1px;background:#{cfg[:divider]};margin-bottom:8px")
+          a(href: settings_path(tab: "verification"),
+            style: "display:flex;align-items:center;justify-content:space-between;text-decoration:none") do
+            span(class: "sidebar-nav-label",
+                 style: "font-size:11px;font-weight:600;color:#{cfg[:cta_color]}") do
+              plain t("tier.upgrade_cta")
+            end
+            span(style: "display:flex;width:11px;height:11px;color:#{cfg[:cta_color]};flex-shrink:0") do
               render UI::Icon.new(:arrow_right, class: "w-full h-full")
             end
           end
@@ -185,30 +210,39 @@ module Layout
       case tier
       when 3
         {
-          bg: "rgba(22,163,74,0.06)",    border: "rgba(22,163,74,0.15)",
-          icon: :check_circle,           icon_color: "#16a34a",
-          label_color: "#15803d",        title_color: "#15803d",
-          title: t("tier.tier_3"),       limit_color: "#16a34a",
-          badge_bg: "rgba(22,163,74,0.12)", badge_text: "#15803d",
-          cta_color: "#16a34a"
+          accent: "#16a34a",
+          bg: "rgba(22,163,74,0.05)",     border: "rgba(22,163,74,0.14)",
+          glow: "rgba(22,163,74,0.18)",   muted_border: "rgba(22,163,74,0.25)",
+          title_color: "#15803d",         limit_color: "#16a34a",
+          badge_bg: "rgba(22,163,74,0.12)", cta_color: "#16a34a",
+          divider: "rgba(22,163,74,0.10)",
+          title: t("tier.tier_3"),
+          icon: :check_circle,            icon_color: "#16a34a",
+          label_color: "#15803d",         badge_text: "#15803d"
         }
       when 2
         {
-          bg: "rgba(61,71,245,0.05)",    border: "rgba(61,71,245,0.12)",
-          icon: :clock,                  icon_color: "#3D47F5",
-          label_color: "#3730a3",        title_color: "#3730a3",
-          title: t("tier.tier_2"),       limit_color: "#6366f1",
-          badge_bg: "rgba(61,71,245,0.10)", badge_text: "#3D47F5",
-          cta_color: "#3D47F5"
+          accent: "#3D47F5",
+          bg: "rgba(61,71,245,0.05)",     border: "rgba(61,71,245,0.12)",
+          glow: "rgba(61,71,245,0.18)",   muted_border: "rgba(61,71,245,0.20)",
+          title_color: "#3730a3",         limit_color: "#6366f1",
+          badge_bg: "rgba(61,71,245,0.10)", cta_color: "#3D47F5",
+          divider: "rgba(61,71,245,0.10)",
+          title: t("tier.tier_2"),
+          icon: :clock,                   icon_color: "#3D47F5",
+          label_color: "#3730a3",         badge_text: "#3D47F5"
         }
       else
         {
-          bg: "rgba(217,119,6,0.06)",    border: "rgba(217,119,6,0.15)",
-          icon: :alert_circle,           icon_color: "#d97706",
-          label_color: "#92400e",        title_color: "#92400e",
-          title: t("tier.tier_1"),       limit_color: "#b45309",
-          badge_bg: "rgba(217,119,6,0.12)", badge_text: "#b45309",
-          cta_color: "#d97706"
+          accent: "#d97706",
+          bg: "rgba(217,119,6,0.05)",     border: "rgba(217,119,6,0.14)",
+          glow: "rgba(217,119,6,0.18)",   muted_border: "rgba(217,119,6,0.22)",
+          title_color: "#92400e",         limit_color: "#b45309",
+          badge_bg: "rgba(217,119,6,0.12)", cta_color: "#d97706",
+          divider: "rgba(217,119,6,0.10)",
+          title: t("tier.tier_1"),
+          icon: :alert_circle,            icon_color: "#d97706",
+          label_color: "#92400e",         badge_text: "#b45309"
         }
       end
     end
@@ -222,36 +256,83 @@ module Layout
     end
 
     def mode_toggle
-      live   = Current.mode == "live"
+      live    = Current.mode == "live"
+      enabled = live_mode_enabled?
+
+      # Switching back to test is always allowed; switching to live requires enablement.
+      if !live && !enabled
+        mode_toggle_locked
+      else
+        mode_toggle_active(live)
+      end
+    end
+
+    def mode_toggle_active(live)
       label  = live ? "LIVE" : "TEST"
       target = live ? "test" : "live"
-      bg     = live ? "rgba(22,163,74,0.10)" : "rgba(245,158,11,0.10)"
-      border = live ? "rgba(22,163,74,0.25)" : "rgba(245,158,11,0.25)"
-      color  = live ? "#15803d" : "#92400e"
       dot    = live ? "#16a34a" : "#d97706"
+      color  = live ? "#15803d" : "#92400e"
+      bg     = live ? "rgba(22,163,74,0.07)" : "rgba(245,158,11,0.07)"
+      border = live ? "rgba(22,163,74,0.20)" : "rgba(245,158,11,0.20)"
+      hint   = live ? "Switch to test" : "Switch to live"
 
       div(style: "margin:0 10px 8px;flex-shrink:0") do
-        form(action: portal_mode_path, method: :post,
-             data: { turbo: false }) do
-          input(type: "hidden", name: "_method",                value: "post")
-          input(type: "hidden", name: "authenticity_token",     value: form_authenticity_token)
-          input(type: "hidden", name: "mode",                   value: target)
+        form(action: portal_mode_path, method: :post, data: { turbo: false }) do
+          input(type: "hidden", name: "_method",            value: "post")
+          input(type: "hidden", name: "authenticity_token", value: form_authenticity_token)
+          input(type: "hidden", name: "mode",               value: target)
 
           button(type: "submit",
-                 title: "Switch to #{target} mode",
+                 title: hint,
                  style: "width:100%;display:flex;align-items:center;justify-content:space-between;" \
-                        "padding:7px 10px;border-radius:9px;border:1px solid #{border};" \
+                        "padding:6px 10px 6px 11px;border-radius:9px;border:1px solid #{border};" \
                         "background:#{bg};cursor:pointer;gap:8px") do
-            div(style: "display:flex;align-items:center;gap:6px") do
-              span(style: "width:7px;height:7px;border-radius:50%;background:#{dot};flex-shrink:0")
+            div(style: "display:flex;align-items:center;gap:7px") do
+              span(style: "width:6px;height:6px;border-radius:50%;background:#{dot};flex-shrink:0;" \
+                          "#{"box-shadow:0 0 0 2.5px rgba(22,163,74,0.20)" if live}")
               span(class: "sidebar-nav-label",
-                   style: "font-size:11px;font-weight:700;letter-spacing:0.08em;color:#{color}") { label }
+                   style: "font-size:10.5px;font-weight:700;letter-spacing:0.09em;color:#{color}") { plain label }
             end
-            span(class: "sidebar-nav-label",
-                 style: "font-size:10px;color:#{color};opacity:0.7") { "Switch" }
+            div(class: "sidebar-nav-label",
+                style: "display:flex;align-items:center;gap:3px") do
+              span(style: "font-size:10px;color:#{color};opacity:0.6") { plain hint }
+              span(style: "display:flex;width:9px;height:9px;color:#{color};opacity:0.5;flex-shrink:0") do
+                render UI::Icon.new(:arrow_right, class: "w-full h-full")
+              end
+            end
           end
         end
       end
+    end
+
+    def mode_toggle_locked
+      div(style: "margin:0 10px 8px;flex-shrink:0") do
+        a(href: settings_path(tab: "verification"),
+          style: "display:flex;align-items:center;justify-content:space-between;" \
+                 "padding:6px 10px 6px 11px;border-radius:9px;" \
+                 "border:1px solid rgba(245,158,11,0.18);" \
+                 "background:rgba(245,158,11,0.06);text-decoration:none;gap:8px") do
+          div(style: "display:flex;align-items:center;gap:7px") do
+            span(style: "width:6px;height:6px;border-radius:50%;background:#d97706;flex-shrink:0")
+            span(class: "sidebar-nav-label",
+                 style: "font-size:10.5px;font-weight:700;letter-spacing:0.09em;color:#92400e") { plain "TEST" }
+          end
+          div(class: "sidebar-nav-label",
+              style: "display:flex;align-items:center;gap:3px") do
+            span(style: "font-size:10px;color:#b45309;opacity:0.7") { plain "Go live" }
+            span(style: "display:flex;width:9px;height:9px;color:#b45309;opacity:0.5;flex-shrink:0") do
+              render UI::Icon.new(:arrow_right, class: "w-full h-full")
+            end
+          end
+        end
+      end
+    end
+
+    def live_mode_enabled?
+      return false unless Current.user&.merchant_user?
+      PortalMerchant.find_for(Current.user.merchant_code)&.live_mode_enabled? || false
+    rescue
+      false
     end
 
     # ── User row ────────────────────────────────────────────────────────────────

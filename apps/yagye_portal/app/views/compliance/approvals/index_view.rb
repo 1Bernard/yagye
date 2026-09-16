@@ -13,7 +13,7 @@ module Compliance
 
       def view_template
         render Layout::Shell.new(
-          active_nav:  :kyb_reviews,
+          active_nav:  :approvals,
           title:       "Approvals",
           breadcrumbs: [
             { label: "Compliance" },
@@ -38,26 +38,26 @@ module Compliance
         ) do |t|
           t.header do
             div do
-              p(class: TYPE_TITLE) { "Pending approvals" }
+              p(class: TYPE_TITLE) { plain "Pending approvals" }
               p(class: "#{TYPE_CAPTION} mt-0.5") do
-                "Adjustments proposed by one officer that require sign-off from a second."
+                plain "Adjustments proposed by one officer that require sign-off from a second."
               end
             end
           end
 
           t.column("Break ID") do |r|
-            code(class: TYPE_MONO) { r.core_break_id.to_s.first(12) + "…" }
+            code(class: TYPE_MONO) { plain r.core_break_id.to_s.first(12) + "…" }
           end
 
           t.column("Proposed by") do |r|
             div do
-              p(class: TYPE_BODY_MD) { r.proposed_by }
-              p(class: TYPE_CAPTION) { r.proposed_at.strftime("%d %b %Y, %H:%M") }
+              p(class: TYPE_BODY_MD) { plain r.proposed_by }
+              p(class: TYPE_CAPTION) { plain r.proposed_at.strftime("%d %b %Y, %H:%M") }
             end
           end
 
           t.column("Action") do |r|
-            span(class: TYPE_BODY_MD) { r.action_summary }
+            span(class: TYPE_BODY_MD) { plain r.action_summary }
           end
 
           t.column("Age") do |r|
@@ -85,10 +85,13 @@ module Compliance
                 render UI::Icon.new(:x, class: ICON_SM)
                 plain "Reject"
               end
-              reject_dialog(r)
             end
           end
         end
+
+        # Dialogs must be outside the datatable (actions block runs in Datatable context via
+        # instance_exec, so IndexView methods are not in scope there).
+        @pending.each { |r| reject_dialog(r) } if @can_decide
       end
 
       # ── Decided section ───────────────────────────────────────────────────────
@@ -99,11 +102,11 @@ module Compliance
           empty_message: "No decisions yet."
         ) do |t|
           t.header do
-            p(class: TYPE_TITLE) { "Recent decisions" }
+            p(class: TYPE_TITLE) { plain "Recent decisions" }
           end
 
           t.column("Break ID") do |r|
-            code(class: TYPE_MONO) { r.core_break_id.to_s.first(12) + "…" }
+            code(class: TYPE_MONO) { plain r.core_break_id.to_s.first(12) + "…" }
           end
 
           t.column("State") do |r|
@@ -111,20 +114,20 @@ module Compliance
           end
 
           t.column("Proposed by") do |r|
-            span(class: TYPE_BODY_MD) { r.proposed_by }
+            span(class: TYPE_BODY_MD) { plain r.proposed_by }
           end
 
           t.column("Decided by") do |r|
             decided_by = r.approved_by.presence || "—"
             decided_at = r.approved_at || r.updated_at
             div do
-              p(class: TYPE_BODY_MD) { decided_by }
-              p(class: TYPE_CAPTION) { decided_at.strftime("%d %b %Y, %H:%M") }
+              p(class: TYPE_BODY_MD) { plain decided_by }
+              p(class: TYPE_CAPTION) { plain decided_at.strftime("%d %b %Y, %H:%M") }
             end
           end
 
           t.column("Proposed") do |r|
-            span(class: TYPE_CAPTION) { r.proposed_at.strftime("%d %b %Y") }
+            span(class: TYPE_CAPTION) { plain r.proposed_at.strftime("%d %b %Y") }
           end
         end
       end

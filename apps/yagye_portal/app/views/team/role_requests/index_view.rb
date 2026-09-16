@@ -15,7 +15,7 @@ module Team
 
       def view_template
         render Layout::Shell.new(
-          active_nav: :team_users,
+          active_nav: :team_role_requests,
           title:      "Role change requests",
           breadcrumbs: [
             { label: "Team members", url: team_users_path },

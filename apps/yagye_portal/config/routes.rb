@@ -34,9 +34,12 @@ Rails.application.routes.draw do
 
   # ── Merchants domain (ops — policy-gated) ────────────────────────────────
   scope module: "merchants" do
-    get   "merchants",      to: "merchants#index",  as: :merchants
-    get   "merchants/:id",  to: "merchants#show",   as: :merchant
-    patch "merchants/:id",  to: "merchants#update"
+    get   "merchants",                              to: "merchants#index",              as: :merchants
+    get   "merchants/:id",                         to: "merchants#show",               as: :merchant
+    patch "merchants/:id",                         to: "merchants#update"
+    post  "merchants/:id/kyb-approve",             to: "merchants#kyb_approve",        as: :kyb_approve_merchant
+    get   "merchants/:id/settlement-controls",     to: "settlement_controls#show",     as: :merchant_settlement_controls
+    patch "merchants/:id/settlement-controls",     to: "settlement_controls#update"
   end
 
   # ── Compliance domain (ops — policy-gated) ───────────────────────────────
@@ -67,8 +70,13 @@ Rails.application.routes.draw do
   scope module: "payments" do
     get "payouts",         to: "payouts#index",     as: :payouts
     get "payouts/:id",     to: "payouts#show",      as: :payout
-    get "settlements",     to: "settlements#index", as: :settlements
-    get "settlements/:id", to: "settlements#show",  as: :settlement
+    get  "reconciliation",                                  to: "reconciliation#index",              as: :reconciliation
+    get  "reconciliation/:id",                             to: "reconciliation#show",               as: :reconciliation_break
+    post "reconciliation/:id/propose-adjustment",          to: "reconciliation#propose_adjustment", as: :reconciliation_propose_adjustment
+    get  "settlements",                            to: "settlements#index",             as: :settlements
+    get  "settlements/:id",                        to: "settlements#show",              as: :settlement
+    post "settlements/:id/approve-dispatch",       to: "settlement_dispatches#approve", as: :approve_dispatch_settlement
+    post "settlements/:id/reject-dispatch",        to: "settlement_dispatches#reject",  as: :reject_dispatch_settlement
   end
 
   scope module: "payments" do
@@ -112,6 +120,7 @@ Rails.application.routes.draw do
 
   # ── Account domain ───────────────────────────────────────────────────────
   scope module: "account" do
+    get   "onboarding/kyc",             to: "kyc#index",                as: :kyc_onboarding
     get   "settings",                   to: "settings#index",           as: :settings
     patch "settings/profile",           to: "settings#update_profile",  as: :settings_profile
     patch "settings/password",          to: "settings#update_password", as: :settings_password

@@ -9,8 +9,18 @@ module KybReviews
       "CI" => "Côte d'Ivoire", "SN" => "Senegal", "CM" => "Cameroon", "TZ" => "Tanzania"
     }.freeze
 
-    def initialize(application:)
-      @app = application
+    DOCUMENT_KIND_LABELS = {
+      "incorporation"     => "Certificate of Incorporation",
+      "id"                => "Director ID",
+      "proof_of_address"  => "Proof of Address",
+      "bank_confirmation" => "Bank Confirmation"
+    }.freeze
+
+    def initialize(application:, beneficial_owners: [], documents: [], screening: nil)
+      @app               = application
+      @beneficial_owners = beneficial_owners
+      @documents         = documents
+      @screening         = screening
     end
 
     def view_template
@@ -18,7 +28,7 @@ module KybReviews
         active_nav: :kyb_reviews,
         title: @app.legal_name,
         breadcrumbs: [
-          { label: "KYB Review",   href: kyb_reviews_path },
+          { label: "KYB Review", href: kyb_reviews_path },
           { label: @app.legal_name }
         ]
       ) do
@@ -53,7 +63,7 @@ module KybReviews
                 plain @app.legal_name
               end
               p(class: "#{TYPE_CAPTION} mt-1") do
-                plain [ @app.trading_name, country_label ].compact.join(" · ")
+                plain [ @app.trading_name.presence, country_label ].compact.join(" · ")
               end
               p(class: "#{TYPE_MONO} mt-1.5 text-gray-500") { plain @app.application_code }
             end
@@ -94,9 +104,38 @@ module KybReviews
     def ubos_card
       render UI::Card.new do |c|
         c.header("Beneficial owners (25%+ threshold)", icon: :users)
-        c.body(padding: false) do
-          empty_state(:users, "No beneficial owners on record",
-                      "UBO data will appear here once submitted via the API (P21b).", palette: "blue")
+        c.body(padding: @beneficial_owners.empty?) do
+          if @beneficial_owners.empty?
+            empty_state(:users, "No beneficial owners on record",
+                        "UBOs are submitted by the merchant via API before KYB approval.")
+          else
+            div(class: "divide-y divide-gray-50") do
+              @beneficial_owners.each { |ubo| ubo_row(ubo) }
+            end
+          end
+        end
+      end
+    end
+
+    def ubo_row(ubo)
+      pct     = ubo["ownership_bps"] ? "#{(ubo["ownership_bps"] / 100.0).round(1)}%" : "—"
+      flagged = ubo["ownership_bps"].to_i >= 2500
+
+      div(class: "flex items-center justify-between px-5 py-3") do
+        div(class: "flex items-center gap-3") do
+          render UI::Avatar.new(ubo["subject_ref"]&.first(2)&.upcase || "??", size: :sm)
+          div do
+            p(class: TYPE_BODY_MD) { plain ubo["subject_ref"] || "—" }
+            p(class: TYPE_CAPTION) { plain ubo["role"]&.humanize || "—" }
+          end
+        end
+        div(class: "flex items-center gap-3") do
+          span(class: "#{TYPE_BODY_MD} tabular-nums") { plain pct }
+          if flagged
+            span(class: "inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium bg-amber-50 text-amber-700") do
+              plain "≥25% — must clear screening"
+            end
+          end
         end
       end
     end
@@ -106,9 +145,62 @@ module KybReviews
     def aml_card
       render UI::Card.new do |c|
         c.header("AML & sanctions screening", icon: :shield)
-        c.body(padding: false) do
-          empty_state(:shield, "Screening not yet run",
-                      "Automated AML screening will be triggered upon approval (P21b).", palette: "amber")
+        c.body(padding: no_screening?) do
+          if no_screening?
+            empty_state(:shield, "No screening subjects enrolled",
+                        "Subjects are enrolled automatically when the merchant submits KYB.")
+          else
+            subjects  = @screening["subjects"]  || []
+            open_hits = @screening["open_hits"] || []
+            clear     = open_hits.empty?
+
+            div(class: "px-5 py-4 border-b border-gray-50") do
+              if clear
+                div(class: "flex items-center gap-2") do
+                  render UI::Icon.new(:check_circle, class: "w-4 h-4 text-green-500")
+                  p(class: "#{TYPE_BODY_MD} text-green-700") { plain "All subjects clear — no open hits" }
+                end
+              else
+                div(class: "flex items-center gap-2") do
+                  render UI::Icon.new(:alert_circle, class: "w-4 h-4 text-red-500")
+                  p(class: "#{TYPE_BODY_MD} text-red-700") do
+                    plain "#{open_hits.size} open #{"screening hit".pluralize(open_hits.size)} — review required"
+                  end
+                end
+              end
+            end
+
+            subjects.each { |s| screening_subject_row(s) }
+          end
+        end
+      end
+    end
+
+    def screening_subject_row(s)
+      status_color = case s["screening_status"]
+                     when "clean", "cleared"                        then "text-green-700 bg-green-50"
+                     when "confirmed_match_blocked"                 then "text-red-700 bg-red-50"
+                     when "potential_match", "confirmed_pep"        then "text-amber-700 bg-amber-50"
+                     when "suspended"                               then "text-red-700 bg-red-50"
+                     else "text-gray-500 bg-gray-50"
+                     end
+      label = {
+        "pending"                  => "Pending",
+        "clean"                    => "Clear",
+        "cleared"                  => "Cleared",
+        "potential_match"          => "Potential match",
+        "confirmed_pep"            => "Confirmed PEP",
+        "confirmed_match_blocked"  => "Blocked",
+        "suspended"                => "Suspended"
+      }.fetch(s["screening_status"], s["screening_status"]&.humanize || "—")
+
+      div(class: "flex items-center justify-between px-5 py-3 border-b border-gray-50 last:border-0") do
+        div do
+          p(class: TYPE_BODY_MD) { plain s["subject_type"]&.humanize || "Subject" }
+          p(class: TYPE_CAPTION) { plain s["subject_id"] || "—" }
+        end
+        span(class: "inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium #{status_color}") do
+          plain label
         end
       end
     end
@@ -118,9 +210,44 @@ module KybReviews
     def documents_card
       render UI::Card.new do |c|
         c.header("KYB documents", icon: :file)
-        c.body(padding: false) do
-          empty_state(:file, "No documents uploaded",
-                      "Document upload will be available once the KYB documents endpoint ships (P21).", palette: "teal")
+        c.body(padding: @documents.empty?) do
+          if @documents.empty?
+            empty_state(:file, "No documents uploaded",
+                        "Documents are submitted by the merchant via API before KYB approval.")
+          else
+            div(class: "divide-y divide-gray-50") do
+              @documents.each { |doc| document_row(doc) }
+            end
+          end
+        end
+      end
+    end
+
+    def document_row(doc)
+      label    = DOCUMENT_KIND_LABELS[doc["kind"]] || doc["kind"]&.humanize || "Document"
+      scanned  = doc["scanned_at"].present?
+
+      div(class: "flex items-center justify-between px-5 py-3") do
+        div(class: "flex items-center gap-3") do
+          span(class: "flex w-8 h-8 rounded-lg bg-gray-50 items-center justify-center flex-shrink-0") do
+            render UI::Icon.new(:file, class: "w-4 h-4 text-gray-400")
+          end
+          div do
+            p(class: TYPE_BODY_MD) { plain label }
+            p(class: TYPE_CAPTION) do
+              plain "Uploaded #{doc["inserted_at"] ? Time.parse(doc["inserted_at"]).strftime("%d %b %Y") : "—"}"
+            end
+          end
+        end
+        if scanned
+          span(class: "inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium bg-green-50 text-green-700") do
+            render UI::Icon.new(:check_circle, class: "w-3 h-3")
+            plain "Scanned"
+          end
+        else
+          span(class: "inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium bg-gray-50 text-gray-500") do
+            plain "Pending scan"
+          end
         end
       end
     end
@@ -228,7 +355,7 @@ module KybReviews
     # ── Shared helpers ────────────────────────────────────────────────────────
 
     def detail_row(label, value, mono: false)
-      div(class: "flex items-center justify-between px-[22px] py-3 border-b border-gray-100") do
+      div(class: "flex items-center justify-between px-[22px] py-3 border-b border-gray-100 last:border-0") do
         p(class: TYPE_CAPTION) { plain label }
         p(class: (mono ? TYPE_MONO : TYPE_BODY_MD)) { plain value.to_s }
       end
@@ -250,6 +377,10 @@ module KybReviews
       input(type: "hidden", name: "authenticity_token", value: form_authenticity_token)
     end
 
+    def no_screening?
+      @screening.nil? || (@screening["subjects"] || []).empty?
+    end
+
     def initials
       parts = @app.legal_name.to_s.split.first(2).map { |w| w[0].upcase }
       s = parts.join.first(2)
@@ -257,7 +388,7 @@ module KybReviews
     end
 
     def country_label
-      COUNTRY_NAMES.fetch(@app.country, @app.country)
+      COUNTRY_NAMES.fetch(@app.country.to_s, @app.country.to_s)
     end
 
     def submitted_label

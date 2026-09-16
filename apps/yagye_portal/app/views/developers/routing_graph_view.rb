@@ -12,7 +12,7 @@ module Developers
 
     def view_template
       render Layout::Shell.new(
-        active_nav: :developers,
+        active_nav: :routing_rules,
         title: @configuration ? @configuration["name"] : "New routing configuration",
         breadcrumbs: [
           { label: "Developers", href: developers_path },

@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_09_07_100001) do
+ActiveRecord::Schema[8.1].define(version: 2026_09_11_130001) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pgcrypto"
@@ -236,7 +236,12 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_07_100001) do
 
   create_table "portal_settlements", primary_key: "settlement_code", id: :text, force: :cascade do |t|
     t.integer "aggregate_version", default: 1, null: false
+    t.string "bank_dispatch_ref"
+    t.datetime "bank_dispatched_at"
     t.string "currency", limit: 3, null: false
+    t.string "dispatch_approved_by"
+    t.string "dispatch_rejected_by"
+    t.string "dispatch_rejection_reason"
     t.bigint "expected_net", null: false
     t.integer "item_count"
     t.datetime "last_applied_at", null: false

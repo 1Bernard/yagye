@@ -27,6 +27,14 @@ defmodule YagyeCoreWeb.Router do
   alias YagyeCoreWeb.Controllers.Internal.ApiKeysController, as: InternalApiKeysController
   alias YagyeCoreWeb.Controllers.Internal.ApplicationsController
   alias YagyeCoreWeb.Controllers.Internal.CheckoutController
+  alias YagyeCoreWeb.Controllers.Internal.ComplianceController, as: InternalComplianceController
+  alias YagyeCoreWeb.Controllers.Internal.MerchantsController, as: InternalMerchantsController
+
+  alias YagyeCoreWeb.Controllers.Internal.ReconciliationController,
+    as: InternalReconciliationController
+
+  alias YagyeCoreWeb.Controllers.Internal.SettlementBatchApprovalsController
+  alias YagyeCoreWeb.Controllers.Internal.SettlementControlsController
 
   alias YagyeCoreWeb.Controllers.Internal.PaymentLinksController,
     as: InternalPaymentLinksController
@@ -105,6 +113,57 @@ defmodule YagyeCoreWeb.Router do
     post("/checkout/sessions/:public_id/pay", CheckoutController, :pay)
     get("/checkout/payments/:payment_public_id/state", CheckoutController, :payment_state)
     post("/checkout/sessions/:public_id/complete", CheckoutController, :complete)
+
+    # Compliance — portal ops view (read-only; no merchant API key needed)
+    get(
+      "/merchants/:merchant_id/beneficial-owners",
+      InternalComplianceController,
+      :list_beneficial_owners
+    )
+
+    get("/merchants/:merchant_id/documents", InternalComplianceController, :list_documents)
+
+    get(
+      "/merchants/:merchant_id/screening-status",
+      InternalComplianceController,
+      :screening_status
+    )
+
+    # Ops-initiated full KYB approval (enforces 25% UBO screening threshold)
+    post("/merchants/:merchant_code/kyb-approve", InternalMerchantsController, :kyb_approve)
+
+    # Reconciliation — ops view of breaks per merchant and cross-merchant
+    get(
+      "/merchants/:merchant_id/reconciliation-breaks",
+      InternalReconciliationController,
+      :list_breaks
+    )
+
+    get("/reconciliation-breaks/:id", InternalReconciliationController, :get_break)
+
+    post(
+      "/reconciliation-breaks/:id/propose-adjustment",
+      InternalReconciliationController,
+      :propose_adjustment
+    )
+
+    get("/reconciliation-breaks", InternalReconciliationController, :list_all_breaks)
+
+    # Settlement controls + dispatch approvals (portal → core)
+    get("/merchants/:merchant_id/settlement-controls", SettlementControlsController, :show)
+    put("/merchants/:merchant_id/settlement-controls", SettlementControlsController, :upsert)
+
+    post(
+      "/settlement-batches/:batch_id/approve-dispatch",
+      SettlementBatchApprovalsController,
+      :approve
+    )
+
+    post(
+      "/settlement-batches/:batch_id/reject-dispatch",
+      SettlementBatchApprovalsController,
+      :reject
+    )
 
     # P16 — Payment links management (called by portal)
     get("/payment-links", InternalPaymentLinksController, :index)

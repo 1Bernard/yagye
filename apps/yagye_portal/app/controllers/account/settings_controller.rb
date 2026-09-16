@@ -4,14 +4,15 @@ module Account
   class SettingsController < ApplicationController
     def index
       authorize :settings, :index?
-      tab = params[:tab].presence_in(%w[profile security notifications allowlists sso]) || "profile"
+      tab = params[:tab].presence_in(%w[profile security notifications allowlists sso verification]) || "profile"
       ip_allowlists     = PortalIpAllowlist.for_merchant(current_user.merchant_code).order(:created_at)
       msisdn_allowlists = PortalMsisdnAllowlist.for_merchant(current_user.merchant_code).order(:created_at)
       audit_events      = current_user.user_audit_events.recent.limit(15)
       sso_configs       = tab == "sso" ? SsoConfiguration.order(:name) : []
+      tier              = current_user.merchant_tier || 1
       render Settings::IndexView.new(tab: tab, current_user: current_user,
                                      ip_allowlists: ip_allowlists, msisdn_allowlists: msisdn_allowlists,
-                                     audit_events: audit_events, sso_configs: sso_configs)
+                                     audit_events: audit_events, sso_configs: sso_configs, tier: tier)
     end
 
     def update_profile

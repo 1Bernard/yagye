@@ -4,7 +4,7 @@ module Settings
   class IndexView < ApplicationComponent
     include UI::Theme
 
-    def initialize(tab: "profile", current_user: nil, roles: [], ip_allowlists: [], msisdn_allowlists: [], audit_events: [], sso_configs: [])
+    def initialize(tab: "profile", current_user: nil, roles: [], ip_allowlists: [], msisdn_allowlists: [], audit_events: [], sso_configs: [], tier: 1)
       @tab               = tab
       @current_user      = current_user
       @roles             = roles
@@ -12,6 +12,7 @@ module Settings
       @msisdn_allowlists = msisdn_allowlists
       @audit_events      = audit_events
       @sso_configs       = sso_configs
+      @tier              = tier
     end
 
     def view_template
@@ -42,6 +43,8 @@ module Settings
               )
             when "sso"
               render Settings::SsoSection.new(current_user: @current_user, configs: @sso_configs)
+            when "verification"
+              render Settings::VerificationPanel.new(tier: @tier)
             end
           end
         end
@@ -51,15 +54,17 @@ module Settings
     private
 
     def nav_groups
+      account_items = [
+        { key: "profile",       label: "Profile",       icon: :user   },
+        { key: "security",      label: "Security",      icon: :shield },
+        { key: "notifications", label: "Notifications", icon: :bell   }
+      ]
+      if @current_user&.merchant_user?
+        account_items << { key: "verification", label: "Verification", icon: :check_circle }
+      end
+
       groups = [
-        {
-          label: "Account",
-          items: [
-            { key: "profile",       label: "Profile",       icon: :user   },
-            { key: "security",      label: "Security",      icon: :shield },
-            { key: "notifications", label: "Notifications", icon: :bell   }
-          ]
-        },
+        { label: "Account", items: account_items },
         {
           label: "Access",
           items: [

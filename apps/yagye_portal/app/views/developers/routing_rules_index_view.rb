@@ -10,7 +10,7 @@ module Developers
 
     def view_template
       render Layout::Shell.new(
-        active_nav: :developers,
+        active_nav: :routing_rules,
         title: "Routing Rules",
         breadcrumbs: [
           { label: "Developers", href: developers_path },

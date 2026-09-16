@@ -5,11 +5,12 @@ module Payments
     class IndexView < ApplicationComponent
       include UI::Theme
 
-      def initialize(settlements:, pagy:, state_filter: nil, query: nil)
+      def initialize(settlements:, pagy:, state_filter: nil, query: nil, stats: {})
         @settlements  = settlements
         @pagy         = pagy
         @state_filter = state_filter
         @query        = query
+        @stats        = stats
       end
 
       def view_template
@@ -26,11 +27,13 @@ module Payments
       private
 
       def stat_band
+        mtd = @stats[:settled_mtd].to_i
+        mtd_label = "GHS #{"%.2f" % (mtd / 100.0)}"
         render UI::Grid.new(columns: 4) do
-          stat_cell("Total settled (MTD)", "GHS 0.00", icon: :trending_up,  color: GREEN,  tint: TINT_GREEN)
-          stat_cell("Pending",             "0",         icon: :clock,        color: AMBER,  tint: TINT_AMBER)
-          stat_cell("Reconciled",          "0",         icon: :check_circle, color: BRAND,  tint: TINT_BRAND)
-          stat_cell("Disputed",            "0",         icon: :alert_circle, color: RED,    tint: TINT_RED)
+          stat_cell("Settled (MTD)", mtd_label,                      icon: :trending_up,  color: GREEN,  tint: TINT_GREEN)
+          stat_cell("Pending",       @stats[:pending].to_s,          icon: :clock,        color: AMBER,  tint: TINT_AMBER)
+          stat_cell("Reconciled",    @stats[:reconciled].to_s,       icon: :check_circle, color: BRAND,  tint: TINT_BRAND)
+          stat_cell("Disputed",      @stats[:disputed].to_s,         icon: :alert_circle, color: RED,    tint: TINT_RED)
         end
       end
 
@@ -73,15 +76,21 @@ module Payments
           t.column("Period")      { |s| plain s.period_label }
           t.column("Expected",    class: "text-right tabular-nums font-medium") { |s| plain s.formatted_expected_net }
           t.column("Reported",    class: "text-right tabular-nums") do |s|
-            span(class: variance_color(s.variance)) { plain s.formatted_reported_net }
+            v   = s.variance
+            cls = if v.nil?      then "text-[13px] text-gray-500"
+                  elsif v < 0    then "text-[13px] font-semibold text-red-600"
+                  elsif v > 0    then "text-[13px] font-semibold text-green-600"
+                  else                "text-[13px] text-gray-700"
+                  end
+            span(class: cls) { plain s.formatted_reported_net }
           end
           t.column("State")       { |s| render UI::StatusBadge.new(status: s.state) }
-          t.column("Value date")  { |s| s.value_date&.strftime("%d %b %Y") || "—" }
+          t.column("Value date")  { |s| plain s.value_date&.strftime("%d %b %Y") || "—" }
 
           t.actions do |s|
             a(href: settlement_path(s), class: DROPDOWN_ITEM) do
               render UI::Icon.new(:eye, class: ICON_SM)
-              "View"
+              plain "View"
             end
           end
         end

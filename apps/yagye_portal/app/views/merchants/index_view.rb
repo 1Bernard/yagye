@@ -4,11 +4,13 @@ module Merchants
   class IndexView < ApplicationComponent
     include UI::Theme
 
-    def initialize(merchants: [], pagy: nil, status: nil, query: nil)
+    def initialize(merchants: [], pagy: nil, status: nil, query: nil, country: nil, stats: {})
       @merchants = merchants
       @pagy      = pagy
       @status    = status
       @query     = query
+      @country   = country
+      @stats     = stats
     end
 
     def view_template
@@ -17,6 +19,7 @@ module Merchants
         title:      "Merchants",
         breadcrumbs: [ { label: "Merchants" } ]
       ) do
+        render UI::PageHeader.new(title: "Merchants", subtitle: "All registered businesses on the platform.")
         stat_band
         merchants_table
       end
@@ -24,112 +27,149 @@ module Merchants
 
     private
 
+    # ── Stat band ────────────────────────────────────────────────────────────────
+
     def stat_band
       render UI::Grid.new(columns: 4) do
-        stat_cell("Active Merchants", "0", icon: :check_circle, color: GREEN, tint: TINT_GREEN)
-        stat_cell("Pending KYB",      "0", icon: :clock,        color: AMBER, tint: TINT_AMBER)
-        stat_cell("Suspended",        "0", icon: :alert_circle, color: RED,   tint: TINT_RED)
-        stat_cell("Onboarded (30d)",  "0", icon: :trending_up,  color: BRAND, tint: TINT_BRAND)
+        stat_cell("Active Merchants", @stats[:active].to_s,       icon: :check_circle, color: GREEN, tint: TINT_GREEN)
+        stat_cell("Pending KYB",      @stats[:pending_kyb].to_s,  icon: :clock,        color: AMBER, tint: TINT_AMBER)
+        stat_cell("Suspended",        @stats[:suspended].to_s,    icon: :alert_circle, color: RED,   tint: TINT_RED)
+        stat_cell("Onboarded (30d)",  @stats[:onboarded_30d].to_s, icon: :trending_up, color: BRAND, tint: TINT_BRAND)
       end
     end
 
-    def merchants_table
-      status = @status
-      query  = @query
-      total  = @pagy ? @pagy.count : @merchants.size
+    # ── Toolbar ──────────────────────────────────────────────────────────────────
 
+    def toolbar_content
+      form(action: merchants_path, method: "get",
+           data: { controller: "filter-form", filter_form_target: "form" }) do
+        div(class: FILTER_SEARCH_WRAP) do
+          span(class: "flex w-[13px] h-[13px] text-gray-400 flex-shrink-0") do
+            render UI::Icon.new(:search, class: "w-full h-full")
+          end
+          input(type: "search", name: "q", value: @query,
+                placeholder: "Search business name or code…",
+                class: FILTER_SEARCH_INPUT)
+        end
+      end
+
+      div(class: "flex items-center gap-2") do
+        inline_filters
+        export_dropdown
+      end
+    end
+
+    def inline_filters
+      form(action: merchants_path, method: "get",
+           class: "flex items-center gap-2",
+           data: { controller: "filter-form", filter_form_target: "form" }) do
+        input(type: "hidden", name: "q", value: @query)
+
+        select_cls = "h-8 border border-gray-200 rounded-[9px] px-2.5 text-[12.5px] font-medium " \
+                     "text-gray-600 bg-white outline-none cursor-pointer hover:border-gray-400 " \
+                     "transition-colors"
+
+        select(name: "status", class: select_cls,
+               data: { action: "change->filter-form#submit" }) do
+          option(value: "", selected: @status.blank?) { plain "All statuses" }
+          [ [ "Active", "approved" ], [ "Pending KYB", "submitted" ],
+            [ "Under review", "under_review" ], [ "Rejected", "rejected" ] ].each do |(lbl, val)|
+            option(value: val, selected: @status == val) { plain lbl }
+          end
+        end
+
+        select(name: "country", class: select_cls,
+               data: { action: "change->filter-form#submit" }) do
+          option(value: "", selected: @country.blank?) { plain "All countries" }
+          [ [ "Ghana", "GH" ], [ "Nigeria", "NG" ], [ "Kenya", "KE" ],
+            [ "Côte d'Ivoire", "CI" ] ].each do |(lbl, val)|
+            option(value: val, selected: @country == val) { plain lbl }
+          end
+        end
+
+        if @query.present? || @status.present? || @country.present?
+          a(href: merchants_path,
+            class: "text-[12px] text-gray-400 hover:text-gray-600 no-underline px-1 transition-colors") do
+            plain "Clear"
+          end
+        end
+      end
+    end
+
+    def export_dropdown
+      base = { q: @query, status: @status, country: @country }.reject { |_, v| v.blank? }
+
+      div(class: "relative", data: { controller: "dropdown" }) do
+        button(type: "button",
+               class: "inline-flex items-center gap-[5px] px-3 h-8 border border-gray-200 rounded-[9px] " \
+                      "text-[12.5px] font-medium text-gray-600 bg-white cursor-pointer transition-colors " \
+                      "hover:border-gray-400 hover:text-gray-800",
+               data: { action: "click->dropdown#toggle" }) do
+          render UI::Icon.new(:download, class: "w-3 h-3")
+          plain "Export"
+          render UI::Icon.new(:chev, class: "w-3 h-3 ml-px text-gray-400")
+        end
+        div(class: "#{DROPDOWN_MENU} top-full mt-1 right-0 min-w-[170px]",
+            data: { dropdown_target: "menu" }) do
+          p(class: DROPDOWN_TITLE) { plain "Export as" }
+          a(href: merchants_path(base.merge(format: :csv)),  class: DROPDOWN_ITEM) do
+            render UI::Icon.new(:file, class: ICON_SM)
+            plain "CSV"
+          end
+          a(href: merchants_path(base.merge(format: :xlsx)), class: DROPDOWN_ITEM) do
+            render UI::Icon.new(:file, class: ICON_SM)
+            plain "Excel (.xlsx)"
+          end
+          a(href: merchants_path(base.merge(format: :pdf)),  class: DROPDOWN_ITEM) do
+            render UI::Icon.new(:file, class: ICON_SM)
+            plain "PDF"
+          end
+        end
+      end
+    end
+
+    # ── Table ────────────────────────────────────────────────────────────────────
+
+    def merchants_table
       render UI::Datatable.new(records: @merchants, pagy: @pagy,
                                empty_message: "No merchants registered yet.") do |t|
-        t.header do
-          div(style: "display:flex;align-items:center;gap:8px") do
-            p(class: TYPE_TITLE) { "All merchants" }
-            span(style: "background:#f3f4f6;color:#6b7280;border-radius:20px;" \
-                        "padding:1px 9px;font-size:11.5px;font-weight:600;line-height:1.6") { total.to_s } if total > 0
-          end
-
-          form(action: merchants_path, method: "get",
-               style: "display:flex;align-items:center;gap:6px",
-               data: { controller: "filter-form", filter_form_target: "form" }) do
-            div(style: "display:flex;align-items:center;gap:7px;padding:0 11px;" \
-                       "border:1px solid #e5e7eb;border-radius:9px;background:#fff;height:32px") do
-              span(style: "display:flex;width:12px;height:12px;color:#9ca3af;flex-shrink:0") do
-                render UI::Icon.new(:search, class: "w-full h-full")
-              end
-              input(type: "search", name: "q", value: query,
-                    placeholder: "Search business name or code…",
-                    style: "border:0;outline:none;background:transparent;font-size:12.5px;" \
-                           "color:#374151;width:180px;min-width:0",
-                    class: "placeholder:text-gray-400")
-            end
-
-            select(name: "status",
-                   style: "border:1px solid #e5e7eb;border-radius:9px;padding:0 10px;" \
-                          "font-size:12.5px;font-weight:500;color:#374151;background:#fff;" \
-                          "outline:none;cursor:pointer;height:32px",
-                   data: { action: "change->filter-form#submit" }) do
-              option(value: "", selected: status.blank?) { "All statuses" }
-              [ [ "Active", "active" ], [ "Pending KYB", "pending_kyb" ], [ "Under review", "under_review" ],
-               [ "Suspended", "suspended" ], [ "Rejected", "rejected" ] ].each do |(lbl, val)|
-                option(value: val, selected: status == val) { lbl }
-              end
-            end
-
-            select(name: "country",
-                   style: "border:1px solid #e5e7eb;border-radius:9px;padding:0 10px;" \
-                          "font-size:12.5px;font-weight:500;color:#374151;background:#fff;" \
-                          "outline:none;cursor:pointer;height:32px",
-                   data: { action: "change->filter-form#submit" }) do
-              option(value: "") { "All countries" }
-              [ [ "Ghana", "GH" ], [ "Nigeria", "NG" ], [ "Kenya", "KE" ], [ "Côte d'Ivoire", "CI" ] ].each do |(lbl, val)|
-                option(value: val) { lbl }
-              end
-            end
-
-            button(type: "submit",
-                   style: "display:inline-flex;align-items:center;gap:5px;padding:0 12px;" \
-                          "border:1px solid #e5e7eb;border-radius:9px;font-size:12.5px;" \
-                          "font-weight:500;color:#374151;background:#fff;cursor:pointer;" \
-                          "height:32px;white-space:nowrap") do
-              render UI::Icon.new(:filter, class: "w-[12px] h-[12px]")
-              plain "Filter"
-            end
-
-            a(href: merchants_path(format: :csv, status: status, q: query),
-              style: "display:inline-flex;align-items:center;gap:5px;padding:0 12px;" \
-                     "border:1px solid #e5e7eb;border-radius:9px;font-size:12.5px;" \
-                     "font-weight:500;color:#374151;background:#fff;cursor:pointer;" \
-                     "height:32px;text-decoration:none;white-space:nowrap") do
-              render UI::Icon.new(:download, class: "w-[12px] h-[12px]")
-              plain "Export"
-            end
-
-            if query.present? || status.present?
-              a(href: merchants_path,
-                style: "font-size:12px;color:#9ca3af;text-decoration:none;" \
-                       "padding:0 4px;white-space:nowrap") { "Clear" }
-            end
-          end
-        end
+        t.header { toolbar_content }
 
         t.column("Business") do |m|
-          div(style: "display:flex;align-items:center;gap:10px") do
-            render UI::Avatar.new(m.legal_name&.first(2)&.upcase || "??", size: :sm)
+          initials = m.legal_name&.split&.map { |w| w[0] }&.first(2)&.join&.upcase || "??"
+          div(class: "flex items-center gap-[10px]") do
+            render UI::Avatar.new(initials, size: :sm)
             div do
-              p(class: TYPE_BODY_MD) { m.legal_name }
-              p(class: TYPE_CAPTION) { m.submitted_by_email }
+              p(class: TYPE_BODY_MD) { plain m.legal_name || "—" }
+              p(class: TYPE_CAPTION) { plain m.submitted_by_email || "—" }
             end
           end
         end
-        t.column("Code")         { |m| span(class: TYPE_MONO) { m.merchant_code } }
-        t.column("Country")      { |m| m.country }
-        t.column("KYB Status")   { |m| render UI::StatusBadge.new(status: m.status) }
-        t.column("Volume (MTD)") { |m| span(style: "font-size:13px;color:#{SUBTLE_TEXT}") { "—" } }
-        t.column("Applied")      { |m| m.last_applied_at&.strftime("%d %b %Y") || "—" }
+
+        t.column("Code") do |m|
+          span(class: TYPE_MONO) { plain m.merchant_code || "—" }
+        end
+
+        t.column("Country") do |m|
+          span(class: TYPE_CAPTION) { plain m.country || "—" }
+        end
+
+        t.column("KYB Status") do |m|
+          render UI::StatusBadge.new(status: m.status)
+        end
+
+        t.column("Volume (MTD)") do |_m|
+          span(class: TYPE_CAPTION) { plain "—" }
+        end
+
+        t.column("Applied") do |m|
+          span(class: TYPE_CAPTION) { plain m.last_applied_at&.strftime("%d %b %Y") || "—" }
+        end
 
         t.actions do |m|
           a(href: merchant_path(m), class: DROPDOWN_ITEM) do
             render UI::Icon.new(:eye, class: ICON_SM)
-            "View"
+            plain "View"
           end
         end
       end

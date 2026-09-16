@@ -5,7 +5,12 @@ class MerchantApplicationEventsConsumer < ApplicationConsumer
     messages.each do |message|
       event = Acl::CoreMerchantApplicationEvent.new(message.payload)
       next unless event.valid?
-      upsert_application(event)
+
+      if event.event_type == "merchant.approved"
+        activate_live_mode(event)
+      else
+        upsert_application(event)
+      end
     end
   end
 
@@ -41,5 +46,21 @@ class MerchantApplicationEventsConsumer < ApplicationConsumer
     end
 
     record.save!
+  end
+
+  def activate_live_mode(event)
+    merchant_code = event.merchant_code
+    return if merchant_code.blank?
+
+    PortalMerchant
+      .find_or_initialize_by(merchant_code: merchant_code)
+      .tap do |m|
+        m.status          = "approved"
+        m.onboarding_state = "approved"
+        m.live_mode_enabled = true
+        m.last_event_id   = event.event_id
+        m.last_applied_at = Time.current
+      end
+      .save!
   end
 end

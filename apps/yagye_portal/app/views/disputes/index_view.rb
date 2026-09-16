@@ -12,7 +12,7 @@ module Disputes
     ].freeze
 
     def initialize(tab: "all", disputes: [], pagy: nil, query: nil, reason: nil,
-                   date_from: nil, date_to: nil)
+                   date_from: nil, date_to: nil, stats: {})
       @tab      = tab
       @disputes = disputes
       @pagy     = pagy
@@ -20,6 +20,7 @@ module Disputes
       @reason   = reason
       @date_from = date_from
       @date_to   = date_to
+      @stats    = stats
     end
 
     def view_template
@@ -38,10 +39,10 @@ module Disputes
 
     def stat_band
       render UI::Grid.new(columns: 4) do
-        stat_cell("Open Disputes", "0", icon: :flag,         color: AMBER, tint: TINT_AMBER)
-        stat_cell("Won",           "0", icon: :check_circle, color: GREEN, tint: TINT_GREEN)
-        stat_cell("Lost",          "0", icon: :alert_circle, color: RED,   tint: TINT_RED)
-        stat_cell("SLA Breached",  "0", icon: :clock,        color: RED,   tint: TINT_RED)
+        stat_cell("Open Disputes", @stats[:open].to_s,         icon: :flag,         color: AMBER, tint: TINT_AMBER)
+        stat_cell("Won",           @stats[:won].to_s,          icon: :check_circle, color: GREEN, tint: TINT_GREEN)
+        stat_cell("Lost",          @stats[:lost].to_s,         icon: :alert_circle, color: RED,   tint: TINT_RED)
+        stat_cell("SLA Breached",  @stats[:sla_breached].to_s, icon: :clock,        color: RED,   tint: TINT_RED)
       end
     end
 
@@ -122,18 +123,29 @@ module Disputes
           end
         end
 
-        t.column("Reference")   { |d| span(class: TYPE_MONO) { d.reference } }
-        t.column("Payment")     { |d| span(class: TYPE_MONO) { d.payment_reference } }
-        t.column("Amount")      { |d| d.formatted_amount }
-        t.column("Reason")      { |d| d.reason.humanize }
+        t.column("Reference")   { |d| span(class: TYPE_MONO) { plain d.reference } }
+        t.column("Payment")     { |d| span(class: TYPE_MONO) { plain d.payment_reference } }
+        t.column("Amount")      { |d| plain d.formatted_amount }
+        t.column("Reason")      { |d| plain d.reason.humanize }
         t.column("Status")      { |d| render UI::StatusBadge.new(status: d.status) }
-        t.column("SLA")         { |d| span(class: "text-[12px] font-semibold text-red-600") { plain "Overdue" } }
-        t.column("Opened")      { |d| d.created_at.strftime("%d %b %Y") }
+        t.column("SLA") do |d|
+          if d.network_deadline.present? && d.open?
+            today   = Date.current.to_s
+            overdue = d.network_deadline < today
+            due_str = Date.parse(d.network_deadline).strftime("%d %b") rescue d.network_deadline
+            cls     = overdue ? "text-[12px] font-semibold text-red-600" : "text-[12px] text-gray-500"
+            label   = overdue ? "Overdue" : "Due #{due_str}"
+            span(class: cls) { plain label }
+          else
+            span(class: TYPE_CAPTION) { plain "—" }
+          end
+        end
+        t.column("Opened")      { |d| plain d.created_at.strftime("%d %b %Y") }
 
         t.actions do |d|
           a(href: dispute_path(d), class: DROPDOWN_ITEM) do
             render UI::Icon.new(:eye, class: ICON_SM)
-            "Review"
+            plain "Review"
           end
         end
       end

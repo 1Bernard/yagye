@@ -123,6 +123,85 @@ class CoreApiClient
           { merchant_code: merchant_code, layout: layout })
   end
 
+  # ── Merchant KYB approval (ops — UBO threshold enforced in Core) ─────────
+
+  # POST /internal/merchants/:code/kyb-approve
+  def approve_merchant_kyb(merchant_code, approved_by:)
+    post("/internal/merchants/#{merchant_code}/kyb-approve",
+         { approved_by: approved_by })
+  end
+
+  # ── KYB / Compliance (ops read-only) ──────────────────────────────────────
+
+  # GET /internal/merchants/:code/beneficial-owners
+  def list_beneficial_owners(merchant_code)
+    get("/internal/merchants/#{merchant_code}/beneficial-owners")
+  end
+
+  # GET /internal/merchants/:code/documents
+  def list_kyb_documents(merchant_code)
+    get("/internal/merchants/#{merchant_code}/documents")
+  end
+
+  # GET /internal/merchants/:code/screening-status
+  def merchant_screening_status(merchant_code)
+    get("/internal/merchants/#{merchant_code}/screening-status")
+  end
+
+  # ── Settlement dispatch approvals (SoD enforced in Core) ─────────────────
+
+  # POST /internal/settlement-batches/:batch_id/approve-dispatch
+  def approve_settlement_dispatch(batch_id, approved_by:)
+    post("/internal/settlement-batches/#{batch_id}/approve-dispatch",
+         { approved_by: approved_by })
+  end
+
+  # POST /internal/settlement-batches/:batch_id/reject-dispatch
+  def reject_settlement_dispatch(batch_id, rejected_by:, reason: nil)
+    post("/internal/settlement-batches/#{batch_id}/reject-dispatch",
+         { rejected_by: rejected_by, reason: reason }.compact)
+  end
+
+  # GET /internal/merchants/:merchant_id/settlement-controls
+  def get_settlement_controls(merchant_id)
+    get("/internal/merchants/#{merchant_id}/settlement-controls")
+  end
+
+  # PUT /internal/merchants/:merchant_id/settlement-controls
+  def upsert_settlement_controls(merchant_id, approval_threshold:, approver_user_codes:)
+    put("/internal/merchants/#{merchant_id}/settlement-controls",
+        { approval_threshold: approval_threshold, approver_user_codes: approver_user_codes })
+  end
+
+  # ── Reconciliation (ops read-only) ────────────────────────────────────────
+
+  # GET /internal/merchants/:merchant_id/reconciliation-breaks
+  def list_reconciliation_breaks(merchant_code)
+    get("/internal/merchants/#{merchant_code}/reconciliation-breaks")
+  end
+
+  # GET /internal/reconciliation-breaks (cross-merchant, ops only)
+  def list_all_reconciliation_breaks
+    get("/internal/reconciliation-breaks")
+  end
+
+  # GET /internal/reconciliation-breaks/:id
+  def get_reconciliation_break(public_id)
+    get("/internal/reconciliation-breaks/#{public_id}")
+  end
+
+  # POST /internal/reconciliation-breaks/:id/propose-adjustment
+  def propose_reconciliation_adjustment(public_id, proposed_by:, amount:, direction:,
+                                        resolution_code:, resolution_note: nil)
+    post("/internal/reconciliation-breaks/#{public_id}/propose-adjustment", {
+      proposed_by: proposed_by,
+      amount: amount,
+      direction: direction,
+      resolution_code: resolution_code,
+      resolution_note: resolution_note
+    }.compact)
+  end
+
   # ── Adjustment approvals (ops — SoD enforced in Core) ─────────────────────
 
   # POST /internal/adjustment_approvals/:break_id/approve
@@ -160,6 +239,13 @@ class CoreApiClient
 
   def patch(path, body)
     response = @conn.patch(path, body, request_headers)
+    handle(response)
+  rescue Faraday::TimeoutError, Faraday::ConnectionFailed => e
+    Result.new(success?: false, error_code: "network_error", error_message: e.message)
+  end
+
+  def put(path, body)
+    response = @conn.put(path, body, request_headers)
     handle(response)
   rescue Faraday::TimeoutError, Faraday::ConnectionFailed => e
     Result.new(success?: false, error_code: "network_error", error_message: e.message)

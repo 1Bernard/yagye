@@ -5,14 +5,34 @@ module Compliance
     def index
       authorize :kyb_reviews, :index?
       tab          = params[:tab].presence_in(%w[pending in_review approved rejected]) || "pending"
-      applications = Compliance::ApplicationsQuery.new.call(tab: tab)
-      render KybReviews::IndexView.new(tab: tab, applications: applications)
+      pagy, applications = pagy(Compliance::ApplicationsQuery.new.call(tab: tab), limit: 25)
+      render KybReviews::IndexView.new(tab: tab, applications: applications, pagy: pagy, stats: review_stats)
     end
 
     def show
       authorize :kyb_reviews, :show?
       application = decode_id(PortalMerchantApplication)
-      render KybReviews::ShowView.new(application: application)
+
+      beneficial_owners = []
+      documents         = []
+      screening         = nil
+
+      if (mc = application.merchant_code).present?
+        client              = CoreApiClient.new
+        ubos_r              = client.list_beneficial_owners(mc)
+        docs_r              = client.list_kyb_documents(mc)
+        screening_r         = client.merchant_screening_status(mc)
+        beneficial_owners   = ubos_r.success?      ? (ubos_r.body["data"]     || []) : []
+        documents           = docs_r.success?      ? (docs_r.body["data"]     || []) : []
+        screening           = screening_r.success? ? screening_r.body              : nil
+      end
+
+      render KybReviews::ShowView.new(
+        application:       application,
+        beneficial_owners: beneficial_owners,
+        documents:         documents,
+        screening:         screening
+      )
     end
 
     def approve
@@ -42,6 +62,18 @@ module Compliance
       else
         redirect_to kyb_review_path(application), alert: result.error_message
       end
+    end
+
+    private
+
+    def review_stats
+      all = PortalMerchantApplication.all
+      {
+        pending:      all.where(status: "submitted").count,
+        in_review:    all.where(status: "under_review").count,
+        approved_30d: all.where(status: "approved").where("last_applied_at >= ?", 30.days.ago).count,
+        rejected_30d: all.where(status: "rejected").where("last_applied_at >= ?", 30.days.ago).count
+      }
     end
   end
 end
