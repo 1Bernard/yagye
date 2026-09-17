@@ -781,7 +781,7 @@ defmodule YagyeCheckoutWeb.Live.CheckoutLive do
                   <%!-- ── Pay Button ── --%>
                   <% {whole, cents} = format_amount_parts(@total_amount) %>
                   <% pay_label = case @selected_method do
-                    "bank_transfer" -> "I've made the transfer"
+                    "bank_transfer" -> "Generate Transfer Account"
                     _ -> "Pay #{currency_symbol(@currency)}#{whole}.#{cents}"
                   end %>
                   <button

@@ -572,19 +572,15 @@ module Checkout
           div(class: "border-t border-gray-100 px-4 pt-3 pb-4",
               hidden: !expanded,
               data:   { preview_tile_expanded: "" }) do
-            div(class: "bg-gray-50/70 rounded-xl px-3 py-[10px] flex flex-col gap-[5px]") do
-              [["Bank", "GCB Bank Ghana"], ["Account name", "Yagye Collect Ltd"],
-               ["Account no.", "1020300400"], ["Reference", "YAG-XXXXXXXX"]].each do |lbl, val|
-                div(class: "flex items-center justify-between") do
-                  span(class: "text-[9.5px] text-gray-400") { plain lbl }
-                  span(class: "text-[10.5px] font-semibold text-gray-700 font-mono") { plain val }
+            div(class: "bg-indigo-50/60 rounded-xl px-3 py-[10px] flex items-start gap-[6px]") do
+              span(class: "text-indigo-400 text-[11px] leading-tight flex-shrink-0 mt-[1px]") { plain "ⓘ" }
+              div do
+                p(class: "text-[10px] font-semibold text-indigo-700 mb-[2px]") do
+                  plain "Unique account per payment"
                 end
-              end
-            end
-            div(class: "flex items-start gap-[4px] mt-[6px]") do
-              span(class: "text-amber-400 text-[10px] leading-tight flex-shrink-0") { plain "⚠" }
-              span(class: "text-[9.5px] text-gray-400 leading-tight") do
-                plain "Transfer exact amount and include your reference."
+                p(class: "text-[9.5px] text-gray-500 leading-snug") do
+                  plain "A dedicated GhIPSS bank account is generated at checkout. Transfer the exact amount — confirmed automatically."
+                end
               end
             end
           end
