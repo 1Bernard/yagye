@@ -17,7 +17,51 @@ defmodule Simulator.Charges do
 
     case attrs.instrument_type do
       "WALLET" -> create_wallet_charge(account, attrs, scenario, seed)
-      _card_or_bank -> create_synchronous_charge(account, attrs, scenario, seed)
+      "BANK" -> create_bank_charge(account, attrs, scenario)
+      _card -> create_synchronous_charge(account, attrs, scenario, seed)
+    end
+  end
+
+  @doc """
+  Finds a PENDING_AUTH bank charge by virtual account number and authorises it.
+  Called by SimulateTransferController to simulate an incoming bank credit.
+  """
+  def authorise_bank_charge_by_va(virtual_account_number, amount_minor) do
+    with {:ok, charge} <- find_pending_bank_by_va(virtual_account_number),
+         :ok <- verify_transfer_amount(charge, amount_minor) do
+      now = DateTime.utc_now()
+      auth_code = ("AUTH" <> :crypto.strong_rand_bytes(4)) |> Base.encode16()
+
+      result =
+        charge
+        |> Charge.transition_changeset("AUTHORISED", %{
+          auth_code: auth_code,
+          rrn: generate_rrn_from_id(charge.account_id),
+          authorised_amount_minor: charge.amount_minor,
+          captured_amount_minor: charge.amount_minor,
+          authorised_at: now
+        })
+        |> Repo.update()
+
+      case result do
+        {:ok, updated} ->
+          insert_charge_event(updated, "charge.authorised", "PENDING_AUTH", "AUTHORISED")
+          {:ok, updated}
+
+        err ->
+          err
+      end
+    end
+  end
+
+  def find_pending_bank_by_va(virtual_account_number) do
+    case Repo.get_by(Charge,
+           virtual_account_number: virtual_account_number,
+           instrument_type: "BANK",
+           state: "PENDING_AUTH"
+         ) do
+      nil -> {:error, :not_found}
+      charge -> {:ok, charge}
     end
   end
 
@@ -52,10 +96,37 @@ defmodule Simulator.Charges do
 
   # ── Private ──────────────────────────────────────────────────────────────────
 
+  defp create_bank_charge(account, attrs, _scenario) do
+    va_number = generate_va_number()
+    expires_at = DateTime.add(DateTime.utc_now(), 1_800, :second)
+    payment_ref = "PAY-" <> Base.encode16(:crypto.strong_rand_bytes(4))
+
+    charge_attrs =
+      base_charge_attrs(account, attrs, nil, nil)
+      |> Map.merge(%{
+        state: "PENDING_AUTH",
+        virtual_account_number: va_number,
+        virtual_account_bank: "Simulator Bank Ghana",
+        virtual_account_name: "YAGYE PAYMENTS (TEST)",
+        virtual_account_expires_at: expires_at,
+        payment_reference: payment_ref
+      })
+
+    Repo.transaction(fn ->
+      with {:ok, charge} <- insert_charge(charge_attrs),
+           {:ok, _event} <- insert_charge_event(charge, "charge.created", nil, "PENDING_AUTH") do
+        charge
+      else
+        {:error, reason} -> Repo.rollback(reason)
+      end
+    end)
+  end
+
   defp create_synchronous_charge(account, attrs, scenario, seed) do
     outcome =
       OutcomeEngine.card_number_outcome(attrs[:card_number]) ||
         OutcomeEngine.card_outcome(scenario, seed)
+
     now = DateTime.utc_now()
 
     charge_attrs =
@@ -256,4 +327,23 @@ defmodule Simulator.Charges do
 
   defp generate_arn, do: "ARN" <> (:crypto.strong_rand_bytes(9) |> Base.encode16())
   defp generate_rrn(account), do: ("RRN" <> String.slice(account.id, 0, 8)) |> String.upcase()
+
+  defp generate_rrn_from_id(account_id),
+    do: ("RRN" <> String.slice(account_id, 0, 8)) |> String.upcase()
+
+  defp generate_va_number do
+    # 13-digit number starting with 074 (simulates a GhIPSS format)
+    suffix = :crypto.strong_rand_bytes(5) |> :binary.bin_to_list() |> Enum.map(&rem(&1, 10))
+
+    "074" <>
+      Enum.join(suffix) <> String.pad_leading(Integer.to_string(:rand.uniform(99_999)), 5, "0")
+  end
+
+  defp verify_transfer_amount(charge, amount_minor) do
+    if charge.amount_minor == amount_minor do
+      :ok
+    else
+      {:error, :amount_mismatch}
+    end
+  end
 end

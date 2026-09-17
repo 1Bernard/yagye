@@ -211,6 +211,22 @@ defmodule Simulator.Web.Layouts do
           .sim-history-table { width: 100%; }
           .sim-history-table td { padding: .35rem .25rem; border-bottom: 1px solid #1a2234; font-size: .8rem; }
           .sim-history-table tr:last-child td { border-bottom: none; }
+          .sim-va-panel { margin-top: .75rem; background: #0a1628; border: 1px solid #1e3a5f; border-radius: 5px; padding: .75rem; }
+          .sim-va-label { font-size: .7rem; text-transform: uppercase; letter-spacing: .06em; color: #2563eb; margin-bottom: .5rem; }
+          .sim-transfer-btn {
+            margin-top: .75rem; width: 100%; padding: .45rem; font-size: .8rem; font-weight: 600;
+            background: #1c3a2f; color: #6ee7b7; border: 1px solid #059669; border-radius: 4px; cursor: pointer;
+          }
+          .sim-transfer-btn:hover { background: #166534; }
+
+          /* ── Bank VA panel ───────────────────────────────────────────── */
+          .sim-va-panel { margin-top: .75rem; padding-top: .75rem; border-top: 1px solid #1e293b; display: flex; flex-direction: column; gap: .4rem; }
+          .sim-va-label { font-size: .7rem; text-transform: uppercase; letter-spacing: .07em; color: #334155; margin-bottom: .2rem; }
+          .sim-transfer-btn {
+            margin-top: .5rem; padding: .45rem 1rem; font-size: .8rem; font-weight: 600;
+            background: #1c3a2f; color: #4ade80; border: 1px solid #2a5040; border-radius: 4px; cursor: pointer;
+          }
+          .sim-transfer-btn:hover { background: #1f4434; border-color: #3a6050; }
         </style>
       </head>
       <body>

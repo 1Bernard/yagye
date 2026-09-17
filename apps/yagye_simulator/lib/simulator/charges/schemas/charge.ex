@@ -27,6 +27,11 @@ defmodule Simulator.Charges.Schemas.Charge do
     field :rrn, :string
     field :arn, :string
     field :seed, :integer
+    field :virtual_account_number, :string
+    field :virtual_account_bank, :string
+    field :virtual_account_name, :string
+    field :virtual_account_expires_at, :utc_datetime_usec
+    field :payment_reference, :string
 
     belongs_to :account, Account
     belongs_to :scenario, Scenario
@@ -54,7 +59,12 @@ defmodule Simulator.Charges.Schemas.Charge do
       :rrn,
       :arn,
       :scenario_id,
-      :seed
+      :seed,
+      :virtual_account_number,
+      :virtual_account_bank,
+      :virtual_account_name,
+      :virtual_account_expires_at,
+      :payment_reference
     ])
     |> validate_required([:account_id, :charge_ref, :amount_minor, :currency, :instrument_type])
     |> validate_inclusion(:state, @valid_states)
@@ -79,7 +89,12 @@ defmodule Simulator.Charges.Schemas.Charge do
       :rrn,
       :arn,
       :decline_code,
-      :voided_at
+      :voided_at,
+      :virtual_account_number,
+      :virtual_account_bank,
+      :virtual_account_name,
+      :virtual_account_expires_at,
+      :payment_reference
     ])
     |> validate_inclusion(:state, @valid_states)
   end

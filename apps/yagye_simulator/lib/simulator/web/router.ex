@@ -35,6 +35,8 @@ defmodule Simulator.Web.Router do
 
     post("/name-enquiry", NameEnquiryController, :create)
 
+    post("/transfers", TransferController, :create)
+
     get("/settlement-reports", SettlementReportController, :show)
 
     post("/disbursements", DisbursementController, :create)

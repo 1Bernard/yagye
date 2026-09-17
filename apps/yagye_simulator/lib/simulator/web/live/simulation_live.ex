@@ -6,6 +6,7 @@ defmodule Simulator.Web.Live.SimulationLive do
   alias Simulator.Accounts.Schemas.Account
   alias Simulator.Charges
   alias Simulator.Repo
+  alias Simulator.Webhooks
 
   @wallet_presets [
     %{label: "MTN Approved", msisdn: "0241000001", network: "MTN", badge: "authorised"},
@@ -57,7 +58,8 @@ defmodule Simulator.Web.Live.SimulationLive do
        wallet_presets: @wallet_presets,
        card_presets: @card_presets,
        networks: @networks,
-       currencies: @currencies
+       currencies: @currencies,
+       sim_transfer_ref: nil
      )}
   end
 
@@ -87,6 +89,47 @@ defmodule Simulator.Web.Live.SimulationLive do
       |> put_if_present(:currency, params["currency"])
 
     {:noreply, socket}
+  end
+
+  @impl true
+  def handle_event("simulate_transfer", %{"ref" => charge_ref}, socket) do
+    case Charges.get_by_ref(charge_ref) do
+      {:ok, charge} ->
+        result =
+          Charges.authorise_bank_charge_by_va(charge.virtual_account_number, charge.amount_minor)
+
+        case result do
+          {:ok, updated} ->
+            account = socket.assigns.account
+            Webhooks.enqueue_delivery(account.id, updated.charge_ref, schedule_in: 1)
+
+            entry =
+              socket.assigns.history
+              |> Enum.find(&(&1.charge_ref == charge_ref))
+              |> case do
+                nil -> build_history_entry_from_charge(updated, "BANK")
+                existing -> %{existing | state: updated.state}
+              end
+
+            history =
+              Enum.map(socket.assigns.history, fn h ->
+                if h.charge_ref == charge_ref, do: entry, else: h
+              end)
+
+            {:noreply, assign(socket, result: entry, history: history)}
+
+          {:error, reason} ->
+            {:noreply,
+             put_flash(socket, :error, "Transfer simulation failed: #{inspect(reason)}")}
+        end
+
+      {:error, :not_found} ->
+        {:noreply, put_flash(socket, :error, "Charge not found")}
+    end
+  end
+
+  def handle_event("simulate_transfer", _, socket) do
+    {:noreply, put_flash(socket, :error, "No pending bank charge to simulate")}
   end
 
   @impl true
@@ -341,10 +384,26 @@ defmodule Simulator.Web.Live.SimulationLive do
             Webhook will be delivered to the account's webhook URL once the prompt resolves.
           </div>
         <% end %>
-        <%= if @result.state == "PENDING_AUTH" and @result.instrument in ["CARD", "BANK"] do %>
+        <%= if @result.state == "PENDING_AUTH" and @result.instrument == "CARD" do %>
           <div class="sim-result-note">
             Charge is stuck in PENDING_AUTH — timeout or provider error scenario.
             Use StuckPaymentScannerWorker to recover.
+          </div>
+        <% end %>
+        <%= if @result.state == "PENDING_AUTH" and @result.instrument == "BANK" do %>
+          <div class="sim-va-panel">
+            <div class="sim-va-label">Virtual Account (test)</div>
+            <.kv label="Account" value={@result.virtual_account_number} mono={true} />
+            <.kv label="Bank" value={@result.virtual_account_bank} mono={false} />
+            <.kv label="Name" value={@result.virtual_account_name} mono={false} />
+            <button
+              phx-click="simulate_transfer"
+              phx-value-ref={@result.charge_ref}
+              class="sim-transfer-btn"
+              type="button"
+            >
+              Simulate Transfer Received →
+            </button>
           </div>
         <% end %>
       </div>
@@ -412,7 +471,7 @@ defmodule Simulator.Web.Live.SimulationLive do
 
   defp put_wallet_fields(attrs, _), do: attrs
 
-  defp put_card_fields(attrs, %{instrument: type} = a) when type in ["CARD", "BANK"] do
+  defp put_card_fields(attrs, %{instrument: "CARD"} = a) do
     Map.put(attrs, :card_number, a.card_number)
   end
 
@@ -427,12 +486,33 @@ defmodule Simulator.Web.Live.SimulationLive do
 
   defp build_history_entry(charge, a) do
     %{
+      charge_ref: charge.charge_ref,
       ref: short_ref(charge.charge_ref),
       state: charge.state,
       decline_code: charge.decline_code,
       instrument: a.instrument,
       label: input_label(a),
-      fired_at: DateTime.utc_now()
+      fired_at: DateTime.utc_now(),
+      virtual_account_number: charge.virtual_account_number,
+      virtual_account_bank: charge.virtual_account_bank,
+      virtual_account_name: charge.virtual_account_name,
+      virtual_account_expires_at: charge.virtual_account_expires_at
+    }
+  end
+
+  defp build_history_entry_from_charge(charge, instrument) do
+    %{
+      charge_ref: charge.charge_ref,
+      ref: short_ref(charge.charge_ref),
+      state: charge.state,
+      decline_code: charge.decline_code,
+      instrument: instrument,
+      label: "Bank transfer",
+      fired_at: DateTime.utc_now(),
+      virtual_account_number: nil,
+      virtual_account_bank: nil,
+      virtual_account_name: nil,
+      virtual_account_expires_at: nil
     }
   end
 

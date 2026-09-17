@@ -79,6 +79,15 @@ defmodule Simulator.Web.Controllers.ChargeController do
       "DECLINED" ->
         Map.put(base, :decline_code, charge.decline_code)
 
+      "PENDING_AUTH" when charge.instrument_type == "BANK" ->
+        Map.merge(base, %{
+          virtual_account_number: charge.virtual_account_number,
+          virtual_account_bank: charge.virtual_account_bank,
+          virtual_account_name: charge.virtual_account_name,
+          virtual_account_expires_at: charge.virtual_account_expires_at,
+          payment_reference: charge.payment_reference
+        })
+
       _ ->
         base
     end

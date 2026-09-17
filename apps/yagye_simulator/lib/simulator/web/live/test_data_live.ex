@@ -187,10 +187,13 @@ defmodule Simulator.Web.Live.TestDataLive do
             <tr>
               <td><code class="mono">BANK</code></td>
               <td style="font-size: .8rem; color: #64748b;">
-                Synchronous — final state in response
+                Async — starts PENDING_AUTH with virtual account details
               </td>
-              <td style="font-size: .8rem; color: #64748b;">None — scenario rates only</td>
-              <td><span class="badge badge-voided">None</span></td>
+              <td style="font-size: .8rem; color: #64748b;">
+                None — use <a href="/admin/simulate" style="color: #0ea5e9;">Simulate page</a>
+                to trigger transfer
+              </td>
+              <td><span class="badge badge-authorised">Yes (simulate)</span></td>
             </tr>
             <tr>
               <td><code class="mono">WALLET</code></td>

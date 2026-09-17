@@ -261,7 +261,7 @@ defmodule YagyeCore.Payments do
     {:error, :retryable_error}
   end
 
-  def handle_pending_auth(payment, attempt, %{provider_reference: charge_ref}) do
+  def handle_pending_auth(payment, attempt, %{provider_reference: charge_ref} = pending_data) do
     attempt_cs =
       attempt
       |> PaymentAttempt.result_changeset(%{state: "dispatched", provider_reference: charge_ref})
@@ -270,6 +270,7 @@ defmodule YagyeCore.Payments do
     Multi.new()
     |> Multi.update(:attempt, attempt_cs)
     |> Multi.update(:payment, Payment.transition_changeset(payment, "requires_action"))
+    |> maybe_store_virtual_account(payment, pending_data)
     |> Multi.run(:event, fn _repo, %{payment: p} ->
       insert_event(p, "payment.requires_action", "processing", "requires_action")
     end)
@@ -288,6 +289,37 @@ defmodule YagyeCore.Payments do
         correlation_id: p.public_id
       )
     end)
+    |> add_pending_auth_jobs(payment)
+    |> Repo.transaction()
+    |> case do
+      {:ok, %{payment: payment}} -> {:ok, payment}
+      {:error, _step, reason, _changes} -> {:error, reason}
+    end
+  end
+
+  defp maybe_store_virtual_account(multi, %{method: "bank_transfer"}, %{virtual_account: va})
+       when not is_nil(va) do
+    Multi.run(multi, :payment_meta, fn repo, %{payment: p} ->
+      new_meta = Map.merge(p.metadata || %{}, %{"virtual_account" => stringify_keys(va)})
+
+      p
+      |> Ecto.Changeset.cast(%{metadata: new_meta}, [:metadata])
+      |> repo.update()
+    end)
+  end
+
+  defp maybe_store_virtual_account(multi, _payment, _pending_data), do: multi
+
+  defp add_pending_auth_jobs(multi, %{method: "bank_transfer"}) do
+    Multi.run(multi, :timeout_job, fn _repo, %{payment: p, attempt: a} ->
+      %{"payment_id" => p.id, "attempt_id" => a.id}
+      |> PaymentTimeoutWorker.new(schedule_in: 1_800)
+      |> Oban.insert()
+    end)
+  end
+
+  defp add_pending_auth_jobs(multi, _payment) do
+    multi
     |> Multi.run(:status_check_job, fn _repo, %{payment: p, attempt: a} ->
       network = get_in(p.metadata, ["network"])
       config = network && Repo.get(MomoNetworkConfig, network)
@@ -306,14 +338,10 @@ defmodule YagyeCore.Payments do
       |> PaymentTimeoutWorker.new(schedule_in: prompt_timeout)
       |> Oban.insert()
     end)
-    |> Repo.transaction()
-    |> case do
-      {:ok, %{payment: payment}} ->
-        {:ok, payment}
+  end
 
-      {:error, _step, reason, _changes} ->
-        {:error, reason}
-    end
+  defp stringify_keys(map) when is_map(map) do
+    Map.new(map, fn {k, v} -> {to_string(k), v} end)
   end
 
   def handle_prompt_timeout(payment, attempt) do
