@@ -83,7 +83,16 @@ defmodule YagyeCoreWeb.Controllers.Internal.CheckoutController do
   def payment_state(conn, %{"payment_public_id" => pub_id}) do
     case Payments.get_payment(pub_id) do
       {:ok, payment} ->
-        conn |> put_status(:ok) |> json(%{state: payment.state, payment_public_id: pub_id})
+        body = %{state: payment.state, payment_public_id: pub_id}
+
+        body =
+          if payment.state == "requires_action" do
+            Map.put(body, :virtual_account, get_in(payment.metadata, ["virtual_account"]))
+          else
+            body
+          end
+
+        conn |> put_status(:ok) |> json(body)
 
       {:error, :not_found} ->
         conn |> put_status(:not_found) |> json(%{error: "not_found"})

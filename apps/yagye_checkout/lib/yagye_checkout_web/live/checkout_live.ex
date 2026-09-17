@@ -144,7 +144,52 @@ defmodule YagyeCheckoutWeb.Live.CheckoutLive do
     {:noreply, push_event(socket, "redirect_to", %{url: url})}
   end
 
+  def handle_info(:tick_countdown, socket) do
+    if connected?(socket) and socket.assigns.page_state == :awaiting_transfer do
+      Process.send_after(self(), :tick_countdown, 1_000)
+    end
+
+    {:noreply, assign(socket, now_unix: System.os_time(:second))}
+  end
+
+  # Bank transfer: no max-poll cutoff — PaymentTimeoutWorker on core handles the 30-min expiry.
   @impl true
+  def handle_info(:poll, %{assigns: %{page_state: :awaiting_transfer, payment_public_id: pay_id, session_public_id: sid, poll_count: n}} = socket) do
+    case CoreClient.get_payment_state(pay_id) do
+      {:ok, %{"state" => "succeeded"}} ->
+        finalize(socket, sid, pay_id)
+
+      {:ok, %{"state" => state}} when state in ["failed", "cancelled", "expired"] ->
+        {:noreply,
+         assign(socket,
+           page_state: :form,
+           virtual_account: nil,
+           va_expires_unix: nil,
+           error: "Bank transfer timed out or was not completed. Please try again."
+         )}
+
+      {:ok, %{"state" => "requires_action"} = resp} ->
+        va = resp["virtual_account"]
+
+        socket =
+          if is_map(va) and is_nil(socket.assigns.virtual_account) do
+            expires_unix = parse_va_expires(va["expires_at"])
+            if connected?(socket), do: Process.send_after(self(), :tick_countdown, 1_000)
+            assign(socket, virtual_account: va, va_expires_unix: expires_unix)
+          else
+            socket
+          end
+
+        Process.send_after(self(), :poll, @poll_ms)
+        {:noreply, assign(socket, poll_count: n + 1)}
+
+      _ ->
+        Process.send_after(self(), :poll, @poll_ms)
+        {:noreply, assign(socket, poll_count: n + 1)}
+    end
+  end
+
+  # Mobile money / card: stop after @max_polls (~2 min).
   def handle_info(:poll, %{assigns: %{poll_count: n}} = socket) when n >= @max_polls do
     {:noreply,
      assign(socket,
@@ -199,6 +244,80 @@ defmodule YagyeCheckoutWeb.Live.CheckoutLive do
             </p>
             <div class="co-progress-bar"><div class="co-progress-fill"></div></div>
             <p class="co-terminal-hint">This page updates automatically once your payment is confirmed.</p>
+          </div>
+
+        <% :awaiting_transfer -> %>
+          <div class="co-panel co-terminal-panel co-terminal-panel--await">
+            <%= if @virtual_account do %>
+              <div class="co-await-status">
+                <span class="co-live-dot"></span>
+                <span>Waiting for your transfer</span>
+              </div>
+              <p class="co-terminal-desc">
+                Transfer <strong>exactly</strong>
+                <% {bw, bc} = format_amount_parts(@total_amount) %>
+                <strong>{currency_symbol(@currency)}{bw}.{bc}</strong>
+                to the account below — your payment is confirmed automatically.
+              </p>
+
+              <div class="co-va-panel">
+                <div class="co-va-row">
+                  <span class="co-va-label">Bank</span>
+                  <span class="co-va-value">{@virtual_account["bank_name"] || "Partner Bank"}</span>
+                </div>
+                <div class="co-va-row">
+                  <span class="co-va-label">Account name</span>
+                  <span class="co-va-value">{@virtual_account["account_name"] || "YAGYE COLLECT"}</span>
+                </div>
+                <div class="co-va-row co-va-row--accent">
+                  <span class="co-va-label">Account number</span>
+                  <div class="co-va-account-wrap">
+                    <span class="co-mono co-va-number">
+                      {format_account_number(@virtual_account["account_number"])}
+                    </span>
+                    <button
+                      type="button"
+                      class="co-copy-btn"
+                      onclick={"navigator.clipboard.writeText('#{@virtual_account["account_number"]}').then(()=>{this.textContent='Copied!';setTimeout(()=>this.textContent='Copy',2000)})"}
+                    >Copy</button>
+                  </div>
+                </div>
+                <div class="co-va-row co-va-row--amount">
+                  <span class="co-va-label">Amount to send</span>
+                  <span class="co-va-amount">{currency_symbol(@currency)}{bw}.{bc}</span>
+                </div>
+              </div>
+
+              <div class="co-va-warn">
+                <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;margin-top:1px">
+                  <path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>
+                </svg>
+                Send <strong>exactly</strong> this amount — any difference will cause the transfer to be rejected.
+              </div>
+
+              <div class="co-va-meta">
+                <div class="co-va-expiry">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>
+                  </svg>
+                  Account expires in
+                  <strong class={"co-countdown#{if countdown_urgent?(@va_expires_unix, @now_unix), do: " co-countdown--urgent"}"}>{format_countdown(@va_expires_unix, @now_unix)}</strong>
+                </div>
+                <div class="co-va-rail">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <polyline points="13 17 18 12 13 7"/><polyline points="6 17 11 12 6 7"/>
+                  </svg>
+                  Use <strong>GhIPSS Instant Pay</strong> — usually under 30 seconds
+                </div>
+              </div>
+
+              <p class="co-terminal-hint">Do not close this page — it updates automatically when we receive your transfer.</p>
+
+            <% else %>
+              <div class="co-spinner"><div class="co-spinner-ring"></div></div>
+              <h2 class="co-terminal-title">Generating transfer account…</h2>
+              <p class="co-terminal-desc">Preparing a dedicated bank account for this payment.</p>
+            <% end %>
           </div>
 
         <% :done -> %>
@@ -641,39 +760,19 @@ defmodule YagyeCheckoutWeb.Live.CheckoutLive do
                       </div>
                       <%= if @selected_method == "bank_transfer" do %>
                         <div class="co-option-body">
-                          <div class="co-bank-block">
-                            <p class="co-bank-heading">Transfer to this account</p>
-                            <div class="co-bank-rows">
-                              <div class="co-bank-row">
-                                <span class="co-bank-label">Bank</span>
-                                <span class="co-bank-value">GCB Bank Ghana</span>
-                              </div>
-                              <div class="co-bank-row">
-                                <span class="co-bank-label">Account name</span>
-                                <span class="co-bank-value">Yagye Collect Ltd</span>
-                              </div>
-                              <div class="co-bank-row">
-                                <span class="co-bank-label">Account number</span>
-                                <span class="co-bank-value co-mono">1020300400</span>
-                              </div>
-                              <div class="co-bank-row co-bank-row--highlight">
-                                <span class="co-bank-label">Reference</span>
-                                <span class="co-bank-value co-mono">{bank_reference(@session)}</span>
-                              </div>
-                              <div class="co-bank-row">
-                                <span class="co-bank-label">Amount</span>
-                                <% {bw, bc} = format_amount_parts(@total_amount) %>
-                                <span class="co-bank-value co-bank-amount">{currency_symbol(@currency)}{bw}.{bc}</span>
-                              </div>
-                            </div>
-                            <div class="co-bank-warn">
-                              <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;margin-top:1px">
-                                <path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>
-                              </svg>
-                              Include the reference exactly — transfers without it cannot be matched.
+                          <div class="co-bank-info-notice">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;margin-top:2px">
+                              <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
+                            </svg>
+                            <div>
+                              <p class="co-bank-notice-title">Unique account generated per payment</p>
+                              <p class="co-bank-notice-desc">
+                                Click Pay to generate a dedicated bank account for this transaction.
+                                Transfer the exact amount via <strong>GhIPSS Instant Pay</strong> —
+                                your payment is confirmed automatically in seconds.
+                              </p>
                             </div>
                           </div>
-                          <p class="co-bank-confirm-hint">Once you've completed the transfer, click the button below.</p>
                         </div>
                       <% end %>
                     </div>
@@ -1513,9 +1612,91 @@ defmodule YagyeCheckoutWeb.Live.CheckoutLive do
         font-size: 0.75rem; color: #92400e; font-weight: 500; line-height: 1.4;
       }
 
-      .co-bank-confirm-hint {
-        font-size: 0.8rem; color: var(--muted-text); text-align: center; margin-top: 0.25rem;
+      /* ── Bank info notice (in form) ── */
+      .co-bank-info-notice {
+        display: flex; align-items: flex-start; gap: 0.625rem;
+        padding: 0.875rem 1rem;
+        background: rgba(61,71,245,0.05);
+        border: 1px solid rgba(61,71,245,0.18);
+        border-radius: 12px;
+        color: #3D47F5;
+        font-size: 0.8125rem;
       }
+
+      .co-bank-notice-title { font-weight: 700; margin-bottom: 0.25rem; color: #1e40af; }
+      .co-bank-notice-desc { color: var(--prose-text); line-height: 1.5; }
+      .co-bank-notice-desc strong { color: var(--ink); }
+
+      /* ── Virtual account panel (awaiting_transfer state) ── */
+      .co-terminal-panel--await { gap: 1.25rem; }
+
+      .co-await-status {
+        display: flex; align-items: center; gap: 0.5rem;
+        font-size: 0.8125rem; font-weight: 600; color: var(--muted-text);
+      }
+
+      .co-va-panel {
+        width: 100%; background: var(--canvas);
+        border: 1px solid var(--border-med); border-radius: 14px;
+        overflow: hidden; text-align: left;
+      }
+
+      .co-va-row {
+        display: flex; justify-content: space-between; align-items: center;
+        padding: 0.625rem 1rem; border-bottom: 1px solid var(--border); gap: 1rem;
+      }
+
+      .co-va-row:last-child { border-bottom: none; }
+
+      .co-va-row--accent { background: rgba(61,71,245,0.04); }
+
+      .co-va-row--amount { border-top: 1px solid var(--border-med); }
+
+      .co-va-label { font-size: 0.75rem; color: var(--muted-text); flex-shrink: 0; }
+      .co-va-value { font-size: 0.8125rem; font-weight: 600; color: var(--ink); text-align: right; }
+
+      .co-va-account-wrap {
+        display: flex; align-items: center; gap: 0.5rem;
+      }
+
+      .co-va-number {
+        font-family: monospace; font-size: 0.9375rem; font-weight: 700;
+        color: var(--ink); letter-spacing: 0.05em;
+      }
+
+      .co-va-amount {
+        font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
+        font-size: 1.125rem; font-weight: 800; color: var(--brand); letter-spacing: -0.01em;
+      }
+
+      .co-copy-btn {
+        font-size: 0.6875rem; font-weight: 700;
+        padding: 0.25rem 0.625rem; border-radius: 6px;
+        border: 1px solid var(--brand); background: var(--brand-subtle);
+        color: var(--brand); cursor: pointer; transition: all 0.15s ease;
+        white-space: nowrap; flex-shrink: 0;
+      }
+
+      .co-copy-btn:hover { background: var(--brand); color: #FFFFFF; }
+
+      .co-va-warn {
+        display: flex; align-items: flex-start; gap: 0.4rem;
+        width: 100%; font-size: 0.75rem; color: #92400e; font-weight: 500; line-height: 1.4;
+        padding: 0.625rem 0.875rem;
+        background: #FFFBEB; border: 1px solid #FDE68A; border-radius: 10px;
+      }
+
+      .co-va-meta {
+        display: flex; flex-direction: column; gap: 0.4rem;
+        width: 100%; font-size: 0.75rem; color: var(--muted-text);
+      }
+
+      .co-va-expiry, .co-va-rail {
+        display: flex; align-items: center; gap: 0.35rem;
+      }
+
+      .co-countdown { font-family: monospace; font-weight: 700; color: var(--ink); }
+      .co-countdown--urgent { color: #DC2626; animation: coPulse 1s ease-in-out infinite alternate; }
 
       /* ── Footer ── */
       .co-page-footer {
@@ -1620,7 +1801,10 @@ defmodule YagyeCheckoutWeb.Live.CheckoutLive do
       card_name: "",
       card_errors: %{},
       card_brand: nil,
-      processing_method: "mobile_money"
+      processing_method: "mobile_money",
+      virtual_account: nil,
+      va_expires_unix: nil,
+      now_unix: System.os_time(:second)
     )
   end
 
@@ -1631,7 +1815,7 @@ defmodule YagyeCheckoutWeb.Live.CheckoutLive do
   defp resolve_state("processing", _e, _n), do: :processing
   defp resolve_state(_s, _e, _n), do: :form
 
-  defp maybe_start_poll(socket, :processing) do
+  defp maybe_start_poll(socket, state) when state in [:processing, :awaiting_transfer] do
     if connected?(socket), do: Process.send_after(self(), :poll, @poll_ms)
     socket
   end
@@ -1690,10 +1874,20 @@ defmodule YagyeCheckoutWeb.Live.CheckoutLive do
     case CoreClient.pay_session(sid, attrs) do
       {:ok, %{"payment_public_id" => pay_id}} ->
         if connected?(socket), do: Process.send_after(self(), :poll, @poll_ms)
-        {:noreply, assign(socket, page_state: :processing, payment_public_id: pay_id, poll_count: 0, error: nil, processing_method: "bank_transfer")}
+
+        {:noreply,
+         assign(socket,
+           page_state: :awaiting_transfer,
+           payment_public_id: pay_id,
+           poll_count: 0,
+           error: nil,
+           processing_method: "bank_transfer",
+           virtual_account: nil,
+           va_expires_unix: nil
+         )}
 
       {:error, _} ->
-        {:noreply, assign(socket, error: "We couldn't confirm your transfer. Please try again.")}
+        {:noreply, assign(socket, error: "We couldn't generate a transfer account. Please try again.")}
     end
   end
 
@@ -1902,12 +2096,41 @@ defmodule YagyeCheckoutWeb.Live.CheckoutLive do
     end
   end
 
-  defp bank_reference(nil), do: "REF-PENDING"
+  defp parse_va_expires(nil), do: nil
 
-  defp bank_reference(%{"public_id" => id}) when is_binary(id) do
-    suffix = id |> String.upcase() |> String.replace(~r/[^A-Z0-9]/, "") |> String.slice(-8, 8)
-    "YAG-#{suffix}"
+  defp parse_va_expires(iso) when is_binary(iso) do
+    case DateTime.from_iso8601(iso) do
+      {:ok, dt, _} -> DateTime.to_unix(dt)
+      _ -> nil
+    end
   end
 
-  defp bank_reference(_), do: "REF-PENDING"
+  defp format_countdown(nil, _now), do: "--:--"
+
+  defp format_countdown(expires, now) when is_integer(expires) and is_integer(now) do
+    remaining = max(expires - now, 0)
+    mm = div(remaining, 60) |> Integer.to_string() |> String.pad_leading(2, "0")
+    ss = rem(remaining, 60) |> Integer.to_string() |> String.pad_leading(2, "0")
+    "#{mm}:#{ss}"
+  end
+
+  defp format_countdown(_, _), do: "--:--"
+
+  defp countdown_urgent?(nil, _now), do: false
+
+  defp countdown_urgent?(expires, now) when is_integer(expires) and is_integer(now) do
+    expires - now < 120
+  end
+
+  defp countdown_urgent?(_, _), do: false
+
+  defp format_account_number(nil), do: "—"
+
+  defp format_account_number(number) when is_binary(number) do
+    number
+    |> String.graphemes()
+    |> Enum.chunk_every(4)
+    |> Enum.map_join(" ", &Enum.join/1)
+  end
+
 end
