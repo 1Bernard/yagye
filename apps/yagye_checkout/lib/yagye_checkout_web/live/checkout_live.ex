@@ -2,6 +2,8 @@ defmodule YagyeCheckoutWeb.Live.CheckoutLive do
   use Phoenix.LiveView, layout: false
   import Phoenix.HTML, only: [raw: 1]
 
+  require Logger
+
   alias YagyeCheckout.CoreClient
 
   @poll_ms 3_000
@@ -155,7 +157,10 @@ defmodule YagyeCheckoutWeb.Live.CheckoutLive do
   # Bank transfer: no max-poll cutoff — PaymentTimeoutWorker on core handles the 30-min expiry.
   @impl true
   def handle_info(:poll, %{assigns: %{page_state: :awaiting_transfer, payment_public_id: pay_id, session_public_id: sid, poll_count: n}} = socket) do
-    case CoreClient.get_payment_state(pay_id) do
+    result = CoreClient.get_payment_state(pay_id)
+    Logger.info("[checkout] bank_transfer poll pay_id=#{pay_id} poll_count=#{n} result=#{inspect(result)}")
+
+    case result do
       {:ok, %{"state" => "succeeded"}} ->
         finalize(socket, sid, pay_id)
 

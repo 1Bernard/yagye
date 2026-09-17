@@ -1,6 +1,7 @@
 defmodule YagyeCore.Payments do
   @moduledoc false
 
+  require Logger
   require OpenTelemetry.Tracer
 
   import Ecto.Query
@@ -262,6 +263,10 @@ defmodule YagyeCore.Payments do
   end
 
   def handle_pending_auth(payment, attempt, %{provider_reference: charge_ref} = pending_data) do
+    Logger.info(
+      "[payments] handle_pending_auth payment_id=#{payment.id} method=#{payment.method} has_va=#{is_map(Map.get(pending_data, :virtual_account))}"
+    )
+
     attempt_cs =
       attempt
       |> PaymentAttempt.result_changeset(%{state: "dispatched", provider_reference: charge_ref})

@@ -77,7 +77,7 @@ defmodule YagyeCore.Payments.Adapters.SimulatorAdapter do
   defp translate_charge_response(%{"state" => "PENDING_AUTH", "instrument_type" => "BANK"} = body) do
     virtual_account = %{
       account_number: body["virtual_account_number"],
-      bank: body["virtual_account_bank"],
+      bank_name: body["virtual_account_bank"],
       account_name: body["virtual_account_name"],
       expires_at: body["virtual_account_expires_at"],
       payment_reference: body["payment_reference"]
