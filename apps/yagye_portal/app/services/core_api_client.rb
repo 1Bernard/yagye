@@ -107,6 +107,51 @@ class CoreApiClient
     post("/internal/routing-configurations/#{id}/publish", {})
   end
 
+  # ── Invoices (P13) ────────────────────────────────────────────────────────
+
+  # GET /internal/merchants/:code/invoices
+  def list_invoices(merchant_code:, state: nil, starting_after: nil)
+    query = { merchant_code: merchant_code }
+    query[:state]          = state          if state
+    query[:starting_after] = starting_after if starting_after
+    get("/internal/merchants/#{merchant_code}/invoices?#{URI.encode_www_form(query.transform_keys(&:to_s))}")
+  end
+
+  # GET /internal/invoices/:id
+  def get_invoice(public_id)
+    get("/internal/invoices/#{public_id}")
+  end
+
+  # POST /internal/invoices
+  def create_invoice(merchant_code:, **attrs)
+    post("/internal/invoices", attrs.merge(merchant_code: merchant_code))
+  end
+
+  # POST /internal/invoices/:id/issue
+  def issue_invoice(public_id)
+    post("/internal/invoices/#{public_id}/issue", {})
+  end
+
+  # POST /internal/invoices/:id/void
+  def void_invoice(public_id)
+    post("/internal/invoices/#{public_id}/void", {})
+  end
+
+  # ── Checkout Sessions (P16) ───────────────────────────────────────────────
+
+  # GET /internal/merchants/:code/checkout-sessions
+  def list_checkout_sessions(merchant_code:, state: nil, payment_link_id: nil)
+    query = { merchant_code: merchant_code }
+    query[:state]           = state           if state
+    query[:payment_link_id] = payment_link_id if payment_link_id
+    get("/internal/merchants/#{merchant_code}/checkout-sessions?#{URI.encode_www_form(query.transform_keys(&:to_s))}")
+  end
+
+  # GET /internal/checkout-sessions/:id
+  def get_checkout_session(public_id)
+    get("/internal/checkout-sessions/#{public_id}")
+  end
+
   # ── Payment links (P16) ───────────────────────────────────────────────────
 
   def list_payment_links(merchant_code:, starting_after: nil)
@@ -207,6 +252,61 @@ class CoreApiClient
       resolution_code: resolution_code,
       resolution_note: resolution_note
     }.compact)
+  end
+
+  # ── Customers (P11) ───────────────────────────────────────────────────────
+
+  # GET /internal/merchants/:code/customers
+  def list_customers(merchant_code:, starting_after: nil)
+    query = {}
+    query = query.merge(starting_after: starting_after) if starting_after
+    qs    = query.any? ? "?#{URI.encode_www_form(query.transform_keys(&:to_s))}" : ""
+    get("/internal/merchants/#{merchant_code}/customers#{qs}")
+  end
+
+  # GET /internal/customers/:id
+  def get_customer(public_id)
+    get("/internal/customers/#{public_id}")
+  end
+
+  # ── Settlement batches (P9) ───────────────────────────────────────────────
+
+  # GET /internal/merchants/:code/settlement-batches
+  def list_settlement_batches(merchant_code:, starting_after: nil)
+    query = {}
+    query = query.merge(starting_after: starting_after) if starting_after
+    qs    = query.any? ? "?#{URI.encode_www_form(query.transform_keys(&:to_s))}" : ""
+    get("/internal/merchants/#{merchant_code}/settlement-batches#{qs}")
+  end
+
+  # GET /internal/settlement-batches-info/:id
+  def get_settlement_batch(id)
+    get("/internal/settlement-batches-info/#{id}")
+  end
+
+  # ── Pricing ───────────────────────────────────────────────────────────────
+
+  # GET /internal/merchants/:code/pricing-plan
+  def get_merchant_pricing_plan(merchant_code)
+    get("/internal/merchants/#{merchant_code}/pricing-plan")
+  end
+
+  # GET /internal/merchants/:code/fee-invoices
+  def list_fee_invoices(merchant_code:, limit: nil, offset: nil)
+    query = {}
+    query = query.merge("limit" => limit)   if limit
+    query = query.merge("offset" => offset) if offset
+    qs    = query.any? ? "?#{URI.encode_www_form(query)}" : ""
+    get("/internal/merchants/#{merchant_code}/fee-invoices#{qs}")
+  end
+
+
+
+  # ── FX rates ──────────────────────────────────────────────────────────────
+
+  # GET /internal/fx-rates
+  def list_fx_rates
+    get("/internal/fx-rates")
   end
 
   # ── Adjustment approvals (ops — SoD enforced in Core) ─────────────────────

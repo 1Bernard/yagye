@@ -25,16 +25,27 @@ Rails.application.routes.draw do
 
   # ── Payments domain ──────────────────────────────────────────────────────
   scope module: "payments" do
-    get "payments",       to: "transactions#index", as: :payments
-    get "payments/:id",   to: "transactions#show",  as: :payment
-    get   "disputes",       to: "disputes#index",     as: :disputes
-    get   "disputes/:id",   to: "disputes#show",      as: :dispute
+    get "payments",          to: "transactions#index",  as: :payments
+    get "payments/filter",   to: "transactions#filter", as: :filter_payments
+    get "payments/:id",      to: "transactions#show",   as: :payment
+    get   "disputes",          to: "disputes#index",  as: :disputes
+    get   "disputes/filter",   to: "disputes#filter", as: :filter_disputes
+    get   "disputes/:id",      to: "disputes#show",   as: :dispute
     patch "disputes/:id",   to: "disputes#update"
+
+    get "customers",        to: "customers#index", as: :customers
+    get "customers/:id",    to: "customers#show",  as: :customer
+
+    get "settlement-batches",     to: "settlement_batches#index", as: :settlement_batches
+    get "settlement-batches/:id", to: "settlement_batches#show",  as: :settlement_batch
+
+    get "reserves", to: "reserves#index", as: :reserves
   end
 
   # ── Merchants domain (ops — policy-gated) ────────────────────────────────
   scope module: "merchants" do
     get   "merchants",                              to: "merchants#index",              as: :merchants
+    get   "merchants/filter",                       to: "merchants#filter",             as: :filter_merchants
     get   "merchants/:id",                         to: "merchants#show",               as: :merchant
     patch "merchants/:id",                         to: "merchants#update"
     post  "merchants/:id/kyb-approve",             to: "merchants#kyb_approve",        as: :kyb_approve_merchant
@@ -45,6 +56,7 @@ Rails.application.routes.draw do
   # ── Compliance domain (ops — policy-gated) ───────────────────────────────
   scope module: "compliance" do
     get  "kyb-reviews",               to: "kyb_reviews#index",   as: :kyb_reviews
+    get  "kyb-reviews/filter",        to: "kyb_reviews#filter",  as: :filter_kyb_reviews
     get  "kyb-reviews/:id",           to: "kyb_reviews#show",    as: :kyb_review
     post "kyb-reviews/:id/approve",   to: "kyb_reviews#approve", as: :approve_kyb_review
     post "kyb-reviews/:id/reject",    to: "kyb_reviews#reject",  as: :reject_kyb_review
@@ -70,6 +82,7 @@ Rails.application.routes.draw do
   # ── Payments — refund ────────────────────────────────────────────────────
   scope module: "payments" do
     get  "payouts",                          to: "payouts#index",                   as: :payouts
+    get  "payouts/filter",                   to: "payouts#filter",                  as: :filter_payouts
     get  "payouts/:id",                     to: "payouts#show",                    as: :payout
     get  "payout-requests",                 to: "payout_requests#index",           as: :payout_requests
     get  "payout-requests/new",             to: "payout_requests#new",             as: :new_payout_request
@@ -78,9 +91,11 @@ Rails.application.routes.draw do
     post "payout-requests/:id/approve",     to: "payout_requests#approve",         as: :approve_payout_request
     post "payout-requests/:id/reject",      to: "payout_requests#reject",          as: :reject_payout_request
     get  "reconciliation",                                  to: "reconciliation#index",              as: :reconciliation
+    get  "reconciliation/filter",                           to: "reconciliation#filter",             as: :filter_reconciliation
     get  "reconciliation/:id",                             to: "reconciliation#show",               as: :reconciliation_break
     post "reconciliation/:id/propose-adjustment",          to: "reconciliation#propose_adjustment", as: :reconciliation_propose_adjustment
     get  "settlements",                            to: "settlements#index",             as: :settlements
+    get  "settlements/filter",                     to: "settlements#filter",            as: :filter_settlements
     get  "settlements/:id",                        to: "settlements#show",              as: :settlement
     post "settlements/:id/approve-dispatch",       to: "settlement_dispatches#approve", as: :approve_dispatch_settlement
     post "settlements/:id/reject-dispatch",        to: "settlement_dispatches#reject",  as: :reject_dispatch_settlement
@@ -129,6 +144,8 @@ Rails.application.routes.draw do
   scope module: "account" do
     get   "onboarding/kyc",             to: "kyc#index",                as: :kyc_onboarding
     get   "settings",                   to: "settings#index",           as: :settings
+    get   "settings/pricing",           to: "pricing#index",            as: :settings_pricing
+    get   "settings/fee-invoices",      to: "pricing#fee_invoices",     as: :settings_fee_invoices
     patch "settings/profile",           to: "settings#update_profile",  as: :settings_profile
     patch "settings/password",          to: "settings#update_password", as: :settings_password
     get   "help",                       to: "help#index",               as: :help
@@ -156,10 +173,27 @@ Rails.application.routes.draw do
   # ── Checkout / Payment links (P16) ──────────────────────────────────────────
   scope module: "checkout" do
     get  "payment-links",             to: "payment_links#index",          as: :payment_links
+    get  "payment-links/filter",      to: "payment_links#filter",         as: :filter_payment_links
     get  "payment-links/new",         to: "payment_links#new",            as: :new_payment_link
     post "payment-links",             to: "payment_links#create"
     get  "payment-links/:id/layout",  to: "payment_links#layout",         as: :payment_link_layout
     patch "payment-links/:id/layout", to: "payment_links#update_layout"
+  end
+
+  # ── Invoices (P13) ───────────────────────────────────────────────────────────
+  scope module: "checkout" do
+    get  "invoices",              to: "invoices#index",  as: :invoices
+    get  "invoices/new",          to: "invoices#new",    as: :new_invoice
+    post "invoices",              to: "invoices#create"
+    get  "invoices/:id",          to: "invoices#show",   as: :invoice
+    post "invoices/:id/issue",    to: "invoices#issue",  as: :issue_invoice
+    post "invoices/:id/void",     to: "invoices#void",   as: :void_invoice
+  end
+
+  # ── Checkout Sessions (P16) ───────────────────────────────────────────────────
+  scope module: "checkout" do
+    get "checkout-sessions",      to: "checkout_sessions#index", as: :checkout_sessions
+    get "checkout-sessions/:id",  to: "checkout_sessions#show",  as: :checkout_session
   end
 
   # Ops-only SSO configuration CRUD (top-level controller, settings URL namespace)

@@ -7,18 +7,42 @@ module Payments
       scope = policy_scope(Payment)
       pagy, payments = pagy(Payments::TransactionsQuery.new(scope).call(filters), limit: 25)
       render Payments::IndexView.new(
-        payments: payments, pagy: pagy,
-        can_view_pii: policy(Payment).view_customer_pii?,
-        can_export:   policy(Payment).export?,
-        status_filter: params[:status], query: params[:q]
+        payments:      payments,
+        pagy:          pagy,
+        can_view_pii:  policy(Payment).view_customer_pii?,
+        can_export:    policy(Payment).export?,
+        status_filter: params[:status],
+        method_filter: params[:method],
+        from:          params[:from],
+        to:            params[:to],
+        query:         params[:q]
+      )
+    end
+
+    def filter
+      authorize Payment, :index?
+      render Payments::FilterView.new(
+        query:   params[:q],
+        status:  params[:status],
+        method:  params[:method],
+        from:    params[:from],
+        to:      params[:to]
       )
     end
 
     def show
       payment = decode_id(Payment)
       authorize payment
+
+      events = []
+      if payment.core_payment_id.present?
+        result = CoreApiClient.new.get_payment_events(payment.core_payment_id)
+        events = result.body["data"] || [] if result.success?
+      end
+
       render Payments::ShowView.new(
-        payment: payment,
+        payment:      payment,
+        events:       events,
         can_refund:   policy(payment).refund?,
         can_view_pii: policy(payment).view_customer_pii?
       )
@@ -44,7 +68,7 @@ module Payments
     private
 
     def filters
-      params.permit(:status, :q, :from, :to, :provider).to_h.symbolize_keys
+      params.permit(:status, :q, :from, :to, :provider, :method).to_h.symbolize_keys
     end
   end
 end
