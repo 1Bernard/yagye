@@ -5,13 +5,29 @@ module Payments
     def index
       authorize PortalPayout, :index?
       scope = policy_scope(PortalPayout)
+      scope = scope.where(state: params[:state]) if params[:state].present?
+      scope = scope.where("created_at >= ?", params[:from]) if params[:from].present?
+      scope = scope.where("created_at <= ?", params[:to])   if params[:to].present?
       pagy, payouts = pagy(scope.order(last_applied_at: :desc), limit: 25)
       render Payments::Payouts::IndexView.new(
         payouts:      payouts,
         pagy:         pagy,
         state_filter: params[:state],
         query:        params[:q],
-        stats:        payout_stats(scope)
+        from:         params[:from],
+        to:           params[:to],
+        view:         params[:view].presence_in(%w[list grid]) || "list",
+        stats:        payout_stats(policy_scope(PortalPayout))
+      )
+    end
+
+    def filter
+      authorize PortalPayout, :index?
+      render Payments::Payouts::FilterView.new(
+        state: params[:state],
+        query: params[:q],
+        from:  params[:from],
+        to:    params[:to]
       )
     end
 
@@ -37,7 +53,6 @@ module Payments
 
       currency   = scope.where(state: "paid").pick(:currency) || "GHS"
 
-      # Unsettled balance and next settlement date from portal_settlements
       merchant_code  = current_user.internal_staff? ? nil : current_user.merchant_code
       settlement_scope = merchant_code \
         ? PortalSettlement.for_merchant(merchant_code) \

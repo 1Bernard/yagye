@@ -4,8 +4,9 @@ module Payments
   class ShowView < ApplicationComponent
     include UI::Theme
 
-    def initialize(payment:, can_refund: false, can_view_pii: false)
+    def initialize(payment:, events: [], can_refund: false, can_view_pii: false)
       @payment      = payment
+      @events       = events
       @can_refund   = can_refund
       @can_view_pii = can_view_pii
     end
@@ -33,6 +34,7 @@ module Payments
         amount_card
         details_card
         metadata_card
+        core_events_card if @events.any?
       end
     end
 
@@ -71,11 +73,28 @@ module Payments
           render UI::DetailList.new do |list|
             list.row("Customer",        customer_value)
             list.row("Core payment ID", @payment.core_payment_id || "—", mono: true)
-            list.row("Payment method",  @payment.provider_label)
+            list.row("Payment method",  @payment.method_label)
             list.row("Status")         { render UI::StatusBadge.new(@payment.status) }
             list.row("Created",        @payment.created_at.strftime("%d %b %Y at %H:%M UTC"))
             list.row("Settled",        settled_label)
             list.row("Merchant",       @payment.merchant_code || "—", mono: true)
+            if @payment.fulfilment_type.present?
+              list.row("Fulfilment") do
+                span(class: "inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium bg-gray-100 text-gray-600") do
+                  plain @payment.fulfilment_type.capitalize
+                end
+              end
+            end
+            list.row("Ship to", @payment.shipping_country) if @payment.shipping_country.present?
+            unless @payment.billing_shipping_match.nil?
+              list.row("Billing = shipping") do
+                if @payment.billing_shipping_match
+                  span(class: "text-[12px] text-green-700 font-medium") { plain "Match ✓" }
+                else
+                  span(class: "text-[12px] text-amber-600 font-medium") { plain "Mismatch ✗" }
+                end
+              end
+            end
           end
         end
       end
@@ -169,6 +188,40 @@ module Payments
     end
 
     # ── Helpers ───────────────────────────────────────────────────────────────
+
+    # ── Core events card ──────────────────────────────────────────────────────
+
+    def core_events_card
+      render UI::Card.new do |c|
+        c.header("Payment events")
+        c.body(padding: false) do
+          div(class: "divide-y divide-gray-50") do
+            @events.each_with_index do |ev, i|
+              event_row(ev, last: i == @events.length - 1)
+            end
+          end
+        end
+      end
+    end
+
+    def event_row(ev, last: false)
+      name      = (ev["event_type"] || ev["type"] || "unknown").to_s.gsub("_", " ").capitalize
+      occurred  = ev["occurred_at"] || ev["inserted_at"]
+      ts        = occurred ? Time.parse(occurred).strftime("%d %b %Y, %H:%M:%S UTC") : "—"
+
+      div(class: "flex items-start gap-3 px-5 py-[11px] #{last ? '' : 'border-b border-gray-50'}") do
+        div(class: "w-2 h-2 rounded-full flex-shrink-0 mt-[5px]", style: "background:#6366f1")
+        div(class: "flex-1 min-w-0") do
+          p(class: TYPE_BODY_MD) { plain name }
+          p(class: "#{TYPE_MONO} text-[11px] text-gray-400 mt-0.5") { plain ts }
+          if (meta = ev["metadata"].presence || ev["payload"].presence)
+            pre(class: "mt-1.5 text-[10.5px] leading-relaxed bg-gray-50 rounded-lg p-2 overflow-x-auto font-mono text-gray-500 whitespace-pre-wrap break-all") do
+              plain JSON.pretty_generate(meta)
+            end
+          end
+        end
+      end
+    end
 
     def timeline_events
       events = [ [ "Payment initiated", @payment.created_at, "#6366f1" ] ]

@@ -33,7 +33,8 @@ module Compliance
       result = CoreApiClient.new.reject_adjustment(break_id: record.core_break_id,
                                                    rejected_reason: reason)
       if result.success?
-        record.update!(state: "rejected", rejected_reason: reason)
+        record.update!(state: "rejected", rejected_reason: reason,
+                       approved_by: current_user.email, approved_at: Time.current)
         redirect_to compliance_approvals_path, notice: "Adjustment rejected."
       else
         redirect_to compliance_approvals_path, alert: "Could not reject: #{result.error_message}"

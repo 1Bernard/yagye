@@ -112,7 +112,7 @@ module UI
     end
 
     def render_body
-      @records.each do |record|
+      @records.each_with_index do |record, index|
         row_attrs = { class: TABLE_ROW }
         row_attrs[:data] = { datatable_target: "row" } if @selectable
 
@@ -126,7 +126,7 @@ module UI
           @columns.each do |col|
             td(class: "#{TABLE_CELL} #{col[:cls]}") do
               if col[:renderer]
-                result = instance_exec(record, &col[:renderer])
+                result = instance_exec(record, index, &col[:renderer])
                 plain result.to_s if result.is_a?(String) || result.is_a?(Numeric)
               end
             end

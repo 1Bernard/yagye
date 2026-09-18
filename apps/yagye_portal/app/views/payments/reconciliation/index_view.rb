@@ -34,8 +34,13 @@ module Payments
         "written_off"   => "bg-gray-100 text-gray-500"
       }.freeze
 
-      def initialize(breaks:)
-        @breaks = breaks
+      def initialize(breaks:, query: nil, state_filter: nil, severity_filter: nil, from: nil, to: nil)
+        @breaks          = breaks
+        @query           = query
+        @state_filter    = state_filter
+        @severity_filter = severity_filter
+        @from            = from
+        @to              = to
       end
 
       def view_template
@@ -72,8 +77,10 @@ module Payments
       def breaks_table
         render UI::Datatable.new(records: @breaks,
                                  empty_message: "No reconciliation breaks detected.") do |t|
-          t.header do
-            p(class: TYPE_TITLE) { plain "All breaks" }
+          t.header { toolbar_content }
+
+          t.column("#", class: "text-gray-400 tabular-nums text-right w-8") do |_, i|
+            plain((i + 1).to_s)
           end
 
           t.column("Break ID") do |b|
@@ -129,6 +136,48 @@ module Payments
             a(href: reconciliation_break_path(b["id"]), class: DROPDOWN_ITEM) do
               render UI::Icon.new(:eye, class: ICON_SM)
               plain "View"
+            end
+          end
+        end
+      end
+
+      # ── Toolbar ─────────────────────────────────────────────────────────────
+
+      def toolbar_content
+        filter_count = [ @state_filter.present?, @severity_filter.present?,
+                         @from.present?, @to.present? ].count(true)
+
+        form(action: reconciliation_path, method: "get",
+             data: { controller: "filter-form", filter_form_target: "form" }) do
+          div(class: FILTER_SEARCH_WRAP) do
+            span(class: "flex w-[13px] h-[13px] text-gray-400 flex-shrink-0") do
+              render UI::Icon.new(:search, class: "w-full h-full")
+            end
+            input(type: "search", name: "q", value: @query,
+                  placeholder: "Search break ID or classification…",
+                  class: FILTER_SEARCH_INPUT)
+          end
+        end
+
+        div(class: "flex items-center gap-2") do
+          filter_btn(filter_count)
+        end
+      end
+
+      def filter_btn(filter_count)
+        a(href: filter_reconciliation_path(q: @query, state: @state_filter, severity: @severity_filter,
+                                           from: @from, to: @to),
+          class: "inline-flex items-center gap-[5px] px-3 h-8 border rounded-[9px] " \
+                 "text-[12.5px] font-medium bg-white cursor-pointer transition-colors no-underline " \
+                 "#{filter_count > 0 ? 'border-gray-400 text-gray-900' : 'border-gray-200 text-gray-600'} " \
+                 "hover:border-gray-400",
+          data: { turbo_frame: "drawer-frame" }) do
+          render UI::Icon.new(:filter, class: "w-3 h-3")
+          plain "Filters"
+          if filter_count > 0
+            span(class: "ml-[2px] inline-flex items-center justify-center w-4 h-4 rounded-full " \
+                        "bg-[#3D47F5] text-white text-[9px] font-bold leading-none") do
+              plain filter_count.to_s
             end
           end
         end

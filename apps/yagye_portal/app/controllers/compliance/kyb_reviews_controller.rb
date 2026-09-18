@@ -4,11 +4,34 @@ module Compliance
   class KybReviewsController < ApplicationController
     def index
       authorize :kyb_reviews, :index?
-      tab          = params[:tab].presence_in(%w[pending in_review approved rejected]) || "pending"
-      pagy, applications = pagy(Compliance::ApplicationsQuery.new.call(tab: tab), limit: 25)
+      tab   = params[:tab].presence_in(%w[pending in_review approved rejected]) || "pending"
+      scope = Compliance::ApplicationsQuery.new.call(tab: tab, query: params[:q])
+      scope = scope.where("last_applied_at >= ?", params[:from])    if params[:from].present?
+      scope = scope.where("last_applied_at <= ?", params[:to])      if params[:to].present?
+      case params[:reviewer]
+      when "unassigned" then scope = scope.where(reviewed_by: nil)
+      when "mine"       then scope = scope.where(reviewed_by: current_user.email)
+      end
+      pagy, applications = pagy(scope, limit: 25)
       render KybReviews::IndexView.new(
         tab: tab, applications: applications, pagy: pagy,
+        query: params[:q], from: params[:from], to: params[:to],
+        reviewer: params[:reviewer].presence_in(%w[unassigned mine]),
+        view: params[:view].presence_in(%w[list grid]) || "list",
         stats: review_stats, mtd_volumes: mtd_volumes(applications)
+      )
+    end
+
+    def filter
+      authorize :kyb_reviews, :index?
+      tab = params[:tab].presence_in(%w[pending in_review approved rejected]) || "pending"
+      render KybReviews::FilterView.new(
+        tab:      tab,
+        query:    params[:q],
+        from:     params[:from],
+        to:       params[:to],
+        reviewer: params[:reviewer].presence_in(%w[unassigned mine]),
+        view:     params[:view].presence_in(%w[list grid]) || "list"
       )
     end
 

@@ -4,12 +4,28 @@ module Merchants
   class MerchantsController < ApplicationController
     def index
       authorize :merchants, :index?
-      pagy, merchants = pagy(Merchants::MerchantsQuery.new.call(filters), limit: 25)
+      scope = Merchants::MerchantsQuery.new.call(filters)
+      scope = scope.where("last_applied_at >= ?", params[:from]) if params[:from].present?
+      scope = scope.where("last_applied_at <= ?", params[:to])   if params[:to].present?
+      pagy, merchants = pagy(scope, limit: 25)
       render Merchants::IndexView.new(
         merchants: merchants, pagy: pagy,
         status: params[:status], query: params[:q], country: params[:country],
+        from: params[:from], to: params[:to],
+        view: params[:view].presence_in(%w[list grid]) || "list",
         stats: merchant_stats,
         mtd_volumes: mtd_volumes(merchants)
+      )
+    end
+
+    def filter
+      authorize :merchants, :index?
+      render Merchants::FilterView.new(
+        query:   params[:q],
+        status:  params[:status],
+        country: params[:country],
+        from:    params[:from],
+        to:      params[:to]
       )
     end
 

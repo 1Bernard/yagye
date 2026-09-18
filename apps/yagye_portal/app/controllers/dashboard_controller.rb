@@ -3,8 +3,10 @@
 class DashboardController < ApplicationController
   def index
     authorize :dashboard, :index?
-    scope   = payment_scope
-    summary = Payments::VolumeSummaryQuery.new(scope).call
+    scope      = payment_scope
+    summary    = Payments::VolumeSummaryQuery.new(scope).call
+    fx_currency = resolve_fx_currency
+    cookies[:fx_currency] = fx_currency
 
     render Dashboard::IndexView.new(
       volume:             summary[:volume],
@@ -22,11 +24,37 @@ class DashboardController < ApplicationController
       chart_values:       summary[:chart_values],
       provider_data:      summary[:provider_data],
       method_data:        summary[:method_data],
-      recent_payments:    scope.recent.limit(8)
+      recent_payments:    scope.recent.limit(8),
+      fx_currency:        fx_currency,
+      fx_rate:            fetch_fx_rate(fx_currency)
     )
   end
 
   private
+
+  FX_CURRENCIES = %w[GHS USD EUR GBP].freeze
+
+  def resolve_fx_currency
+    requested = params[:fx_currency].to_s.upcase
+    return requested if FX_CURRENCIES.include?(requested)
+
+    stored = cookies[:fx_currency].to_s.upcase
+    return stored if FX_CURRENCIES.include?(stored)
+
+    "GHS"
+  end
+
+  def fetch_fx_rate(currency)
+    return nil if currency == "GHS"
+
+    result = CoreApiClient.new.list_fx_rates
+    return nil unless result.success?
+
+    rates = result.body["data"] || []
+    rates.find { |r| r["from_currency"] == "GHS" && r["to_currency"] == currency }
+  rescue StandardError
+    nil
+  end
 
   def payment_scope
     current_user.internal_staff? ? Payment.all : Payment.for_merchant(current_user.merchant_code)

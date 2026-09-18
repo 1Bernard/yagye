@@ -5,11 +5,28 @@ module Payments
     def index
       authorize PortalSettlement, :index?
       scope = policy_scope(PortalSettlement)
+      scope = scope.where(state: params[:state]) if params[:state].present?
+      scope = scope.where("value_date >= ?", params[:from]) if params[:from].present?
+      scope = scope.where("value_date <= ?", params[:to])   if params[:to].present?
       pagy, settlements = pagy(scope.order(last_applied_at: :desc), limit: 25)
       render Payments::Settlements::IndexView.new(
-        settlements: settlements, pagy: pagy,
-        state_filter: params[:state], query: params[:q],
-        stats: settlement_stats(scope)
+        settlements:  settlements,
+        pagy:         pagy,
+        state_filter: params[:state],
+        query:        params[:q],
+        from:         params[:from],
+        to:           params[:to],
+        stats:        settlement_stats(policy_scope(PortalSettlement))
+      )
+    end
+
+    def filter
+      authorize PortalSettlement, :index?
+      render Payments::Settlements::FilterView.new(
+        state: params[:state],
+        query: params[:q],
+        from:  params[:from],
+        to:    params[:to]
       )
     end
 
@@ -23,6 +40,7 @@ module Payments
       end
       render Payments::Settlements::ShowView.new(settlement: settlement, breaks: breaks)
     end
+
     private
 
     def settlement_stats(scope)

@@ -21,6 +21,18 @@ module Payments
       )
     end
 
+    def filter
+      authorize :disputes, :index?
+      tab = params[:tab].presence_in(%w[all open won lost]) || "all"
+      render Disputes::FilterView.new(
+        tab:       tab,
+        query:     params[:q],
+        reason:    params[:reason],
+        date_from: params[:from],
+        date_to:   params[:to]
+      )
+    end
+
     def show
       authorize :disputes, :show?
       dispute = decode_id(Dispute)

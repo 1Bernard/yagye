@@ -5,8 +5,23 @@ module Checkout
     def index
       authorize :checkout, :index?
       result = core.list_payment_links(merchant_code: current_user.merchant_code)
-      @links = result.success? ? result.body["data"] : []
-      render Checkout::PaymentLinksIndexView.new(links: @links)
+      links  = result.success? ? result.body["data"] : []
+      links  = filter_links(links)
+      render Checkout::PaymentLinksIndexView.new(
+        links:         links,
+        query:         params[:q],
+        view:          params[:view].presence_in(%w[list grid]) || "list",
+        active_filter: params[:active]
+      )
+    end
+
+    def filter
+      authorize :checkout, :index?
+      render Checkout::PaymentLinksFilterView.new(
+        query:         params[:q],
+        active_filter: params[:active],
+        view:          params[:view]
+      )
     end
 
     def new
@@ -83,6 +98,16 @@ module Checkout
     end
 
     private
+
+    def filter_links(links)
+      links = links.select { |l| l["description"].to_s.downcase.include?(params[:q].downcase) ||
+                                 l["url_slug"].to_s.downcase.include?(params[:q].downcase) } if params[:q].present?
+      if params[:active].present?
+        active = params[:active] == "true"
+        links = links.select { |l| l["active"] == active }
+      end
+      links
+    end
 
     def parse_amount(raw)
       return nil if raw.blank?

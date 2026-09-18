@@ -10,7 +10,8 @@ module Dashboard
                    active_merchant_count: nil,
                    chart_dates: [], chart_values: [],
                    provider_data: [], method_data: [],
-                   recent_payments: [])
+                   recent_payments: [],
+                   fx_currency: "GHS", fx_rate: nil)
       @volume                = volume
       @prev_volume           = prev_volume.to_i
       @tx_count              = tx_count
@@ -27,6 +28,8 @@ module Dashboard
       @provider_data         = provider_data
       @method_data           = method_data
       @recent_payments       = recent_payments
+      @fx_currency           = fx_currency || "GHS"
+      @fx_rate               = fx_rate
     end
 
     def view_template
@@ -53,18 +56,36 @@ module Dashboard
     # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
     def refresh_bar
-      div(class: "flex items-center justify-end gap-3 mb-4") do
-        span(class: TYPE_CAPTION) do
-          plain "Updated "
-          span(data: { dashboard_refresh_target: "timestamp" }) { plain "just now" }
-          plain " · auto-refreshes every minute"
+      div(class: "flex items-center justify-between gap-3 mb-4") do
+        fx_toggle
+
+        div(class: "flex items-center gap-3") do
+          span(class: TYPE_CAPTION) do
+            plain "Updated "
+            span(data: { dashboard_refresh_target: "timestamp" }) { plain "just now" }
+            plain " · auto-refreshes every minute"
+          end
+          button(type: "button",
+                 class: "flex items-center gap-1.5 #{TYPE_CAPTION} text-[#3D47F5] font-medium " \
+                        "hover:opacity-70 transition-opacity border-0 bg-transparent cursor-pointer p-0",
+                 data: { action: "click->dashboard-refresh#reload" }) do
+            span(class: "flex w-[11px] h-[11px]") { render UI::Icon.new(:refresh, class: "w-full h-full") }
+            plain "Refresh"
+          end
         end
-        button(type: "button",
-               class: "flex items-center gap-1.5 #{TYPE_CAPTION} text-[#3D47F5] font-medium " \
-                      "hover:opacity-70 transition-opacity border-0 bg-transparent cursor-pointer p-0",
-               data: { action: "click->dashboard-refresh#reload" }) do
-          span(class: "flex w-[11px] h-[11px]") { render UI::Icon.new(:refresh, class: "w-full h-full") }
-          plain "Refresh"
+      end
+    end
+
+    def fx_toggle
+      currencies = %w[GHS USD EUR GBP]
+      div(class: "flex items-center gap-1 bg-gray-100 rounded-lg p-[3px]") do
+        currencies.each do |cur|
+          active    = cur == @fx_currency
+          state_cls = active ? "bg-white text-gray-900 shadow-sm" : "text-gray-500 hover:text-gray-700"
+          a(href: authenticated_root_path(fx_currency: cur),
+            class: "px-3 py-[5px] rounded-md text-[11.5px] font-semibold transition-colors no-underline #{state_cls}") do
+            plain cur
+          end
         end
       end
     end
@@ -82,7 +103,7 @@ module Dashboard
           color:   BRAND,
           tint:    TINT_BRAND,
           delta:   volume_delta,
-          sub:     prev_volume_label
+          sub:     fx_volume_sub || prev_volume_label
         )
         kpi_card(
           label:   "Transactions",
@@ -147,6 +168,18 @@ module Dashboard
           p(class: "#{TYPE_CAPTION} mt-[10px] truncate") { plain sub }
         end
       end
+    end
+
+    def fx_volume_sub
+      return nil if @fx_currency == "GHS" || @fx_rate.nil?
+
+      rate       = @fx_rate["rate"].to_f
+      return nil if rate.zero?
+
+      converted  = (@volume.to_f / 100.0 * rate)
+      sym        = { "USD" => "$", "EUR" => "€", "GBP" => "£" }.fetch(@fx_currency, @fx_currency)
+      rate_label = sprintf("%.4f", rate).sub(/0+$/, "")
+      "≈ #{sym}#{sprintf('%.2f', converted)} · at GHS #{rate_label}/#{@fx_currency}"
     end
 
     def prev_volume_label

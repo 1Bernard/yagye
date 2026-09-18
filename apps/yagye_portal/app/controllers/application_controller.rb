@@ -48,6 +48,8 @@ class ApplicationController < ActionController::Base
   def append_info_to_payload(payload)
     super
     payload[:merchant_code] = current_user&.merchant_code
+    payload[:user_id]       = current_user&.id
+    payload[:mode]          = Current.mode
   end
 
   # PaperTrail — records the current user's email as the change author.

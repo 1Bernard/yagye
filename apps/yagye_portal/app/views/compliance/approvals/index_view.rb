@@ -20,6 +20,10 @@ module Compliance
             { label: "Approvals" }
           ]
         ) do
+          render UI::PageHeader.new(
+            title:    "Approvals",
+            subtitle: "Adjustments proposed by one officer requiring sign-off from a second."
+          )
           div(class: "flex flex-col gap-6") do
             pending_section
             decided_section
@@ -45,6 +49,8 @@ module Compliance
             end
           end
 
+          t.column("#", class: "text-gray-400 tabular-nums text-right w-8") { |_, i| plain((i + 1).to_s) }
+
           t.column("Break ID") do |r|
             code(class: TYPE_MONO) { plain r.core_break_id.to_s.first(12) + "…" }
           end
@@ -56,16 +62,36 @@ module Compliance
             end
           end
 
-          t.column("Action") do |r|
-            span(class: TYPE_BODY_MD) { plain r.action_summary }
+          t.column("Proposed adjustment") do |r|
+            action  = r.proposed_action
+            type    = (action["type"] || action["action"] || "adjustment").to_s.downcase
+            note    = action["note"].presence
+            amount  = action["amount"]
+            badge_class = case type
+                          when "credit", "reversal"  then "bg-green-50 text-green-700"
+                          when "debit", "chargeback" then "bg-red-50 text-red-700"
+                          when "fee"                 then "bg-amber-50 text-amber-700"
+                          else                            "bg-gray-100 text-gray-600"
+                          end
+            div(class: "flex flex-col gap-1") do
+              div(class: "flex items-center gap-2") do
+                span(class: "#{badge_class} inline-flex items-center rounded px-1.5 py-0.5 text-[10.5px] font-semibold uppercase tracking-wide") do
+                  plain type.humanize
+                end
+                if amount.present?
+                  whole, frac = amount.to_i.divmod(100)
+                  span(class: "#{TYPE_MONO} text-[12px]") { plain "GHS #{sprintf('%d.%02d', whole, frac)}" }
+                end
+              end
+              p(class: "#{TYPE_CAPTION} leading-snug") { plain note } if note
+            end
           end
 
           t.column("Age") do |r|
-            days = ((Time.current - r.proposed_at) / 86_400).round
-            color = days > 2 ? "#dc2626" : "#d97706"
-            span(class: "text-[12px] font-semibold", style: "color:#{color}") do
-              plain days == 0 ? "Today" : "#{days}d ago"
-            end
+            days  = ((Time.current - r.proposed_at) / 86_400).round
+            label = days.zero? ? "Today" : "#{days}d ago"
+            css   = days > 7 ? "text-red-600 font-semibold" : days > 2 ? "text-amber-600 font-semibold" : "text-gray-500"
+            span(class: "text-[12px] #{css}") { plain label }
           end
 
           if @can_decide
@@ -105,12 +131,19 @@ module Compliance
             p(class: TYPE_TITLE) { plain "Recent decisions" }
           end
 
+          t.column("#", class: "text-gray-400 tabular-nums text-right w-8") { |_, i| plain((i + 1).to_s) }
+
           t.column("Break ID") do |r|
             code(class: TYPE_MONO) { plain r.core_break_id.to_s.first(12) + "…" }
           end
 
-          t.column("State") do |r|
-            render UI::StatusBadge.new(status: r.state)
+          t.column("Decision") do |r|
+            div(class: "flex flex-col gap-1") do
+              render UI::StatusBadge.new(status: r.state)
+              if r.rejected? && r.rejected_reason.present?
+                p(class: "#{TYPE_CAPTION} italic max-w-[200px] leading-tight") { plain r.rejected_reason.truncate(80) }
+              end
+            end
           end
 
           t.column("Proposed by") do |r|
@@ -119,10 +152,10 @@ module Compliance
 
           t.column("Decided by") do |r|
             decided_by = r.approved_by.presence || "—"
-            decided_at = r.approved_at || r.updated_at
+            decided_at = r.approved_at
             div do
               p(class: TYPE_BODY_MD) { plain decided_by }
-              p(class: TYPE_CAPTION) { plain decided_at.strftime("%d %b %Y, %H:%M") }
+              p(class: TYPE_CAPTION) { plain decided_at.strftime("%d %b %Y, %H:%M") } if decided_at
             end
           end
 
