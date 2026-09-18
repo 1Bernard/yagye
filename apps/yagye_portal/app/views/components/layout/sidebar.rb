@@ -13,7 +13,17 @@ module Layout
           { key: :disputes,      icon: :flag,        label: "Disputes",      path: :disputes_path },
           { key: :payouts,       icon: :paper_plane, label: "Payouts",       path: :payouts_path,
             merchant_only: true },
-          { key: :payment_links, icon: :link,        label: "Payment Links", path: :payment_links_path,
+          { key: :payment_links,     icon: :link,        label: "Payment Links",     path: :payment_links_path,
+            merchant_only: true },
+          { key: :invoices,          icon: :file,        label: "Invoices",          path: :invoices_path,
+            merchant_only: true },
+          { key: :checkout_sessions, icon: :wallet,      label: "Checkout Sessions", path: :checkout_sessions_path,
+            merchant_only: true },
+          { key: :customers,         icon: :users,       label: "Customers",         path: :customers_path,
+            merchant_only: true },
+          { key: :settlement_batches, icon: :layers,     label: "Settlement Batches", path: :settlement_batches_path,
+            merchant_only: true },
+          { key: :reserves,          icon: :lock,        label: "Reserves",          path: :reserves_path,
             merchant_only: true }
         ]
       },
@@ -43,6 +53,8 @@ module Layout
         items: [
           { key: :developers, icon: :key,      label: "API Keys",       path: :developers_path },
           { key: :settings,   icon: :settings, label: "Settings",       path: :settings_path },
+          { key: :settings_pricing, icon: :tag, label: "Pricing & Fees", path: :settings_pricing_path,
+            merchant_only: true },
           { key: :help,       icon: :headset,  label: "Help & Support", path: :help_path }
         ]
       }
