@@ -16,7 +16,8 @@ module Payments
       scoped = scoped.where(mode: Current.mode)            if Current.mode.present?
       scoped = scoped.by_status(filters[:status])         if filters[:status].present?
       scoped = scoped.search_ref(filters[:q])             if filters[:q].present?
-      scoped = scoped.where(provider: filters[:provider]) if filters[:provider].present?
+      scoped = scoped.where(provider: filters[:provider])              if filters[:provider].present?
+      scoped = scoped.where(payment_method: filters[:method])          if filters[:method].present?
       scoped = apply_date_window(scoped, filters)
       scoped.recent
     end

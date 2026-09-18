@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_09_16_100001) do
+ActiveRecord::Schema[8.1].define(version: 2026_09_17_100001) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pgcrypto"
@@ -191,12 +191,14 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_16_100001) do
 
   create_table "portal_payments", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
     t.bigint "amount", null: false
+    t.boolean "billing_shipping_match"
     t.text "core_payment_id", null: false
     t.datetime "created_at", null: false
     t.text "currency", default: "GHS", null: false
     t.text "customer_email"
     t.text "customer_msisdn"
     t.text "description"
+    t.text "fulfilment_type"
     t.text "merchant_code", null: false
     t.jsonb "metadata", default: {}, null: false
     t.text "mode", default: "test", null: false
@@ -205,6 +207,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_16_100001) do
     t.text "provider"
     t.text "reference"
     t.datetime "settled_at"
+    t.text "shipping_country"
     t.text "status", null: false
     t.datetime "updated_at", null: false
     t.index ["core_payment_id"], name: "index_portal_payments_on_core_payment_id", unique: true

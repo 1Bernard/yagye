@@ -70,6 +70,17 @@ FactoryBot.define do
     end
   end
 
+  # ── Payments ──────────────────────────────────────────────────────────────
+
+  factory :payment do
+    sequence(:core_payment_id) { |n| "pay_#{n.to_s.rjust(6, '0')}" }
+    merchant_code { "MCH-0001" }
+    amount        { 5000 }
+    currency      { "GHS" }
+    status        { "paid" }
+    mode          { "live" }
+  end
+
   # ── Portal merchant applications ──────────────────────────────────────────
 
   factory :portal_merchant_application do

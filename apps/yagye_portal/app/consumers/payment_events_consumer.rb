@@ -24,9 +24,12 @@ class PaymentEventsConsumer < ApplicationConsumer
       payment_method:  event.payment_method,
       description:     event.description,
       metadata:        event.metadata,
-      paid_at:         event.paid_at,
-      settled_at:      event.settled_at,
-      mode:            event.mode
+      paid_at:                event.paid_at,
+      settled_at:             event.settled_at,
+      mode:                   event.mode,
+      fulfilment_type:        event.fulfilment_type,
+      shipping_country:       event.shipping_country,
+      billing_shipping_match: event.billing_shipping_match
     }.compact
 
     Payment.find_or_initialize_by(core_payment_id: event.public_id).tap do |p|

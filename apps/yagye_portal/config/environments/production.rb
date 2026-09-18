@@ -1,4 +1,5 @@
 require "active_support/core_ext/integer/time"
+require "socket"
 
 Rails.application.configure do
   # Settings specified here will take precedence over those in config/application.rb.
@@ -93,8 +94,15 @@ Rails.application.configure do
   config.lograge.formatter = Lograge::Formatters::Json.new
   config.lograge.custom_options = lambda do |event|
     {
+      time:          Time.current.utc.iso8601(3),
+      service:       "yagye_portal",
+      environment:   Rails.env,
+      release:       ENV.fetch("RELEASE_SHA", "local"),
+      host:          Socket.gethostname,
       trace_id:      CorrelationId.current,
-      merchant_code: event.payload[:merchant_code]
+      merchant_code: event.payload[:merchant_code],
+      mode:          event.payload[:mode],
+      user_id:       event.payload[:user_id]
     }.compact
   end
 end

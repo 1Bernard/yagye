@@ -56,7 +56,14 @@ module Acl
     def customer_msisdn = @p["customer_msisdn"]
     def customer_email  = @p["customer_email"]
     def metadata        = @p["metadata"] || {}
-    def paid_at         = @p["paid_at"]
-    def settled_at      = @p["settled_at"]
+    def paid_at                = @p["paid_at"]
+    def settled_at             = @p["settled_at"]
+
+    # ── Fulfilment / shipping risk signals ────────────────────────────────────
+    # These three come from the merchant at payment creation time.
+    # billing_shipping_match is a boolean computed by the merchant — never an address.
+    def fulfilment_type        = @p["fulfilment_type"].presence
+    def shipping_country       = @p["shipping_country"].presence
+    def billing_shipping_match = @p.key?("billing_shipping_match") ? @p["billing_shipping_match"] : nil
   end
 end
