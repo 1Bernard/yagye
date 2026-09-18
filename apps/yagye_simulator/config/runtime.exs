@@ -1,5 +1,14 @@
 import Config
 
+:logger.update_primary_config(%{
+  metadata: %{
+    service:     "yagye_simulator",
+    environment: config_env() |> to_string(),
+    release:     System.get_env("RELEASE_SHA", "local"),
+    host:        System.get_env("HOSTNAME", "localhost")
+  }
+})
+
 if config_env() == :prod do
   database_url =
     System.get_env("DATABASE_URL") ||

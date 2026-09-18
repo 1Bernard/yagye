@@ -14,11 +14,13 @@ defmodule Simulator.Webhooks.WebhookDeliveryWorker do
   def perform(%Oban.Job{args: %{"account_id" => account_id, "charge_ref" => charge_ref}}) do
     account = Repo.get!(Account, account_id)
     charge = Repo.get_by!(Charge, charge_ref: charge_ref)
-    prompt = Repo.one!(from p in WalletPrompt, where: p.charge_id == ^charge.id, limit: 1)
+    prompt = Repo.one(from p in WalletPrompt, where: p.charge_id == ^charge.id, limit: 1)
 
     # Transition charge to its terminal state before delivery so that
     # query_charge always reflects the resolved outcome, regardless of
     # whether the webhook reaches yagye_core.
+    # Bank transfers (BANK instrument) have no WalletPrompt; the charge is
+    # already AUTHORISED by TransferController before enqueue_delivery is called.
     charge = transition_charge(charge, account, prompt)
 
     notification = WebhookNotification.build(charge, prompt)

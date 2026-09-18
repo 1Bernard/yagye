@@ -10,6 +10,8 @@ defmodule Simulator.Web.Endpoint do
 
   socket "/live", Phoenix.LiveView.Socket, websocket: [connect_info: [session: @session_options]]
 
+  plug Plug.Static, at: "/", from: {:simulator, "priv/static"}, gzip: false
+
   plug Plug.RequestId
   plug Simulator.Web.Plugs.CorrelationId
 

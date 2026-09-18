@@ -1,5 +1,12 @@
 import Config
 
+config :logger, :default_handler,
+  formatter: Logger.Formatter.new(
+    format: "[$level] $message $metadata\n",
+    metadata: [:request_id, :trace, :span],
+    colors: [enabled: true]
+  )
+
 config :yagye_checkout, YagyeCheckoutWeb.Endpoint,
   http: [ip: {127, 0, 0, 1}, port: 4010],
   check_origin: false,

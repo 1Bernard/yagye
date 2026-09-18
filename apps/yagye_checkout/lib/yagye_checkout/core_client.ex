@@ -25,6 +25,11 @@ defmodule YagyeCheckout.CoreClient do
     get("/internal/checkout/payments/#{payment_public_id}/state")
   end
 
+  @doc "Triggers a simulated bank transfer for the given payment (simulation mode only)."
+  def simulate_bank_transfer(payment_public_id) do
+    post("/internal/checkout/payments/#{payment_public_id}/simulate_transfer", %{})
+  end
+
   @doc "Marks a checkout session as completed once payment succeeds."
   def complete_session(session_public_id, payment_public_id) do
     post("/internal/checkout/sessions/#{session_public_id}/complete", %{

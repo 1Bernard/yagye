@@ -10,10 +10,8 @@ defmodule Simulator.Web.Layouts do
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
         <meta name="csrf-token" content={Plug.CSRFProtection.get_csrf_token()} />
         <title>Yagye Gateway Simulator</title>
-        <script src="https://cdn.jsdelivr.net/npm/phoenix@1.8.12/priv/static/phoenix.min.js">
-        </script>
-        <script src="https://cdn.jsdelivr.net/npm/phoenix_live_view@1.2.10/priv/static/phoenix_live_view.min.js">
-        </script>
+        <script src="/js/phoenix.min.js"></script>
+        <script src="/js/phoenix_live_view.min.js"></script>
         <style>
           * { box-sizing: border-box; margin: 0; padding: 0; }
           body { font-family: system-ui, sans-serif; background: #0a0e1a; color: #e2e8f0; }

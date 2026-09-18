@@ -90,6 +90,15 @@ defmodule YagyeCheckoutWeb.Live.CheckoutLive do
     {:noreply, assign(socket, card_name: val, card_errors: Map.delete(socket.assigns.card_errors, "name"), error: nil)}
   end
 
+  def handle_event("simulate_transfer", _params, %{assigns: %{simulation_mode: true, payment_public_id: pay_id}} = socket) do
+    case CoreClient.simulate_bank_transfer(pay_id) do
+      {:ok, _} -> {:noreply, socket}
+      {:error, _} -> {:noreply, assign(socket, error: "Simulation failed — check that the simulator server is running.")}
+    end
+  end
+
+  def handle_event("simulate_transfer", _params, socket), do: {:noreply, socket}
+
   def handle_event("submit_checkout", params, socket) do
     collection_errors = validate_collection(params, socket.assigns)
 
@@ -315,6 +324,12 @@ defmodule YagyeCheckoutWeb.Live.CheckoutLive do
                   Use <strong>GhIPSS Instant Pay</strong> — usually under 30 seconds
                 </div>
               </div>
+
+              <%= if @simulation_mode do %>
+                <button type="button" class="co-simulate-transfer-btn" phx-click="simulate_transfer">
+                  ⚡ Simulate Transfer
+                </button>
+              <% end %>
 
               <p class="co-terminal-hint">Do not close this page — it updates automatically when we receive your transfer.</p>
 
@@ -1533,6 +1548,15 @@ defmodule YagyeCheckoutWeb.Live.CheckoutLive do
 
       .co-terminal-hint { font-size: 0.75rem; color: var(--muted-text); }
 
+      /* ── Simulate Transfer button (simulation mode only) ── */
+      .co-simulate-transfer-btn {
+        width: 100%; padding: 0.65rem 1rem; font-size: 0.8125rem; font-weight: 600;
+        background: #1c3a2f; color: #4ade80;
+        border: 1px solid #2a5040; border-radius: 10px; cursor: pointer;
+        letter-spacing: 0.01em;
+      }
+      .co-simulate-transfer-btn:hover { background: #1f4434; border-color: #3a6050; }
+
       /* ── Sandbox notice ── */
       .co-sandbox-notice {
         display: flex; align-items: flex-start; gap: 0.625rem;
@@ -1740,7 +1764,8 @@ defmodule YagyeCheckoutWeb.Live.CheckoutLive do
       collect_email: session["collect_email"] == true,
       collect_phone: session["collect_phone"] == true,
       collect_name: session["collect_name"] == true,
-      logo_url: (session["checkout_layout"] || %{})["logo_url"]
+      logo_url: (session["checkout_layout"] || %{})["logo_url"],
+      simulation_mode: session["mode"] == "simulation"
     )
     |> maybe_start_poll(page_state)
   end
@@ -1809,7 +1834,8 @@ defmodule YagyeCheckoutWeb.Live.CheckoutLive do
       processing_method: "mobile_money",
       virtual_account: nil,
       va_expires_unix: nil,
-      now_unix: System.os_time(:second)
+      now_unix: System.os_time(:second),
+      simulation_mode: false
     )
   end
 

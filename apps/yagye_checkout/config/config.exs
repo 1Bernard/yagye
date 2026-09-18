@@ -8,7 +8,9 @@ config :yagye_checkout, YagyeCheckoutWeb.Endpoint,
   live_view: [signing_salt: "yagye_checkout"]
 
 config :logger, :default_handler,
-  formatter: {LoggerJSON.Formatters.Basic, metadata: [:request_id]}
+  formatter:
+    {LoggerJSON.Formatters.Basic,
+     metadata: [:request_id, :trace, :span, :service, :environment, :release, :host]}
 
 config :phoenix, :json_library, Jason
 

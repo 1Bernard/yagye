@@ -13,6 +13,18 @@ defmodule Simulator.Webhooks.Schemas.WebhookNotification do
           decline_code: String.t() | nil
         }
 
+  # Bank transfer: no WalletPrompt; charge is already AUTHORISED.
+  def build(charge, nil) do
+    %__MODULE__{
+      event_id: Uniq.UUID.uuid7(),
+      event_type: "charge.succeeded",
+      charge_ref: charge.charge_ref,
+      occurred_at: charge.authorised_at || DateTime.utc_now(),
+      auth_code: charge.auth_code,
+      decline_code: nil
+    }
+  end
+
   def build(charge, wallet_prompt) do
     %__MODULE__{
       event_id: Uniq.UUID.uuid7(),
