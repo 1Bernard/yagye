@@ -99,6 +99,30 @@ defmodule YagyeCoreWeb.Controllers.Internal.CheckoutController do
     end
   end
 
+  # POST /internal/checkout/payments/:payment_public_id/simulate_transfer
+  # Only works in simulation mode. Calls the simulator to authorise the pending bank charge.
+  def simulate_transfer(conn, %{"payment_public_id" => pub_id}) do
+    with {:ok, payment} <- Payments.get_payment(pub_id),
+         :ok <- ensure_simulation_mode(payment),
+         {:ok, va_number} <- fetch_va_number(payment),
+         {:ok, credential} <- YagyeCore.Providers.get_simulation_credential(),
+         {:ok, _} <- call_simulator_transfer(credential, va_number, payment.amount) do
+      conn |> put_status(:ok) |> json(%{status: "transfer_simulated"})
+    else
+      {:error, :not_found} ->
+        conn |> put_status(:not_found) |> json(%{error: "not_found"})
+
+      {:error, :not_simulation} ->
+        conn |> put_status(:unprocessable_entity) |> json(%{error: "not_simulation_mode"})
+
+      {:error, :no_virtual_account} ->
+        conn |> put_status(:unprocessable_entity) |> json(%{error: "no_virtual_account"})
+
+      {:error, reason} ->
+        conn |> put_status(:unprocessable_entity) |> json(%{error: inspect(reason)})
+    end
+  end
+
   # POST /internal/checkout/sessions/:public_id/complete
   # Body: {payment_public_id}
   def complete(conn, %{"public_id" => public_id, "payment_public_id" => payment_pub_id}) do
@@ -190,6 +214,7 @@ defmodule YagyeCoreWeb.Controllers.Internal.CheckoutController do
   defp render_session(%CheckoutSession{} = s) do
     %{
       public_id: s.public_id,
+      mode: s.mode,
       state: s.state,
       description: s.description,
       total_amount: s.total_amount,
@@ -220,6 +245,36 @@ defmodule YagyeCoreWeb.Controllers.Internal.CheckoutController do
           }
         end)
     }
+  end
+
+  defp ensure_simulation_mode(%{mode: "simulation"}), do: :ok
+  defp ensure_simulation_mode(_), do: {:error, :not_simulation}
+
+  defp fetch_va_number(payment) do
+    case get_in(payment.metadata, ["virtual_account", "account_number"]) do
+      nil -> {:error, :no_virtual_account}
+      number -> {:ok, number}
+    end
+  end
+
+  defp call_simulator_transfer(credential, va_number, amount_minor) do
+    base_url = credential["base_url"]
+    api_key = credential["api_key"]
+
+    case Req.post("#{base_url}/transfers",
+           json: %{virtual_account_number: va_number, amount_minor: amount_minor},
+           headers: [{"x-api-key", api_key}],
+           receive_timeout: 10_000
+         ) do
+      {:ok, %Req.Response{status: 200, body: body}} ->
+        {:ok, body}
+
+      {:ok, %Req.Response{status: status, body: body}} ->
+        {:error, "http_#{status}: #{inspect(body)}"}
+
+      {:error, reason} ->
+        {:error, reason}
+    end
   end
 
   defp format_changeset_error({msg, opts}) do

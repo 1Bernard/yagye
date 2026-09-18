@@ -20,6 +20,18 @@ if System.get_env("PHX_SERVER") do
   config :yagye_core, YagyeCoreWeb.Endpoint, server: true
 end
 
+# Inject static fields into every log line via Erlang primary metadata.
+# These appear in all structured JSON log output regardless of which process
+# emits the log — no per-process Logger.metadata/1 call needed.
+:logger.update_primary_config(%{
+  metadata: %{
+    service: "yagye_core",
+    environment: config_env() |> to_string(),
+    release: System.get_env("RELEASE_SHA", "local"),
+    host: System.get_env("HOSTNAME", "localhost")
+  }
+})
+
 if config_env() == :dev do
   System.put_env(
     "CORE_PORTAL_SERVICE_SECRET",

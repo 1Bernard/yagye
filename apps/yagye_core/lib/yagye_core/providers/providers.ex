@@ -124,6 +124,12 @@ defmodule YagyeCore.Providers do
     fetch_credential(provider_id, merchant_id, mode)
   end
 
+  def get_simulation_credential do
+    with {:ok, provider} <- fetch_provider_by_code(@simulator_code) do
+      fetch_platform_credential(provider.id, "simulation")
+    end
+  end
+
   # ── Private ──────────────────────────────────────────────────────────────────
 
   defp fetch_provider_by_code(code) do

@@ -33,9 +33,13 @@ config :yagye_core, YagyeCoreWeb.Endpoint,
 # at the `config/runtime.exs`.
 config :yagye_core, YagyeCore.Mailer, adapter: Swoosh.Adapters.Local
 
-# Structured JSON logging — includes request_id in every line for correlation
+# Structured JSON logging. Static fields (service, environment, release, host)
+# are injected as Erlang primary metadata at boot in runtime.exs so they appear
+# on every log line without any per-process setup.
 config :logger, :default_handler,
-  formatter: {LoggerJSON.Formatters.Basic, metadata: [:request_id]}
+  formatter:
+    {LoggerJSON.Formatters.Basic,
+     metadata: [:request_id, :trace, :span, :service, :environment, :release, :host]}
 
 # Use Jason for JSON parsing in Phoenix
 config :phoenix, :json_library, Jason
@@ -64,7 +68,9 @@ config :yagye_core, Oban,
        # Reserve release runs every 6 hours; batches up to 200 holds per run
        {"0 */6 * * *", YagyeCore.Reserves.Workers.ReserveReleaseWorker},
        # Recover processing-orphaned payments every 5 minutes
-       {"*/5 * * * *", YagyeCore.Payments.Workers.StuckPaymentScannerWorker}
+       {"*/5 * * * *", YagyeCore.Payments.Workers.StuckPaymentScannerWorker},
+       # Fetch FX rates daily at 06:00 UTC (06:00 WAT — Ghana does not observe DST)
+       {"0 6 * * *", YagyeCore.FX.Workers.FetchFxRatesWorker}
      ]}
   ],
   queues: [

@@ -72,6 +72,11 @@ defmodule YagyeCore do
       MerchantWebhooks,
       MerchantWebhooks.Schemas.MerchantWebhookEndpoint,
       MerchantWebhooks.Schemas.MerchantWebhookDelivery,
+      Pricing,
+      Pricing.Schemas.PricingPlan,
+      Pricing.Schemas.PricingRule,
+      Pricing.Schemas.FeeRecord,
+      Pricing.Schemas.PlatformFeeInvoice,
       Repo
     ]
 

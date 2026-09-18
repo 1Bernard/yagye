@@ -39,6 +39,19 @@ defmodule YagyeCoreWeb.Router do
   alias YagyeCoreWeb.Controllers.Internal.PaymentLinksController,
     as: InternalPaymentLinksController
 
+  alias YagyeCoreWeb.Controllers.Internal.InvoicesController, as: InternalInvoicesController
+
+  alias YagyeCoreWeb.Controllers.Internal.CheckoutSessionsController,
+    as: InternalCheckoutSessionsController
+
+  alias YagyeCoreWeb.Controllers.Internal.CustomersController, as: InternalCustomersController
+
+  alias YagyeCoreWeb.Controllers.Internal.SettlementBatchesController,
+    as: InternalSettlementBatchesController
+
+  alias YagyeCoreWeb.Controllers.Internal.PricingController, as: InternalPricingController
+
+  alias YagyeCoreWeb.Controllers.Fx.FxRateController
   alias YagyeCoreWeb.Controllers.Invoices.InvoiceController
   alias YagyeCoreWeb.Controllers.Merchants.MerchantController
   alias YagyeCoreWeb.Controllers.PaymentLinks.PaymentLinkController
@@ -112,6 +125,13 @@ defmodule YagyeCoreWeb.Router do
     get("/checkout/sessions/by-token", CheckoutController, :session_by_token)
     post("/checkout/sessions/:public_id/pay", CheckoutController, :pay)
     get("/checkout/payments/:payment_public_id/state", CheckoutController, :payment_state)
+
+    post(
+      "/checkout/payments/:payment_public_id/simulate_transfer",
+      CheckoutController,
+      :simulate_transfer
+    )
+
     post("/checkout/sessions/:public_id/complete", CheckoutController, :complete)
 
     # Compliance — portal ops view (read-only; no merchant API key needed)
@@ -174,6 +194,37 @@ defmodule YagyeCoreWeb.Router do
       InternalPaymentLinksController,
       :update_checkout_layout
     )
+
+    # P13 — Invoices (portal read/write via service token)
+    get("/merchants/:merchant_code/invoices", InternalInvoicesController, :index)
+    post("/invoices", InternalInvoicesController, :create)
+    get("/invoices/:id", InternalInvoicesController, :show)
+    post("/invoices/:id/issue", InternalInvoicesController, :issue)
+    post("/invoices/:id/void", InternalInvoicesController, :void)
+
+    # P16 — Checkout Sessions (portal read-only via service token)
+    get("/merchants/:merchant_code/checkout-sessions", InternalCheckoutSessionsController, :index)
+    get("/checkout-sessions/:id", InternalCheckoutSessionsController, :show)
+
+    # P11 — Customers (portal read-only via service token)
+    get("/merchants/:merchant_code/customers", InternalCustomersController, :index)
+    get("/customers/:id", InternalCustomersController, :show)
+
+    # P9 — Settlement Batches (portal read-only via service token)
+    get(
+      "/merchants/:merchant_code/settlement-batches",
+      InternalSettlementBatchesController,
+      :index
+    )
+
+    get("/settlement-batches-info/:id", InternalSettlementBatchesController, :show)
+
+    # Pricing — merchant rate card and fee invoices
+    get("/merchants/:merchant_code/pricing-plan", InternalPricingController, :show_plan)
+    get("/merchants/:merchant_code/fee-invoices", InternalPricingController, :list_fee_invoices)
+
+    # FX rates — no merchant context needed, read-only reference data
+    get("/fx-rates", YagyeCoreWeb.Controllers.Fx.FxRateController, :index)
   end
 
   # v1 merchant-facing API
@@ -248,6 +299,9 @@ defmodule YagyeCoreWeb.Router do
       param: "id" do
       post("/expire", CheckoutSessionController, :expire)
     end
+
+    # FX rates — current non-expired rates for display currency conversion
+    get("/fx-rates", FxRateController, :index)
   end
 
   scope "/api", YagyeCoreWeb do

@@ -1,5 +1,14 @@
 import Config
 
+# Pretty, colourised console logs in dev — JSON stays in config.exs for prod/staging.
+config :logger, :default_handler,
+  formatter:
+    Logger.Formatter.new(
+      format: "[$level] $message $metadata\n",
+      metadata: [:request_id, :trace, :span],
+      colors: [enabled: true]
+    )
+
 # Configure your database
 config :yagye_core, YagyeCore.Repo,
   username: "postgres",
@@ -65,9 +74,11 @@ config :swoosh, :api_client, false
 # Disable OpenApiSpex spec cache in dev so changes are picked up on reload
 config :open_api_spex, :cache_adapter, OpenApiSpex.Plug.NoneCache
 
-config :opentelemetry_exporter,
-  otlp_protocol: :http_protobuf,
-  otlp_endpoint: "http://localhost:4318"
+# No local collector running — drop traces silently rather than spamming
+# "failed_connect" errors every 5 seconds. In staging/prod this block is
+# absent and the env-var-driven OTLP endpoint kicks in.
+config :opentelemetry,
+  traces_exporter: :none
 
 # Redpanda (Kafka-compatible) running locally via Docker
 config :brod,

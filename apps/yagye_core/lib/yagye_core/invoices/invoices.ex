@@ -14,7 +14,7 @@ defmodule YagyeCore.Invoices do
 
   def list_invoices(merchant_id, opts \\ []) do
     state = Keyword.get(opts, :state)
-    base = from(i in Invoice, where: i.merchant_id == ^merchant_id)
+    base = from(i in Invoice, where: i.merchant_id == ^merchant_id, preload: [:customer])
     base = if state, do: where(base, [i], i.state == ^state), else: base
     {:ok, Pagination.paginate(base, :public_id, opts)}
   end
@@ -22,7 +22,7 @@ defmodule YagyeCore.Invoices do
   def get_invoice(public_id) do
     case Repo.get_by(Invoice, public_id: public_id) do
       nil -> {:error, :not_found}
-      invoice -> {:ok, Repo.preload(invoice, [:line_items, :deliveries])}
+      invoice -> {:ok, Repo.preload(invoice, [:line_items, :deliveries, :customer])}
     end
   end
 
@@ -57,8 +57,15 @@ defmodule YagyeCore.Invoices do
         line_item_attrs
         |> Enum.with_index()
         |> Enum.map(fn {item, idx} ->
+          unit = Map.get(item, :unit_amount, 0)
+          qty = item |> Map.get(:quantity, 1) |> to_float()
+          bps = Map.get(item, :tax_rate_bps, 0)
+          total = round(unit * qty + unit * qty * bps / 10_000)
+
           %InvoiceLineItem{}
-          |> InvoiceLineItem.changeset(Map.merge(item, %{invoice_id: invoice.id, position: idx}))
+          |> InvoiceLineItem.changeset(
+            Map.merge(item, %{invoice_id: invoice.id, position: idx, total_amount: total})
+          )
           |> repo.insert()
         end)
 

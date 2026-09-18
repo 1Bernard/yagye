@@ -4,6 +4,18 @@ defmodule YagyeCoreWeb.Controllers.Invoices.InvoiceJSON do
   alias YagyeCore.Invoices.Schemas.Invoice
 
   def data(%Invoice{} = invoice) do
+    customer_ref =
+      case invoice.customer do
+        %{merchant_customer_ref: ref} -> ref
+        _ -> nil
+      end
+
+    line_items =
+      case invoice.line_items do
+        items when is_list(items) -> Enum.map(items, &line_item/1)
+        _ -> []
+      end
+
     %{
       id: invoice.public_id,
       object: "invoice",
@@ -11,6 +23,7 @@ defmodule YagyeCoreWeb.Controllers.Invoices.InvoiceJSON do
       number: invoice.number,
       state: invoice.state,
       currency: invoice.currency,
+      customer_reference: customer_ref,
       subtotal_amount: invoice.subtotal_amount,
       tax_amount: invoice.tax_amount,
       discount_amount: invoice.discount_amount,
@@ -21,10 +34,22 @@ defmodule YagyeCoreWeb.Controllers.Invoices.InvoiceJSON do
       due_date: invoice.due_date,
       notes: invoice.notes,
       terms: invoice.terms,
+      payment_link_id: invoice.payment_link_id,
+      line_items: line_items,
       sent_at: invoice.sent_at,
       paid_at: invoice.paid_at,
       voided_at: invoice.voided_at,
       inserted_at: invoice.inserted_at
+    }
+  end
+
+  defp line_item(item) do
+    %{
+      description: item.description,
+      quantity: item.quantity,
+      unit_amount: item.unit_amount,
+      tax_rate_bps: item.tax_rate_bps,
+      total_amount: item.total_amount
     }
   end
 

@@ -4,6 +4,7 @@ defmodule YagyeCore.Invoices.Schemas.Invoice do
   use YagyeCore.Shared.Schema
   import Ecto.Changeset
 
+  alias YagyeCore.Customers.Schemas.Customer
   alias YagyeCore.Invoices.Schemas.{InvoiceDelivery, InvoiceLineItem}
   alias YagyeCore.PaymentLinks.Schemas.PaymentLink
 
@@ -14,7 +15,7 @@ defmodule YagyeCore.Invoices.Schemas.Invoice do
     field :public_id, :string
     field :merchant_id, Uniq.UUID
     field :mode, :string
-    field :customer_id, Uniq.UUID
+    belongs_to :customer, Customer
     field :number, :string
     field :state, :string, default: "draft"
     field :subtotal_amount, :integer

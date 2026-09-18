@@ -85,6 +85,37 @@ defmodule YagyeCore.Pricing do
     end
   end
 
+  def get_merchant_plan(merchant_id) do
+    plan_id =
+      from(m in Merchant, where: m.id == ^merchant_id, select: m.pricing_plan_id)
+      |> Repo.one()
+
+    case plan_id do
+      nil ->
+        {:error, :no_pricing_plan}
+
+      id ->
+        plan = Repo.get!(PricingPlan, id) |> Repo.preload(:rules)
+        {:ok, plan}
+    end
+  end
+
+  def list_fee_invoices(merchant_id, opts \\ []) do
+    limit = Keyword.get(opts, :limit, 50)
+    offset = Keyword.get(opts, :offset, 0)
+
+    invoices =
+      from(i in PlatformFeeInvoice,
+        where: i.merchant_id == ^merchant_id,
+        order_by: [desc: i.period_start],
+        limit: ^limit,
+        offset: ^offset
+      )
+      |> Repo.all()
+
+    {:ok, invoices}
+  end
+
   def list_fee_records(merchant_id, opts \\ []) do
     limit = Keyword.get(opts, :limit, 50)
     offset = Keyword.get(opts, :offset, 0)
