@@ -37,6 +37,14 @@ if config_env() == :dev do
     "CORE_PORTAL_SERVICE_SECRET",
     System.get_env("CORE_PORTAL_SERVICE_SECRET", "dev_portal_service_secret_change_in_production")
   )
+
+  System.put_env(
+    "CORE_CHECKOUT_SERVICE_SECRET",
+    System.get_env(
+      "CORE_CHECKOUT_SERVICE_SECRET",
+      "dev_checkout_service_secret_change_in_production"
+    )
+  )
 end
 
 if config_env() == :prod do

@@ -17,7 +17,7 @@ class AuditLog < ApplicationRecord
                   reason: nil, metadata: {}, request: nil)
     log_attrs = {
       user_id:       actor&.id,
-      user_code:     actor&.email.to_s,
+      user_code:     actor&.user_code.to_s,
       merchant_code: merchant_code || actor&.merchant_code,
       action:        action,
       resource_type: resource_type.to_s,

@@ -62,7 +62,7 @@ module Merchants
       new_status  = params[:status].to_s.strip
       result = CoreApiClient.new.approve_application(
         application.merchant_code || application.application_code,
-        approved_by: current_user.email
+        approved_by: current_user.user_code
       )
       if result.success?
         redirect_to merchant_path(application), notice: "Merchant status updated to #{new_status.humanize}."

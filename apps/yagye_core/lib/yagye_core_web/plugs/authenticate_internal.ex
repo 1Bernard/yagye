@@ -1,35 +1,44 @@
 defmodule YagyeCoreWeb.Plugs.AuthenticateInternal do
   @moduledoc """
-  Authenticates inbound requests from the Yagye Portal (service-to-service).
+  Authenticates inbound requests from internal Yagye services (portal, checkout).
 
-  Reads the X-Service-Token header and compares it against the
-  CORE_PORTAL_SERVICE_SECRET environment variable using a constant-time
-  comparison to prevent timing attacks.
+  Each caller must supply two headers:
+    X-Service-Name  — identifies the calling service ("portal" or "checkout")
+    X-Service-Token — the shared secret for that service
 
-  This plug is used on the /internal pipeline — never on merchant-facing routes.
+  Core holds a separate secret per service so that a leaked token for one
+  caller does not compromise the others. Secrets are set via env vars:
+    CORE_PORTAL_SERVICE_SECRET   — portal → core
+    CORE_CHECKOUT_SERVICE_SECRET — checkout → core
+
+  Uses constant-time comparison to prevent timing attacks.
+  This plug runs on /internal routes only — never on merchant-facing routes.
   """
 
   @behaviour Plug
 
   import Plug.Conn
 
+  # Map service name → env var that holds the expected secret.
+  @service_secrets %{
+    "portal" => "CORE_PORTAL_SERVICE_SECRET",
+    "checkout" => "CORE_CHECKOUT_SERVICE_SECRET"
+  }
+
   @impl Plug
   def init(opts), do: opts
 
   @impl Plug
   def call(conn, _opts) do
-    expected = System.get_env("CORE_PORTAL_SERVICE_SECRET")
-
-    case get_req_header(conn, "x-service-token") do
-      [token | _] when is_binary(expected) and byte_size(expected) > 0 ->
-        if Plug.Crypto.secure_compare(token, expected) do
-          conn
-        else
-          halt_unauthorized(conn)
-        end
-
-      _ ->
-        halt_unauthorized(conn)
+    with [service | _] <- get_req_header(conn, "x-service-name"),
+         {:ok, env_var} <- Map.fetch(@service_secrets, service),
+         expected when is_binary(expected) and byte_size(expected) > 0 <-
+           System.get_env(env_var),
+         [token | _] <- get_req_header(conn, "x-service-token"),
+         true <- Plug.Crypto.secure_compare(token, expected) do
+      assign(conn, :service_name, service)
+    else
+      _ -> halt_unauthorized(conn)
     end
   end
 

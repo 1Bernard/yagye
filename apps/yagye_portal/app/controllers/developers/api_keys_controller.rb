@@ -38,7 +38,7 @@ module Developers
         label:         key_params[:label],
         mode:          key_params[:mode].presence_in(%w[live test]) || "test",
         scopes:        Array(key_params[:scopes]),
-        created_by:    current_user.email
+        created_by:    current_user.user_code
       )
       if result.success?
         upsert_api_key(result.body)
@@ -51,7 +51,7 @@ module Developers
 
     def destroy
       authorize :developers, :manage_keys?
-      result = CoreApiClient.new.revoke_api_key(params[:key_id], revoked_by: current_user.email)
+      result = CoreApiClient.new.revoke_api_key(params[:key_id], revoked_by: current_user.user_code)
       if result.success?
         PortalApiKey.find_by(key_id: params[:key_id])
                     &.update(revoked_at: Time.current)

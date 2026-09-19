@@ -3,7 +3,8 @@ defmodule YagyeCheckout.CoreClient do
 
   defp base_url, do: Application.fetch_env!(:yagye_checkout, :core_base_url)
   defp service_token, do: Application.fetch_env!(:yagye_checkout, :core_service_token)
-  defp auth_headers, do: [{"x-service-token", service_token()}]
+  defp auth_headers,
+    do: [{"x-service-name", "checkout"}, {"x-service-token", service_token()}]
 
   @doc "Fetches a checkout session by raw URL token."
   def get_session(raw_token) do

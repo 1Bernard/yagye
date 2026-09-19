@@ -15,9 +15,9 @@ module Compliance
       record = decode_id(PortalAdjustmentApproval)
       authorize record, :approve?, policy_class: PortalAdjustmentApprovalPolicy
       result = CoreApiClient.new.approve_adjustment(break_id: record.core_break_id,
-                                                    approved_by: current_user.email)
+                                                    approved_by: current_user.user_code)
       if result.success?
-        record.update!(state: "approved", approved_by: current_user.email, approved_at: Time.current)
+        record.update!(state: "approved", approved_by: current_user.user_code, approved_at: Time.current)
         redirect_to compliance_approvals_path, notice: "Adjustment approved."
       else
         redirect_to compliance_approvals_path, alert: "Could not approve: #{result.error_message}"
@@ -34,7 +34,7 @@ module Compliance
                                                    rejected_reason: reason)
       if result.success?
         record.update!(state: "rejected", rejected_reason: reason,
-                       approved_by: current_user.email, approved_at: Time.current)
+                       approved_by: current_user.user_code, approved_at: Time.current)
         redirect_to compliance_approvals_path, notice: "Adjustment rejected."
       else
         redirect_to compliance_approvals_path, alert: "Could not reject: #{result.error_message}"

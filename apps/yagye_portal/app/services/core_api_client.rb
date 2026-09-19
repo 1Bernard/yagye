@@ -375,6 +375,7 @@ class CoreApiClient
 
   def request_headers
     {
+      "X-Service-Name"  => "portal",
       "X-Service-Token" => service_secret,
       "traceparent"     => CorrelationId.current
     }

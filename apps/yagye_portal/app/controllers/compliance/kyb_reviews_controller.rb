@@ -10,7 +10,7 @@ module Compliance
       scope = scope.where("last_applied_at <= ?", params[:to])      if params[:to].present?
       case params[:reviewer]
       when "unassigned" then scope = scope.where(reviewed_by: nil)
-      when "mine"       then scope = scope.where(reviewed_by: current_user.email)
+      when "mine"       then scope = scope.where(reviewed_by: current_user.user_code)
       end
       pagy, applications = pagy(scope, limit: 25)
       render KybReviews::IndexView.new(
@@ -66,7 +66,7 @@ module Compliance
       application = decode_id(PortalMerchantApplication)
       result = Compliance::ApproveApplication.new.call(
         application_code: application.application_code,
-        approved_by:      current_user.email
+        approved_by:      current_user.user_code
       )
       if result.success?
         redirect_to kyb_review_path(application), notice: "Application approved."
@@ -80,7 +80,7 @@ module Compliance
       application = decode_id(PortalMerchantApplication)
       result = Compliance::RejectApplication.new.call(
         application_code: application.application_code,
-        rejected_by:      current_user.email,
+        rejected_by:      current_user.user_code,
         reason:           params[:reason].to_s.strip.presence || "No reason provided."
       )
       if result.success?
@@ -93,8 +93,8 @@ module Compliance
     def assign
       authorize :kyb_reviews, :approve?
       application = decode_id(PortalMerchantApplication)
-      application.update!(reviewed_by: current_user.email, status: "under_review")
-      redirect_to kyb_reviews_path(tab: "in_review"), notice: "Assigned to #{current_user.email}."
+      application.update!(reviewed_by: current_user.user_code, status: "under_review")
+      redirect_to kyb_reviews_path(tab: "in_review"), notice: "Assigned to #{current_user.full_name}."
     end
 
     private

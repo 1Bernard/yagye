@@ -56,7 +56,7 @@ module Payments
         payment.core_payment_id,
         amount: amount,
         reason:       params[:reason].to_s.strip.presence || "requested_by_merchant",
-        initiated_by: current_user.email
+        initiated_by: current_user.user_code
       )
       if result.success?
         redirect_to payment_path(payment), notice: "Refund initiated."
