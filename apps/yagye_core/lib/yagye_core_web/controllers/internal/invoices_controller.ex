@@ -53,8 +53,21 @@ defmodule YagyeCoreWeb.Controllers.Internal.InvoicesController do
   end
 
   # POST /internal/invoices/:id/issue
-  def issue(conn, %{"id" => id}) do
-    with {:ok, invoice} <- Invoices.issue_invoice(id) do
+  def issue(conn, %{"id" => id} = params) do
+    allowed_methods =
+      params
+      |> Map.get("allowed_methods", ["mobile_money"])
+      |> List.wrap()
+      |> Enum.filter(&(&1 in ~w[mobile_money card bank_transfer]))
+
+    payment_config = %{
+      allowed_methods: allowed_methods,
+      collect_email: params["collect_email"] == true || params["collect_email"] == "true",
+      collect_phone: params["collect_phone"] == true || params["collect_phone"] == "true",
+      collect_name: params["collect_name"] == true || params["collect_name"] == "true"
+    }
+
+    with {:ok, invoice} <- Invoices.issue_invoice(id, payment_config) do
       Response.ok(conn, InvoiceJSON.data(invoice))
     end
   end

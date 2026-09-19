@@ -87,7 +87,13 @@ defmodule YagyeCore.Invoices.Schemas.Invoice do
 
   def state_changeset(invoice, new_state, extra \\ %{}) do
     invoice
-    |> cast(Map.put(extra, :state, new_state), [:state, :sent_at, :paid_at, :voided_at])
+    |> cast(Map.put(extra, :state, new_state), [
+      :state,
+      :sent_at,
+      :paid_at,
+      :voided_at,
+      :payment_link_id
+    ])
     |> validate_inclusion(:state, @valid_states)
     |> validate_state_transition(invoice.state, new_state)
   end

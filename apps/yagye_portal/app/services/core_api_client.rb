@@ -128,8 +128,9 @@ class CoreApiClient
   end
 
   # POST /internal/invoices/:id/issue
-  def issue_invoice(public_id)
-    post("/internal/invoices/#{public_id}/issue", {})
+  # payment_config: { allowed_methods: [], collect_email:, collect_phone:, collect_name: }
+  def issue_invoice(public_id, payment_config = {})
+    post("/internal/invoices/#{public_id}/issue", payment_config)
   end
 
   # POST /internal/invoices/:id/void

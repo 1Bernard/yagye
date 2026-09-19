@@ -7,6 +7,7 @@ defmodule YagyeCore.Invoices do
   alias YagyeCore.Customers
   alias YagyeCore.Invoices.Schemas.{Invoice, InvoiceDelivery, InvoiceLineItem}
   alias YagyeCore.Merchants
+  alias YagyeCore.PaymentLinks
   alias YagyeCore.Repo
   alias YagyeCore.Shared.Pagination
 
@@ -21,8 +22,11 @@ defmodule YagyeCore.Invoices do
 
   def get_invoice(public_id) do
     case Repo.get_by(Invoice, public_id: public_id) do
-      nil -> {:error, :not_found}
-      invoice -> {:ok, Repo.preload(invoice, [:line_items, :deliveries, :customer])}
+      nil ->
+        {:error, :not_found}
+
+      invoice ->
+        {:ok, Repo.preload(invoice, [:line_items, :deliveries, :customer, :payment_link])}
     end
   end
 
@@ -79,11 +83,44 @@ defmodule YagyeCore.Invoices do
     end
   end
 
-  def issue_invoice(public_id) do
+  def issue_invoice(public_id, payment_config \\ %{}) do
     with {:ok, invoice} <- get_invoice(public_id) do
-      invoice
-      |> Invoice.state_changeset("open", %{})
-      |> Repo.update()
+      allowed_methods =
+        case Map.get(payment_config, :allowed_methods) do
+          methods when is_list(methods) and methods != [] -> methods
+          _ -> ["mobile_money"]
+        end
+
+      link_attrs = %{
+        kind: "invoice",
+        currency: invoice.currency,
+        amount: invoice.total_amount,
+        description: "Invoice #{invoice.number}",
+        allowed_methods: allowed_methods,
+        collect_email: Map.get(payment_config, :collect_email, false),
+        collect_phone: Map.get(payment_config, :collect_phone, false),
+        collect_name: Map.get(payment_config, :collect_name, false),
+        reusable: false,
+        active: true,
+        checkout_layout: %{},
+        metadata: %{}
+      }
+
+      Multi.new()
+      |> Multi.run(:link, fn _repo, _ ->
+        PaymentLinks.create_link(invoice.merchant_id, link_attrs)
+      end)
+      |> Multi.update(:invoice, fn %{link: link} ->
+        Invoice.state_changeset(invoice, "open", %{
+          payment_link_id: link.id,
+          sent_at: DateTime.utc_now()
+        })
+      end)
+      |> Repo.transaction()
+      |> case do
+        {:ok, %{invoice: inv, link: link}} -> {:ok, %{inv | payment_link: link}}
+        {:error, _step, reason, _} -> {:error, reason}
+      end
     end
   end
 

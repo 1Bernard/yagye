@@ -46,7 +46,7 @@ module Checkout
       def right_column
         div(class: "flex flex-col gap-5") do
           actions_card
-          payment_link_card if @inv["payment_link_id"].present?
+          payment_link_card
           details_card
         end
       end
@@ -233,6 +233,12 @@ module Checkout
 
       # ── Actions ──────────────────────────────────────────────────────────────
 
+      PAYMENT_METHODS = [
+        { value: "mobile_money",  label: "Mobile Money",  desc: "MTN MoMo, Telecel Cash, AirtelTigo" },
+        { value: "card",          label: "Card",           desc: "Visa and Mastercard" },
+        { value: "bank_transfer", label: "Bank transfer",  desc: "Direct bank-to-bank transfers" }
+      ].freeze
+
       def actions_card
         state = @inv["state"]
         return unless %w[draft open partially_paid overdue].include?(state)
@@ -240,53 +246,155 @@ module Checkout
         render UI::Card.new do |c|
           c.header("Actions")
           c.body do
-            div(class: "flex flex-col gap-2") do
+            div(class: "flex flex-col gap-3") do
               if state == "draft"
-                form(action: issue_invoice_path(@inv["id"]), method: "post") do
-                  input(type: "hidden", name: "authenticity_token", value: form_authenticity_token)
-                  button(type: "submit",
-                         class: "w-full flex items-center justify-center gap-2 h-9 px-4 " \
-                                "bg-[#3D47F5] text-white rounded-[9px] text-[12.5px] font-medium " \
-                                "hover:bg-[#3340e0] transition-colors") do
-                    render UI::Icon.new(:send, class: "w-3.5 h-3.5")
-                    plain "Issue invoice"
-                  end
-                end
+                issue_form
               end
               if %w[open partially_paid overdue].include?(state)
-                form(action: void_invoice_path(@inv["id"]), method: "post") do
-                  input(type: "hidden", name: "authenticity_token", value: form_authenticity_token)
-                  button(type: "submit",
-                         class: "w-full flex items-center justify-center gap-2 h-9 px-4 " \
-                                "border border-red-200 text-red-600 rounded-[9px] text-[12.5px] font-medium " \
-                                "hover:bg-red-50 transition-colors",
-                         data: { confirm: "Void this invoice? This cannot be undone." }) do
-                    render UI::Icon.new(:x, class: "w-3.5 h-3.5")
-                    plain "Void invoice"
-                  end
-                end
+                void_form
               end
             end
           end
         end
       end
 
-      # ── Payment link ──────────────────────────────────────────────────────────
+      def issue_form
+        form(action: issue_invoice_path(@inv["id"]), method: "post") do
+          input(type: "hidden", name: "authenticity_token", value: form_authenticity_token)
+
+          div(class: "flex flex-col gap-4") do
+            # Payment methods
+            div do
+              p(class: "#{TYPE_LABEL} mb-2") { plain "Accepted payment methods" }
+              div(class: "flex flex-col gap-2") do
+                PAYMENT_METHODS.each_with_index do |m, i|
+                  div(class: "flex items-start gap-2.5") do
+                    input(
+                      type: "checkbox",
+                      name: "allowed_methods[]",
+                      value: m[:value],
+                      id: "inv_method_#{m[:value]}",
+                      class: "#{CHECKBOX_INPUT} mt-[1px]",
+                      checked: i == 0
+                    )
+                    div do
+                      label(for: "inv_method_#{m[:value]}",
+                            class: "block text-[12.5px] font-medium text-gray-800 cursor-pointer leading-snug") do
+                        plain m[:label]
+                      end
+                      p(class: "text-[11px] text-gray-400 mt-px") { plain m[:desc] }
+                    end
+                  end
+                end
+              end
+            end
+
+            # Collect from payer
+            div do
+              p(class: "#{TYPE_LABEL} mb-2") { plain "Collect from payer" }
+              div(class: "flex flex-col gap-2") do
+                collect_opt("collect_email", "Email address")
+                collect_opt("collect_phone", "Phone number")
+                collect_opt("collect_name",  "Full name")
+              end
+            end
+
+            div(class: "border-t border-gray-100")
+
+            button(type: "submit",
+                   class: "w-full flex items-center justify-center gap-2 h-9 px-4 " \
+                          "bg-[#3D47F5] text-white rounded-[9px] text-[12.5px] font-semibold " \
+                          "hover:bg-[#3340e0] transition-colors") do
+              render UI::Icon.new(:send, class: "w-3.5 h-3.5")
+              plain "Issue & share invoice"
+            end
+          end
+        end
+      end
+
+      def void_form
+        form(action: void_invoice_path(@inv["id"]), method: "post") do
+          input(type: "hidden", name: "authenticity_token", value: form_authenticity_token)
+          button(type: "submit",
+                 class: "w-full flex items-center justify-center gap-2 h-9 px-4 " \
+                        "border border-red-200 text-red-600 rounded-[9px] text-[12.5px] font-medium " \
+                        "hover:bg-red-50 transition-colors",
+                 data: { confirm: "Void this invoice? This cannot be undone." }) do
+            render UI::Icon.new(:x, class: "w-3.5 h-3.5")
+            plain "Void invoice"
+          end
+        end
+      end
+
+      # ── Invoice payment link ──────────────────────────────────────────────────
 
       def payment_link_card
+        url = @inv["payment_link_checkout_url"]
+        return unless url.present?
+
         render UI::Card.new do |c|
-          c.header("Collected via")
+          c.header("Invoice payment link", icon: :link)
           c.body do
-            div(class: "flex items-center gap-3") do
-              div(class: "w-8 h-8 rounded-xl bg-gray-50 flex items-center justify-center flex-shrink-0") do
-                span(class: "flex w-4 h-4 text-gray-500") { render UI::Icon.new(:link, class: "w-full h-full") }
+            div(class: "flex flex-col gap-3") do
+              # URL display
+              div(class: "flex items-center gap-2 bg-gray-50 border border-gray-200 " \
+                         "rounded-xl px-3 py-2.5 overflow-hidden") do
+                span(class: "flex-shrink-0 text-gray-400") do
+                  render UI::Icon.new(:link, class: "w-3.5 h-3.5")
+                end
+                p(class: "#{TYPE_MONO} text-[11.5px] text-gray-600 truncate flex-1",
+                  id: "inv-payment-url",
+                  data: { url: url }) { plain url }
               end
-              div do
-                p(class: TYPE_BODY_MD) { plain "Payment link" }
-                p(class: TYPE_MONO) { plain @inv["payment_link_id"] }
+
+              # Actions row
+              div(class: "flex gap-2") do
+                button(
+                  type: "button",
+                  id: "copy-inv-url-btn",
+                  class: "flex-1 flex items-center justify-center gap-1.5 h-8 px-3 " \
+                         "border border-gray-200 rounded-[8px] text-[12px] font-medium " \
+                         "text-gray-600 hover:border-gray-300 hover:bg-gray-50 transition-colors"
+                ) do
+                  render UI::Icon.new(:copy, class: "w-3.5 h-3.5 text-gray-400")
+                  plain "Copy link"
+                end
+                a(
+                  href: url, target: "_blank", rel: "noopener noreferrer",
+                  class: "flex items-center justify-center gap-1.5 h-8 px-3 " \
+                         "border border-gray-200 rounded-[8px] text-[12px] font-medium " \
+                         "text-gray-600 hover:border-gray-300 hover:bg-gray-50 transition-colors"
+                ) do
+                  render UI::Icon.new(:arrow_right, class: "w-3.5 h-3.5 text-gray-400")
+                  plain "Open"
+                end
+              end
+
+              p(class: "#{TYPE_CAPTION} text-gray-400") do
+                plain "Share this link with your customer to collect payment."
               end
             end
           end
+        end
+
+        script do
+          raw <<~JS
+            (function () {
+              var btn = document.getElementById('copy-inv-url-btn');
+              if (!btn) return;
+              var urlEl = document.getElementById('inv-payment-url');
+              btn.addEventListener('click', function () {
+                navigator.clipboard.writeText(urlEl.dataset.url).then(function () {
+                  btn.textContent = 'Copied!';
+                  setTimeout(function () {
+                    btn.innerHTML = '';
+                    btn.insertAdjacentHTML('beforeend',
+                      '<svg class="w-3.5 h-3.5 text-gray-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>Copy link');
+                  }, 2000);
+                });
+              });
+            })();
+          JS
         end
       end
 
@@ -313,6 +421,14 @@ module Checkout
       end
 
       # ── Helpers ──────────────────────────────────────────────────────────────
+
+      def collect_opt(name, label_text)
+        div(class: "flex items-center gap-2") do
+          input(type: "checkbox", name: name, value: "true", id: "inv_#{name}", class: CHECKBOX_INPUT)
+          label(for: "inv_#{name}",
+                class: "text-[12.5px] font-medium text-gray-700 cursor-pointer") { plain label_text }
+        end
+      end
 
       def state_badge(state)
         cls = STATE_COLORS[state] || "bg-gray-100 text-gray-500"

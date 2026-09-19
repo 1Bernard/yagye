@@ -59,9 +59,22 @@ module Checkout
 
     def issue
       authorize :invoice, :update?
-      result = core.issue_invoice(params[:id])
+
+      allowed_methods = Array(params[:allowed_methods]).select do |m|
+        %w[mobile_money card bank_transfer].include?(m)
+      end
+      allowed_methods = ["mobile_money"] if allowed_methods.empty?
+
+      payment_config = {
+        allowed_methods: allowed_methods,
+        collect_email:   params[:collect_email] == "true",
+        collect_phone:   params[:collect_phone] == "true",
+        collect_name:    params[:collect_name]  == "true"
+      }
+
+      result = core.issue_invoice(params[:id], payment_config)
       if result.success?
-        redirect_to invoice_path(params[:id]), notice: "Invoice issued — it is now open for payment."
+        redirect_to invoice_path(params[:id]), notice: "Invoice issued — payment link is ready to share."
       else
         redirect_to invoice_path(params[:id]), alert: result.error_message
       end
