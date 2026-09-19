@@ -257,6 +257,7 @@ module KybReviews
     def right_column
       div(class: "flex flex-col gap-4") do
         review_actions_card
+        add_ubo_card
         review_history_card
       end
     end
@@ -322,6 +323,64 @@ module KybReviews
           div(class: "mt-3 px-3 py-[10px] bg-gray-50 rounded-xl text-left") do
             p(class: "#{TYPE_MICRO} mb-1") { plain "Rejection reason" }
             p(class: TYPE_CAPTION) { plain @app.rejected_reason }
+          end
+        end
+      end
+    end
+
+    def add_ubo_card
+      return unless @app.merchant_code.present?
+
+      render UI::Card.new do |c|
+        c.header("Add beneficial owner", icon: :users)
+        c.body do
+          form(action: add_ubo_kyb_review_path(@app), method: "post", id: "add-ubo-form") do
+            authenticity_token_field
+            div(class: "flex flex-col gap-3") do
+              div do
+                label(class: "#{TYPE_LABEL} block mb-1.5", for: "ubo_role") { plain "Role" }
+                select(name: "role", id: "ubo_role", class: SELECT_FIELD) do
+                  option(value: "ubo")      { plain "UBO (beneficial owner)" }
+                  option(value: "director") { plain "Director" }
+                  option(value: "both")     { plain "Director + UBO" }
+                end
+              end
+              div do
+                label(class: "#{TYPE_LABEL} block mb-1.5", for: "ubo_ownership_pct") do
+                  plain "Ownership %"
+                end
+                div(class: "relative") do
+                  input(
+                    type: "number", id: "ubo_ownership_pct",
+                    min: "0", max: "100", step: "0.01",
+                    placeholder: "e.g. 25.00",
+                    class: "#{INPUT_FIELD} pr-8",
+                    required: true
+                  )
+                  span(class: "absolute right-3 top-1/2 -translate-y-1/2 " \
+                               "text-gray-400 text-sm pointer-events-none") { plain "%" }
+                end
+                input(type: "hidden", name: "ownership_bps", id: "ubo_ownership_bps")
+              end
+              button(type: "submit", class: "#{BTN_PRIMARY} w-full justify-center") do
+                render UI::Icon.new(:plus, class: ICON_SM)
+                plain "Add beneficial owner"
+              end
+            end
+          end
+          script do
+            raw <<~JS
+              (function () {
+                var form = document.getElementById('add-ubo-form');
+                var pct  = document.getElementById('ubo_ownership_pct');
+                var bps  = document.getElementById('ubo_ownership_bps');
+                form.addEventListener('submit', function (e) {
+                  var v = parseFloat(pct.value);
+                  if (isNaN(v) || v < 0 || v > 100) { e.preventDefault(); return; }
+                  bps.value = Math.round(v * 100);
+                });
+              })();
+            JS
           end
         end
       end
