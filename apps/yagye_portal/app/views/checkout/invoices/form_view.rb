@@ -301,12 +301,15 @@ module Checkout
       # ── Preview area (right) ─────────────────────────────────────────────────
 
       def preview_area
+        # Outer div is the scroll container (fixed bounds via absolute positioning).
+        # Inner div centers the card and provides scroll breathing room.
         div(
-          class: "absolute top-5 right-0 bottom-0 flex flex-col items-center " \
-                 "justify-start pt-0 pb-8 overflow-y-auto",
+          class: "absolute top-5 right-0 bottom-0 overflow-y-auto",
           style: "left: 385px"
         ) do
-          invoice_preview_card
+          div(class: "min-h-full pb-10 flex flex-col items-center") do
+            invoice_preview_card
+          end
         end
       end
 

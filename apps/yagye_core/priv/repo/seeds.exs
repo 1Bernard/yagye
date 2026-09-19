@@ -9,7 +9,10 @@ alias YagyeCore.Merchants
 alias YagyeCore.Merchants.Schemas.Merchant
 alias YagyeCore.Providers.Schemas.{Provider, ProviderCredential}
 alias YagyeCore.Shared.Vault
+alias YagyeCore.Customers
+alias YagyeCore.Invoices
 alias YagyeCore.Repo
+import Ecto.Query, only: [from: 2]
 
 IO.puts("\n=== Yagye bootstrap ===\n")
 
@@ -185,5 +188,154 @@ end
       IO.puts("#{String.pad_trailing(attrs.display_name, 22)}: created (#{p.id})")
   end
 end)
+
+# ── 7. Portal demo merchant (MCH_DEMO_001 — "Kofi Builds Ltd") ────────────────
+# This public_id matches the portal's DEMO_MERCHANT_CODE so the demo merchant
+# user (owner@kofibuilds.com) can see invoices and payment links via the API.
+
+demo_merchant =
+  case Repo.get_by(Merchant, public_id: "MCH_DEMO_001") do
+    %Merchant{} = m ->
+      IO.puts("Demo merchant         : already exists (MCH_DEMO_001)")
+      m
+
+    nil ->
+      {:ok, m} =
+        %Merchant{}
+        |> Merchant.changeset(%{
+          public_id: "MCH_DEMO_001",
+          legal_name: "Kofi Builds Ltd",
+          trading_name: "Kofi Builds",
+          country: "GH",
+          default_currency: "GHS",
+          status: "approved",
+          onboarding_state: "approved",
+          kyb_tier: 1,
+          api_version: "2025-01-01"
+        })
+        |> Repo.insert()
+
+      IO.puts("Demo merchant         : created (MCH_DEMO_001)")
+      m
+  end
+
+# ── 8. Demo invoices for MCH_DEMO_001 ─────────────────────────────────────────
+
+demo_invoice_count =
+  Repo.aggregate(
+    from(i in YagyeCore.Invoices.Schemas.Invoice, where: i.merchant_id == ^demo_merchant.id),
+    :count
+  )
+
+if demo_invoice_count < 4 do
+  # Seed customers first
+  {:ok, acme} = Customers.find_or_create(demo_merchant.id, "acme@globaltrading.com", %{})
+  {:ok, nana} = Customers.find_or_create(demo_merchant.id, "nana@buildersgh.com", %{})
+  {:ok, sefa} = Customers.find_or_create(demo_merchant.id, "sefa@techstartup.io", %{})
+
+  demo_invoices = [
+    %{
+      customer_id: nana.id,
+      number: "INV-00041",
+      currency: "GHS",
+      issue_date: ~D[2026-08-01],
+      due_date: ~D[2026-08-31],
+      mode: "simulation",
+      notes: "Thank you for your continued partnership.",
+      terms: "Payment due within 30 days.",
+      line_items: [
+        %{
+          description: "Web App Development — Phase 1",
+          quantity: 1.0,
+          unit_amount: 350_000,
+          tax_rate_bps: 0
+        },
+        %{
+          description: "UI/UX Design & Prototyping",
+          quantity: 1.0,
+          unit_amount: 120_000,
+          tax_rate_bps: 0
+        }
+      ]
+    },
+    %{
+      customer_id: acme.id,
+      number: "INV-00040",
+      currency: "GHS",
+      issue_date: ~D[2026-07-15],
+      due_date: ~D[2026-08-14],
+      mode: "simulation",
+      notes: "Please reference invoice number on your bank transfer.",
+      terms: "Net 30.",
+      line_items: [
+        %{
+          description: "Monthly retainer — July 2026",
+          quantity: 1.0,
+          unit_amount: 500_000,
+          tax_rate_bps: 0
+        },
+        %{
+          description: "Additional consulting (8 hrs)",
+          quantity: 8.0,
+          unit_amount: 25_000,
+          tax_rate_bps: 0
+        }
+      ]
+    },
+    %{
+      customer_id: sefa.id,
+      number: "INV-00039",
+      currency: "GHS",
+      issue_date: ~D[2026-07-01],
+      due_date: ~D[2026-07-31],
+      mode: "simulation",
+      line_items: [
+        %{
+          description: "API integration — payment gateway",
+          quantity: 1.0,
+          unit_amount: 200_000,
+          tax_rate_bps: 0
+        },
+        %{
+          description: "Technical documentation",
+          quantity: 1.0,
+          unit_amount: 50_000,
+          tax_rate_bps: 0
+        },
+        %{
+          description: "Hosting setup & configuration",
+          quantity: 1.0,
+          unit_amount: 30_000,
+          tax_rate_bps: 0
+        }
+      ]
+    },
+    %{
+      customer_id: acme.id,
+      number: "INV-00038",
+      currency: "GHS",
+      issue_date: ~D[2026-06-15],
+      due_date: ~D[2026-07-15],
+      mode: "simulation",
+      notes: "Thank you for choosing Kofi Builds.",
+      line_items: [
+        %{
+          description: "Monthly retainer — June 2026",
+          quantity: 1.0,
+          unit_amount: 500_000,
+          tax_rate_bps: 0
+        }
+      ]
+    }
+  ]
+
+  Enum.each(demo_invoices, fn attrs ->
+    {:ok, _invoice} = Invoices.create_invoice(demo_merchant.id, attrs)
+  end)
+
+  IO.puts("Demo invoices         : seeded #{length(demo_invoices)} invoices for MCH_DEMO_001")
+else
+  IO.puts("Demo invoices         : already seeded (#{demo_invoice_count} records) — skipping")
+end
 
 IO.puts("=== Done ===\n")

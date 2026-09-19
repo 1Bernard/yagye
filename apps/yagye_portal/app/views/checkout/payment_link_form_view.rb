@@ -354,11 +354,12 @@ module Checkout
 
     def preview_area
       div(
-        class: "absolute top-5 right-0 bottom-0 flex flex-col items-center " \
-               "justify-start pt-0 pb-8 overflow-y-auto",
+        class: "absolute top-5 right-0 bottom-0 overflow-y-auto",
         style: "left: 385px"
       ) do
-        checkout_preview_card
+        div(class: "min-h-full pb-10 flex flex-col items-center") do
+          checkout_preview_card
+        end
       end
     end
 
