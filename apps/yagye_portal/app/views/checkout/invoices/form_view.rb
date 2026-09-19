@@ -313,12 +313,8 @@ module Checkout
       def invoice_preview_card
         div(
           class: "inv-preview w-full max-w-[680px] bg-white rounded-2xl overflow-hidden " \
-                 "shadow-[0_12px_40px_rgba(0,0,0,0.09),0_2px_10px_rgba(0,0,0,0.05)] " \
-                 "border border-gray-200/60"
+                 "shadow-[0_12px_40px_rgba(0,0,0,0.09),0_2px_10px_rgba(0,0,0,0.05)]"
         ) do
-          # Indigo accent stripe at the very top
-          div(class: "h-[3px] bg-gradient-to-r from-[#3D47F5] to-[#6B74FF]")
-
           preview_header
           preview_meta_strip
           preview_from_to
@@ -466,12 +462,11 @@ module Checkout
             totals_row("Total", :pvTotal, bold: true,
                        default: "GH₵ #{sprintf('%.2f', demo_subtotal / 100.0)}")
 
-            # Amount due — indigo left border accent
+            # Amount due
             div(class: "mt-3 flex items-center justify-between " \
-                        "rounded-xl bg-[#3D47F5]/[0.05] border border-[#3D47F5]/[0.12] " \
-                        "border-l-[3px] border-l-[#3D47F5] px-4 py-3.5") do
-              p(class: "text-[12px] font-bold text-[#3D47F5]") { plain "Amount due" }
-              p(class: "text-[17px] font-extrabold text-[#3D47F5] tabular-nums tracking-tight",
+                        "rounded-xl bg-gray-50 border border-gray-100 px-4 py-3.5") do
+              p(class: "text-[12px] font-bold text-gray-700") { plain "Amount due" }
+              p(class: "text-[17px] font-extrabold text-gray-900 tabular-nums tracking-tight",
                 data: { invoice_compose_target: "pvAmountDue" }) do
                 plain "GH₵ #{sprintf('%.2f', demo_subtotal / 100.0)}"
               end
