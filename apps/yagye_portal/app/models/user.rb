@@ -49,6 +49,12 @@ class User < ApplicationRecord
     true
   end
 
+  # PCI DSS 4.0 §8.2.8: privileged sessions must time out after at most 15 min.
+  # Devise reads this method if present, falling back to config.timeout_in.
+  def timeout_in
+    internal_staff? ? 15.minutes : 30.minutes
+  end
+
   def full_name
     [ first_name, last_name ].compact.join(" ").presence || email
   end

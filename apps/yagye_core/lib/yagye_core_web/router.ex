@@ -134,11 +134,17 @@ defmodule YagyeCoreWeb.Router do
 
     post("/checkout/sessions/:public_id/complete", CheckoutController, :complete)
 
-    # Compliance — portal ops view (read-only; no merchant API key needed)
+    # Compliance — portal ops view (read and write via service token)
     get(
       "/merchants/:merchant_id/beneficial-owners",
       InternalComplianceController,
       :list_beneficial_owners
+    )
+
+    post(
+      "/merchants/:merchant_id/beneficial-owners",
+      InternalComplianceController,
+      :add_beneficial_owner
     )
 
     get("/merchants/:merchant_id/documents", InternalComplianceController, :list_documents)

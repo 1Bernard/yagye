@@ -177,11 +177,23 @@ class CoreApiClient
          { approved_by: approved_by })
   end
 
-  # ── KYB / Compliance (ops read-only) ──────────────────────────────────────
+  # ── KYB / Compliance (ops read + write) ───────────────────────────────────
 
   # GET /internal/merchants/:code/beneficial-owners
   def list_beneficial_owners(merchant_code)
     get("/internal/merchants/#{merchant_code}/beneficial-owners")
+  end
+
+  # POST /internal/merchants/:code/beneficial-owners
+  # subject_ref: UUID (caller generates; will point to PII vault when KMS is wired)
+  # role: "director" | "ubo" | "both"
+  # ownership_bps: integer 0-10000 (100 bps = 1%)
+  def add_beneficial_owner(merchant_code, subject_ref:, role:, ownership_bps:)
+    post("/internal/merchants/#{merchant_code}/beneficial-owners", {
+      subject_ref: subject_ref,
+      role: role,
+      ownership_bps: ownership_bps
+    })
   end
 
   # GET /internal/merchants/:code/documents

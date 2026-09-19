@@ -192,13 +192,29 @@ defmodule YagyeCore.Reconciliation do
   """
   def propose_adjustment(break_public_id, proposed_by, proposed_action) do
     with {:ok, break} <- get_break(break_public_id) do
-      %AdjustmentApproval{}
-      |> AdjustmentApproval.propose_changeset(%{
-        break_id: break.id,
-        proposed_by: proposed_by,
-        proposed_action: proposed_action
-      })
-      |> Repo.insert()
+      Multi.new()
+      |> Multi.insert(:approval, fn _changes ->
+        %AdjustmentApproval{}
+        |> AdjustmentApproval.propose_changeset(%{
+          break_id: break.id,
+          proposed_by: proposed_by,
+          proposed_action: proposed_action
+        })
+      end)
+      |> Multi.insert(:outbox, fn %{approval: approval} ->
+        Outbox.build_changeset(approval, "reconciliation.adjustment.proposed", %{
+          approval_id: approval.id,
+          break_id: approval.break_id,
+          proposed_by: proposed_by,
+          proposed_action: proposed_action
+        })
+      end)
+      |> Repo.transaction()
+      |> case do
+        {:ok, %{approval: approval}} -> {:ok, approval}
+        {:error, :approval, %Ecto.Changeset{} = cs, _} -> {:error, cs}
+        {:error, _step, reason, _} -> {:error, reason}
+      end
     end
   end
 
@@ -215,6 +231,14 @@ defmodule YagyeCore.Reconciliation do
       end)
       |> Multi.run(:resolve, fn _repo, %{entry: entry, approval: approval} ->
         resolve_break_after_approval(approval.break_id, entry.id, approval)
+      end)
+      |> Multi.insert(:outbox, fn %{approval: approval} ->
+        Outbox.build_changeset(approval, "reconciliation.adjustment.approved", %{
+          approval_id: approval.id,
+          break_id: approval.break_id,
+          proposed_by: approval.proposed_by,
+          approved_by: approved_by
+        })
       end)
       |> Repo.transaction()
       |> case do
@@ -238,9 +262,22 @@ defmodule YagyeCore.Reconciliation do
   """
   def reject_adjustment(approval_id, reason) do
     with {:ok, approval} <- fetch_pending_approval(approval_id) do
-      approval
-      |> AdjustmentApproval.reject_changeset(reason)
-      |> Repo.update()
+      Multi.new()
+      |> Multi.update(:approval, AdjustmentApproval.reject_changeset(approval, reason))
+      |> Multi.insert(:outbox, fn %{approval: approval} ->
+        Outbox.build_changeset(approval, "reconciliation.adjustment.rejected", %{
+          approval_id: approval.id,
+          break_id: approval.break_id,
+          proposed_by: approval.proposed_by,
+          rejected_reason: reason
+        })
+      end)
+      |> Repo.transaction()
+      |> case do
+        {:ok, %{approval: approval}} -> {:ok, approval}
+        {:error, :approval, %Ecto.Changeset{} = cs, _} -> {:error, cs}
+        {:error, _step, reason, _} -> {:error, reason}
+      end
     end
   end
 

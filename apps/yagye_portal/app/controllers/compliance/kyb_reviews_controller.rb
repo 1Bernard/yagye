@@ -97,6 +97,27 @@ module Compliance
       redirect_to kyb_reviews_path(tab: "in_review"), notice: "Assigned to #{current_user.full_name}."
     end
 
+    def add_ubo
+      authorize :kyb_reviews, :approve?
+      application = decode_id(PortalMerchantApplication)
+      unless application.merchant_code.present?
+        return redirect_to kyb_review_path(application), alert: "Merchant not yet registered in Core."
+      end
+
+      subject_ref = SecureRandom.uuid
+      result = CoreApiClient.new.add_beneficial_owner(
+        application.merchant_code,
+        subject_ref:   subject_ref,
+        role:          params[:role].to_s.presence_in(%w[director ubo both]) || "ubo",
+        ownership_bps: params[:ownership_bps].to_i.clamp(0, 10_000)
+      )
+      if result.success?
+        redirect_to kyb_review_path(application), notice: "Beneficial owner added."
+      else
+        redirect_to kyb_review_path(application), alert: result.error_message
+      end
+    end
+
     private
 
     def review_stats
