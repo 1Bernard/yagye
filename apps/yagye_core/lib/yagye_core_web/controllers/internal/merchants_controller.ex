@@ -14,9 +14,8 @@ defmodule YagyeCoreWeb.Controllers.Internal.MerchantsController do
   if any beneficial owner with ≥25% ownership has not been cleared.
   """
   def kyb_approve(conn, %{"merchant_code" => merchant_code} = params) do
-    approved_by = params["approved_by"] || "portal_ops"
-
-    with {:ok, merchant} <- Merchants.get_merchant(merchant_code),
+    with {:ok, approved_by} <- require_actor(params["approved_by"]),
+         {:ok, merchant} <- Merchants.get_merchant(merchant_code),
          {:ok, {merchant, _event}} <- Merchants.approve(merchant.id, approved_by) do
       Response.ok(conn, %{
         object: "merchant",
@@ -27,4 +26,8 @@ defmodule YagyeCoreWeb.Controllers.Internal.MerchantsController do
       })
     end
   end
+
+  defp require_actor(nil), do: {:error, {:missing_param, "approved_by"}}
+  defp require_actor(""), do: {:error, {:missing_param, "approved_by"}}
+  defp require_actor(v), do: {:ok, v}
 end

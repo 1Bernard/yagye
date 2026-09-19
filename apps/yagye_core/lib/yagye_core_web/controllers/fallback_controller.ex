@@ -64,5 +64,8 @@ defmodule YagyeCoreWeb.FallbackController do
   def call(conn, {:error, :not_kyb_ready}),
     do: Response.unprocessable(conn, "kyb_incomplete", "KYB must be completed before approval")
 
+  def call(conn, {:error, {:missing_param, field}}),
+    do: Response.unprocessable(conn, "missing_param", "#{field} is required")
+
   def call(conn, {:error, changeset}), do: Response.validation_error(conn, changeset)
 end
