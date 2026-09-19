@@ -25,7 +25,7 @@ module Checkout
 
     def new
       authorize :invoice, :create?
-      render Checkout::Invoices::FormView.new
+      render Checkout::Invoices::FormView.new(mode: Current.mode)
     end
 
     def create
@@ -33,7 +33,7 @@ module Checkout
 
       line_items = parse_line_items(params[:line_items] || [])
       if line_items.empty?
-        return render Checkout::Invoices::FormView.new(errors: ["Add at least one line item."]),
+        return render Checkout::Invoices::FormView.new(errors: ["Add at least one line item."], mode: Current.mode),
                       status: :unprocessable_entity
       end
 
@@ -52,7 +52,7 @@ module Checkout
       if result.success?
         redirect_to invoice_path(result.body["id"]), notice: "Invoice created."
       else
-        render Checkout::Invoices::FormView.new(errors: [ result.error_message ]),
+        render Checkout::Invoices::FormView.new(errors: [ result.error_message ], mode: Current.mode),
                status: :unprocessable_entity
       end
     end
