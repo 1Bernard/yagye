@@ -64,15 +64,13 @@ function editorRowHTML(i) {
 function previewRowHTML(desc, qty, unit, bps, currency) {
   const amount = Math.round(unit * qty + unit * qty * bps / 10_000)
   const qtyStr = qty % 1 === 0 ? qty.toFixed(0) : qty.toFixed(2)
-  const td = "px-8 py-3.5"
-  const tdR = td + " text-right tabular-nums"
   return `
 <tr class="border-b border-gray-50 last:border-0">
-  <td class="${td} text-[12.5px] text-gray-800">${desc || "<span class='text-gray-300'>—</span>"}</td>
-  <td class="${tdR} text-[12px] text-gray-400">${qtyStr}</td>
-  <td class="${tdR} text-[12px] text-gray-400">${sym(currency)}&thinsp;${(unit / 100).toFixed(2)}</td>
-  <td class="${tdR} text-[12px] text-gray-400">${bps > 0 ? (bps / 100).toFixed(1) + "%" : "—"}</td>
-  <td class="${tdR} text-[12.5px] font-semibold text-gray-900">${fmt(amount, currency)}</td>
+  <td class="pl-10 pr-4 py-3.5 text-[12.5px] text-gray-800">${desc || "<span class='text-gray-300'>—</span>"}</td>
+  <td class="px-3 py-3.5 text-right tabular-nums text-[12px] text-gray-400">${qtyStr}</td>
+  <td class="px-3 py-3.5 text-right tabular-nums text-[12px] text-gray-400">${sym(currency)}&thinsp;${(unit / 100).toFixed(2)}</td>
+  <td class="px-3 py-3.5 text-right tabular-nums text-[12px] text-gray-400">${bps > 0 ? (bps / 100).toFixed(1) + "%" : "—"}</td>
+  <td class="pl-3 pr-10 py-3.5 text-right tabular-nums text-[12.5px] font-semibold text-gray-900">${fmt(amount, currency)}</td>
 </tr>`
 }
 
@@ -96,7 +94,8 @@ export default class extends Controller {
     "pvNotes",
     "pvNotesSection",
     "pvTerms",
-    "pvTermsSection"
+    "pvTermsSection",
+    "pvNotesTermsSection"
   ]
 
   connect() { this.syncPreview() }
@@ -177,10 +176,11 @@ export default class extends Controller {
     // Notes / Terms
     const notes = this.#val("notes")
     const terms = this.#val("terms")
-    if (this.hasPvNotesSectionTarget) this.pvNotesSectionTarget.hidden = !notes
-    if (this.hasPvNotesTarget)        this.pvNotesTarget.textContent   = notes
-    if (this.hasPvTermsSectionTarget) this.pvTermsSectionTarget.hidden = !terms
-    if (this.hasPvTermsTarget)        this.pvTermsTarget.textContent   = terms
+    if (this.hasPvNotesTarget)             this.pvNotesTarget.textContent          = notes
+    if (this.hasPvNotesSectionTarget)      this.pvNotesSectionTarget.hidden        = !notes
+    if (this.hasPvTermsTarget)             this.pvTermsTarget.textContent          = terms
+    if (this.hasPvTermsSectionTarget)      this.pvTermsSectionTarget.hidden        = !terms
+    if (this.hasPvNotesTermsSectionTarget) this.pvNotesTermsSectionTarget.hidden   = !notes && !terms
   }
 
   // ── private ──────────────────────────────────────────────────────────────
