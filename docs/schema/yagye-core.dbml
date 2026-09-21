@@ -81,28 +81,38 @@ Table merchants [headercolor: #1A2B4C] {
   country char(2) [not null]
   default_currency char(3) [not null]
   status text [not null, note: 'registered|approved|suspended|terminated|rejected']
-  onboarding_state text [not null, note: 'registered|basic_info_submitted|documents_submitted|under_review|approved — KYB progression, distinct from status']
-  kyb_tier integer [not null, default: 0, note: '0=registered, 1=basic_info_submitted, 2=documents_submitted/under_review, 3=approved. Gate for live mode capability checks.']
+  onboarding_state text [not null, note: 'registered|profile_submitted|contact_submitted|documents_submitted|under_review|approved — mirrors the 5-step KYB funnel: profile, contact, account, documents, agreement']
+  kyb_tier integer [not null, default: 0, note: '0=registered, 1=profile_submitted, 2=contact_submitted, 3=documents_submitted/under_review, 4=approved. Gate for live mode capability checks.']
   risk_rating text [note: 'low|medium|high — drives reserve policy and payout schedule']
   reviewed_by text [note: 'SoD: the compliance officer who reviewed KYB documents and recommended approval. Must differ from approved_by. Set when onboarding_state → under_review.']
   approved_by text [note: 'SoD: the second officer who formally approved the merchant. Validated at changeset: approved_by != reviewed_by. Set when onboarding_state → approved.']
   settlement_schedule jsonb [not null]
   pricing_plan_id uuid
+
+  // Business identity
+  business_type text [note: 'registered_business|sole_proprietorship|individual — determines which KYB documents are required and which registration fields apply']
+  registration_type text [note: 'sole_proprietorship|general_partnership|limited_liability|public_limited|ngo — sub-type within business_type=registered_business; NULL for individual or sole_proprietorship business_type']
+  industry text [note: 'sector: tech|fintech|ecommerce|retail|healthcare|logistics|hospitality|nonprofit|services|other']
+  category text [note: 'sub-sector within industry, e.g. industry=retail → category=fashion_retail. Free text, normalised by ops at review time.']
+  employee_range text [note: '1-5|6-10|11-50|51-200|201-500|500+']
+  annual_tpv_estimate_cents bigint [note: 'self-reported projected annual sales volume in cents — drives initial reserve tier and risk review']
+  tin text [note: 'Ghana Tax Identification Number — format C0001234567. Required for all registered businesses; stored plain (not PII-vaulted, it is a public company identifier).']
+
+  // Activity tracking
   activity_state text [not null, note: 'active|quiet|dormant|inactive|blind. BLIND is not a lifecycle state — it means WE cannot see their data and must say so on their dashboard.']
   last_transaction_at timestamptz
   baseline_daily_volume bigint [note: 'their OWN trailing baseline. A merchant doing 3 payments a month is not dormant at day 10; one doing 500 a day is broken at hour 6.']
   quiet_since timestamptz
+
+  // API / platform
   api_version text [not null, note: 'DATE-BASED, pinned at first API call and never moved without opt-in. Add this in Phase 1 while there is one version — an afternoon now, a migration project after fifty merchants.']
   entitlements jsonb [not null, note: 'what the plan lets them DO: enabled methods, rate limit, volume cap, feature flags, support tier. Distinct from pricing, which is what they PAY. Known flags: routing_rules_override:true (enterprise custom routing), orchestration_enabled:true (Model B — merchant can connect their own external PSP credentials and route through them via merchant_provider_connections).']
   orchestration_billing_method text [note: 'NULL = not on Model B. cross_net|monthly_invoice|direct_debit. Determines how Yagye collects its orchestration fee when an external_psp settles directly to the merchant and Yagye never holds that money. cross_net: deducted from the next native_rail settlement (best when mobile money volume is significant). monthly_invoice: Yagye bills separately at month-end. direct_debit: Yagye pulls from merchant bank account under a mandate.']
-  industry text [note: 'sector: tech|fintech|ecommerce|retail|healthcare|logistics|hospitality|services|other — captured on application, used in risk classification']
-  employee_range text [note: '1-10|11-50|51-200|201-500|500+']
-  annual_tpv_estimate_cents bigint [note: 'self-reported expected annual transaction volume in cents — drives initial reserve tier and risk review']
-  website_url text [note: 'primary company website — KYB context. Distinct from merchant_checkout_configs.website_url (hosted checkout branding).']
+
   metadata jsonb [not null]
   inserted_at timestamptz [not null]
   updated_at timestamptz [not null]
-  Note: 'The tenant boundary. Every money-bearing row traces back here.'
+  Note: 'The tenant boundary. Every money-bearing row traces back here. Contact details, addresses, and settlement destination live in merchant_contacts, merchant_addresses, and merchant_settlement_controls respectively.'
 }
 
 Table merchant_applications [headercolor: #1A2B4C] {
@@ -122,8 +132,11 @@ Table merchant_applications [headercolor: #1A2B4C] {
   trading_name text [not null]
   country char(2) [not null]
   default_currency char(3) [not null]
+  business_type text [note: 'registered_business|sole_proprietorship|individual']
+  registration_type text [note: 'sole_proprietorship|general_partnership|limited_liability|public_limited|ngo']
   industry text
-  employee_range text [note: '1-10|11-50|51-200|201-500|500+']
+  category text [note: 'sub-sector within industry']
+  employee_range text [note: '1-5|6-10|11-50|51-200|201-500|500+']
   annual_tpv_estimate_cents bigint
   website_url text
   use_case text [note: 'free-text: what do you plan to process? Used in risk underwriting.']
@@ -240,7 +253,7 @@ Table beneficial_owners [headercolor: #B4531F] {
   id uuid [pk]
   merchant_id uuid [not null]
   subject_ref uuid [not null, note: '[PII] → pii_vault. Name, DOB, nationality live there, not here.']
-  ownership_bps integer
+  ownership_bps integer [note: 'ownership stake in basis points (10000 = 100%). Required when role includes ubo; 25%+ (2500 bps) triggers enhanced due diligence.']
   role text [not null, note: 'director|ubo|both']
   inserted_at timestamptz [not null]
 }
@@ -248,13 +261,115 @@ Table beneficial_owners [headercolor: #B4531F] {
 Table kyb_documents [headercolor: #B4531F] {
   id uuid [pk]
   merchant_id uuid [not null]
-  kind text [not null, note: 'incorporation|id|proof_of_address|bank_confirmation']
-  s3_key text [not null, note: '[PII][EVD] SSE-KMS, private, presigned access only']
-  checksum text [not null]
-  scanned_at timestamptz [note: 'virus scan completed — required before it is readable']
-  uploaded_by text [not null]
+  kind text [not null, note: 'form_a|business_name_cert|certificate_of_incorporation|commencement_of_business|tin_certificate|id|proof_of_address|bank_confirmation — kind drives the required_for_business_types gate']
+  label text [not null, note: 'human-readable name shown in the portal, e.g. "Form A — Sole Proprietorship Registration"']
+  required_for_business_types text[] [note: 'NULL = required for all business types. e.g. [sole_proprietorship] means only sole props must upload this; [registered_business] means Ltd/Partnership/NGO only.']
+  s3_key text [note: '[PII][EVD] SSE-KMS, private, presigned access only. NULL until upload is initiated.']
+  checksum text [note: 'sha256 of the file. NULL until uploaded.']
+  status text [not null, note: 'pending_upload|uploaded|under_review|approved|rejected — tracks compliance officer review per document']
+  reviewer_notes text [note: 'compliance officer rejection reason or approval note. Shown to merchant on rejection.']
+  reviewed_by text
+  reviewed_at timestamptz
+  scanned_at timestamptz [note: 'virus scan completed — required before document is readable by compliance']
+  uploaded_by text
   inserted_at timestamptz [not null]
-  Note: 'Statutory AML retention, measured from the END of the relationship.'
+  Note: 'One row per required document type per merchant. Row is created at KYB initiation (status=pending_upload); merchant uploads into it. Statutory AML retention measured from the END of the relationship.'
+}
+
+// ─── KYB CONTACT, ADDRESS, SETTLEMENT CONTROLS, SERVICE AGREEMENT ─────────
+//
+//  These four tables complete the 5-step KYB funnel:
+//    Step 1 (Profile)   → merchants fields: business_type, registration_type, industry, category, tin, annual_tpv_estimate_cents
+//    Step 2 (Contact)   → merchant_contacts + merchant_addresses
+//    Step 3 (Account)   → merchant_settlement_controls
+//    Step 4 (Documents) → kyb_documents + beneficial_owners
+//    Step 5 (Agreement) → service_agreements
+//
+
+Table merchant_contacts [headercolor: #1A2B4C] {
+  merchant_id uuid [pk]
+
+  // Operational emails — separate inboxes for different teams/tools
+  general_email text [note: 'primary business email; receives account notifications']
+  support_email text [note: 'customer-facing support address; shown on hosted checkout receipts']
+  disputes_email text [note: 'receives chargeback and dispute notifications from card networks and Yagye ops']
+
+  // Phone / WhatsApp
+  phone_number text [note: '[PII] primary business phone']
+  whatsapp_number text [note: '[PII] trusted number for Yagye ops support contact — never used for auth']
+  whatsapp_label text [note: 'merchant-assigned label, e.g. "CEO WhatsApp" — helps identify the number']
+
+  // Online presence — used for KYB verification and AML adverse-media checks
+  website_url text [note: 'canonical business website']
+  twitter_handle text
+  facebook_username text
+  instagram_handle text
+
+  updated_at timestamptz [not null]
+  Note: 'One row per merchant. Created at KYB step 2 (Contact). Ops uses disputes_email as the first point of contact for chargebacks.'
+}
+
+Table merchant_addresses [headercolor: #1A2B4C] {
+  id uuid [pk]
+  merchant_id uuid [not null]
+  address_type text [not null, note: 'registered|office — registered is the legal address filed with Registrar General; office is the operational address (may differ)']
+  country char(2) [not null]
+  region text [note: 'state, region, or county — e.g. Greater Accra, Ashanti']
+  city text
+  street_address text
+  gps_address text [note: 'Ghana Post GPS digital address — format XX-000-0000 (e.g. AK-000-0000). Required for Ghana merchants; used for physical verification and courier settlement disbursements.']
+  complex_building text [note: 'optional: building name, unit number, or floor']
+  inserted_at timestamptz [not null]
+  updated_at timestamptz [not null]
+  indexes {
+    (merchant_id, address_type) [unique, note: 'one registered address and one office address per merchant']
+  }
+  Note: 'Captures both the registered (legal) address and the operational office address. Ghana Post GPS is mandatory for physical verification.'
+}
+
+Table merchant_settlement_controls [headercolor: #1A2B4C] {
+  merchant_id uuid [pk]
+
+  // Approval gate
+  approval_threshold bigint [note: 'auto-approve settlement batches with gross_amount < threshold (in cents). NULL = always require manual approval before dispatch.']
+  approver_user_codes text[] [note: 'portal user codes (from users.email or public_id) authorised to approve settlement batches for this merchant']
+
+  // Settlement destination — mobile money (primary for Ghana)
+  settlement_msisdn text [note: '[PII] MoMo wallet number for settlement disbursements. Must match the name on the account (verified via name_enquiry before first payout).']
+
+  // Settlement destination — bank account (alternative)
+  settlement_bank_code text [note: 'GH bank identifier code (e.g. GCB, Ecobank) — maps to Paystack/Flutterwave recipient bank list']
+  settlement_account_number text [note: '[PII] corporate bank account number. Must be under the same legal name as the merchant.']
+  settlement_account_name text [note: 'name on the bank account — must match merchants.legal_name for verification. Shown to ops for manual confirmation.']
+
+  updated_by text [note: 'portal user who last updated these controls']
+  updated_at timestamptz [not null]
+  Note: 'Settlement destination and batch-approval policy per merchant. Created during KYB step 3 (Account). Either msisdn OR bank fields must be populated before live mode is granted — ops verifies at review time.'
+}
+
+Table service_agreements [headercolor: #9B3232] {
+  id uuid [pk]
+  merchant_id uuid [not null]
+  agreement_version text [not null, note: 'date-keyed version of the MSA text, e.g. 2026-01-01. A new version requires re-acceptance.']
+  accepted_at timestamptz [not null]
+
+  // Signatory — the person who clicked Accept on behalf of the business
+  signatory_name text [not null, note: '[PII] full name as entered by the accepting user']
+  signatory_email text [not null, note: '[PII] email at time of acceptance']
+  signatory_phone text [note: '[PII]']
+  signatory_job_title text [note: 'e.g. CEO, Director — establishes authority to bind the entity']
+
+  // Acceptance evidence
+  ip_address inet [note: 'IP at time of acceptance — electronic signature evidence']
+  user_agent text [note: 'browser/client at acceptance time']
+
+  inserted_at timestamptz [not null]
+
+  indexes {
+    (merchant_id, agreement_version) [unique, note: 'one acceptance per version per merchant — re-acceptance creates a new row only if the version changes']
+    merchant_id [note: 'latest accepted version lookup']
+  }
+  Note: '[EVD] Immutable. One row per MSA version accepted by this merchant. Never update — if the merchant re-accepts a new version, insert a fresh row. Statutory evidence that the merchant agreed to Yagye terms at a specific date and time, from a specific IP, by a named individual claiming authority.'
 }
 
 // ─── AML / PEP SCREENING ──────────────────────────────────────────────────
