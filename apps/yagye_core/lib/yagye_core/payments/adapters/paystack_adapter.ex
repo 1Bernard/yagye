@@ -15,9 +15,16 @@ defmodule YagyeCore.Payments.Adapters.PaystackAdapter do
   3. Customer approves on phone → Paystack sends charge.success webhook
   4. Webhook processor calls handle_provider_response to complete the payment
 
+  ## Bank disbursement flow (disburse/2)
+  Used by BankDispatchWorker to settle merchant funds to a bank account.
+  1. POST /transferrecipient — creates (or fetches existing) recipient for the account
+  2. POST /transfer — initiates the transfer from Yagye's Paystack balance
+  3. Returns {:pending, ...} — Paystack processes async; webhook or polling confirms
+
   ## Credentials (stored in provider_credentials.encrypted_payload)
   - "secret_key" — Paystack secret key (sk_test_... or sk_live_...)
   - "public_key" — Paystack public key (optional, not needed for server calls)
+  - "base_url"   — defaults to "https://api.paystack.co" if absent
 
   The HMAC-SHA512 webhook signature uses the "secret_key" as the key.
 
@@ -100,7 +107,130 @@ defmodule YagyeCore.Payments.Adapters.PaystackAdapter do
     end
   end
 
+  @impl true
+  def disburse(
+        %{
+          amount: amount,
+          currency: currency,
+          reference: ref,
+          recipient_bank_code: bank_code,
+          recipient_account_number: account_number,
+          recipient_name: name
+        },
+        credential
+      ) do
+    with {:ok, recipient_code} <-
+           ensure_recipient(bank_code, account_number, name, currency, credential),
+         {:ok, transfer_code} <-
+           initiate_transfer(amount, currency, ref, recipient_code, credential) do
+      {:pending, %{provider_reference: transfer_code}}
+    end
+  end
+
+  def disburse(_params, _credential) do
+    {:error,
+     %{
+       error_class: :definite_failure,
+       response_code: "missing_bank_params",
+       response_message:
+         "disburse/2 requires recipient_bank_code, recipient_account_number, recipient_name"
+     }}
+  end
+
   # ── Private ──────────────────────────────────────────────────────────────────
+
+  defp ensure_recipient(bank_code, account_number, name, currency, credential) do
+    body = %{
+      type: "ghipss",
+      name: name,
+      account_number: account_number,
+      bank_code: bank_code,
+      currency: currency
+    }
+
+    case Req.post(url("/transferrecipient", credential),
+           json: body,
+           headers: auth_headers(credential),
+           receive_timeout: 15_000
+         ) do
+      {:ok,
+       %Req.Response{
+         status: status,
+         body: %{"status" => true, "data" => %{"recipient_code" => code}}
+       }}
+      when status in [200, 201] ->
+        {:ok, code}
+
+      {:ok, %Req.Response{status: _, body: %{"status" => false, "message" => msg}}} ->
+        {:error,
+         %{
+           error_class: :definite_failure,
+           response_code: "recipient_error",
+           response_message: msg
+         }}
+
+      {:ok, %Req.Response{status: status}} ->
+        {:error,
+         %{error_class: :retryable_error, response_code: "http_#{status}", response_message: nil}}
+
+      {:error, %{reason: :timeout}} ->
+        {:error, %{error_class: :indeterminate, response_code: "timeout", response_message: nil}}
+
+      {:error, _} ->
+        {:error,
+         %{error_class: :indeterminate, response_code: "network_error", response_message: nil}}
+    end
+  end
+
+  defp initiate_transfer(amount, currency, reference, recipient_code, credential) do
+    body = %{
+      source: "balance",
+      amount: amount,
+      currency: currency,
+      reference: reference,
+      recipient: recipient_code,
+      reason: "Yagye settlement #{reference}"
+    }
+
+    case Req.post(url("/transfer", credential),
+           json: body,
+           headers: auth_headers(credential),
+           receive_timeout: 15_000
+         ) do
+      {:ok,
+       %Req.Response{
+         status: status,
+         body: %{"status" => true, "data" => %{"transfer_code" => code}}
+       }}
+      when status in [200, 201] ->
+        {:ok, code}
+
+      # Duplicate reference — transfer already exists; treat as pending.
+      {:ok,
+       %Req.Response{status: _, body: %{"status" => false, "message" => "Duplicate request" <> _}}} ->
+        {:error,
+         %{
+           error_class: :indeterminate,
+           response_code: "duplicate_reference",
+           response_message: nil
+         }}
+
+      {:ok, %Req.Response{status: _, body: %{"status" => false, "message" => msg}}} ->
+        {:error,
+         %{error_class: :definite_failure, response_code: "transfer_error", response_message: msg}}
+
+      {:ok, %Req.Response{status: status}} ->
+        {:error,
+         %{error_class: :retryable_error, response_code: "http_#{status}", response_message: nil}}
+
+      {:error, %{reason: :timeout}} ->
+        {:error, %{error_class: :indeterminate, response_code: "timeout", response_message: nil}}
+
+      {:error, _} ->
+        {:error,
+         %{error_class: :indeterminate, response_code: "network_error", response_message: nil}}
+    end
+  end
 
   defp translate_charge_http_response(
          {:ok, %Req.Response{status: 200, body: %{"status" => true, "data" => data}}}
@@ -167,6 +297,7 @@ defmodule YagyeCore.Payments.Adapters.PaystackAdapter do
   end
 
   defp url(path, %{"base_url" => base_url}), do: base_url <> path
+  defp url(path, _), do: "https://api.paystack.co" <> path
 
   defp auth_headers(%{"secret_key" => key}), do: [{"Authorization", "Bearer #{key}"}]
 end

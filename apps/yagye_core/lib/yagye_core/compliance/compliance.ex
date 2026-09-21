@@ -77,6 +77,72 @@ defmodule YagyeCore.Compliance do
     })
   end
 
+  # Called after merchant creation to enrol the legal entity as a ScreeningSubject.
+  # Returns {:ok, subject} on success; {:error, reason} on failure.
+  def enrol_merchant_entity(merchant_id) do
+    now = DateTime.utc_now()
+
+    attrs = %{
+      merchant_id: merchant_id,
+      subject_type: "merchant",
+      subject_id: merchant_id,
+      screening_status: "pending",
+      enrolled_at: now,
+      next_screening_at: now,
+      screening_frequency_days: 365
+    }
+
+    case %ScreeningSubject{} |> ScreeningSubject.changeset(attrs) |> Repo.insert() do
+      {:ok, subject} ->
+        Oban.insert(ScreeningWorker.new(%{subject_id: subject.id}))
+        {:ok, subject}
+
+      {:error, _} = err ->
+        err
+    end
+  end
+
+  def update_beneficial_owner(merchant_id, owner_id, attrs) do
+    with {:ok, merchant} <- resolve_merchant(merchant_id),
+         {:ok, owner} <- fetch_owner(merchant.id, owner_id) do
+      Multi.new()
+      |> Multi.update(:owner, BeneficialOwner.update_changeset(owner, attrs))
+      |> Multi.insert(:outbox, fn %{owner: o} ->
+        Outbox.build_changeset(o, "compliance.beneficial_owner_updated", %{
+          beneficial_owner_id: o.id,
+          merchant_id: o.merchant_id,
+          role: o.role,
+          ownership_bps: o.ownership_bps
+        })
+      end)
+      |> Repo.transaction()
+      |> case do
+        {:ok, %{owner: o}} -> {:ok, o}
+        {:error, _step, %Ecto.Changeset{} = cs, _} -> {:error, cs}
+        {:error, _step, reason, _} -> {:error, reason}
+      end
+    end
+  end
+
+  def remove_beneficial_owner(merchant_id, owner_id) do
+    with {:ok, merchant} <- resolve_merchant(merchant_id),
+         {:ok, owner} <- fetch_owner(merchant.id, owner_id) do
+      Multi.new()
+      |> Multi.delete(:owner, owner)
+      |> Multi.insert(:outbox, fn %{owner: o} ->
+        Outbox.build_changeset(o, "compliance.beneficial_owner_removed", %{
+          beneficial_owner_id: o.id,
+          merchant_id: o.merchant_id
+        })
+      end)
+      |> Repo.transaction()
+      |> case do
+        {:ok, _} -> :ok
+        {:error, _step, reason, _} -> {:error, reason}
+      end
+    end
+  end
+
   def list_beneficial_owners(merchant_id) do
     with {:ok, merchant} <- resolve_merchant(merchant_id) do
       owners =
@@ -346,6 +412,13 @@ defmodule YagyeCore.Compliance do
     case Repo.get_by(Merchant, public_id: public_id) do
       nil -> {:error, :not_found}
       merchant -> {:ok, merchant}
+    end
+  end
+
+  defp fetch_owner(merchant_id, owner_id) do
+    case Repo.get_by(BeneficialOwner, id: owner_id, merchant_id: merchant_id) do
+      nil -> {:error, :not_found}
+      owner -> {:ok, owner}
     end
   end
 

@@ -22,7 +22,7 @@ defmodule YagyeCore.Reconciliation.Schemas.ReconciliationBreak do
   ]
   @valid_severities ~w[critical high medium low]
   @valid_states ~w[detected triaged assigned investigating resolved escalated written_off]
-  @valid_modes ~w[simulation live]
+  @valid_modes ~w[simulation sandbox live]
   @public_id_prefix "brk_"
 
   # SLA hours by severity

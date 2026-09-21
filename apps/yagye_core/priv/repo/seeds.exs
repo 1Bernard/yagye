@@ -140,6 +140,8 @@ case Repo.get_by(Merchant, legal_name: "Dev Merchant") do
         created_by: m.id
       })
 
+    Merchants.grant_sandbox_mode(m.id)
+
     IO.puts("Dev merchant          : created (#{m.public_id})")
     IO.puts("Issued secret key     : #{sk.public_id}")
     IO.puts("Issued publishable key: #{pk.public_id}")
@@ -186,6 +188,131 @@ end
     nil ->
       {:ok, p} = %Provider{} |> Provider.changeset(attrs) |> Repo.insert()
       IO.puts("#{String.pad_trailing(attrs.display_name, 22)}: created (#{p.id})")
+  end
+end)
+
+# ── 6b. MTN MoMo native-rail provider + sandbox credentials ───────────────────
+# MTN is Yagye's primary direct rail. Yagye holds the MTN Collections API
+# credentials at the platform level (merchant_id: nil), unlike external PSPs
+# where each merchant brings their own API keys.
+#
+# Sandbox credentials come from momodeveloper.mtn.com (free, no approval):
+#   1. Subscribe to "Collections" product → copy Subscription Key
+#   2. POST /v1_0/apiuser  (X-Reference-Id: <new-uuid>, body: {"providerCallbackHost": "..."})
+#   3. POST /v1_0/apiuser/<uuid>/apikey  → copy api_key
+#   4. Replace the placeholder values below before running seeds in your environment.
+
+mtn_provider =
+  case Repo.get_by(Provider, code: "mtn_momo_gh") do
+    %Provider{} = p ->
+      IO.puts("MTN MoMo provider     : already exists (#{p.id})")
+      p
+
+    nil ->
+      {:ok, p} =
+        %Provider{}
+        |> Provider.changeset(%{
+          code: "mtn_momo_gh",
+          display_name: "MTN Mobile Money",
+          adapter_module: "YagyeCore.Payments.Adapters.MTNMomoAdapter",
+          kind: "native_rail",
+          active: true,
+          capabilities: %{"mobile_money_gh" => true}
+        })
+        |> Repo.insert()
+
+      IO.puts("MTN MoMo provider     : created (#{p.id})")
+      p
+  end
+
+# Sandbox credential (mode: "sandbox") — used by sandbox-mode payments.
+# Replace placeholder values with real momodeveloper.mtn.com credentials.
+# NOTE: "simulation" mode is exclusively for the simulator app.
+# "sandbox" = MTN sandbox API; "live" = MTN production API (set at go-live).
+mtn_sandbox_creds = %{
+  "subscription_key" => System.get_env("MTN_SANDBOX_SUBSCRIPTION_KEY", "REPLACE_ME"),
+  "api_user_id" => System.get_env("MTN_SANDBOX_API_USER_ID", "REPLACE_ME"),
+  "api_key" => System.get_env("MTN_SANDBOX_API_KEY", "REPLACE_ME"),
+  "target_environment" => "sandbox"
+}
+
+case Repo.get_by(ProviderCredential, provider_id: mtn_provider.id, mode: "sandbox") do
+  %ProviderCredential{} = c ->
+    IO.puts("MTN sandbox credential: already exists (#{c.id})")
+
+  nil ->
+    payload = Vault.encrypt_map(mtn_sandbox_creds)
+
+    {:ok, c} =
+      %ProviderCredential{}
+      |> ProviderCredential.changeset(%{
+        provider_id: mtn_provider.id,
+        merchant_id: nil,
+        mode: "sandbox",
+        base_url: "https://sandbox.momodeveloper.mtn.com",
+        encrypted_payload: payload,
+        active: true
+      })
+      |> Repo.insert()
+
+    IO.puts("MTN sandbox credential: created (#{c.id})")
+end
+
+# ── 6c. Platform routing rules — native rail (MTN MoMo) ───────────────────────
+# Platform-scope rules apply to ALL merchants. These are the baseline routing
+# rules that direct mobile_money payments to the MTN native rail.
+# Merchant-scope rules (from the routing graph editor) take priority over these.
+#
+# Two rules: one for sandbox mode (MTN sandbox), one for live mode (MTN production).
+# A rule with no conditions is an unconditional catch-all for that mode.
+
+alias YagyeCore.Routing.Schemas.{RoutingRule, RoutingRuleAction}
+
+# Priority 9999 ensures these rules are always last — ops-published rules from
+# the routing graph editor start at priority 0 and are checked first. If any
+# ops rule matches, the seed rule is never reached. If no ops rule matches,
+# the seed catches the payment as a last resort.
+# routing_configuration_id is intentionally nil — these rules survive
+# publish_configuration's deactivation sweep (which only clears rules with a
+# non-nil routing_configuration_id).
+[{"sandbox", 9999}, {"live", 9999}]
+|> Enum.each(fn {mode, priority} ->
+  existing =
+    Repo.get_by(RoutingRule,
+      scope: "platform",
+      mode: mode,
+      priority: priority,
+      active: true
+    )
+
+  case existing do
+    %RoutingRule{} = r ->
+      IO.puts(
+        "Platform routing rule  : already exists (#{mode} priority=#{priority}, id=#{r.id})"
+      )
+
+    nil ->
+      {:ok, rule} =
+        %RoutingRule{}
+        |> RoutingRule.changeset(%{
+          scope: "platform",
+          mode: mode,
+          name: "default_mtn_momo_#{mode}",
+          priority: priority,
+          active: true
+        })
+        |> Repo.insert()
+
+      {:ok, _action} =
+        %RoutingRuleAction{}
+        |> RoutingRuleAction.changeset(%{
+          rule_id: rule.id,
+          provider_id: mtn_provider.id,
+          priority: 0
+        })
+        |> Repo.insert()
+
+      IO.puts("Platform routing rule  : created (#{mode} priority=#{priority}, id=#{rule.id})")
   end
 end)
 

@@ -8,7 +8,7 @@ defmodule YagyeCore.Pricing.Schemas.PlatformFeeInvoice do
 
   @valid_states ~w[draft issued collecting collected overdue written_off]
   @valid_collection_methods ~w[cross_net monthly_invoice direct_debit]
-  @valid_modes ~w[simulation live]
+  @valid_modes ~w[simulation sandbox live]
   @public_id_prefix "pfi_"
 
   @type t :: %__MODULE__{}

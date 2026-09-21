@@ -6,7 +6,7 @@ defmodule YagyeCore.Reconciliation.Schemas.ProviderSettlementReport do
 
   alias YagyeCore.Providers.Schemas.Provider
 
-  @valid_modes ~w[simulation live]
+  @valid_modes ~w[simulation sandbox live]
   @valid_sources ~w[api sftp email manual_upload]
 
   @type t :: %__MODULE__{}

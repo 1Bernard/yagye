@@ -11,16 +11,22 @@ defmodule YagyeCore.Webhooks.Workers.WebhookProcessorWorker do
   @impl Oban.Worker
   def perform(%Oban.Job{args: %{"webhook_event_id" => id}}) do
     webhook = Repo.get!(WebhookEvent, id)
-    payload = Jason.decode!(webhook.raw_body)
 
-    case route(webhook.provider_code, webhook.event_type, payload) do
-      :ok ->
-        Webhooks.mark_processed(webhook)
-        :ok
+    # Idempotency guard: a prior attempt already completed successfully.
+    if webhook.state == "processed" do
+      :ok
+    else
+      payload = Jason.decode!(webhook.raw_body)
 
-      {:error, reason} ->
-        Webhooks.mark_failed(webhook, inspect(reason))
-        {:error, reason}
+      case route(webhook.provider_code, webhook.event_type, payload) do
+        :ok ->
+          Webhooks.mark_processed(webhook)
+          :ok
+
+        {:error, reason} ->
+          Webhooks.mark_failed(webhook, inspect(reason))
+          {:error, reason}
+      end
     end
   end
 

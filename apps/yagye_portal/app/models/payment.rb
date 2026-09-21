@@ -9,6 +9,16 @@ class Payment < ApplicationRecord
     "simulator"    => "Gateway Simulator"
   }.freeze
 
+  PROVIDER_LOGOS = {
+    "mtn_momo"     => "mtn.svg",
+    "telecel_cash" => "telecel.svg",
+    "airteltigo"   => "at.svg"
+  }.freeze
+
+  METHOD_LOGOS = {
+    "card" => "card.svg"
+  }.freeze
+
   scope :for_merchant, ->(code) { where(merchant_code: code) }
   scope :by_status,    ->(s)    { where(status: s) }
   scope :search_ref,   ->(q)    { where("reference ILIKE ? OR customer_msisdn LIKE ?", "%#{sanitize_sql_like(q)}%", "%#{sanitize_sql_like(q)}%") }
@@ -40,6 +50,10 @@ class Payment < ApplicationRecord
     when "bank_transfer" then "Bank Transfer"
     else payment_method&.humanize || "—"
     end
+  end
+
+  def method_logo
+    PROVIDER_LOGOS[provider.to_s] || METHOD_LOGOS[payment_method.to_s]
   end
 
   def method_icon

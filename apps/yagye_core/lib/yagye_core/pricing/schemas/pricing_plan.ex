@@ -5,7 +5,7 @@ defmodule YagyeCore.Pricing.Schemas.PricingPlan do
   import Ecto.Changeset
 
   @valid_fee_modes ~w[deducted invoiced]
-  @valid_modes ~w[simulation live]
+  @valid_modes ~w[simulation sandbox live]
   @public_id_prefix "plan_"
 
   @type t :: %__MODULE__{}

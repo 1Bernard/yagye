@@ -287,11 +287,14 @@ module UI
     ERROR_ITEM   = "text-xs text-red-600 space-y-0.5 list-disc list-inside"
 
     # ── Status semantic colours ────────────────────────────────────────────
-    STATUS_SUCCESS = "badge-green"
-    STATUS_FAILED  = "badge-red"
-    STATUS_PENDING = "badge-violet"
-    STATUS_WARNING = "badge-amber"
-    STATUS_NEUTRAL = "badge-gray"
+    # Direct Tailwind pairs — same formula as SOURCE_COLORS in checkout session tables.
+    # badge-* CSS class names are kept separately for BADGE_* button-style badges.
+    STATUS_SUCCESS = "bg-green-50 text-green-700"
+    STATUS_FAILED  = "bg-red-50 text-red-600"
+    STATUS_PENDING = "bg-violet-50 text-violet-700"
+    STATUS_WARNING = "bg-amber-50 text-amber-700"
+    STATUS_INFO    = "bg-blue-50 text-blue-700"
+    STATUS_NEUTRAL = "bg-gray-100 text-gray-500"
 
     # ── Priority pills ─────────────────────────────────────────────────────
     PRIORITY_HIGH   = "badge-red"
@@ -300,6 +303,7 @@ module UI
 
     # ── Status dispatch ────────────────────────────────────────────────────
     STATUS_MAP = {
+      # ── Green: terminal success ──────────────────────────────────────────
       "settled"            => STATUS_SUCCESS,
       "paid"               => STATUS_SUCCESS,
       "success"            => STATUS_SUCCESS,
@@ -309,12 +313,15 @@ module UI
       "clean"              => STATUS_SUCCESS,
       "won"                => STATUS_SUCCESS,
       "collected"          => STATUS_SUCCESS,
+      # ── Red: terminal failure / urgent ───────────────────────────────────
       "failed"             => STATUS_FAILED,
       "rejected"           => STATUS_FAILED,
       "expired"            => STATUS_FAILED,
       "blocked"            => STATUS_FAILED,
       "lost"               => STATUS_FAILED,
       "true_match_blocked" => STATUS_FAILED,
+      "overdue"            => STATUS_FAILED,  # past due date = urgent, not just warning
+      # ── Violet: in-flight / under review ────────────────────────────────
       "processing"         => STATUS_PENDING,
       "pending"            => STATUS_PENDING,
       "under_review"       => STATUS_PENDING,
@@ -322,11 +329,23 @@ module UI
       "invited"            => STATUS_PENDING,
       "confirmed_pep"      => STATUS_PENDING,
       "potential_match"    => STATUS_PENDING,
+      # ── Amber: warnings / partial states / needs attention ───────────────
       "disputed"           => STATUS_WARNING,
       "refunded"           => STATUS_WARNING,
+      "partially_refunded" => STATUS_WARNING,
       "suspended"          => STATUS_WARNING,
-      "overdue"            => STATUS_WARNING,
-      "cleared"            => STATUS_WARNING
+      "cleared"            => STATUS_WARNING,
+      "partially_paid"     => STATUS_WARNING,
+      "indeterminate"      => STATUS_WARNING,  # ambiguous payment outcome — show amber, not gray
+      "requires_action"    => STATUS_WARNING,
+      # ── Blue: open / awaiting action ────────────────────────────────────
+      "open"               => STATUS_INFO,
+      # ── Gray: neutral / terminal non-events ──────────────────────────────
+      "draft"              => STATUS_NEUTRAL,
+      "void"               => STATUS_NEUTRAL,
+      "uncollectible"      => STATUS_NEUTRAL,
+      "cancelled"          => STATUS_NEUTRAL,
+      "returned"           => STATUS_NEUTRAL
     }.freeze
 
     def self.status_classes(status)

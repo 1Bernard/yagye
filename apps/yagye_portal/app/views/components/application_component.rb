@@ -73,10 +73,14 @@ class ApplicationComponent < Phlex::HTML
     end
   end
 
-  def meta_cell(label, value, mono: false)
+  def meta_cell(label, value = nil, mono: false, &block)
     div(class: "bg-white px-[18px] py-[14px]") do
       p(class: "#{UI::Theme::TYPE_MICRO} mb-1") { plain label }
-      p(class: mono ? UI::Theme::TYPE_MONO : UI::Theme::TYPE_BODY_MD) { plain value.to_s }
+      if block
+        div(class: "mt-0.5") { yield }
+      else
+        p(class: mono ? UI::Theme::TYPE_MONO : UI::Theme::TYPE_BODY_MD) { plain value.to_s }
+      end
     end
   end
 

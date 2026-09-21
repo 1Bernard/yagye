@@ -109,7 +109,7 @@ module Payments
             end
           end
 
-          t.column("State") do |b|
+          t.column("Status") do |b|
             cls = STATE_COLORS[b["state"]] || "bg-gray-100 text-gray-500"
             span(class: "inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium #{cls}") do
               plain (b["state"] || "—").tr("_", " ").capitalize

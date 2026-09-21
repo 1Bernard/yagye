@@ -67,7 +67,7 @@ module Payments
               list.row("Merchant code", @req.merchant_code, mono: true)
               list.row("Requested by",  @req.requested_by, mono: true)
               list.row("Amount",        @req.formatted_amount)
-              list.row("State")         { render UI::StatusBadge.new(status: @req.state) }
+              list.row("Status")         { render UI::StatusBadge.new(status: @req.state) }
               list.row("Submitted",     @req.created_at.strftime("%d %b %Y at %H:%M UTC"))
             end
           end

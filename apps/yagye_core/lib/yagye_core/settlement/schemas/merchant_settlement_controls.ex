@@ -9,6 +9,10 @@ defmodule YagyeCore.Settlement.Schemas.MerchantSettlementControls do
   schema "merchant_settlement_controls" do
     field :approval_threshold, :integer
     field :approver_user_codes, {:array, :string}, default: []
+    field :settlement_msisdn, :string
+    field :settlement_bank_code, :string
+    field :settlement_account_number, :string
+    field :settlement_account_name, :string
     field :updated_by, :string
 
     belongs_to :merchant, Merchant
@@ -18,7 +22,16 @@ defmodule YagyeCore.Settlement.Schemas.MerchantSettlementControls do
 
   def changeset(controls, attrs) do
     controls
-    |> cast(attrs, [:merchant_id, :approval_threshold, :approver_user_codes, :updated_by])
+    |> cast(attrs, [
+      :merchant_id,
+      :approval_threshold,
+      :approver_user_codes,
+      :settlement_msisdn,
+      :settlement_bank_code,
+      :settlement_account_number,
+      :settlement_account_name,
+      :updated_by
+    ])
     |> validate_required([:merchant_id, :updated_by])
     |> validate_number(:approval_threshold, greater_than_or_equal_to: 0)
     |> validate_approver_codes()

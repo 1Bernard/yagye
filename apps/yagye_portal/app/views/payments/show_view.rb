@@ -58,7 +58,7 @@ module Payments
         end
         div(class: "grid grid-cols-3 gap-[1px] bg-gray-100 rounded-xl overflow-hidden") do
           meta_cell("Reference", @payment.reference.presence || "—", mono: true)
-          meta_cell("Provider",  @payment.provider_label)
+          meta_cell("Provider") { network_logo_label(@payment) }
           meta_cell("Date",      @payment.created_at.strftime("%d %b %Y, %H:%M"))
         end
       end
@@ -73,7 +73,7 @@ module Payments
           render UI::DetailList.new do |list|
             list.row("Customer",        customer_value)
             list.row("Core payment ID", @payment.core_payment_id || "—", mono: true)
-            list.row("Payment method",  @payment.method_label)
+            list.row("Payment method") { network_logo_label(@payment) }
             list.row("Status")         { render UI::StatusBadge.new(@payment.status) }
             list.row("Created",        @payment.created_at.strftime("%d %b %Y at %H:%M UTC"))
             list.row("Settled",        settled_label)
@@ -230,6 +230,16 @@ module Payments
       events << [ "Payment failed",     @payment.updated_at, "#dc2626" ] if @payment.status == "failed"
       events << [ "Refunded",           @payment.updated_at, "#f59e0b" ] if @payment.status == "refunded"
       events
+    end
+
+    def network_logo_label(payment)
+      div(class: "flex items-center gap-2") do
+        if (logo = payment.method_logo)
+          img(src: asset_path(logo), alt: "",
+              class: "h-5 w-auto object-contain flex-shrink-0")
+        end
+        span(class: UI::Theme::TYPE_BODY_MD) { plain payment.method_label }
+      end
     end
 
     def customer_value

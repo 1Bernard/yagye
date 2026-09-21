@@ -252,7 +252,7 @@ module Payments
           t.column("Payout code") { |p| span(class: TYPE_MONO) { plain p.payout_code.first(16) } }
           t.column("Amount", class: "text-right tabular-nums font-medium") { |p| plain p.formatted_amount }
           t.column("Destination") { |p| plain p.destination_type&.humanize || "—" }
-          t.column("State")       { |p| render UI::StatusBadge.new(status: p.state) }
+          t.column("Status")       { |p| render UI::StatusBadge.new(status: p.state) }
           t.column("Scheduled")   { |p| plain p.scheduled_for&.strftime("%d %b %Y") || "—" }
           t.column("Updated")     { |p| plain p.last_applied_at&.strftime("%d %b %Y, %H:%M") || "—" }
 

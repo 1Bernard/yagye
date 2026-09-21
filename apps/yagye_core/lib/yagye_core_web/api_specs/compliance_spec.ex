@@ -7,10 +7,21 @@ defmodule YagyeCoreWeb.ApiSpecs.ComplianceSpec do
   alias YagyeCoreWeb.Contracts.Compliance.{
     SubmitBeneficialOwnerRequest,
     SubmitOnboardingRequest,
+    UpdateBeneficialOwnerRequest,
     UploadKybDocumentRequest
   }
 
   defp json(schema), do: %{"application/json" => %MediaType{schema: schema}}
+
+  defp owner_id_param do
+    %Parameter{
+      name: :id,
+      in: :path,
+      description: "Beneficial owner ID",
+      required: true,
+      schema: %Schema{type: :string, format: :uuid}
+    }
+  end
 
   defp merchant_id_param do
     %Parameter{
@@ -60,6 +71,40 @@ defmodule YagyeCoreWeb.ApiSpecs.ComplianceSpec do
         201 => %Response{description: "Beneficial owner added"},
         422 => %Response{description: "Validation error", content: json(ErrorResponse)},
         404 => %Response{description: "Merchant not found", content: json(ErrorResponse)}
+      }
+    }
+  end
+
+  def operation(:update_beneficial_owner) do
+    %Operation{
+      tags: ["Compliance / KYB"],
+      summary: "Update a beneficial owner",
+      operationId: "ComplianceController.update_beneficial_owner",
+      security: [%{"bearer_auth" => []}],
+      parameters: [merchant_id_param(), owner_id_param()],
+      requestBody: %RequestBody{
+        description: "Fields to update (role and/or ownership_bps)",
+        required: true,
+        content: json(UpdateBeneficialOwnerRequest)
+      },
+      responses: %{
+        200 => %Response{description: "Beneficial owner updated"},
+        422 => %Response{description: "Validation error", content: json(ErrorResponse)},
+        404 => %Response{description: "Beneficial owner not found", content: json(ErrorResponse)}
+      }
+    }
+  end
+
+  def operation(:delete_beneficial_owner) do
+    %Operation{
+      tags: ["Compliance / KYB"],
+      summary: "Remove a beneficial owner",
+      operationId: "ComplianceController.delete_beneficial_owner",
+      security: [%{"bearer_auth" => []}],
+      parameters: [merchant_id_param(), owner_id_param()],
+      responses: %{
+        204 => %Response{description: "Beneficial owner removed"},
+        404 => %Response{description: "Beneficial owner not found", content: json(ErrorResponse)}
       }
     }
   end

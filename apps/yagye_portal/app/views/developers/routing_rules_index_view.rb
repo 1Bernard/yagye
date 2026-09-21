@@ -159,7 +159,7 @@ module Developers
             thead do
               tr(class: TABLE_HEADER) do
                 th(class: TABLE_TH) { plain "Name" }
-                th(class: TABLE_TH) { plain "State" }
+                th(class: TABLE_TH) { plain "Status" }
                 th(class: TABLE_TH) { plain "Last saved" }
                 th(class: TABLE_TH)
               end

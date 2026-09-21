@@ -8,7 +8,7 @@ defmodule YagyeCore.Reconciliation.Schemas.ReconciliationRun do
   alias YagyeCore.Providers.Schemas.Provider
 
   @valid_kinds ~w[transaction settlement bank]
-  @valid_modes ~w[simulation live]
+  @valid_modes ~w[simulation sandbox live]
   @valid_states ~w[created loading matching classifying completed failed]
   @public_id_prefix "rcn_"
 

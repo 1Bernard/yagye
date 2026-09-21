@@ -67,7 +67,7 @@ module Payments
               list.row("Merchant code", @payout.merchant_code || "—", mono: true)
               list.row("Amount",        @payout.formatted_amount)
               list.row("Currency",      @payout.currency)
-              list.row("State")         { render UI::StatusBadge.new(status: @payout.state) }
+              list.row("Status")         { render UI::StatusBadge.new(status: @payout.state) }
               list.row("Destination",   @payout.destination_type&.humanize || "—")
               list.row("Fingerprint",   @payout.destination_fingerprint || "—", mono: true)
               list.row("Scheduled for", @payout.scheduled_for&.strftime("%d %b %Y, %H:%M") || "—")

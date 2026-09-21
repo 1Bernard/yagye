@@ -126,6 +126,10 @@ if config_env() == :prod do
   #
   # Check `Plug.SSL` for all available options in `force_ssl`.
 
+  # In production the native rail is MTN MoMo (direct integration).
+  # Dev/test use SimulatorAdapter (set in config.exs / test.exs).
+  config :yagye_core, :provider_adapter, YagyeCore.Payments.Adapters.MTNMomoAdapter
+
   config :yagye_core,
     rabbitmq_url: System.get_env("RABBITMQ_URL", "amqp://guest:guest@localhost:5672"),
     enable_rabbitmq: true

@@ -16,7 +16,13 @@ defmodule YagyeCoreWeb.Controllers.Compliance.ComplianceController do
 
   plug Authorize,
        [scope: "kyb:write", kind: :secret]
-       when action in [:submit_onboarding, :add_beneficial_owner, :upload_document]
+       when action in [
+              :submit_onboarding,
+              :add_beneficial_owner,
+              :update_beneficial_owner,
+              :delete_beneficial_owner,
+              :upload_document
+            ]
 
   plug Authorize,
        [scope: "kyb:read", kind: :secret]
@@ -41,6 +47,20 @@ defmodule YagyeCoreWeb.Controllers.Compliance.ComplianceController do
       object = ComplianceJSON.beneficial_owner_data(owner)
       maybe_complete_idempotency(conn, 201, object, "beneficial_owner", owner.id)
       Response.created(conn, object)
+    end
+  end
+
+  def update_beneficial_owner(conn, %{merchant_id: merchant_id, id: owner_id}) do
+    attrs = Map.from_struct(conn.body_params)
+
+    with {:ok, owner} <- Compliance.update_beneficial_owner(merchant_id, owner_id, attrs) do
+      Response.ok(conn, ComplianceJSON.beneficial_owner_data(owner))
+    end
+  end
+
+  def delete_beneficial_owner(conn, %{merchant_id: merchant_id, id: owner_id}) do
+    with :ok <- Compliance.remove_beneficial_owner(merchant_id, owner_id) do
+      Response.no_content(conn)
     end
   end
 

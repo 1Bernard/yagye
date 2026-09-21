@@ -9,7 +9,7 @@ defmodule YagyeCore.Settlement.Schemas.SettlementBatch do
   alias YagyeCore.Reconciliation.Schemas.ReconciliationRun
 
   @valid_states ~w[pending processing settled awaiting_approval dispatch_rejected failed]
-  @valid_modes ~w[simulation live]
+  @valid_modes ~w[simulation sandbox live]
 
   @type t :: %__MODULE__{}
 

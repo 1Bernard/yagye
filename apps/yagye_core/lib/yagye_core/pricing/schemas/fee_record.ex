@@ -9,7 +9,7 @@ defmodule YagyeCore.Pricing.Schemas.FeeRecord do
 
   @valid_parties ~w[platform provider]
   @valid_fee_kinds ~w[psp_margin orchestration_fee]
-  @valid_modes ~w[simulation live]
+  @valid_modes ~w[simulation sandbox live]
 
   @type t :: %__MODULE__{}
 

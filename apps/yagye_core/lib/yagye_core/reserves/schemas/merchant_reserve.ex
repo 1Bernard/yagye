@@ -7,7 +7,7 @@ defmodule YagyeCore.Reserves.Schemas.MerchantReserve do
   alias YagyeCore.Merchants.Schemas.Merchant
 
   @valid_kinds ~w[rolling fixed ad_hoc]
-  @valid_modes ~w[simulation live]
+  @valid_modes ~w[simulation sandbox live]
 
   @type t :: %__MODULE__{}
 

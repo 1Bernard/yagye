@@ -26,7 +26,7 @@ module Payments
 
             t.column("Merchant")  { |r| span(class: TYPE_MONO) { plain r.merchant_code } }
             t.column("Amount")    { |r| plain r.formatted_amount }
-            t.column("State")     { |r| render UI::StatusBadge.new(status: r.state) }
+            t.column("Status")     { |r| render UI::StatusBadge.new(status: r.state) }
             t.column("Submitted") { |r| plain r.created_at.strftime("%d %b %Y, %H:%M") }
             t.column("Reviewed")  { |r| plain r.reviewed_at&.strftime("%d %b %Y") || "—" }
 

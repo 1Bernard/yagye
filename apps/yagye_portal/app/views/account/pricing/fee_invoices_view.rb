@@ -57,7 +57,7 @@ module Account
             plain method.to_s.humanize
           end
 
-          t.column("State") do |inv|
+          t.column("Status") do |inv|
             state = inv["state"] || "draft"
             css   = case state
                     when "collected"   then "bg-green-50 text-green-700"

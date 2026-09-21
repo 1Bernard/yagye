@@ -323,11 +323,16 @@ if Rails.env.development? || Rails.env.test?
   if DEMO_PAYMENT_COUNT < 50
     puts "\nSeeding demo payments for dashboard charts..."
 
-    providers  = [["mtn_momo", 60], ["telecel_cash", 25], ["airteltigo", 15]]
-    amounts    = [1000, 2500, 2500, 5000, 5000, 10000, 10000, 25000, 50000, 100000]
-    msisdn_pfx = %w[024 025 026 027 054 055 056 057 059]
+    # Ghana MSISDN prefixes by telco — must match provider
+    momo_providers = [["mtn_momo", 60], ["telecel_cash", 25], ["airteltigo", 15]]
+    momo_prefixes  = {
+      "mtn_momo"     => %w[024 054 055 059],
+      "airteltigo"   => %w[026 027 056 057],
+      "telecel_cash" => %w[020 025 050]
+    }
+    amounts  = [1000, 2500, 2500, 5000, 5000, 10000, 10000, 25000, 50000, 100000]
     # method weights: 75% mobile_money, 18% card, 7% bank_transfer
-    methods    = [["mobile_money", 75], ["card", 18], ["bank_transfer", 7]]
+    methods  = [["mobile_money", 75], ["card", 18], ["bank_transfer", 7]]
 
     seeded = 0
     90.downto(1) do |days_ago|
@@ -336,8 +341,18 @@ if Rails.env.development? || Rails.env.test?
       daily = wday.between?(1, 5) ? rand(5..12) : rand(2..6)
 
       daily.times do
-        r = rand(100)
-        provider = providers.find { |_, w| (r -= w) < 0 }&.first || "mtn_momo"
+        mr = rand(100)
+        payment_method = methods.find { |_, w| (mr -= w) < 0 }&.first || "mobile_money"
+
+        # Provider and MSISDN must align — only mobile_money has a telco provider
+        if payment_method == "mobile_money"
+          r        = rand(100)
+          provider = momo_providers.find { |_, w| (r -= w) < 0 }&.first || "mtn_momo"
+          msisdn   = "#{momo_prefixes[provider].sample}#{rand(1_000_000..9_999_999)}"
+        else
+          provider = nil
+          msisdn   = "#{%w[024 026 054 056 059].sample}#{rand(1_000_000..9_999_999)}"
+        end
 
         s = rand(100)
         status, paid_offset = if s < 82
@@ -354,14 +369,12 @@ if Rails.env.development? || Rails.env.test?
         paid_at = status == "paid" ? created + paid_offset.seconds : nil
         amount  = amounts.sample
         ref     = "REF-#{SecureRandom.alphanumeric(10).upcase}"
-        msisdn  = "#{msisdn_pfx.sample}#{rand(1_000_000..9_999_999)}"
 
         Payment.find_or_create_by!(reference: ref) do |p|
           p.core_payment_id = SecureRandom.uuid
           p.merchant_code   = DEMO_MERCHANT_CODE
           p.mode            = "test"
-          mr = rand(100)
-          p.payment_method  = methods.find { |_, w| (mr -= w) < 0 }&.first || "mobile_money"
+          p.payment_method  = payment_method
           p.provider        = provider
           p.amount          = amount
           p.currency        = "GHS"

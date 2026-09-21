@@ -9,7 +9,7 @@ defmodule YagyeCore.Payments.Schemas.Payment do
 
   @valid_states ~w[created processing requires_action authorised succeeded failed cancelled indeterminate disputed refunded chargebacked]
   @valid_rails ~w[fiat_provider internal]
-  @valid_modes ~w[simulation live]
+  @valid_modes ~w[simulation sandbox live]
 
   @type t :: %__MODULE__{}
 

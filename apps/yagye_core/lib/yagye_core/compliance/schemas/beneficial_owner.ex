@@ -23,4 +23,11 @@ defmodule YagyeCore.Compliance.Schemas.BeneficialOwner do
     |> validate_number(:ownership_bps, greater_than_or_equal_to: 0, less_than_or_equal_to: 10_000)
     |> foreign_key_constraint(:merchant_id)
   end
+
+  def update_changeset(owner, attrs) do
+    owner
+    |> cast(attrs, [:ownership_bps, :role])
+    |> validate_inclusion(:role, @valid_roles)
+    |> validate_number(:ownership_bps, greater_than_or_equal_to: 0, less_than_or_equal_to: 10_000)
+  end
 end
