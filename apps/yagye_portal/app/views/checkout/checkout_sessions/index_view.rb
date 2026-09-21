@@ -5,14 +5,6 @@ module Checkout
     class IndexView < ApplicationComponent
       include UI::Theme
 
-      STATE_COLORS = {
-        "open"       => "bg-blue-50 text-blue-700",
-        "processing" => "bg-amber-50 text-amber-700",
-        "completed"  => "bg-green-50 text-green-700",
-        "cancelled"  => "bg-gray-100 text-gray-500",
-        "expired"    => "bg-gray-100 text-gray-400"
-      }.freeze
-
       TABS = [
         { key: "all",        label: "All"        },
         { key: "open",       label: "Open"       },
@@ -21,8 +13,22 @@ module Checkout
         { key: "expired",    label: "Expired"    }
       ].freeze
 
-      def initialize(sessions:, query: nil, tab: "all")
+      SOURCE_COLORS = {
+        "invoice"      => "bg-purple-50 text-purple-700",
+        "payment_link" => "bg-blue-50 text-blue-700",
+        "direct"       => "bg-gray-100 text-gray-500"
+      }.freeze
+
+      SOURCE_LABELS = {
+        "invoice"      => "Invoice",
+        "payment_link" => "Payment link",
+        "direct"       => "Direct"
+      }.freeze
+
+      def initialize(sessions:, pagy: nil, stats: {}, query: nil, tab: "all")
         @sessions = sessions
+        @pagy     = pagy
+        @stats    = stats
         @query    = query
         @tab      = tab
       end
@@ -54,9 +60,9 @@ module Checkout
       end
 
       def stat_band
-        completed = @sessions.count { |s| s["state"] == "completed" }
-        open_ct   = @sessions.count { |s| s["state"] == "open" }
-        total     = @sessions.size
+        total     = @stats[:total]     || 0
+        completed = @stats[:completed] || 0
+        open_ct   = @stats[:open]      || 0
         rate      = total > 0 ? (completed * 100.0 / total).round : 0
 
         render UI::Grid.new(columns: 4) do
@@ -68,12 +74,14 @@ module Checkout
       end
 
       def sessions_table
-        render UI::Datatable.new(records: @sessions,
+        offset = @pagy ? @pagy.offset : 0
+
+        render UI::Datatable.new(records: @sessions, pagy: @pagy,
                                  empty_message: empty_message) do |t|
           t.header { toolbar_content }
 
           t.column("#", class: "text-gray-400 tabular-nums text-right w-8") do |_, i|
-            plain((i + 1).to_s)
+            plain((offset + i + 1).to_s)
           end
 
           t.column("Session ID") do |s|
@@ -83,11 +91,16 @@ module Checkout
             end
           end
 
-          t.column("State") do |s|
-            cls = STATE_COLORS[s["state"]] || "bg-gray-100 text-gray-500"
-            span(class: "inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium #{cls}") do
-              plain (s["state"] || "—").capitalize
-            end
+          t.column("Source") do |s|
+            src = s["source_type"] || (s["payment_link_id"] ? "payment_link" : "direct")
+            render UI::Chip.new(
+              label:  SOURCE_LABELS[src] || src.to_s.humanize,
+              colors: SOURCE_COLORS[src] || "bg-gray-100 text-gray-500"
+            )
+          end
+
+          t.column("Status") do |s|
+            render UI::StatusBadge.new(status: s["state"])
           end
 
           t.column("Total", class: "text-right tabular-nums") do |s|
@@ -106,12 +119,10 @@ module Checkout
             end
           end
 
-          t.column("Payment link") do |s|
-            if s["payment_link_id"].present?
-              span(class: TYPE_MONO) { plain s["payment_link_id"].to_s.first(16) }
-            else
-              span(class: TYPE_CAPTION) { plain "Direct" }
-            end
+          t.column("Description") do |s|
+            desc = s["description"].presence
+            desc ? span(class: "text-[12.5px] text-gray-700 truncate max-w-[200px] block") { plain desc }
+                 : span(class: TYPE_CAPTION) { plain "—" }
           end
 
           t.column("Reference") do |s|

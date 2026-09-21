@@ -5,16 +5,6 @@ module Checkout
     class IndexView < ApplicationComponent
       include UI::Theme
 
-      STATE_COLORS = {
-        "draft"          => "bg-gray-100 text-gray-600",
-        "open"           => "bg-blue-50 text-blue-700",
-        "partially_paid" => "bg-amber-50 text-amber-700",
-        "paid"           => "bg-green-50 text-green-700",
-        "overdue"        => "bg-red-50 text-red-700",
-        "void"           => "bg-gray-100 text-gray-400",
-        "uncollectible"  => "bg-gray-100 text-gray-400"
-      }.freeze
-
       TABS = [
         { key: "all",     label: "All"     },
         { key: "draft",   label: "Draft"   },
@@ -99,11 +89,8 @@ module Checkout
             span(class: "text-[13px] #{cls}") { plain format_money(inv["amount_due"].to_i) }
           end
 
-          t.column("State") do |inv|
-            cls = STATE_COLORS[inv["state"]] || "bg-gray-100 text-gray-500"
-            span(class: "inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium #{cls}") do
-              plain (inv["state"] || "—").tr("_", " ").capitalize
-            end
+          t.column("Status") do |inv|
+            render UI::StatusBadge.new(status: inv["state"])
           end
 
           t.column("Due date") do |inv|
@@ -128,6 +115,10 @@ module Checkout
               plain "View"
             end
             if inv["state"] == "draft"
+              a(href: edit_invoice_path(inv["id"]), class: DROPDOWN_ITEM) do
+                render UI::Icon.new(:edit, class: ICON_SM)
+                plain "Edit"
+              end
               form(action: issue_invoice_path(inv["id"]), method: "post", style: "display:contents") do
                 input(type: "hidden", name: "authenticity_token", value: form_authenticity_token)
                 button(type: "submit", class: DROPDOWN_ITEM) do

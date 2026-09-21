@@ -5,14 +5,6 @@ module Checkout
     class ShowView < ApplicationComponent
       include UI::Theme
 
-      STATE_COLORS = {
-        "open"       => "bg-blue-50 text-blue-700",
-        "processing" => "bg-amber-50 text-amber-700",
-        "completed"  => "bg-green-50 text-green-700",
-        "cancelled"  => "bg-gray-100 text-gray-500",
-        "expired"    => "bg-gray-100 text-gray-400"
-      }.freeze
-
       KIND_ICONS = {
         "item"     => :package,
         "shipping" => :truck,
@@ -200,7 +192,7 @@ module Checkout
             render UI::DetailList.new do |list|
               list.row("Session ID",     @s["id"], mono: true)
               list.row("Mode",           @s["mode"]&.capitalize || "—")
-              list.row("State")          { state_pill(@s["state"]) }
+              list.row("Status")         { state_pill(@s["state"]) }
               list.row("Currency",       @s["currency"] || "—")
               list.row("Reference",      @s["merchant_reference"].presence || "—", mono: true)
               list.row("Payment link")   { payment_link_ref }
@@ -242,10 +234,7 @@ module Checkout
       # ── Helpers ──────────────────────────────────────────────────────────────
 
       def state_pill(state)
-        cls = STATE_COLORS[state] || "bg-gray-100 text-gray-500"
-        span(class: "inline-flex items-center px-2.5 py-1 rounded-full text-[11.5px] font-semibold #{cls}") do
-          plain (state || "—").capitalize
-        end
+        render UI::StatusBadge.new(status: state)
       end
 
       def kind_chip(kind)

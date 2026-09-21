@@ -52,8 +52,56 @@ module Checkout
       if result.success?
         redirect_to invoice_path(result.body["id"]), notice: "Invoice created."
       else
-        render Checkout::Invoices::FormView.new(errors: [ result.error_message ], mode: Current.mode),
+        render Checkout::Invoices::FormView.new(errors: extract_errors(result), mode: Current.mode),
                status: :unprocessable_entity
+      end
+    end
+
+    def edit
+      authorize :invoice, :update?
+      result = core.get_invoice(params[:id])
+      return redirect_to invoices_path, alert: "Invoice not found." unless result.success?
+      invoice = result.body
+      unless invoice["state"] == "draft"
+        return redirect_to invoice_path(params[:id]), alert: "Only draft invoices can be edited."
+      end
+      render Checkout::Invoices::FormView.new(invoice: invoice, mode: Current.mode)
+    end
+
+    def update
+      authorize :invoice, :update?
+
+      line_items = parse_line_items(params[:line_items] || [])
+      if line_items.empty?
+        re = core.get_invoice(params[:id])
+        return render Checkout::Invoices::FormView.new(
+          invoice: re.success? ? re.body : nil,
+          errors:  ["Add at least one line item."],
+          mode:    Current.mode
+        ), status: :unprocessable_entity
+      end
+
+      result = core.update_invoice(
+        params[:id],
+        customer_reference: params[:customer_reference],
+        number:             params[:number],
+        currency:           params[:currency].presence || "GHS",
+        issue_date:         params[:issue_date],
+        due_date:           params[:due_date],
+        notes:              params[:notes].presence,
+        terms:              params[:terms].presence,
+        line_items:         line_items
+      )
+
+      if result.success?
+        redirect_to invoice_path(params[:id]), notice: "Invoice updated."
+      else
+        re = core.get_invoice(params[:id])
+        render Checkout::Invoices::FormView.new(
+          invoice: re.success? ? re.body : nil,
+          errors:  extract_errors(result),
+          mode:    Current.mode
+        ), status: :unprocessable_entity
       end
     end
 
@@ -90,7 +138,27 @@ module Checkout
       end
     end
 
+    def duplicate
+      authorize :invoice, :create?
+      result = core.get_invoice(params[:id])
+      return redirect_to invoices_path, alert: "Invoice not found." unless result.success?
+      render Checkout::Invoices::FormView.new(prefill: result.body, mode: Current.mode)
+    end
+
     private
+
+    def extract_errors(result)
+      if result.error_code == "validation_failed"
+        details = result.body.dig("error", "details") || {}
+        if details.any?
+          details.flat_map { |field, msgs| msgs.map { |m| "#{field.to_s.humanize} #{m}" } }
+        else
+          [result.error_message]
+        end
+      else
+        [result.error_message]
+      end
+    end
 
     def filter_invoices(invoices)
       return invoices if params[:q].blank?
@@ -102,7 +170,10 @@ module Checkout
     end
 
     def parse_line_items(raw)
-      Array(raw).filter_map do |item|
+      # Form sends line_items as a hash keyed by index ("0", "1", …).
+      # Array() on a hash yields [key, value] pairs — useless. Normalize to values first.
+      items = raw.respond_to?(:each_value) ? raw.values : Array(raw)
+      items.filter_map do |item|
         next if item[:description].blank? && item["description"].blank?
         {
           description:  item[:description]  || item["description"],

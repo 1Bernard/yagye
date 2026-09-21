@@ -127,14 +127,14 @@ module Checkout
     end
 
     def link_grid_card(link)
-      a(href: payment_link_layout_path(link["id"]),
+      a(href: payment_link_path(link["id"]),
         class: "group block bg-white border border-gray-100 rounded-2xl p-5 no-underline #{CARD_HOVER}") do
         div(class: "flex items-start justify-between mb-4") do
           div(class: "w-10 h-10 rounded-xl icon-brand flex items-center justify-center flex-shrink-0") do
             span(class: "flex w-5 h-5") { render UI::Icon.new(:link, class: "w-full h-full") }
           end
-          badge = link["active"] ? BADGE_SUCCESS : BADGE_NEUTRAL
-          span(class: badge) { plain link["active"] ? "Active" : "Inactive" }
+          render UI::Chip.new(label: link["active"] ? "Active" : "Inactive",
+                              colors: link["active"] ? UI::Theme::STATUS_SUCCESS : UI::Theme::STATUS_NEUTRAL)
         end
 
         div(class: "mb-3") do
@@ -191,8 +191,8 @@ module Checkout
           end
         end
         t.column("Status") do |link|
-          badge = link["active"] ? BADGE_SUCCESS : BADGE_NEUTRAL
-          span(class: badge) { plain link["active"] ? "Active" : "Inactive" }
+          render UI::Chip.new(label: link["active"] ? "Active" : "Inactive",
+                              colors: link["active"] ? UI::Theme::STATUS_SUCCESS : UI::Theme::STATUS_NEUTRAL)
         end
         t.column("Uses", class: "text-right tabular-nums") do |link|
           uses = link["use_count"] || 0
@@ -201,9 +201,23 @@ module Checkout
         end
 
         t.actions do |link|
+          a(href: payment_link_path(link["id"]), class: DROPDOWN_ITEM) do
+            render UI::Icon.new(:eye, class: ICON_SM)
+            plain "View"
+          end
           a(href: payment_link_layout_path(link["id"]), class: DROPDOWN_ITEM) do
             render UI::Icon.new(:edit, class: ICON_SM)
             plain "Edit layout"
+          end
+          if link["active"] && link["kind"] != "invoice"
+            form(action: deactivate_payment_link_path(link["id"]), method: "post", style: "display:contents") do
+              input(type: "hidden", name: "authenticity_token", value: form_authenticity_token)
+              button(type: "submit", class: "#{DROPDOWN_ITEM} text-red-600",
+                     data: { confirm: "Deactivate this link? Customers won't be able to use it." }) do
+                render UI::Icon.new(:x, class: ICON_SM)
+                plain "Deactivate"
+              end
+            end
           end
         end
       end

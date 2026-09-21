@@ -25,19 +25,23 @@ module Checkout
         terms: "Payment is due within 30 days of this invoice date."
       }.freeze
 
-      def initialize(errors: [], mode: "test")
-        @errors = errors
-        @mode   = mode
+      def initialize(errors: [], mode: "test", invoice: nil, prefill: nil)
+        @errors  = errors
+        @mode    = mode
+        @invoice = invoice
+        @prefill = prefill
+        @editing = invoice.present?
       end
 
       def view_template
+        crumbs = [{ label: "Invoices", href: invoices_path }]
+        crumbs << { label: @invoice["number"], href: invoice_path(@invoice["id"]) } if @editing
+        crumbs << { label: @editing ? "Edit" : "New invoice" }
+
         render Layout::Shell.new(
           active_nav: :invoices,
-          title:      "New invoice",
-          breadcrumbs: [
-            { label: "Invoices", href: invoices_path },
-            { label: "New invoice" }
-          ],
+          title:      @editing ? "Edit #{@invoice["number"]}" : "New invoice",
+          breadcrumbs: crumbs,
           padded: false
         ) do
           canvas_styles
@@ -50,11 +54,12 @@ module Checkout
             floating_toolbar
             form(
               id:     "invoice-form",
-              action: invoices_path,
+              action: @editing ? invoice_path(@invoice["id"]) : invoices_path,
               method: "post",
               class:  "absolute top-[76px] left-0 right-0 bottom-0"
             ) do
               input(type: "hidden", name: "authenticity_token", value: form_authenticity_token)
+              input(type: "hidden", name: "_method", value: "patch") if @editing
               editor_panel
               preview_area
             end
@@ -88,14 +93,14 @@ module Checkout
                  "bg-white border border-gray-200/80 rounded-2xl px-[10px] py-[7px] " \
                  "shadow-[0_4px_24px_rgba(0,0,0,0.08)] select-none"
         ) do
-          a(href: invoices_path,
+          a(href: @editing ? invoice_path(@invoice["id"]) : invoices_path,
             class: "flex items-center justify-center w-8 h-8 rounded-xl " \
                    "hover:bg-gray-100 text-gray-400 hover:text-gray-700 transition-colors flex-shrink-0") do
             span(class: "flex w-[14px] h-[14px]") { render UI::Icon.new(:chev_left, class: "w-full h-full") }
           end
 
           div(class: "w-px h-5 bg-gray-200 flex-shrink-0")
-          p(class: "text-[13.5px] font-semibold text-gray-900 px-1") { plain "New invoice" }
+          p(class: "text-[13.5px] font-semibold text-gray-900 px-1") { plain @editing ? "Edit invoice" : "New invoice" }
 
           span(class: "text-[10.5px] font-semibold px-[8px] py-[2px] rounded-full bg-gray-100 text-gray-500") do
             plain @mode.capitalize
@@ -114,7 +119,7 @@ module Checkout
             form:  "invoice-form",
             class: "flex items-center gap-[5px] px-[10px] py-[5px] rounded-xl text-[12.5px] font-semibold " \
                    "bg-[#3D47F5] hover:bg-[#2e38d4] text-white transition-colors cursor-pointer border-0"
-          ) { plain "Create invoice" }
+          ) { plain @editing ? "Update invoice" : "Create invoice" }
         end
       end
 
@@ -155,7 +160,7 @@ module Checkout
           input(
             type:        "text",
             name:        "customer_reference",
-            value:       DEMO[:customer],
+            value:       @editing ? @invoice["customer_reference"].to_s : (@prefill ? @prefill["customer_reference"].to_s : DEMO[:customer]),
             placeholder: "Company name or contact email",
             class:       panel_input_cls,
             data:        { action: "input->invoice-compose#syncPreview" }
@@ -173,7 +178,7 @@ module Checkout
           p(class: "text-[9px] font-bold uppercase tracking-[0.1em] text-gray-400 mb-3") { plain "Line items" }
 
           div(data: { invoice_compose_target: "rowList" }) do
-            DEMO[:rows].each_with_index do |row, i|
+            fill_rows.each_with_index do |row, i|
               div(class: "composer-sep h-px bg-gray-50 my-3") if i > 0
               editor_row(i, row)
             end
@@ -247,14 +252,14 @@ module Checkout
               placeholder: "e.g. Thank you for your business.",
               class:       panel_textarea_cls,
               data:        { action: "input->invoice-compose#syncPreview" }
-            ) { plain DEMO[:notes] }
+            ) { plain @editing ? @invoice["notes"].to_s : (@prefill ? @prefill["notes"].to_s : DEMO[:notes]) }
             textarea(
               name:        "terms",
               rows:        2,
               placeholder: "e.g. Payment due within 30 days.",
               class:       panel_textarea_cls,
               data:        { action: "input->invoice-compose#syncPreview" }
-            ) { plain DEMO[:terms] }
+            ) { plain @editing ? @invoice["terms"].to_s : (@prefill ? @prefill["terms"].to_s : DEMO[:terms]) }
           end
         end
       end
@@ -267,7 +272,7 @@ module Checkout
           div(class: "flex flex-col gap-2.5") do
             div do
               span(class: "text-[9px] font-bold uppercase tracking-[0.1em] text-gray-400 block mb-[5px]") { plain "Number" }
-              input(type: "text", name: "number", value: DEMO[:number],
+              input(type: "text", name: "number", value: @editing ? @invoice["number"].to_s : (@prefill ? @prefill["number"].to_s : ""),
                     placeholder: "INV-00001", class: panel_input_cls,
                     data: { action: "input->invoice-compose#syncPreview" })
             end
@@ -276,8 +281,9 @@ module Checkout
               span(class: "text-[9px] font-bold uppercase tracking-[0.1em] text-gray-400 block mb-[5px]") { plain "Currency" }
               select(name: "currency", class: "#{panel_input_cls} appearance-none cursor-pointer",
                      data: { action: "change->invoice-compose#syncPreview" }) do
+                selected_currency = @editing ? @invoice["currency"] : (@prefill ? @prefill["currency"] : DEMO[:currency])
                 CURRENCIES.each do |c|
-                  option(value: c[:code], selected: c[:code] == DEMO[:currency]) { plain c[:label] }
+                  option(value: c[:code], selected: c[:code] == selected_currency) { plain c[:label] }
                 end
               end
             end
@@ -285,12 +291,14 @@ module Checkout
             div(class: "grid grid-cols-2 gap-2") do
               div do
                 span(class: "text-[9px] font-bold uppercase tracking-[0.1em] text-gray-400 block mb-[5px]") { plain "Issue date" }
-                input(type: "date", name: "issue_date", value: Date.today.to_s,
+                input(type: "date", name: "issue_date",
+                      value: @editing ? @invoice["issue_date"].to_s : Date.today.to_s,
                       class: panel_input_cls, data: { action: "change->invoice-compose#syncPreview" })
               end
               div do
                 span(class: "text-[9px] font-bold uppercase tracking-[0.1em] text-gray-400 block mb-[5px]") { plain "Due date" }
-                input(type: "date", name: "due_date", value: (Date.today + 30).to_s,
+                input(type: "date", name: "due_date",
+                      value: @editing ? @invoice["due_date"].to_s : (@prefill ? (Date.today + 30).to_s : (Date.today + 30).to_s),
                       class: panel_input_cls, data: { action: "change->invoice-compose#syncPreview" })
               end
             end
@@ -332,6 +340,9 @@ module Checkout
       # ── Preview: header ────────────────────────────────────────────────────────
 
       def preview_header
+        merchant_name = current_user.active_membership&.merchant_name.to_s.presence || "Your business"
+        initials      = merchant_name.split.first(2).map { |w| w[0].upcase }.join
+
         div(class: "flex items-start justify-between px-10 pt-8 pb-6") do
           # Business identity (left)
           div(class: "flex items-center gap-3") do
@@ -339,11 +350,11 @@ module Checkout
               class: "w-11 h-11 rounded-[10px] bg-[#3D47F5] flex items-center justify-center flex-shrink-0 " \
                      "shadow-[0_2px_8px_rgba(61,71,245,0.35)]"
             ) do
-              span(class: "text-[12px] font-bold text-white tracking-tight") { plain "YB" }
+              span(class: "text-[12px] font-bold text-white tracking-tight") { plain initials }
             end
             div do
-              p(class: "text-[14px] font-bold text-gray-900 leading-tight") { plain "Your business" }
-              p(class: "text-[11px] text-gray-400 mt-[1px]") { plain "hello@yourbusiness.com" }
+              p(class: "text-[14px] font-bold text-gray-900 leading-tight") { plain merchant_name }
+              p(class: "text-[11px] text-gray-400 mt-[1px]") { plain current_user.email }
             end
           end
 
@@ -356,7 +367,9 @@ module Checkout
               end
             end
             p(class: "text-[30px] font-extrabold text-gray-900 leading-none tabular-nums tracking-tight",
-              data: { invoice_compose_target: "pvNumber" }) { plain DEMO[:number] }
+              data: { invoice_compose_target: "pvNumber" }) do
+              plain @editing ? @invoice["number"].to_s : (@prefill ? "" : DEMO[:number])
+            end
           end
         end
       end
@@ -382,16 +395,20 @@ module Checkout
       # ── Preview: from / to ────────────────────────────────────────────────────
 
       def preview_from_to
+        merchant_name = current_user.active_membership&.merchant_name.to_s.presence || "Your business"
+        bill_to_value = @editing ? @invoice["customer_reference"].to_s
+                      : (@prefill  ? @prefill["customer_reference"].to_s
+                                   : DEMO[:customer])
+
         div(class: "grid grid-cols-2 gap-8 px-10 pb-6") do
           div do
             p(class: "text-[9.5px] font-bold uppercase tracking-[0.12em] text-gray-400 mb-2") { plain "From" }
-            p(class: "text-[13px] font-semibold text-gray-800 leading-snug") { plain "Your business" }
-            p(class: "text-[11.5px] text-gray-400 mt-[2px] leading-relaxed") { plain "Accra, Ghana" }
+            p(class: "text-[13px] font-semibold text-gray-800 leading-snug") { plain merchant_name }
           end
           div do
             p(class: "text-[9.5px] font-bold uppercase tracking-[0.12em] text-gray-400 mb-2") { plain "Bill to" }
             p(class: "text-[13px] font-semibold text-gray-800 leading-snug",
-              data: { invoice_compose_target: "pvBillTo" }) { plain DEMO[:customer] }
+              data: { invoice_compose_target: "pvBillTo" }) { plain bill_to_value }
           end
         end
       end
@@ -519,6 +536,25 @@ module Checkout
             span(class: "text-[10px] text-gray-300") { plain "Payment powered by" }
             span(class: "text-[10px] font-bold text-[#3D47F5]/60") { plain "Yagye" }
           end
+        end
+      end
+
+      # ── Edit-mode helpers ─────────────────────────────────────────────────────
+
+      def fill_rows
+        source = @editing ? @invoice : @prefill
+        if source
+          rows = Array(source["line_items"]).map do |li|
+            {
+              description: li["description"].to_s,
+              qty:         li["quantity"].to_f,
+              unit:        li["unit_amount"].to_f / 100.0,
+              tax:         li["tax_rate_bps"].to_i
+            }
+          end
+          rows.any? ? rows : DEMO[:rows]
+        else
+          DEMO[:rows]
         end
       end
 

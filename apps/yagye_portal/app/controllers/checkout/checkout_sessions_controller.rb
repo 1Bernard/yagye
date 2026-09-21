@@ -9,12 +9,23 @@ module Checkout
       result = core.list_checkout_sessions(
         merchant_code:   current_user.merchant_code,
         state:           state,
-        payment_link_id: params[:payment_link_id].presence
+        payment_link_id: params[:payment_link_id].presence,
+        limit:           100
       )
-      sessions = result.success? ? (result.body["data"] || []) : []
-      sessions = filter_sessions(sessions)
+      all_sessions = result.success? ? (result.body["data"] || []) : []
+      all_sessions = filter_sessions(all_sessions)
+
+      stats = {
+        total:     all_sessions.size,
+        completed: all_sessions.count { |s| s["state"] == "completed" },
+        open:      all_sessions.count { |s| s["state"] == "open" }
+      }
+
+      pagy, sessions = pagy(all_sessions, limit: 25)
       render Checkout::CheckoutSessions::IndexView.new(
         sessions: sessions,
+        pagy:     pagy,
+        stats:    stats,
         query:    params[:q],
         tab:      tab
       )

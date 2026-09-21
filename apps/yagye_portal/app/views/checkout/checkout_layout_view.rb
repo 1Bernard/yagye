@@ -52,10 +52,11 @@ module Checkout
     def view_template
       render Layout::Shell.new(
         active_nav: :payment_links,
-        title:      @link["description"] || "Checkout layout",
+        title:      "Checkout layout",
         breadcrumbs: [
           { label: "Payment Links", href: payment_links_path },
-          { label: @link["description"] || @link["id"] }
+          { label: @link["description"] || @link["id"], href: payment_link_path(@link["id"]) },
+          { label: "Checkout layout" }
         ],
         padded: false
       ) do
@@ -125,9 +126,9 @@ module Checkout
                "bg-white border border-gray-200/80 rounded-2xl px-[10px] py-[7px] " \
                "shadow-[0_4px_24px_rgba(0,0,0,0.08)] select-none"
       ) do
-        # Back
+        # Back to link show page
         a(
-          href: payment_links_path,
+          href: payment_link_path(@link["id"]),
           class: "flex items-center justify-center w-8 h-8 rounded-xl hover:bg-gray-100 " \
                  "text-gray-400 hover:text-gray-700 transition-colors flex-shrink-0"
         ) do

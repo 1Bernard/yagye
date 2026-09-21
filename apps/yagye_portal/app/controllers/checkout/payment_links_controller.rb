@@ -24,6 +24,23 @@ module Checkout
       )
     end
 
+    def show
+      authorize :checkout, :index?
+      result = core.get_payment_link(params[:id])
+      return redirect_to payment_links_path, alert: "Payment link not found." unless result.success?
+      render Checkout::PaymentLinks::ShowView.new(link: result.body)
+    end
+
+    def deactivate
+      authorize :checkout, :create?
+      result = core.deactivate_payment_link(params[:id])
+      if result.success?
+        redirect_to payment_link_path(params[:id]), notice: "Payment link deactivated."
+      else
+        redirect_to payment_link_path(params[:id]), alert: result.error_message
+      end
+    end
+
     def new
       authorize :checkout, :new?
       render Checkout::PaymentLinkFormView.new(mode: Current.mode)
@@ -100,6 +117,7 @@ module Checkout
     private
 
     def filter_links(links)
+      links = links.reject { |l| l["kind"] == "invoice" }
       links = links.select { |l| l["description"].to_s.downcase.include?(params[:q].downcase) ||
                                  l["url_slug"].to_s.downcase.include?(params[:q].downcase) } if params[:q].present?
       if params[:active].present?

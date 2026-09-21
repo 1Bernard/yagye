@@ -122,9 +122,24 @@ class CoreApiClient
     get("/internal/invoices/#{public_id}")
   end
 
+  # GET /internal/payment-links/:id
+  def get_payment_link(public_id)
+    get("/internal/payment-links/#{public_id}")
+  end
+
+  # POST /internal/payment-links/:id/deactivate
+  def deactivate_payment_link(public_id)
+    post("/internal/payment-links/#{public_id}/deactivate", {})
+  end
+
   # POST /internal/invoices
   def create_invoice(merchant_code:, **attrs)
     post("/internal/invoices", attrs.merge(merchant_code: merchant_code))
+  end
+
+  # PATCH /internal/invoices/:id  (draft only)
+  def update_invoice(public_id, attrs = {})
+    patch("/internal/invoices/#{public_id}", attrs)
   end
 
   # POST /internal/invoices/:id/issue
@@ -138,13 +153,17 @@ class CoreApiClient
     post("/internal/invoices/#{public_id}/void", {})
   end
 
+
   # ── Checkout Sessions (P16) ───────────────────────────────────────────────
 
   # GET /internal/merchants/:code/checkout-sessions
-  def list_checkout_sessions(merchant_code:, state: nil, payment_link_id: nil)
+  def list_checkout_sessions(merchant_code:, state: nil, payment_link_id: nil,
+                             starting_after: nil, limit: nil)
     query = { merchant_code: merchant_code }
     query[:state]           = state           if state
     query[:payment_link_id] = payment_link_id if payment_link_id
+    query[:starting_after]  = starting_after  if starting_after
+    query[:limit]           = limit           if limit
     get("/internal/merchants/#{merchant_code}/checkout-sessions?#{URI.encode_www_form(query.transform_keys(&:to_s))}")
   end
 
@@ -295,6 +314,16 @@ class CoreApiClient
   # GET /internal/settlement-batches-info/:id
   def get_settlement_batch(id)
     get("/internal/settlement-batches-info/#{id}")
+  end
+
+  # GET /internal/merchants/:code/dashboard/settlement
+  def get_merchant_settlement_dashboard(merchant_code)
+    get("/internal/merchants/#{merchant_code}/dashboard/settlement")
+  end
+
+  # GET /internal/dashboard/ops
+  def get_ops_settlement_dashboard
+    get("/internal/dashboard/ops")
   end
 
   # ── Pricing ───────────────────────────────────────────────────────────────
