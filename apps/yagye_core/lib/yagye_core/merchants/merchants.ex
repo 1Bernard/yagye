@@ -213,6 +213,13 @@ defmodule YagyeCore.Merchants do
     )
   end
 
+  def sandbox_mode_enabled?(merchant_id) do
+    Repo.exists?(
+      from m in MerchantMode,
+        where: m.merchant_id == ^merchant_id and m.mode == :sandbox
+    )
+  end
+
   # ── Dispatch ─────────────────────────────────────────────────────────────────
 
   defp dispatch(%SubmitMerchantApplication{} = cmd) do
@@ -336,6 +343,8 @@ defmodule YagyeCore.Merchants do
     |> Repo.transaction()
     |> case do
       {:ok, %{approved_application: application, merchant: merchant}} ->
+        Compliance.enrol_merchant_entity(merchant.id)
+
         event = %ApplicationApproved{
           application_id: application.id,
           approved_by: cmd.approved_by,
@@ -403,6 +412,8 @@ defmodule YagyeCore.Merchants do
     |> Repo.transaction()
     |> case do
       {:ok, %{merchant: merchant}} ->
+        Compliance.enrol_merchant_entity(merchant.id)
+
         event = %MerchantRegistered{
           merchant_id: merchant.id,
           public_id: merchant.public_id,
@@ -648,6 +659,10 @@ defmodule YagyeCore.Merchants do
   end
 
   # ── Private helpers ──────────────────────────────────────────────────────────
+
+  def grant_sandbox_mode(merchant_id) do
+    grant_mode(merchant_id, :sandbox)
+  end
 
   defp grant_mode(merchant_id, mode) do
     %MerchantMode{}

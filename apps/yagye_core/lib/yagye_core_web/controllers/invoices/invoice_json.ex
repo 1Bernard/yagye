@@ -42,6 +42,7 @@ defmodule YagyeCoreWeb.Controllers.Invoices.InvoiceJSON do
           %{url_slug: slug} -> "#{@base_url}/#{slug}"
           _ -> nil
         end,
+      invoice_view_url: "#{@base_url}/inv/#{invoice.public_id}",
       line_items: line_items,
       sent_at: invoice.sent_at,
       paid_at: invoice.paid_at,

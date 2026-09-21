@@ -12,15 +12,38 @@ defmodule YagyeCoreWeb.Controllers.Internal.CheckoutSessionsController do
 
   # GET /internal/merchants/:merchant_code/checkout-sessions
   def index(conn, %{"merchant_code" => merchant_code} = params) do
+    limit =
+      case Integer.parse(params["limit"] || "") do
+        {n, ""} when n > 0 -> n
+        _ -> nil
+      end
+
     opts =
-      [state: params["state"], payment_link_id: params["payment_link_id"]]
+      [
+        state: params["state"],
+        payment_link_id: params["payment_link_id"],
+        starting_after: params["starting_after"],
+        ending_before: params["ending_before"],
+        limit: limit
+      ]
       |> Keyword.reject(fn {_, v} -> is_nil(v) end)
 
     with {:ok, merchant} <- Merchants.get_merchant(merchant_code),
-         {:ok, sessions} <- Checkout.list_sessions(merchant.id, opts) do
-      data = Enum.map(sessions, &CheckoutSessionJSON.data/1)
-      Response.ok(conn, %{object: "list", data: data, has_more: false})
+         {:ok, %{data: sessions, has_more: has_more}} <- Checkout.list_sessions(merchant.id, opts) do
+      data = Enum.map(sessions, &session_data/1)
+      Response.ok(conn, %{object: "list", data: data, has_more: has_more})
     end
+  end
+
+  defp session_data(session) do
+    source_type =
+      cond do
+        String.starts_with?(session.description || "", "Invoice ") -> "invoice"
+        not is_nil(session.payment_link_id) -> "payment_link"
+        true -> "direct"
+      end
+
+    CheckoutSessionJSON.data(session) |> Map.put(:source_type, source_type)
   end
 
   # GET /internal/checkout-sessions/:id

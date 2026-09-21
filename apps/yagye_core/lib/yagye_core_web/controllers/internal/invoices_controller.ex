@@ -52,6 +52,27 @@ defmodule YagyeCoreWeb.Controllers.Internal.InvoicesController do
     end
   end
 
+  @allowed_update_fields ~w[customer_reference number currency issue_date due_date notes terms line_items]
+
+  # PATCH /internal/invoices/:id
+  def update(conn, %{"id" => id} = params) do
+    line_items =
+      (params["line_items"] || [])
+      |> Enum.map(fn item ->
+        Map.take(item, ["description", "quantity", "unit_amount", "tax_rate_bps"])
+        |> Map.new(fn {k, v} -> {String.to_atom(k), v} end)
+      end)
+
+    attrs =
+      Map.take(params, @allowed_update_fields)
+      |> Map.new(fn {k, v} -> {String.to_atom(k), v} end)
+      |> Map.put(:line_items, line_items)
+
+    with {:ok, invoice} <- Invoices.update_invoice(id, attrs) do
+      Response.ok(conn, InvoiceJSON.data(invoice))
+    end
+  end
+
   # POST /internal/invoices/:id/issue
   def issue(conn, %{"id" => id} = params) do
     allowed_methods =

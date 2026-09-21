@@ -16,6 +16,7 @@ defmodule YagyeCore.Outbox.Workers.OutboxRelayWorker do
 
   import Ecto.Query
 
+  alias YagyeCore.Invoices.Workers.InvoiceReconciliationWorker
   alias YagyeCore.MerchantWebhooks.Workers.WebhookDispatchWorker
   alias YagyeCore.Outbox.EventEnvelope
   alias YagyeCore.Outbox.KafkaProducer
@@ -105,6 +106,7 @@ defmodule YagyeCore.Outbox.Workers.OutboxRelayWorker do
       MerchantBalanceProjection
     )
     |> maybe_add(event_type == "settlement.batch.settled", ReconciliationTriggerWorker)
+    |> maybe_add(event_type == "checkout_session.completed", InvoiceReconciliationWorker)
   end
 
   defp maybe_add(list, true, worker), do: [worker | list]

@@ -9,6 +9,7 @@ defmodule YagyeCore.CheckoutSessions do
   alias YagyeCore.PaymentLinks
   alias YagyeCore.PaymentLinks.Schemas.PaymentLink
   alias YagyeCore.Repo
+  alias YagyeCore.Shared.Pagination
 
   @token_bytes 32
   # Sessions expire after 30 minutes by default; links can set their own expiry.
@@ -115,8 +116,7 @@ defmodule YagyeCore.CheckoutSessions do
 
     base =
       from(cs in CheckoutSession,
-        where: cs.merchant_id == ^merchant_id,
-        order_by: [desc: cs.inserted_at]
+        where: cs.merchant_id == ^merchant_id
       )
 
     base = if state, do: where(base, [cs], cs.state == ^state), else: base
@@ -126,7 +126,7 @@ defmodule YagyeCore.CheckoutSessions do
         do: where(base, [cs], cs.payment_link_id == ^payment_link_id),
         else: base
 
-    {:ok, Repo.all(base)}
+    {:ok, Pagination.paginate(base, :public_id, opts)}
   end
 
   # ── State transitions ────────────────────────────────────────────────────────
@@ -177,6 +177,9 @@ defmodule YagyeCore.CheckoutSessions do
         currency: s.currency,
         mode: s.mode
       })
+    end)
+    |> Multi.run(:increment_use_count, fn _repo, %{session: s} ->
+      maybe_increment_link_use_count(s.payment_link_id)
     end)
     |> Repo.transaction()
     |> case do
@@ -389,5 +392,14 @@ defmodule YagyeCore.CheckoutSessions do
       payload: payload,
       occurred_at: DateTime.utc_now()
     })
+  end
+
+  defp maybe_increment_link_use_count(nil), do: {:ok, nil}
+
+  defp maybe_increment_link_use_count(link_id) do
+    case Repo.get(PaymentLink, link_id) do
+      %PaymentLink{} = link -> PaymentLinks.increment_use_count(link)
+      nil -> {:ok, nil}
+    end
   end
 end

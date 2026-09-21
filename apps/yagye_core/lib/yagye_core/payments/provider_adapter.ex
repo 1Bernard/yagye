@@ -29,6 +29,8 @@ defmodule YagyeCore.Payments.ProviderAdapter do
           kyc_tier: String.t() | nil
         }
 
+  @type disburse_ok :: %{provider_reference: String.t()}
+
   # credential is a plain map of decrypted fields, always including "base_url".
   # The adapter is responsible for extracting what it needs (api_key, secret, etc.).
   @callback charge(Payment.t(), PaymentAttempt.t(), credential :: map()) ::
@@ -41,19 +43,25 @@ defmodule YagyeCore.Payments.ProviderAdapter do
   @callback name_enquiry(opts :: %{msisdn: String.t(), network: String.t()}, credential :: map()) ::
               {:ok, name_enquiry_ok()} | {:error, map()}
 
-  @optional_callbacks [name_enquiry: 2]
+  # Sends settlement funds to a merchant's mobile wallet.
+  # Only native-rail adapters that support outbound disbursements implement this.
+  # `params` must include: amount (integer, minor units), currency, reference (idempotency key),
+  # recipient_msisdn (international format without leading +).
+  @callback disburse(params :: map(), credential :: map()) ::
+              {:ok, disburse_ok()} | {:pending, disburse_ok()} | {:error, map()}
+
+  @optional_callbacks [name_enquiry: 2, disburse: 2]
 
   @doc """
   Returns the adapter module for a given provider.
 
-  For external PSPs: reads `provider.adapter_module` (module name stored as a
-  string in the DB, without the `Elixir.` prefix) and resolves it to a module
-  atom. Raises if the module is not compiled — always a configuration bug.
-
-  For the simulator: falls through to `adapter/0` so the globally configured
-  adapter (the Mox mock in tests) is respected.
+  Resolution order:
+  1. The simulator (code: "simulator") always uses the globally configured adapter
+     so that Mox can replace it in tests.
+  2. Any provider with adapter_module set in the DB uses that module — this
+     covers both external PSPs and native rails like MTN MoMo.
+  3. Anything else falls back to the globally configured adapter.
   """
-  def for_provider(%Provider{kind: "native_rail"}), do: adapter()
   def for_provider(%Provider{code: "simulator"}), do: adapter()
 
   def for_provider(%Provider{adapter_module: mod}) when is_binary(mod) do
@@ -66,7 +74,9 @@ defmodule YagyeCore.Payments.ProviderAdapter do
               __STACKTRACE__
   end
 
-  @doc "Returns the globally configured adapter module (used for native rails and simulator)."
+  def for_provider(_), do: adapter()
+
+  @doc "Returns the globally configured adapter module (used for the simulator and as fallback)."
   def adapter do
     Application.fetch_env!(:yagye_core, :provider_adapter)
   end

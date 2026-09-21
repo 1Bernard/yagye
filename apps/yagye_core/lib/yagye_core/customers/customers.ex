@@ -57,6 +57,25 @@ defmodule YagyeCore.Customers do
     |> Repo.update()
   end
 
+  @doc """
+  Enriches a customer record with contact info collected during checkout.
+  Only overwrites nil fields — does not replace existing data.
+  """
+  def update_contact_info(%Customer{} = customer, attrs) do
+    contact =
+      attrs
+      |> Enum.reject(fn {k, _v} -> Map.get(customer, k) != nil end)
+      |> Map.new()
+
+    if contact == %{} do
+      {:ok, customer}
+    else
+      customer
+      |> Customer.update_contact_changeset(contact)
+      |> Repo.update()
+    end
+  end
+
   # ── Account Verifications ─────────────────────────────────────────────────────
 
   def get_account_verification(id) do

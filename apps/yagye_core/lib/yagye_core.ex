@@ -77,6 +77,7 @@ defmodule YagyeCore do
       Pricing.Schemas.PricingRule,
       Pricing.Schemas.FeeRecord,
       Pricing.Schemas.PlatformFeeInvoice,
+      Dashboard,
       Repo
     ]
 

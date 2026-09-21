@@ -79,7 +79,10 @@ defmodule YagyeCore.Invoices.Schemas.Invoice do
     |> validate_number(:amount_due, greater_than_or_equal_to: 0)
     |> put_public_id()
     |> unique_constraint(:public_id)
-    |> unique_constraint([:merchant_id, :number])
+    |> unique_constraint(:number,
+      name: :invoices_merchant_id_number_index,
+      message: "has already been taken for this merchant"
+    )
     |> foreign_key_constraint(:merchant_id)
     |> foreign_key_constraint(:customer_id)
     |> foreign_key_constraint(:payment_link_id)
@@ -95,6 +98,20 @@ defmodule YagyeCore.Invoices.Schemas.Invoice do
       :payment_link_id
     ])
     |> validate_inclusion(:state, @valid_states)
+    |> validate_state_transition(invoice.state, new_state)
+  end
+
+  def apply_payment_changeset(invoice, new_state, extra \\ %{}) do
+    invoice
+    |> cast(Map.put(extra, :state, new_state), [
+      :state,
+      :amount_paid,
+      :amount_due,
+      :paid_at
+    ])
+    |> validate_inclusion(:state, @valid_states)
+    |> validate_number(:amount_paid, greater_than_or_equal_to: 0)
+    |> validate_number(:amount_due, greater_than_or_equal_to: 0)
     |> validate_state_transition(invoice.state, new_state)
   end
 

@@ -5,17 +5,24 @@ defmodule YagyeCoreWeb.Controllers.Internal.CheckoutController do
 
   alias YagyeCore.Checkout.Schemas.CheckoutSession
   alias YagyeCore.CheckoutSessions
+  alias YagyeCore.Merchants.Schemas.Merchant
   alias YagyeCore.Payments
+  alias YagyeCore.Repo
 
   # GET /internal/checkout/sessions/by-token?token=:raw_token
   def session_by_token(conn, %{"token" => token}) do
     case CheckoutSessions.get_session_by_token(token) do
       {:ok, session} ->
         checkout_layout = fetch_checkout_layout(session.payment_link_id)
+        merchant_name = fetch_merchant_name(session.merchant_id)
 
         conn
         |> put_status(:ok)
-        |> json(Map.put(render_session(session), :checkout_layout, checkout_layout))
+        |> json(
+          render_session(session)
+          |> Map.put(:checkout_layout, checkout_layout)
+          |> Map.put(:merchant_name, merchant_name)
+        )
 
       {:error, :not_found} ->
         conn |> put_status(:not_found) |> json(%{error: "not_found"})
@@ -177,7 +184,7 @@ defmodule YagyeCoreWeb.Controllers.Internal.CheckoutController do
 
   defp create_payment(session, params) do
     attrs = %{
-      method: params["method"] || "mobile_money",
+      method: params["method"] || params["payment_method"] || "mobile_money",
       rail: "fiat_provider",
       amount: session.total_amount,
       currency: session.currency,
@@ -190,9 +197,12 @@ defmodule YagyeCoreWeb.Controllers.Internal.CheckoutController do
           "msisdn" => params["msisdn"],
           "network" => params["network"] || "MTN",
           "card_number" => params["card_number"],
-          "checkout_session_id" => session.public_id
+          "checkout_session_id" => session.public_id,
+          "customer_email" => params["customer_email"],
+          "customer_phone" => params["customer_phone"],
+          "customer_name" => params["customer_name"]
         }
-        |> Enum.reject(fn {_, v} -> is_nil(v) end)
+        |> Enum.reject(fn {_, v} -> is_nil(v) or v == "" end)
         |> Map.new()
     }
 
@@ -203,11 +213,17 @@ defmodule YagyeCoreWeb.Controllers.Internal.CheckoutController do
 
   defp fetch_checkout_layout(payment_link_id) do
     alias YagyeCore.PaymentLinks.Schemas.PaymentLink
-    alias YagyeCore.Repo
 
     case Repo.get(PaymentLink, payment_link_id) do
       nil -> nil
       link -> link.checkout_layout
+    end
+  end
+
+  defp fetch_merchant_name(merchant_id) do
+    case Repo.get(Merchant, merchant_id) do
+      nil -> nil
+      merchant -> merchant.trading_name
     end
   end
 

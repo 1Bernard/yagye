@@ -16,6 +16,9 @@ defmodule YagyeCore.Customers.Schemas.Customer do
     field(:merchant_customer_ref, :string)
     field(:kyc_tier, :string, default: "tier_1")
     field(:kyc_verified_at, :utc_datetime_usec)
+    field(:email, :string)
+    field(:phone, :string)
+    field(:name, :string)
 
     belongs_to(:merchant, Merchant)
 
@@ -37,6 +40,12 @@ defmodule YagyeCore.Customers.Schemas.Customer do
     customer
     |> change(kyc_tier: kyc_tier, kyc_verified_at: verified_at || DateTime.utc_now())
     |> validate_inclusion(:kyc_tier, @valid_kyc_tiers)
+  end
+
+  def update_contact_changeset(customer, attrs) do
+    customer
+    |> cast(attrs, [:email, :phone, :name])
+    |> validate_format(:email, ~r/^[^\s@]+@[^\s@]+\.[^\s@]+$/, message: "is invalid")
   end
 
   defp put_public_id(%Ecto.Changeset{valid?: true} = cs) do

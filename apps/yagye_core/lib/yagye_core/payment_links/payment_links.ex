@@ -35,6 +35,13 @@ defmodule YagyeCore.PaymentLinks do
     end
   end
 
+  def get_link_by_public_id(public_id) do
+    case Repo.get_by(PaymentLink, public_id: public_id) do
+      nil -> {:error, :not_found}
+      link -> {:ok, link}
+    end
+  end
+
   def get_link_by_slug(slug) do
     case Repo.get_by(PaymentLink, url_slug: slug) do
       nil -> {:error, :not_found}
@@ -123,7 +130,13 @@ defmodule YagyeCore.PaymentLinks do
   defp resolve_mode(_merchant_id, %{mode: mode}) when is_binary(mode), do: {:ok, mode}
 
   defp resolve_mode(merchant_id, _attrs) do
-    mode = if Merchants.live_mode_enabled?(merchant_id), do: "live", else: "simulation"
+    mode =
+      cond do
+        Merchants.live_mode_enabled?(merchant_id) -> "live"
+        Merchants.sandbox_mode_enabled?(merchant_id) -> "sandbox"
+        true -> "simulation"
+      end
+
     {:ok, mode}
   end
 

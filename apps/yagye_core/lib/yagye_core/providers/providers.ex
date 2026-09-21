@@ -146,6 +146,14 @@ defmodule YagyeCore.Providers do
     end
   end
 
+  # Returns the decrypted platform-level credential for an external PSP at a specific mode.
+  # Used by BankDispatchWorker for Paystack bank disbursements.
+  def fetch_credential_for_psp(provider_code, mode) do
+    with {:ok, provider} <- fetch_provider_by_code(provider_code) do
+      fetch_credential(provider.id, nil, mode)
+    end
+  end
+
   # Returns the decrypted merchant-level credential for an external PSP.
   # Used by the provider webhook controller to verify inbound signatures.
   def get_merchant_credential_for_psp(provider_code, merchant_id) do

@@ -13,6 +13,7 @@ defmodule YagyeCoreWeb.Response do
 
   def ok(conn, object), do: conn |> put_status(200) |> json(object)
   def created(conn, object), do: conn |> put_status(201) |> json(object)
+  def no_content(conn), do: conn |> put_status(204) |> json(%{})
 
   def not_found(conn) do
     conn

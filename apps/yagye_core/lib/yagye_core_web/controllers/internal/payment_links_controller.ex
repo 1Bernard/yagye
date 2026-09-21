@@ -9,6 +9,21 @@ defmodule YagyeCoreWeb.Controllers.Internal.PaymentLinksController do
 
   action_fallback YagyeCoreWeb.FallbackController
 
+  # GET /internal/payment-links/:public_id
+  def show(conn, %{"public_id" => public_id}) do
+    with {:ok, link} <- PaymentLinks.get_link_by_public_id(public_id) do
+      conn |> put_status(:ok) |> json(PaymentLinkJSON.data(link))
+    end
+  end
+
+  # POST /internal/payment-links/:public_id/deactivate
+  def deactivate(conn, %{"public_id" => public_id}) do
+    with {:ok, link} <- PaymentLinks.get_link_by_public_id(public_id),
+         {:ok, updated} <- PaymentLinks.deactivate_link(public_id, link.merchant_id) do
+      conn |> put_status(:ok) |> json(PaymentLinkJSON.data(updated))
+    end
+  end
+
   # PATCH /internal/payment-links/:public_id/checkout-layout
   # Body: { merchant_code, layout }
   def update_checkout_layout(conn, %{"public_id" => public_id} = params) do

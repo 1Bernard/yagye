@@ -83,6 +83,45 @@ defmodule YagyeCore.Invoices do
     end
   end
 
+  def update_invoice(public_id, attrs) do
+    with {:ok, invoice} <- get_invoice(public_id) do
+      if invoice.state != "draft",
+        do: {:error, :not_draft},
+        else: run_update_transaction(invoice, attrs)
+    end
+  end
+
+  defp run_update_transaction(invoice, attrs) do
+    line_item_attrs = Map.get(attrs, :line_items, [])
+
+    invoice_attrs = Map.drop(attrs, [:line_items, :customer_reference, :merchant_customer_ref])
+    {subtotal, tax, total} = compute_totals(line_item_attrs)
+
+    base_attrs =
+      invoice_attrs
+      |> Map.put(:subtotal_amount, subtotal)
+      |> Map.put(:tax_amount, tax)
+      |> Map.put(:total_amount, total)
+      |> Map.put(:amount_due, total)
+
+    result =
+      Multi.new()
+      |> Multi.update(:invoice, Invoice.changeset(invoice, base_attrs))
+      |> Multi.delete_all(
+        :old_items,
+        from(li in InvoiceLineItem, where: li.invoice_id == ^invoice.id)
+      )
+      |> Multi.run(:line_items, fn repo, %{invoice: inv} ->
+        insert_line_items(repo, inv, line_item_attrs)
+      end)
+      |> Repo.transaction()
+
+    case result do
+      {:ok, %{invoice: inv}} -> get_invoice(inv.public_id)
+      {:error, _step, reason, _} -> {:error, reason}
+    end
+  end
+
   def issue_invoice(public_id, payment_config \\ %{}) do
     with {:ok, invoice} <- get_invoice(public_id) do
       allowed_methods =
@@ -124,6 +163,24 @@ defmodule YagyeCore.Invoices do
     end
   end
 
+  def apply_payment(%Invoice{} = invoice, payment_amount)
+      when is_integer(payment_amount) and payment_amount > 0 do
+    new_paid = invoice.amount_paid + payment_amount
+    new_due = max(invoice.amount_due - payment_amount, 0)
+
+    {new_state, paid_at} =
+      if new_due == 0,
+        do: {"paid", DateTime.utc_now()},
+        else: {"partially_paid", nil}
+
+    extra = %{amount_paid: new_paid, amount_due: new_due}
+    extra = if paid_at, do: Map.put(extra, :paid_at, paid_at), else: extra
+
+    invoice
+    |> Invoice.apply_payment_changeset(new_state, extra)
+    |> Repo.update()
+  end
+
   def void_invoice(public_id) do
     with {:ok, invoice} <- get_invoice(public_id) do
       invoice
@@ -162,7 +219,13 @@ defmodule YagyeCore.Invoices do
   defp resolve_mode_for(_merchant_id, %{mode: mode}) when is_binary(mode), do: {:ok, mode}
 
   defp resolve_mode_for(merchant_id, _attrs) do
-    mode = if Merchants.live_mode_enabled?(merchant_id), do: "live", else: "simulation"
+    mode =
+      cond do
+        Merchants.live_mode_enabled?(merchant_id) -> "live"
+        Merchants.sandbox_mode_enabled?(merchant_id) -> "sandbox"
+        true -> "simulation"
+      end
+
     {:ok, mode}
   end
 
@@ -187,4 +250,25 @@ defmodule YagyeCore.Invoices do
 
   defp to_float(%Decimal{} = d), do: Decimal.to_float(d)
   defp to_float(n), do: n * 1.0
+
+  defp insert_line_items(repo, inv, line_item_attrs) do
+    items =
+      line_item_attrs
+      |> Enum.with_index()
+      |> Enum.map(fn {item, idx} ->
+        unit = Map.get(item, :unit_amount, 0)
+        qty = item |> Map.get(:quantity, 1) |> to_float()
+        bps = Map.get(item, :tax_rate_bps, 0)
+        total_li = round(unit * qty + unit * qty * bps / 10_000)
+
+        %InvoiceLineItem{}
+        |> InvoiceLineItem.changeset(
+          Map.merge(item, %{invoice_id: inv.id, position: idx, total_amount: total_li})
+        )
+        |> repo.insert()
+      end)
+
+    errors = Enum.filter(items, &match?({:error, _}, &1))
+    if errors == [], do: {:ok, Enum.map(items, fn {:ok, i} -> i end)}, else: hd(errors)
+  end
 end

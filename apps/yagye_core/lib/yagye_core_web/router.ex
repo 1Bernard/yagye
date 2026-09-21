@@ -40,16 +40,18 @@ defmodule YagyeCoreWeb.Router do
     as: InternalPaymentLinksController
 
   alias YagyeCoreWeb.Controllers.Internal.InvoicesController, as: InternalInvoicesController
+  alias YagyeCoreWeb.Controllers.Internal.InvoiceViewController
 
   alias YagyeCoreWeb.Controllers.Internal.CheckoutSessionsController,
     as: InternalCheckoutSessionsController
 
   alias YagyeCoreWeb.Controllers.Internal.CustomersController, as: InternalCustomersController
 
+  alias YagyeCoreWeb.Controllers.Internal.DashboardController, as: InternalDashboardController
+  alias YagyeCoreWeb.Controllers.Internal.PricingController, as: InternalPricingController
+
   alias YagyeCoreWeb.Controllers.Internal.SettlementBatchesController,
     as: InternalSettlementBatchesController
-
-  alias YagyeCoreWeb.Controllers.Internal.PricingController, as: InternalPricingController
 
   alias YagyeCoreWeb.Controllers.Fx.FxRateController
   alias YagyeCoreWeb.Controllers.Invoices.InvoiceController
@@ -179,6 +181,15 @@ defmodule YagyeCoreWeb.Router do
     get("/merchants/:merchant_id/settlement-controls", SettlementControlsController, :show)
     put("/merchants/:merchant_id/settlement-controls", SettlementControlsController, :upsert)
 
+    # Dashboard KPIs (portal ops view + merchant settlement summary)
+    get("/dashboard/ops", InternalDashboardController, :ops_summary)
+
+    get(
+      "/merchants/:merchant_code/dashboard/settlement",
+      InternalDashboardController,
+      :merchant_settlement
+    )
+
     post(
       "/settlement-batches/:batch_id/approve-dispatch",
       SettlementBatchApprovalsController,
@@ -194,6 +205,8 @@ defmodule YagyeCoreWeb.Router do
     # P16 — Payment links management (called by portal)
     get("/payment-links", InternalPaymentLinksController, :index)
     post("/payment-links", InternalPaymentLinksController, :create)
+    get("/payment-links/:public_id", InternalPaymentLinksController, :show)
+    post("/payment-links/:public_id/deactivate", InternalPaymentLinksController, :deactivate)
 
     patch(
       "/payment-links/:public_id/checkout-layout",
@@ -205,6 +218,8 @@ defmodule YagyeCoreWeb.Router do
     get("/merchants/:merchant_code/invoices", InternalInvoicesController, :index)
     post("/invoices", InternalInvoicesController, :create)
     get("/invoices/:id", InternalInvoicesController, :show)
+    get("/invoices/:public_id/view", InvoiceViewController, :show)
+    patch("/invoices/:id", InternalInvoicesController, :update)
     post("/invoices/:id/issue", InternalInvoicesController, :issue)
     post("/invoices/:id/void", InternalInvoicesController, :void)
 
@@ -254,6 +269,8 @@ defmodule YagyeCoreWeb.Router do
       post("/onboarding", ComplianceController, :submit_onboarding)
       post("/beneficial-owners", ComplianceController, :add_beneficial_owner)
       get("/beneficial-owners", ComplianceController, :list_beneficial_owners)
+      put("/beneficial-owners/:id", ComplianceController, :update_beneficial_owner)
+      delete("/beneficial-owners/:id", ComplianceController, :delete_beneficial_owner)
       post("/documents", ComplianceController, :upload_document)
       get("/documents", ComplianceController, :list_documents)
       get("/screening-status", ComplianceController, :screening_status)

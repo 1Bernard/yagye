@@ -432,10 +432,14 @@ defmodule YagyeCore.Payments do
   end
 
   defp check_velocity(merchant_id, customer_id, attrs) do
-    amount = Map.get(attrs, :amount) || Map.get(attrs, "amount")
-    method = Map.get(attrs, :method) || Map.get(attrs, "method")
-    currency = Map.get(attrs, :currency) || Map.get(attrs, "currency")
-    VelocityChecker.check(merchant_id, customer_id, amount, method, currency)
+    if YagyeCore.Merchants.live_mode_enabled?(merchant_id) do
+      amount = Map.get(attrs, :amount) || Map.get(attrs, "amount")
+      method = Map.get(attrs, :method) || Map.get(attrs, "method")
+      currency = Map.get(attrs, :currency) || Map.get(attrs, "currency")
+      VelocityChecker.check(merchant_id, customer_id, amount, method, currency)
+    else
+      :ok
+    end
   end
 
   defp insert_payment(merchant_id, attrs) do
@@ -509,7 +513,7 @@ defmodule YagyeCore.Payments do
 
   defp resolve_merchant(merchant_id) do
     case Repo.get(Merchant, merchant_id) do
-      nil -> {:error, :not_found}
+      nil -> {:error, :merchant_not_found}
       merchant -> {:ok, merchant}
     end
   end
@@ -522,9 +526,10 @@ defmodule YagyeCore.Payments do
   end
 
   defp current_mode(merchant) do
-    case YagyeCore.Merchants.live_mode_enabled?(merchant.id) do
-      true -> "live"
-      false -> "simulation"
+    cond do
+      YagyeCore.Merchants.live_mode_enabled?(merchant.id) -> "live"
+      YagyeCore.Merchants.sandbox_mode_enabled?(merchant.id) -> "sandbox"
+      true -> "simulation"
     end
   end
 
