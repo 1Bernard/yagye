@@ -34,7 +34,16 @@ defmodule YagyeCore.Merchants do
   }
 
   alias YagyeCore.Compliance
-  alias YagyeCore.Merchants.Schemas.{ApiKey, Merchant, MerchantApplication, MerchantMode}
+
+  alias YagyeCore.Merchants.Schemas.{
+    ApiKey,
+    Merchant,
+    MerchantAddress,
+    MerchantApplication,
+    MerchantContact,
+    MerchantMode
+  }
+
   alias YagyeCore.Outbox
   alias YagyeCore.Repo
 
@@ -206,17 +215,49 @@ defmodule YagyeCore.Merchants do
     {:ok, keys}
   end
 
+  def update_merchant_profile(public_id, attrs) do
+    with {:ok, merchant} <- get_merchant(public_id) do
+      merchant
+      |> Merchant.changeset(Map.take(attrs, ~w[business_type registration_type category tin]a))
+      |> Repo.update()
+    end
+  end
+
+  def upsert_contact(merchant_id, attrs) do
+    existing = Repo.get_by(MerchantContact, merchant_id: merchant_id)
+    contact = existing || %MerchantContact{merchant_id: merchant_id}
+
+    contact
+    |> MerchantContact.changeset(Map.put(attrs, :merchant_id, merchant_id))
+    |> Repo.insert_or_update()
+  end
+
+  def upsert_address(merchant_id, address_type, attrs) do
+    existing = Repo.get_by(MerchantAddress, merchant_id: merchant_id, address_type: address_type)
+    address = existing || %MerchantAddress{}
+
+    address
+    |> MerchantAddress.changeset(
+      attrs
+      |> Map.put(:merchant_id, merchant_id)
+      |> Map.put(:address_type, address_type)
+    )
+    |> Repo.insert_or_update()
+  end
+
   def live_mode_enabled?(merchant_id) do
     Repo.exists?(
-      from m in MerchantMode,
+      from(m in MerchantMode,
         where: m.merchant_id == ^merchant_id and m.mode == :live
+      )
     )
   end
 
   def sandbox_mode_enabled?(merchant_id) do
     Repo.exists?(
-      from m in MerchantMode,
+      from(m in MerchantMode,
         where: m.merchant_id == ^merchant_id and m.mode == :sandbox
+      )
     )
   end
 
@@ -715,10 +756,11 @@ defmodule YagyeCore.Merchants do
     now = DateTime.utc_now()
 
     query =
-      from k in ApiKey,
+      from(k in ApiKey,
         where: k.key_prefix == ^key_prefix,
         where: is_nil(k.revoked_at),
         where: is_nil(k.expires_at) or k.expires_at > ^now
+      )
 
     one_or_error(query)
   end

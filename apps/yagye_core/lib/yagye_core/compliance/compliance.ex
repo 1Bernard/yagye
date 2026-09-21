@@ -16,7 +16,8 @@ defmodule YagyeCore.Compliance do
     BeneficialOwner,
     KybDocument,
     ScreeningHit,
-    ScreeningSubject
+    ScreeningSubject,
+    ServiceAgreement
   }
 
   alias YagyeCore.Compliance.Workers.ScreeningWorker
@@ -61,9 +62,12 @@ defmodule YagyeCore.Compliance do
     dispatch(%SubmitKybDocument{
       merchant_id: merchant_id,
       kind: Map.get(attrs, :kind, attrs["kind"]),
+      label: Map.get(attrs, :label, attrs["label"]),
       s3_key: Map.get(attrs, :s3_key, attrs["s3_key"]),
       checksum: Map.get(attrs, :checksum, attrs["checksum"]),
-      uploaded_by: Map.get(attrs, :uploaded_by, attrs["uploaded_by"])
+      uploaded_by: Map.get(attrs, :uploaded_by, attrs["uploaded_by"]),
+      required_for_business_types:
+        Map.get(attrs, :required_for_business_types, attrs["required_for_business_types"]) || []
     })
   end
 
@@ -240,6 +244,35 @@ defmodule YagyeCore.Compliance do
     end
   end
 
+  def accept_service_agreement(merchant_id, attrs) do
+    with {:ok, merchant} <- resolve_merchant(merchant_id) do
+      attrs =
+        attrs
+        |> Map.put(:merchant_id, merchant.id)
+        |> Map.put_new(:accepted_at, DateTime.utc_now())
+
+      %ServiceAgreement{}
+      |> ServiceAgreement.changeset(attrs)
+      |> Repo.insert()
+    end
+  end
+
+  def review_kyb_document(document_id, reviewer_code, attrs) do
+    case Repo.get(KybDocument, document_id) do
+      nil ->
+        {:error, :not_found}
+
+      doc ->
+        doc
+        |> KybDocument.review_changeset(
+          attrs
+          |> Map.put(:reviewed_by, reviewer_code)
+          |> Map.put_new(:reviewed_at, DateTime.utc_now())
+        )
+        |> Repo.update()
+    end
+  end
+
   # ── Dispatch ─────────────────────────────────────────────────────────────────
 
   defp dispatch(%SubmitOnboardingDetails{} = cmd) do
@@ -339,9 +372,11 @@ defmodule YagyeCore.Compliance do
       attrs = %{
         merchant_id: merchant.id,
         kind: cmd.kind,
+        label: cmd.label,
         s3_key: s3_key,
         checksum: cmd.checksum,
-        uploaded_by: cmd.uploaded_by
+        uploaded_by: cmd.uploaded_by,
+        required_for_business_types: cmd.required_for_business_types
       }
 
       %KybDocument{} |> KybDocument.changeset(attrs) |> Repo.insert()
