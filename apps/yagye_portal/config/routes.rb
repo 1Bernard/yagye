@@ -142,6 +142,18 @@ Rails.application.routes.draw do
     delete "team/roles/:key",     to: "roles#destroy"
   end
 
+  # ── Onboarding / KYB self-serve (merchant users only) ───────────────────
+  scope module: "onboarding" do
+    get   "verify",                    to: "verify#index",             as: :verify
+    get   "verify/:step",              to: "verify#show",              as: :verify_step
+    patch "verify/profile",            to: "verify#update_profile",    as: :update_kyb_profile
+    patch "verify/contact",            to: "verify#update_contact",    as: :update_kyb_contact
+    patch "verify/settlement",         to: "verify#update_settlement", as: :update_kyb_settlement
+    post  "verify/documents",          to: "verify#upload_document",   as: :upload_kyb_document
+    post  "verify/agreement",          to: "verify#submit_agreement",  as: :submit_kyb_agreement
+    get   "onboarding/kyb-banner",     to: "verify#banner",            as: :kyb_banner
+  end
+
   # ── Account domain ───────────────────────────────────────────────────────
   scope module: "account" do
     get   "onboarding/kyc",             to: "kyc#index",                as: :kyc_onboarding

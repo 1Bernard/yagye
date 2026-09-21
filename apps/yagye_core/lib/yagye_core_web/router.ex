@@ -53,6 +53,8 @@ defmodule YagyeCoreWeb.Router do
   alias YagyeCoreWeb.Controllers.Internal.SettlementBatchesController,
     as: InternalSettlementBatchesController
 
+  alias YagyeCoreWeb.Controllers.Internal.KybController
+
   alias YagyeCoreWeb.Controllers.Fx.FxRateController
   alias YagyeCoreWeb.Controllers.Invoices.InvoiceController
   alias YagyeCoreWeb.Controllers.Merchants.MerchantController
@@ -156,6 +158,14 @@ defmodule YagyeCoreWeb.Router do
       InternalComplianceController,
       :screening_status
     )
+
+    # KYB merchant self-service (portal → core, called on merchant's behalf)
+    get("/merchants/:merchant_code/kyb-status", KybController, :show_kyb_status)
+    patch("/merchants/:merchant_code/kyb-profile", KybController, :update_kyb_profile)
+    put("/merchants/:merchant_code/contacts", KybController, :upsert_contact)
+    put("/merchants/:merchant_code/addresses/:address_type", KybController, :upsert_address)
+    post("/merchants/:merchant_code/documents", KybController, :upload_document)
+    post("/merchants/:merchant_code/service-agreements", KybController, :accept_agreement)
 
     # Ops-initiated full KYB approval (enforces 25% UBO screening threshold)
     post("/merchants/:merchant_code/kyb-approve", InternalMerchantsController, :kyb_approve)

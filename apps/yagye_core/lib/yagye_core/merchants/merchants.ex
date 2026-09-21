@@ -215,6 +215,15 @@ defmodule YagyeCore.Merchants do
     {:ok, keys}
   end
 
+  def get_contact(merchant_id) do
+    Repo.get_by(MerchantContact, merchant_id: merchant_id)
+  end
+
+  def list_addresses(merchant_id) do
+    from(a in MerchantAddress, where: a.merchant_id == ^merchant_id)
+    |> Repo.all()
+  end
+
   def update_merchant_profile(public_id, attrs) do
     with {:ok, merchant} <- get_merchant(public_id) do
       merchant

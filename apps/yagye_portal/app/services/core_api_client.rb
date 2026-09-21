@@ -197,6 +197,43 @@ class CoreApiClient
          { approved_by: approved_by })
   end
 
+  # ── KYB merchant self-service (merchant-facing verify flow) ──────────────────
+
+  # GET /internal/merchants/:code/kyb-status
+  def get_kyb_status(merchant_code)
+    get("/internal/merchants/#{merchant_code}/kyb-status")
+  end
+
+  # PATCH /internal/merchants/:code/kyb-profile
+  def update_kyb_profile(merchant_code, attrs)
+    patch("/internal/merchants/#{merchant_code}/kyb-profile", attrs)
+  end
+
+  # PUT /internal/merchants/:code/contacts
+  def upsert_merchant_contact(merchant_code, attrs)
+    put("/internal/merchants/#{merchant_code}/contacts", attrs)
+  end
+
+  # PUT /internal/merchants/:code/addresses/:address_type
+  def upsert_merchant_address(merchant_code, address_type, attrs)
+    put("/internal/merchants/#{merchant_code}/addresses/#{address_type}", attrs)
+  end
+
+  # POST /internal/merchants/:code/documents (merchant KYB doc upload)
+  def upload_kyb_document(merchant_code, attrs)
+    post("/internal/merchants/#{merchant_code}/documents", attrs)
+  end
+
+  # POST /internal/merchants/:code/service-agreements
+  def accept_service_agreement(merchant_code, attrs)
+    post("/internal/merchants/#{merchant_code}/service-agreements", attrs)
+  end
+
+  # PUT /internal/merchants/:code/settlement-controls (merchant destination only)
+  def update_settlement_destination(merchant_code, attrs)
+    put("/internal/merchants/#{merchant_code}/settlement-controls", attrs)
+  end
+
   # ── KYB / Compliance (ops read + write) ───────────────────────────────────
 
   # GET /internal/merchants/:code/beneficial-owners

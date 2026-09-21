@@ -244,6 +244,14 @@ defmodule YagyeCore.Compliance do
     end
   end
 
+  def list_service_agreements(merchant_id) do
+    from(a in ServiceAgreement,
+      where: a.merchant_id == ^merchant_id,
+      order_by: [desc: a.inserted_at]
+    )
+    |> Repo.all()
+  end
+
   def accept_service_agreement(merchant_id, attrs) do
     with {:ok, merchant} <- resolve_merchant(merchant_id) do
       attrs =
