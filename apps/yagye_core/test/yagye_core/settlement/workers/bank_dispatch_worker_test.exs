@@ -48,33 +48,9 @@ defmodule YagyeCore.Settlement.Workers.BankDispatchWorkerTest do
     BankDispatchWorker.perform(%Oban.Job{args: %{"batch_id" => batch_id}})
   end
 
-  defp stub_disbursement_success do
-    ref = "DISB_#{System.unique_integer([:positive])}"
-
-    Req.Test.stub(:simulator_http, fn conn ->
-      conn
-      |> Plug.Conn.put_status(201)
-      |> Req.Test.json(%{
-        "disbursement_ref" => ref,
-        "state" => "PAID",
-        "amount_minor" => 10_000,
-        "currency" => "GHS",
-        "destination_type" => "BANK",
-        "destination_ref" => "merchant_test",
-        "paid_at" => DateTime.to_iso8601(DateTime.utc_now())
-      })
-    end)
-
-    ref
-  end
-
-  defp stub_disbursement_error(status) do
-    Req.Test.stub(:simulator_http, fn conn ->
-      conn
-      |> Plug.Conn.put_status(status)
-      |> Req.Test.json(%{"error" => "server_error"})
-    end)
-  end
+  # Simulation batches use a generated ref — no HTTP stub needed.
+  # The ref is deterministic: "sim_disb_{batch.id}".
+  defp simulation_dispatch_ref(batch), do: "sim_disb_#{batch.id}"
 
   # ── Tests ─────────────────────────────────────────────────────────────────────
 
@@ -91,18 +67,16 @@ defmodule YagyeCore.Settlement.Workers.BankDispatchWorkerTest do
       provider: provider
     } do
       batch = settled_batch(merchant, provider)
-      disbursement_ref = stub_disbursement_success()
 
       assert :ok = run_worker(batch.id)
 
       updated = Repo.reload!(batch)
-      assert updated.bank_dispatch_ref == disbursement_ref
+      assert updated.bank_dispatch_ref == simulation_dispatch_ref(batch)
       assert %DateTime{} = updated.bank_dispatched_at
     end
 
     test "posts batch_dispatched ledger entry", %{merchant: merchant, provider: provider} do
       batch = settled_batch(merchant, provider)
-      stub_disbursement_success()
 
       run_worker(batch.id)
 
@@ -121,7 +95,6 @@ defmodule YagyeCore.Settlement.Workers.BankDispatchWorkerTest do
       provider: provider
     } do
       batch = settled_batch(merchant, provider)
-      stub_disbursement_success()
 
       run_worker(batch.id)
 
@@ -150,21 +123,19 @@ defmodule YagyeCore.Settlement.Workers.BankDispatchWorkerTest do
       provider: provider
     } do
       batch = settled_batch(merchant, provider)
-      stub_disbursement_success()
 
       # First dispatch
       assert :ok = run_worker(batch.id)
       first_ref = Repo.reload!(batch).bank_dispatch_ref
 
-      # Second call — stub would give a different ref but worker must exit early
-      stub_disbursement_success()
+      # Second call — idempotency guard must exit early without changing the ref
       assert :ok = run_worker(batch.id)
 
       assert Repo.reload!(batch).bank_dispatch_ref == first_ref
     end
   end
 
-  describe "error handling" do
+  describe "approval gate" do
     setup do
       merchant = Fixtures.merchant_fixture()
       provider = Fixtures.simulator_provider_fixture()
@@ -172,17 +143,24 @@ defmodule YagyeCore.Settlement.Workers.BankDispatchWorkerTest do
       %{merchant: merchant, provider: provider}
     end
 
-    test "returns error tuple when disbursement API fails", %{
+    test "enters awaiting_approval when batch exceeds threshold", %{
       merchant: merchant,
       provider: provider
     } do
+      # Set a low threshold so the batch amount exceeds it
+      {:ok, _} =
+        Settlement.upsert_settlement_controls(merchant.id, %{
+          approval_threshold: 1,
+          approver_user_codes: ["ops_user"],
+          updated_by: "test"
+        })
+
       batch = settled_batch(merchant, provider)
-      stub_disbursement_error(500)
 
-      assert {:error, {:http_error, 500}} = run_worker(batch.id)
+      assert :ok = run_worker(batch.id)
 
-      # batch is unchanged
       updated = Repo.reload!(batch)
+      assert updated.state == "awaiting_approval"
       assert updated.bank_dispatch_ref == nil
     end
   end
@@ -208,8 +186,6 @@ defmodule YagyeCore.Settlement.Workers.BankDispatchWorkerTest do
 
       {:ok, _payment} = payment |> Payment.transition_changeset("succeeded") |> Repo.update()
       {:ok, batch} = Settlement.create_batch(merchant.id, provider.id, "GHS", "simulation")
-
-      stub_disbursement_success()
 
       assert {:ok, _settled} =
                SettlementProcessorWorker.perform(%Oban.Job{
