@@ -6,6 +6,7 @@ Rails.application.routes.draw do
 
   authenticated :user do
     root "dashboard#index", as: :authenticated_root
+    get "dashboard/provider-split", to: "dashboard#provider_split_breakdown", as: :dashboard_provider_split
   end
 
   devise_scope :user do
@@ -173,22 +174,27 @@ Rails.application.routes.draw do
 
   # ── Checkout / Payment links (P16) ──────────────────────────────────────────
   scope module: "checkout" do
-    get  "payment-links",             to: "payment_links#index",          as: :payment_links
-    get  "payment-links/filter",      to: "payment_links#filter",         as: :filter_payment_links
-    get  "payment-links/new",         to: "payment_links#new",            as: :new_payment_link
-    post "payment-links",             to: "payment_links#create"
-    get  "payment-links/:id/layout",  to: "payment_links#layout",         as: :payment_link_layout
-    patch "payment-links/:id/layout", to: "payment_links#update_layout"
+    get  "payment-links",                    to: "payment_links#index",      as: :payment_links
+    get  "payment-links/filter",             to: "payment_links#filter",     as: :filter_payment_links
+    get  "payment-links/new",                to: "payment_links#new",        as: :new_payment_link
+    post "payment-links",                    to: "payment_links#create"
+    get  "payment-links/:id",                to: "payment_links#show",       as: :payment_link
+    get  "payment-links/:id/layout",         to: "payment_links#layout",     as: :payment_link_layout
+    patch "payment-links/:id/layout",        to: "payment_links#update_layout"
+    post "payment-links/:id/deactivate",     to: "payment_links#deactivate", as: :deactivate_payment_link
   end
 
   # ── Invoices (P13) ───────────────────────────────────────────────────────────
   scope module: "checkout" do
-    get  "invoices",              to: "invoices#index",  as: :invoices
-    get  "invoices/new",          to: "invoices#new",    as: :new_invoice
-    post "invoices",              to: "invoices#create"
-    get  "invoices/:id",          to: "invoices#show",   as: :invoice
-    post "invoices/:id/issue",    to: "invoices#issue",  as: :issue_invoice
-    post "invoices/:id/void",     to: "invoices#void",   as: :void_invoice
+    get   "invoices",              to: "invoices#index",  as: :invoices
+    get   "invoices/new",          to: "invoices#new",    as: :new_invoice
+    post  "invoices",              to: "invoices#create"
+    get   "invoices/:id/edit",     to: "invoices#edit",   as: :edit_invoice
+    patch "invoices/:id",          to: "invoices#update"
+    get   "invoices/:id",          to: "invoices#show",   as: :invoice
+    post  "invoices/:id/issue",    to: "invoices#issue",  as: :issue_invoice
+    post  "invoices/:id/void",      to: "invoices#void",      as: :void_invoice
+    get   "invoices/:id/duplicate", to: "invoices#duplicate", as: :duplicate_invoice
   end
 
   # ── Checkout Sessions (P16) ───────────────────────────────────────────────────

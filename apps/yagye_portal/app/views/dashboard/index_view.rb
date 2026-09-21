@@ -11,7 +11,8 @@ module Dashboard
                    chart_dates: [], chart_values: [],
                    provider_data: [], method_data: [],
                    recent_payments: [],
-                   fx_currency: "GHS", fx_rate: nil)
+                   fx_currency: "GHS", fx_rate: nil,
+                   is_ops: false)
       @volume                = volume
       @prev_volume           = prev_volume.to_i
       @tx_count              = tx_count
@@ -30,6 +31,7 @@ module Dashboard
       @recent_payments       = recent_payments
       @fx_currency           = fx_currency || "GHS"
       @fx_rate               = fx_rate
+      @is_ops                = is_ops
     end
 
     def view_template
@@ -342,8 +344,11 @@ module Dashboard
             center_sublabel: "total volume",
             height:          170
           )
-          div(class: "mt-4 flex flex-col gap-3") do
+          div(class: "mt-4 flex flex-col gap-[2px]") do
             @provider_data.each { |p| legend_row(p) }
+          end
+          if @is_ops
+            p(class: "text-[10.5px] text-gray-400 mt-3 text-right") { plain "Click a rail to see merchant breakdown" }
           end
         end
       end
@@ -513,14 +518,30 @@ module Dashboard
     end
 
     def legend_row(item)
-      div(class: "flex items-center justify-between") do
-        div(class: "flex items-center gap-2 min-w-0") do
-          span(class: "w-2 h-2 rounded-full flex-shrink-0", style: "background:#{item[:color]}")
-          span(class: "#{TYPE_CAPTION} truncate") { plain item[:name] }
+      base_cls = "flex items-center justify-between"
+      if @is_ops
+        a(href:  dashboard_provider_split_path(provider_code: item[:key]),
+          class: "#{base_cls} rounded-lg px-2 py-1 -mx-2 hover:bg-gray-50 transition-colors cursor-pointer no-underline group",
+          data:  { turbo_frame: "drawer-frame" }) do
+          legend_row_inner(item, show_chevron: true)
         end
-        div(class: "flex items-center gap-2 flex-shrink-0") do
-          span(class: "text-[11.5px] font-semibold text-gray-400") { plain "#{item[:pct]}%" }
-          span(class: "#{TYPE_MONO} text-[11.5px]")                { plain format_money(item[:amount]) }
+      else
+        div(class: base_cls) { legend_row_inner(item) }
+      end
+    end
+
+    def legend_row_inner(item, show_chevron: false)
+      div(class: "flex items-center gap-2 min-w-0") do
+        span(class: "w-2 h-2 rounded-full flex-shrink-0", style: "background:#{item[:color]}")
+        span(class: "#{TYPE_CAPTION} truncate") { plain item[:name] }
+      end
+      div(class: "flex items-center gap-2 flex-shrink-0") do
+        span(class: "text-[11.5px] font-semibold text-gray-400") { plain "#{item[:pct]}%" }
+        span(class: "#{TYPE_MONO} text-[11.5px]")                { plain format_money(item[:amount]) }
+        if show_chevron
+          span(class: "w-3 h-3 text-gray-300 group-hover:text-gray-500 transition-colors ml-1 flex-shrink-0") do
+            render UI::Icon.new(:chev, class: "w-full h-full")
+          end
         end
       end
     end

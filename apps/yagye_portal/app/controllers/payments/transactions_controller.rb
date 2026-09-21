@@ -4,11 +4,24 @@ module Payments
   class TransactionsController < ApplicationController
     def index
       authorize Payment, :index?
-      scope = policy_scope(Payment)
-      pagy, payments = pagy(Payments::TransactionsQuery.new(scope).call(filters), limit: 25)
+      base_scope = policy_scope(Payment)
+      is_ops     = current_user.internal_staff?
+
+      query_scope = if is_ops
+        base_scope
+          .joins("LEFT JOIN portal_merchants ON portal_merchants.merchant_code = portal_payments.merchant_code")
+          .select("portal_payments.*, COALESCE(NULLIF(portal_merchants.trading_name, ''), portal_payments.merchant_code) AS merchant_name")
+      else
+        base_scope
+      end
+
+      pagy, payments = pagy(Payments::TransactionsQuery.new(query_scope).call(filters), limit: 25)
+
       render Payments::IndexView.new(
         payments:      payments,
         pagy:          pagy,
+        stats:         payment_stats(base_scope),
+        show_merchant: is_ops,
         can_view_pii:  policy(Payment).view_customer_pii?,
         can_export:    policy(Payment).export?,
         status_filter: params[:status],
@@ -69,6 +82,18 @@ module Payments
 
     def filters
       params.permit(:status, :q, :from, :to, :provider, :method).to_h.symbolize_keys
+    end
+
+    def payment_stats(scope)
+      mtd_start = Time.current.beginning_of_month
+      paid_mtd   = scope.where(status: "paid").where("paid_at >= ?", mtd_start)
+      {
+        volume_mtd:       paid_mtd.sum(:amount),
+        volume_currency:  scope.pick(:currency) || "GHS",
+        transactions_mtd: paid_mtd.count,
+        pending:          scope.where(status: %w[created processing requires_action]).count,
+        failed:           scope.where(status: %w[failed cancelled]).count
+      }
     end
   end
 end

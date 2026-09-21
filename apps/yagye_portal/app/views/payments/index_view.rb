@@ -4,10 +4,13 @@ module Payments
   class IndexView < ApplicationComponent
     include UI::Theme
 
-    def initialize(payments:, pagy:, can_view_pii: false, can_export: false,
+    def initialize(payments:, pagy:, stats: {}, show_merchant: false,
+                   can_view_pii: false, can_export: false,
                    status_filter: nil, method_filter: nil, from: nil, to: nil, query: nil)
       @payments       = payments
       @pagy           = pagy
+      @stats          = stats
+      @show_merchant  = show_merchant
       @can_view_pii   = can_view_pii
       @can_export     = can_export
       @status_filter  = status_filter
@@ -31,17 +34,24 @@ module Payments
     private
 
     def stat_band
+      vol     = @stats[:volume_mtd].to_i
+      ccy     = @stats[:volume_currency] || "GHS"
+      txn_mtd = @stats[:transactions_mtd].to_i
+      pending = @stats[:pending].to_i
+      failed  = @stats[:failed].to_i
+
       render UI::Grid.new(columns: 4) do
-        stat_cell("Volume (MTD)",       "GHS 0.00", icon: :trending_up,  color: BRAND,  tint: TINT_BRAND)
-        stat_cell("Transactions (MTD)", "0",         icon: :layers,       color: PURPLE, tint: TINT_PURPLE)
-        stat_cell("Pending",            "0",         icon: :clock,        color: AMBER,  tint: TINT_AMBER)
-        stat_cell("Failed",             "0",         icon: :alert_circle, color: RED,    tint: TINT_RED)
+        stat_cell("Volume (MTD)",       format_money(vol, currency: ccy), icon: :trending_up,  color: BRAND,  tint: TINT_BRAND)
+        stat_cell("Transactions (MTD)", txn_mtd.to_s,                     icon: :layers,       color: PURPLE, tint: TINT_PURPLE)
+        stat_cell("Pending",            pending.to_s,                     icon: :clock,        color: AMBER,  tint: TINT_AMBER)
+        stat_cell("Failed",             failed.to_s,                      icon: :alert_circle, color: RED,    tint: TINT_RED)
       end
     end
 
     def payments_table
-      can_view_pii = @can_view_pii
-      offset       = @pagy.offset
+      can_view_pii  = @can_view_pii
+      show_merchant = @show_merchant
+      offset        = @pagy.offset
 
       render UI::Datatable.new(records: @payments, pagy: @pagy, empty_message: empty_message) do |t|
         t.header { toolbar_content }
@@ -49,14 +59,48 @@ module Payments
         t.column("#", class: "text-gray-400 tabular-nums text-right w-8") do |_, i|
           plain((offset + i + 1).to_s)
         end
-        t.column("Amount", class: "text-right tabular-nums font-semibold") { |p| p.formatted_amount }
-        t.column("Customer") { |p| can_view_pii ? p.customer_display : (p.masked_msisdn || "—") }
-        t.column("Method") do |p|
-          div(class: "flex items-center gap-1.5") do
-            span(class: "w-3.5 h-3.5 text-gray-400 flex-shrink-0") do
-              render UI::Icon.new(p.method_icon, class: "w-full h-full")
+        if show_merchant
+          t.column("Merchant") do |p|
+            name = p.respond_to?(:merchant_name) ? p.merchant_name.to_s : ""
+            code = p.merchant_code.to_s
+            uuid_like = code.match?(/\A[0-9a-f]{8}-[0-9a-f]{4}-/i)
+            display   = name.presence || (uuid_like ? "#{code.first(8)}…" : code)
+            div do
+              span(class: "text-[13px] font-medium text-gray-800") { plain display }
+              if name.present? && name != code
+                span(class: "block text-[11px] text-gray-400 font-mono mt-px") { plain code }
+              end
             end
-            span { plain p.method_label }
+          end
+        end
+        t.column("Amount", class: "text-right tabular-nums font-semibold") { |p| p.formatted_amount }
+        t.column("Customer") do |p|
+          val = can_view_pii ? p.customer_display : (p.masked_msisdn || p.customer_email&.gsub(/.(?=.*@)/, "•") || "—")
+          plain val
+        end
+        t.column("Method") do |p|
+          mode_cls = case p.mode
+                     when "live"       then "text-green-700 bg-green-50"
+                     when "sandbox"    then "text-amber-700 bg-amber-50"
+                     else                   "text-gray-500 bg-gray-100"
+                     end
+          div do
+            div(class: "flex items-center gap-1.5") do
+              if (logo = p.method_logo)
+                img(src: asset_path(logo), alt: "",
+                    class: "h-4 w-auto object-contain flex-shrink-0")
+              else
+                span(class: "w-3.5 h-3.5 text-gray-400 flex-shrink-0") do
+                  render UI::Icon.new(p.method_icon, class: "w-full h-full")
+                end
+              end
+              span(class: TYPE_BODY_MD) { plain p.method_label }
+            end
+            if show_merchant && p.mode.present?
+              span(class: "inline-flex items-center px-[5px] py-px rounded text-[10px] font-semibold capitalize #{mode_cls} mt-[3px]") do
+                plain p.mode
+              end
+            end
           end
         end
         t.column("Reference", class: "font-mono text-[11.5px]") do |p|

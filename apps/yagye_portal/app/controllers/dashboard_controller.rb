@@ -1,6 +1,41 @@
 # frozen_string_literal: true
 
 class DashboardController < ApplicationController
+  def provider_split_breakdown
+    authorize :dashboard, :index?
+    provider_code = params[:provider_code].to_s
+    return head :bad_request if provider_code.blank?
+
+    scope     = payment_scope
+    mtd_start = Time.current.beginning_of_month
+
+    rows = scope
+      .joins("LEFT JOIN portal_merchants ON portal_merchants.merchant_code = portal_payments.merchant_code")
+      .where(provider: provider_code, status: "paid")
+      .where("portal_payments.paid_at >= ?", mtd_start)
+      .group("portal_payments.merchant_code, COALESCE(NULLIF(portal_merchants.trading_name, ''), portal_payments.merchant_code)")
+      .select(
+        "COALESCE(NULLIF(portal_merchants.trading_name, ''), portal_payments.merchant_code) AS merchant_name",
+        "portal_payments.merchant_code",
+        "SUM(portal_payments.amount) AS total_volume",
+        "COUNT(portal_payments.id) AS tx_count"
+      )
+      .order("SUM(portal_payments.amount) DESC")
+      .limit(10)
+
+    total         = rows.sum { |r| r.total_volume.to_i }
+    provider_name = Payment::PROVIDERS.fetch(provider_code, provider_code.humanize)
+    color         = Payments::VolumeSummaryQuery::PROVIDER_COLORS.fetch(provider_code, "#9ca3af")
+
+    render Dashboard::ProviderSplitDrawerView.new(
+      provider_code: provider_code,
+      provider_name: provider_name,
+      color:         color,
+      rows:          rows,
+      total:         total
+    )
+  end
+
   def index
     authorize :dashboard, :index?
     scope      = payment_scope
@@ -26,7 +61,8 @@ class DashboardController < ApplicationController
       method_data:        summary[:method_data],
       recent_payments:    scope.recent.limit(8),
       fx_currency:        fx_currency,
-      fx_rate:            fetch_fx_rate(fx_currency)
+      fx_rate:            fetch_fx_rate(fx_currency),
+      is_ops:             current_user.internal_staff?
     )
   end
 
