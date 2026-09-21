@@ -102,7 +102,7 @@ module Onboarding
       progress = KybProgress.new(result.success? ? result.body : {})
       return head(:no_content) if progress.all_complete?
 
-      render Onboarding::KybBannerView.new(progress: progress)
+      render Shared::KybBanner.new(progress: progress)
     end
 
     private

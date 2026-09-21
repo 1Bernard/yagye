@@ -351,5 +351,26 @@ module UI
     def self.status_classes(status)
       STATUS_MAP.fetch(status.to_s, STATUS_NEUTRAL)
     end
+
+    # Convenience hash for custom-page views that use CSS custom properties
+    # in inline style attributes (e.g. `style: "color: #{colors[:text_primary]}"`).
+    # All entries resolve to the CSS token strings defined above.
+    def colors
+      {
+        brand_primary:  BRAND,
+        brand_subtle:   TINT_BRAND,
+        warning:        AMBER,
+        warning_subtle: TINT_AMBER,
+        success:        GREEN,
+        success_subtle: TINT_GREEN,
+        surface:        CARD_BG,
+        surface_subtle: SURFACE,
+        border:         BORDER,
+        border_med:     BORDER_MED,
+        text_primary:   INK,
+        text_secondary: BODY_TEXT,
+        text_muted:     MUTED_TEXT
+      }
+    end
   end
 end

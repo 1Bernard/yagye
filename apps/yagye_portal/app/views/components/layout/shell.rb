@@ -16,8 +16,10 @@ module Layout
       div(class: "flex h-screen overflow-hidden bg-gray-50 font-sans") do
         render Layout::Sidebar.new(active: @active_nav)
         div(class: "flex-1 flex flex-col min-w-0 overflow-hidden") do
-          kyb_banner_for_merchant
           render Layout::Topbar.new(title: @title, subtitle: @subtitle, breadcrumbs: @breadcrumbs)
+          # Lazy-loaded KYB banner — fetched after page render so it never blocks load.
+          # The frame stays empty if KYB is complete or user is not a merchant.
+          turbo_frame_tag("kyb-banner", src: kyb_banner_path) if current_user&.merchant_user?
           main(class: "flex-1 min-h-0 #{@padded ? 'p-6 overflow-y-auto' : 'overflow-hidden'}") { yield }
         end
       end
@@ -29,15 +31,6 @@ module Layout
     end
 
     private
-
-    def kyb_banner_for_merchant
-      return unless helpers.current_user&.merchant_user?
-
-      tier = helpers.current_user.merchant_tier.to_i
-      return if tier >= 3
-
-      render Shared::KybBanner.new(merchant_tier: tier)
-    end
 
     # Permanent empty Turbo Frame that any row link can target with
     # `data: { turbo_frame: "drawer-frame" }` to load a detail view.

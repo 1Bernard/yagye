@@ -143,12 +143,9 @@ module Onboarding
       end
 
       def input_class
-        "w-full rounded-lg border px-3 py-2 text-sm focus:outline-none focus:ring-2 " \
-          "transition-colors #{colors_style_for_input}"
-      end
-
-      def colors_style_for_input
-        "border-#{colors[:border]} bg-#{colors[:surface]} text-#{colors[:text_primary]}"
+        "w-full rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-900 " \
+          "focus:outline-none focus:ring-2 focus:ring-blue-500/10 focus:border-blue-400 " \
+          "focus:bg-white transition-all"
       end
 
       def csrf_meta_tags_field

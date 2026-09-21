@@ -11,10 +11,15 @@ module Onboarding
 
     def view_template
       div(class: "min-h-screen", style: "background: #{colors[:surface_subtle]}") do
-        render Shared::PageHeader.new(
-          title: "Business Verification",
-          description: "Complete all steps to unlock full access to your account."
-        )
+        div(class: "bg-white border-b px-4 sm:px-8 py-4 flex items-center justify-between",
+            style: "border-color: #{colors[:border]}") do
+          span(class: "text-sm font-semibold", style: "color: #{colors[:text_primary]}") do
+            plain "Business Verification"
+          end
+          span(class: "text-xs", style: "color: #{colors[:text_muted]}") do
+            plain "Step #{@progress.steps.index(@progress.current_step).to_i + 1} of #{@progress.total_count}"
+          end
+        end
 
         div(class: "max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8") do
           div(class: "flex gap-8 items-start") do
@@ -105,11 +110,7 @@ module Onboarding
     end
 
     def svg_check_icon
-      svg(xmlns: "http://www.w3.org/2000/svg", fill: "none", viewBox: "0 0 24 24",
-          stroke: "currentColor", class: "w-4 h-4") do |s|
-        s.path(stroke_linecap: "round", stroke_linejoin: "round", stroke_width: "2.5",
-               d: "M5 13l4 4L19 7")
-      end
+      render UI::Icon.new(:check, class: "w-4 h-4")
     end
 
     def sidebar_footer
