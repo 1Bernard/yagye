@@ -373,7 +373,7 @@ if Rails.env.development? || Rails.env.test?
         Payment.find_or_create_by!(reference: ref) do |p|
           p.core_payment_id = SecureRandom.uuid
           p.merchant_code   = DEMO_MERCHANT_CODE
-          p.mode            = "test"
+          p.mode            = "simulation"
           p.payment_method  = payment_method
           p.provider        = provider
           p.amount          = amount
