@@ -96,6 +96,7 @@ module Onboarding
 
     # GET /onboarding/kyb-banner — lazy-loaded Turbo Frame from Layout::Shell
     def banner
+      skip_authorization
       return head(:no_content) unless current_user&.merchant_user?
 
       result   = CoreApiClient.new.get_kyb_status(merchant_code)
