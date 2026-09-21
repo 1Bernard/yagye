@@ -4,9 +4,11 @@ module Payments
   class SettlementBatchesController < ApplicationController
     def index
       authorize :settlement_batch, :index?, policy_class: SettlementBatchPolicy
-      result  = core.list_settlement_batches(merchant_code: current_user.merchant_code)
-      batches = result.success? ? (result.body["data"] || []) : []
-      render Payments::SettlementBatches::IndexView.new(batches: batches)
+      result   = core.list_settlement_batches(merchant_code: current_user.merchant_code)
+      batches  = result.success? ? (result.body["data"] || []) : []
+      dash     = core.get_merchant_settlement_dashboard(current_user.merchant_code)
+      summary  = dash.success? ? dash.body : {}
+      render Payments::SettlementBatches::IndexView.new(batches: batches, summary: summary)
     end
 
     def show

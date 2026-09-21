@@ -33,7 +33,7 @@ class SettlementEventsConsumer < ApplicationConsumer
       reported_net:               payload["reported_net"],
       variance:                   payload["variance"],
       value_date:                 payload["value_date"],
-      item_count:                 payload["item_count"],
+      item_count:                 payload["item_count"] || payload["payment_count"],
       bank_dispatch_ref:          payload["bank_dispatch_ref"],
       bank_dispatched_at:         payload["bank_dispatched_at"],
       dispatch_approved_by:       payload["dispatch_approved_by"],

@@ -12,9 +12,10 @@ module Payments
         "low"      => "text-gray-600 bg-gray-100"
       }.freeze
 
-      def initialize(settlement:, breaks: [])
+      def initialize(settlement:, breaks: [], merchant: nil)
         @settlement = settlement
         @breaks     = breaks
+        @merchant   = merchant
       end
 
       def view_template
@@ -239,14 +240,27 @@ module Payments
           c.header("Details")
           c.body(padding: false) do
             render UI::DetailList.new do |list|
-              list.row("Settlement code",  @settlement.settlement_code, mono: true)
-              list.row("Merchant code",    @settlement.merchant_code || "—", mono: true)
-              list.row("Provider code",    @settlement.provider_code || "—", mono: true)
-              list.row("Mode",             @settlement.mode&.capitalize || "—")
-              list.row("Dispatch ref",     @settlement.bank_dispatch_ref || "—", mono: true)
-              list.row("Dispatched at",    @settlement.bank_dispatched_at&.strftime("%d %b %Y at %H:%M UTC") || "Pending")
-              list.row("Version",          @settlement.aggregate_version.to_s, mono: true)
-              list.row("Last updated",     @settlement.last_applied_at&.strftime("%d %b %Y at %H:%M UTC") || "—")
+              list.row("Settlement code", @settlement.settlement_code, mono: true)
+              list.row("Merchant") do
+                if @merchant
+                  div do
+                    span(class: "text-[13px] font-medium text-gray-800") { plain @merchant.trading_name.presence || @settlement.merchant_code }
+                    span(class: "block text-[11px] text-gray-400 font-mono mt-px") { plain @settlement.merchant_code }
+                  end
+                else
+                  span(class: TYPE_MONO) { plain @settlement.merchant_code || "—" }
+                end
+              end
+              list.row("Rail") do
+                div do
+                  span(class: "text-[13px] font-mono text-gray-800") { plain @settlement.provider_code || "—" }
+                  span(class: "block text-[11px] text-gray-400 capitalize mt-px") { plain @settlement.mode || "—" }
+                end
+              end
+              list.row("Dispatch ref",  @settlement.bank_dispatch_ref || "—", mono: true)
+              list.row("Dispatched at", @settlement.bank_dispatched_at&.strftime("%d %b %Y at %H:%M UTC") || "Pending")
+              list.row("Version",       @settlement.aggregate_version.to_s, mono: true)
+              list.row("Last updated",  @settlement.last_applied_at&.strftime("%d %b %Y at %H:%M UTC") || "—")
             end
           end
         end

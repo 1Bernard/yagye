@@ -75,7 +75,7 @@ module Payments
               list.row("Batch ID",  @b["id"] || "—", mono: true)
               list.row("Currency", cur)
               list.row("Mode",     @b["mode"] || "—")
-              list.row("State")    { render UI::StatusBadge.new(status: @b["state"] || "pending") }
+              list.row("Status")    { render UI::StatusBadge.new(status: @b["state"] || "pending") }
 
               ts = @b["inserted_at"]
               list.row("Created", ts ? Time.parse(ts).strftime("%d %b %Y at %H:%M UTC") : "—")
