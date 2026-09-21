@@ -17,9 +17,14 @@ defmodule YagyeCheckoutWeb.Router do
           "script-src 'self' 'unsafe-inline' cdn.jsdelivr.net; " <>
           "style-src 'self' 'unsafe-inline' fonts.googleapis.com; " <>
           "font-src fonts.gstatic.com; " <>
-          "img-src 'self' data:; " <>
+          "img-src 'self' data: https:; " <>
           "connect-src 'self' ws: wss:;"
     }
+  end
+
+  scope "/inv" do
+    pipe_through :browser
+    live "/:id", YagyeCheckoutWeb.Live.InvoiceLive, :show
   end
 
   scope "/s" do

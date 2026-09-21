@@ -11,6 +11,11 @@ defmodule YagyeCheckout.CoreClient do
     get("/internal/checkout/sessions/by-token?token=#{URI.encode_www_form(raw_token)}")
   end
 
+  @doc "Fetches public invoice data for the customer-facing invoice view."
+  def get_invoice_view(public_id) do
+    get("/internal/invoices/#{URI.encode_www_form(public_id)}/view")
+  end
+
   @doc "Creates a checkout session from a payment link slug. Returns token for redirect."
   def create_session_from_link(slug) do
     post("/internal/checkout/sessions/from-link", %{slug: slug})

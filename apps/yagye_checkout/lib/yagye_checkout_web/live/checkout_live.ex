@@ -2052,6 +2052,10 @@ defmodule YagyeCheckoutWeb.Live.CheckoutLive do
   defp method_label("bank_transfer"), do: "Bank Transfer"
   defp method_label(m),               do: m
 
+  defp merchant_brand_name(%{"merchant_name" => name})
+       when is_binary(name) and name != "",
+       do: name
+
   defp merchant_brand_name(%{"metadata" => %{"merchant_name" => name}})
        when is_binary(name) and name != "",
        do: name
