@@ -25,29 +25,30 @@ module Shared
         step   = @progress.current_step
         accent = urgent ? AMBER : BRAND
         bg     = urgent ? TINT_AMB : TINT
+        label  = urgent ? "Account not verified" : "Verification in progress"
+        detail = "Next: #{step.label} · #{@progress.completed_count} of #{@progress.total_count} steps done"
+        cta    = urgent ? "Start verification" : "Continue"
 
         div(
-          class: "w-full px-4 py-2.5 flex items-center justify-between gap-4 text-sm",
-          style: "background: #{bg}; border-bottom: 1px solid #{accent}20"
+          class: "w-full px-4 sm:px-6 py-2 flex items-center justify-between gap-4",
+          style: "background: #{bg}; border-bottom: 1px solid #{accent}30; min-height: 36px"
         ) do
-          div(class: "flex items-center gap-3 min-w-0") do
-            div(class: "flex-shrink-0 w-2 h-2 rounded-full",
+          div(class: "flex items-center gap-2.5 min-w-0") do
+            div(class: "w-1.5 h-1.5 rounded-full flex-shrink-0",
                 style: "background: #{accent}")
-            span(class: "font-medium truncate", style: "color: #{accent}") do
-              plain step.label
-            end
-            span(class: "text-xs hidden sm:inline", style: "color: #{MUTED}") do
-              plain "#{@progress.percent}% complete · #{@progress.completed_count}/#{@progress.total_count} steps"
-            end
+            span(class: "text-xs font-semibold flex-shrink-0",
+                 style: "color: #{accent}") { plain label }
+            span(class: "text-xs hidden sm:inline flex-shrink-0",
+                 style: "color: #{MUTED}") { plain "—" }
+            span(class: "text-xs truncate hidden sm:inline",
+                 style: "color: #{MUTED}") { plain detail }
           end
 
-          div(class: "flex items-center gap-3 flex-shrink-0") do
-            a(
-              href:  verify_step_path(step.key),
-              class: "inline-flex items-center px-3 py-1 rounded-md text-xs font-semibold whitespace-nowrap text-white",
-              style: "background: #{BRAND}"
-            ) { plain "Continue →" }
-          end
+          a(
+            href:  verify_step_path(step.key),
+            class: "flex-shrink-0 text-xs font-semibold px-3 py-1 rounded-md text-white whitespace-nowrap",
+            style: "background: #{BRAND}"
+          ) { plain cta }
         end
       end
     end
