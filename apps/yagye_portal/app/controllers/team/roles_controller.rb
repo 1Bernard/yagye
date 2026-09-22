@@ -2,8 +2,11 @@ module Team
   class RolesController < ApplicationController
     def index
       authorize Role, :index?
+      scope = current_user.merchant_user? ? "merchant" : nil
+      roles = Role.includes(:permissions, :user_roles).order(:scope, :key)
+      roles = roles.where(scope: scope) if scope
       render Team::Roles::IndexView.new(
-        roles:      Role.includes(:permissions, :user_roles).order(:scope, :key),
+        roles:      roles,
         can_manage: policy(Role).create?
       )
     end
