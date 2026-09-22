@@ -9,7 +9,7 @@ defmodule YagyeCoreWeb.Controllers.Webhooks.InternalWebhookEndpointsController d
   alias YagyeCore.Merchants
   alias YagyeCore.MerchantWebhooks
 
-  action_fallback YagyeCoreWeb.FallbackController
+  action_fallback(YagyeCoreWeb.FallbackController)
 
   # POST /internal/merchants/:merchant_code/webhook-endpoints
   def create(conn, %{"merchant_code" => merchant_code} = params) do
@@ -72,6 +72,18 @@ defmodule YagyeCoreWeb.Controllers.Webhooks.InternalWebhookEndpointsController d
 
       {:error, :not_found} ->
         conn |> put_status(404) |> json(%{error: %{code: "not_found"}})
+
+      {:error, {:cooldown, cooldown_until}} ->
+        conn
+        |> put_status(429)
+        |> json(%{
+          error: %{
+            code: "endpoint_cooldown",
+            message:
+              "This endpoint was auto-suspended. It can be re-enabled after #{DateTime.to_iso8601(cooldown_until)}.",
+            retry_after: DateTime.to_iso8601(cooldown_until)
+          }
+        })
 
       {:error, %Ecto.Changeset{} = cs} ->
         conn

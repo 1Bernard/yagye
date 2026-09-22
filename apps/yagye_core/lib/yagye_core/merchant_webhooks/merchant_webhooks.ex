@@ -102,14 +102,43 @@ defmodule YagyeCore.MerchantWebhooks do
     end
   end
 
+  # Merchant must wait 1 hour after auto-suspension before re-enabling.
+  @reenable_cooldown_seconds 3_600
+
   def update_endpoint(endpoint, attrs) do
+    requesting_enable = Map.get(attrs, "active") == true
+    auto_suspended = endpoint.active == false and not is_nil(endpoint.disabled_at)
+
+    if requesting_enable and auto_suspended do
+      cooldown_until = DateTime.add(endpoint.disabled_at, @reenable_cooldown_seconds, :second)
+
+      if DateTime.compare(DateTime.utc_now(), cooldown_until) == :lt do
+        {:error, {:cooldown, cooldown_until}}
+      else
+        do_update_endpoint(
+          endpoint,
+          Map.merge(attrs, %{
+            "consecutive_failures" => 0,
+            "disabled_at" => nil
+          })
+        )
+      end
+    else
+      do_update_endpoint(endpoint, attrs)
+    end
+  end
+
+  defp do_update_endpoint(endpoint, attrs) do
     merchant = Repo.get!(Merchant, endpoint.merchant_id)
 
     changeset =
       MerchantWebhookEndpoint.changeset(endpoint, %{
         url: attrs["url"] || endpoint.url,
         subscribed_events: attrs["subscribed_events"] || endpoint.subscribed_events,
-        active: Map.get(attrs, "active", endpoint.active)
+        active: Map.get(attrs, "active", endpoint.active),
+        consecutive_failures:
+          Map.get(attrs, "consecutive_failures", endpoint.consecutive_failures),
+        disabled_at: Map.get(attrs, "disabled_at", endpoint.disabled_at)
       })
 
     outbox_fn = fn %{endpoint: ep} ->
