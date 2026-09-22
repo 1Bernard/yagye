@@ -123,7 +123,8 @@ Rails.application.routes.draw do
     patch  "developers/webhooks/:endpoint_id",        to: "webhooks#update",  as: :developers_webhook
     delete "developers/webhooks/:endpoint_id",        to: "webhooks#destroy"
     post   "developers/webhooks/:endpoint_id/test",   to: "webhooks#test",    as: :test_developers_webhook
-    post   "developers/deliveries/:id/retry",   to: "webhook_deliveries#retry", as: :retry_developers_delivery
+    post   "developers/deliveries/:id/retry",         to: "webhook_deliveries#retry",         as: :retry_developers_delivery
+    patch  "developers/webhooks/:endpoint_id/toggle", to: "webhooks#toggle_active",            as: :toggle_developers_webhook
   end
 
   # ── Team domain ──────────────────────────────────────────────────────────

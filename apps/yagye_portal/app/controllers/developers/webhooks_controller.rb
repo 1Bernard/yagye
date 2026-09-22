@@ -52,6 +52,33 @@ module Developers
       end
     end
 
+    def toggle_active
+      authorize :developers, :manage_webhooks?
+      endpoint = PortalWebhookEndpoint.kept.find_by!(endpoint_id: params[:endpoint_id])
+      new_active = !endpoint.active
+
+      result = CoreApiClient.new.update_webhook_endpoint(
+        merchant_code:     current_user.merchant_code,
+        endpoint_id:       params[:endpoint_id],
+        url:               endpoint.url,
+        subscribed_events: Array(endpoint.subscribed_events),
+        active:            new_active
+      )
+
+      if result.success?
+        endpoint.update!(active: new_active, last_applied_at: Time.current)
+        msg = new_active ? "Webhook endpoint re-enabled." : "Webhook endpoint disabled."
+        redirect_to developers_path(tab: "webhooks"), notice: msg
+      elsif result.error_code == "endpoint_cooldown"
+        retry_after = result.body.dig("error", "retry_after")
+        readable    = retry_after ? " You can try again after #{Time.parse(retry_after).strftime('%H:%M UTC on %d %b')}." : ""
+        redirect_to developers_path(tab: "webhooks"),
+                    alert: "This endpoint was auto-suspended due to repeated delivery failures.#{readable}"
+      else
+        redirect_to developers_path(tab: "webhooks"), alert: result.error_message
+      end
+    end
+
     def destroy
       authorize :developers, :manage_webhooks?
       result = CoreApiClient.new.remove_webhook_endpoint(

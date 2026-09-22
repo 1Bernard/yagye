@@ -971,6 +971,18 @@ module Developers
                 plain "Send test"
               end
             end
+            toggle_label  = wh.active ? "Disable" : "Re-enable"
+            toggle_icon   = wh.active ? :x : :check
+            toggle_confirm = wh.active ? "Disable this webhook endpoint? No events will be delivered until you re-enable it." : nil
+            form(action: toggle_developers_webhook_path(wh.endpoint_id), method: "post",
+                 **(toggle_confirm ? { data: { turbo_confirm: toggle_confirm } } : {})) do
+              input(type: "hidden", name: "_method",            value: "patch")
+              input(type: "hidden", name: "authenticity_token", value: form_authenticity_token)
+              button(type: "submit", class: DROPDOWN_ITEM) do
+                render UI::Icon.new(toggle_icon, class: ICON_SM)
+                plain toggle_label
+              end
+            end
             form(action: developers_webhook_path(wh.endpoint_id), method: "post",
                  data: { turbo_confirm: "Remove this webhook endpoint? This cannot be undone." }) do
               input(type: "hidden", name: "_method",            value: "delete")
