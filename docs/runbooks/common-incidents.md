@@ -255,6 +255,94 @@ different requests (bug in their SDK or integration code).
 
 ---
 
+## 7. Webhook Delivery Retry Flood
+
+**Symptoms:** RabbitMQ management UI shows `yagye.webhooks.delivery` queue
+depth climbing rapidly. Delivery logs show the same event cycling through
+`failed` → retry → `failed` at high frequency, never exhausting its attempts.
+
+**Likely cause:** Messages were being requeued by Broadway before the
+`on_failure: :reject` fix (old `:reject_and_requeue` setting). Alternatively,
+a large backlog of stale tasks exists from a previous misconfiguration.
+
+**Confirm:**
+```bash
+# Check queue depth and message rate
+curl -u guest:guest http://localhost:15672/api/queues/%2F/yagye.webhooks.delivery
+
+# Check recent delivery attempts in Core DB
+SELECT endpoint_id, event_id, attempt, state, inserted_at
+FROM merchant_webhook_deliveries
+ORDER BY inserted_at DESC
+LIMIT 20;
+```
+
+**Key distinction — purge vs delete:**
+- **Purging** only clears messages sitting in the queue. Broadway may have up to
+  `prefetch_count` (20) messages already fetched into memory. After a purge,
+  those in-flight messages are nacked back when they fail and reappear in the
+  queue.
+- **Deleting** the queue discards everything, including in-flight prefetched
+  messages. Broadway reconnects and recreates the queue clean.
+
+**Resolution:**
+```bash
+# Delete the queue entirely (Broadway will recreate on reconnect)
+curl -u guest:guest -X DELETE \
+  http://localhost:15672/api/queues/%2F/yagye.webhooks.delivery
+
+# Verify queue was recreated and is empty
+curl -u guest:guest \
+  http://localhost:15672/api/queues/%2F/yagye.webhooks.delivery \
+  | jq '{messages, consumers}'
+```
+
+If the flood was caused by stale messages pointing to an unreachable URL
+(e.g. localhost URL in a production task), delete the queue to clear them.
+The Oban `WebhookDeliveryRetryWorker` will schedule legitimate retries from
+the DB; stale tasks are discarded.
+
+---
+
+## 8. Webhook Endpoint Auto-Suspended
+
+**Symptoms:** Merchant reports webhooks have stopped arriving. Portal shows
+the endpoint with `consecutive_failures` near or at 50 and `active: false`.
+
+**Confirm:**
+```sql
+-- Core DB
+SELECT public_id, url, active, consecutive_failures, disabled_at
+FROM merchant_webhook_endpoints
+WHERE merchant_id = '…';
+```
+
+**Cause:** The endpoint accumulated 50 consecutive delivery failures. The
+`DeliveryPipeline` automatically sets `active = false` and records `disabled_at`
+via `MerchantWebhookEndpoint.disable_changeset/1`.
+
+**Resolution:**
+1. Identify the root cause of delivery failures (endpoint URL unreachable,
+   signing secret mismatch, merchant server returning non-2xx).
+2. Once the merchant has fixed their endpoint:
+```bash
+# Re-enable via internal API
+curl -X PATCH https://api.yagye.com/internal/merchants/{code}/webhook-endpoints/{id} \
+  -H "X-Service-Token: <token>" \
+  -d '{"active": true}'
+```
+Or directly if needed:
+```elixir
+endpoint = YagyeCore.MerchantWebhooks.get_endpoint_by_public_id!("whe_…")
+YagyeCore.MerchantWebhooks.update_endpoint(endpoint, %{"active" => true})
+```
+3. Send a test event from the Portal developer console to confirm delivery.
+4. The Portal's `WebhookEventsConsumer` will project the re-enabled state
+   via the `webhook.endpoint.updated` event; the consecutive failures badge
+   will clear when the next successful delivery resets the counter.
+
+---
+
 ## Operational Contacts
 
 | System | Who to contact |

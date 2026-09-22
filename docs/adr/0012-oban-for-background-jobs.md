@@ -66,5 +66,5 @@ where async work is needed).
   replacing the job queue simultaneously — accepted because PostgreSQL is the
   declared system of record (ADR-0006).
 - At very high throughput, PostgreSQL-backed queues have lower ceiling than
-  dedicated brokers. RabbitMQ is planned for P15 for outbound webhook delivery
-  specifically; Oban remains for all internal domain work.
+  dedicated brokers. RabbitMQ is used for outbound webhook delivery (ADR-0025);
+  Oban remains for all internal domain work and webhook retry scheduling.

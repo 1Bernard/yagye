@@ -58,3 +58,7 @@ What did we decide? One clear statement.
 | [0019](0019-cursor-keyset-pagination.md) | Cursor-based keyset pagination for all list endpoints | Accepted |
 | [0020](0020-restrict-fk-no-hard-delete-psp.md) | RESTRICT foreign keys — no hard deletes for PSP data | Accepted |
 | [0021](0021-dual-scope-routing-rules.md) | Dual-scope routing rules (platform + merchant) | Accepted |
+| [0022](0022-data-platform-lakehouse.md) | Data platform lakehouse architecture | Accepted |
+| [0023](0023-ml-scoring-service.md) | ML scoring service | Accepted |
+| [0024](0024-agentic-finance-api-surface.md) | Agentic finance API surface | Accepted |
+| [0025](0025-rabbitmq-broadway-webhook-delivery.md) | RabbitMQ + Broadway for outbound webhook delivery | Accepted |

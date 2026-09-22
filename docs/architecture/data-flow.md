@@ -1,6 +1,6 @@
 # Data Flow
 
-**Last updated:** 2026-08-30
+**Last updated:** 2026-09-22
 
 This document describes how data moves between the three applications and their
 databases. It covers the write path (merchant API → core DB), the event path
@@ -28,16 +28,27 @@ OutboxRelayWorker (Oban, polls every ~1s)
     ├── ProjectionWorker ──────────────────────────► portal_db (PostgreSQL)
     │   (writes to portal read-model tables)
     │
-    ├── WebhookDeliveryWorker ─────────────────────► Merchant webhook endpoint
-    │   (HTTP POST to merchant's registered URL)
+    ├── WebhookDispatchWorker (Oban) ─────────────► RabbitMQ queue
+    │   (fan-out per subscribed endpoint)           yagye.webhooks.delivery
+    │                                                        │
+    │                                               Broadway DeliveryPipeline
+    │                                               (BroadwayRabbitMQ consumer)
+    │                                                        │ HTTP POST (5s timeout)
+    │                                                        ▼
+    │                                               Merchant webhook endpoint
+    │                                                        │
+    │                                               Always ack RabbitMQ message.
+    │                                               On failure → Oban
+    │                                               WebhookDeliveryRetryWorker
+    │                                               (10s → 60s → 10m → 1h,
+    │                                                max 5 attempts total)
     │
-    └── [P14] Redpanda producer ──────────────────► Redpanda topic
-                                                        │
-                                                        ▼
-                                                  Karafka consumer
+    └── Redpanda producer ────────────────────────► Redpanda topic
+        (webhook.delivery.attempted +                       │
+         all other domain events)                    Karafka consumer
                                                   (yagye_portal process)
-                                                        │
-                                                        ▼
+                                                          │
+                                                          ▼
                                                   portal_db (read model)
 
 
@@ -104,7 +115,8 @@ display. It does not read from core_db.
 |---|---|---|
 | `payments` | `PaymentProjectionWorker` | `payment.*` |
 | `portal_merchant_applications` | `MerchantProjectionWorker` | `merchant.*` |
-| `portal_webhook_deliveries` | `WebhookDeliveryProjectionWorker` | `webhook.delivery.*` |
+| `portal_webhook_endpoints` | `WebhookEventsConsumer` (Karafka) | `webhook.endpoint.*` |
+| `portal_webhook_deliveries` | `WebhookEventsConsumer` (Karafka) | `webhook.delivery.attempted` |
 | `proj_merchant_balances` | `MerchantBalanceProjection` | `payment.succeeded`, `payout.completed` |
 | `proj_daily_merchant_metrics` | `DailyMetricsWorker` (hourly recompute) | Reads from `payments` directly |
 

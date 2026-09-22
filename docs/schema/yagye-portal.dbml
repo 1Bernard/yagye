@@ -497,9 +497,15 @@ Table portal_webhook_endpoints [headercolor: #2E4A73] {
   active boolean [not null]
   consecutive_failures integer [not null]
   disabled_at timestamptz [note: 'auto-disabled after 50 consecutive failures; shown as a banner in the developer console']
+  deleted_at timestamptz [null, note: 'soft-delete: set when merchant removes endpoint; row kept so delivery log JOINs still resolve URL']
   last_event_id text [not null]
   last_applied_at timestamptz [not null]
-  indexes { (merchant_code, mode) }
+  created_at timestamptz [not null]
+  updated_at timestamptz [not null]
+  indexes {
+    (merchant_code, mode)
+    deleted_at [note: 'filters non-deleted endpoints; PortalWebhookEndpoint.kept scope']
+  }
 }
 
 Table portal_webhook_deliveries [headercolor: #6B7A8D] {

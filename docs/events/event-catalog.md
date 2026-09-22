@@ -33,14 +33,17 @@ and the payload fields. All envelopes share the common wrapper:
 ```json
 {
   "public_id": "pay_…",
-  "merchant_id": "uuid",
-  "customer_id": "uuid",
+  "state": "pending",
+  "mode": "live",
+  "method": "momo",
   "amount": 10000,
   "currency": "GHS",
-  "method": "momo",
-  "network": "MTN",
-  "mode": "live",
-  "state": "pending"
+  "description": "Order #1234",
+  "merchant_code": "mch_…",
+  "merchant_reference": "order-1234",
+  "customer_reference": "cust_…",
+  "customer_msisdn": "233241000001",
+  "customer_email": "customer@example.com"
 }
 ```
 
@@ -52,10 +55,33 @@ and the payload fields. All envelopes share the common wrapper:
 ### `payment.succeeded`
 **Context:** `YagyeCore.Payments`
 **Trigger:** Provider callback confirms success.
-**Data:** Adds `provider_reference`, `fee_amount`, `net_amount`.
+**Data:**
+```json
+{
+  "public_id": "pay_…",
+  "state": "succeeded",
+  "mode": "live",
+  "method": "momo",
+  "merchant_code": "mch_…",
+  "merchant_reference": "order-1234",
+  "description": "Order #1234",
+  "provider_code": "mtn_momo_gh",
+  "provider": "mtn_momo",
+  "amount": 10000,
+  "currency": "GHS",
+  "net_amount": 9720,
+  "checkout_session_id": "cks_…",
+  "customer_msisdn": "233241000001",
+  "customer_email": "customer@example.com",
+  "paid_at": "2026-09-22T14:00:00.000000Z"
+}
+```
+`net_amount` = `amount − fee_amount` when a fee record exists; falls back to
+`amount` if fees have not yet been recorded (deferred to P14/P15).
 **Projections updated:** `proj_payment_summaries`, `proj_merchant_balances`,
 `proj_daily_merchant_metrics`.
-**Webhook:** Delivered to merchant endpoint if subscribed to `payment.succeeded`.
+**Webhook:** Delivered to merchant endpoint as event type `payment.paid`, with
+`status: "paid"` (translated from internal `state: "succeeded"`).
 
 ### `payment.failed`
 **Context:** `YagyeCore.Payments`
@@ -201,6 +227,68 @@ and the payload fields. All envelopes share the common wrapper:
 **Trigger:** No routing rule matched; payment cannot be dispatched.
 **Data:** `payment_id`, `mode`, `reason: "no_route"`.
 *Internal only.*
+
+---
+
+## Webhook Endpoints
+
+These events are emitted to the `yagye.webhooks.v1` Redpanda topic (via the
+outbox). The Portal's `WebhookEventsConsumer` (Karafka) projects them into
+`portal_webhook_endpoints` and `portal_webhook_deliveries`.
+
+### `webhook.endpoint.registered`
+**Context:** `YagyeCore.MerchantWebhooks`
+**Trigger:** Merchant creates a webhook endpoint.
+**Data:** `endpoint_id`, `merchant_code`, `url`, `mode`, `active`,
+`subscribed_events`, `consecutive_failures`.
+
+### `webhook.endpoint.updated`
+**Context:** `YagyeCore.MerchantWebhooks`
+**Trigger:** Merchant updates URL or subscribed events.
+**Data:** Same fields as `webhook.endpoint.registered`.
+
+### `webhook.endpoint.deregistered`
+**Context:** `YagyeCore.MerchantWebhooks`
+**Trigger:** Merchant deletes a webhook endpoint.
+**Data:** `endpoint_id`, `merchant_code`.
+**Portal:** `WebhookEventsConsumer` calls `soft_delete!` — the
+`portal_webhook_endpoints` row is retained so delivery log JOINs keep
+resolving the URL (`deleted_at` is set rather than the row being removed).
+
+### `webhook.delivery.attempted`
+**Context:** `YagyeCore.MerchantWebhooks.RabbitMQ.DeliveryPipeline`
+**Trigger:** Every HTTP delivery attempt (success or failure) against a
+merchant endpoint. Emitted via the outbox after the attempt completes.
+**Data:**
+```json
+{
+  "delivery_id": "uuid-v7",
+  "endpoint_id": "whe_…",
+  "merchant_code": "mch_…",
+  "webhook_event_id": "uuid-v7",
+  "webhook_event_type": "payment.paid",
+  "attempt": 1,
+  "state": "delivered",
+  "response_status": 200,
+  "response_body": "ok",
+  "request_body": { "id": "evt_…", "event": "payment.paid", "data": {} },
+  "request_headers": { "X-Yagye-Signature": "sha256=…" },
+  "duration_ms": 45,
+  "delivered_at": "2026-09-22T14:00:00.000000Z"
+}
+```
+`state` is one of `delivered | failed | exhausted`.
+
+---
+
+## API Keys
+
+### `api_key.used`
+**Context:** `YagyeCore.Merchants.Workers.ApiKeyUsageWorker`
+**Trigger:** Any authenticated API request. Fired asynchronously (Oban job)
+so it does not add latency to the request path.
+**Data:** `key_id`, `mode`, `kind`, `last_used_at`.
+*Internal only — not delivered as a merchant webhook.*
 
 ---
 
