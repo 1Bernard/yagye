@@ -42,20 +42,16 @@ module Developers
     private
 
     def info_banner
-      div(class: "mb-5 flex items-start gap-3 bg-blue-50 border border-blue-100 rounded-xl px-4 py-3") do
-        span(class: "flex w-[15px] h-[15px] text-blue-400 flex-shrink-0 mt-[2px]") do
-          render UI::Icon.new(:info_circle, class: "w-full h-full")
-        end
-        div do
-          p(class: "text-[12.5px] font-semibold text-blue-800") { plain "Platform-scope routing only" }
-          p(class: "text-[12px] text-blue-600 mt-[2px] leading-snug") do
-            plain "These rules govern live payment routing across Yagye's native rails " \
-                  "(MTN MoMo, Telecel Cash, AirtelTigo Money). Only one configuration is active " \
-                  "at a time — publishing archives the previous. The Gateway Simulator is available " \
-                  "in the editor for building and previewing configurations, but cannot be published " \
-                  "— it has no live-mode credentials and is for development use only."
-          end
-        end
+      div(class: "mb-5") do
+        render UI::Notice.new(
+          variant: :info,
+          title:   "Platform-scope routing only",
+          body:    "These rules govern live payment routing across Yagye's native rails " \
+                   "(MTN MoMo, Telecel Cash, AirtelTigo Money). Only one configuration is active " \
+                   "at a time — publishing archives the previous. The Gateway Simulator is available " \
+                   "in the editor for building and previewing configurations, but cannot be published " \
+                   "— it has no live-mode credentials and is for development use only."
+        )
       end
     end
 

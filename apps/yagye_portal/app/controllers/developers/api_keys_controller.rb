@@ -5,12 +5,14 @@ module Developers
     def index
       authorize :developers, :index?
 
-      tab        = params[:tab].presence_in(%w[api_keys webhooks logs]) || "api_keys"
+      tab        = params[:tab].presence_in(%w[quickstart api_keys webhooks logs reference]) || "quickstart"
       api_keys   = Developers::ApiKeysQuery.new(policy_scope(PortalApiKey)).call
       webhooks   = Developers::WebhookEndpointsQuery.new(policy_scope(PortalWebhookEndpoint)).call
       pagy       = nil
       deliveries = []
-      reveal_key = flash[:reveal_key]
+      reveal_key            = flash[:reveal_key]
+      reveal_webhook_secret = flash[:reveal_webhook_secret]
+      spec                  = {}
 
       if tab == "logs"
         pagy, deliveries = pagy(
@@ -18,11 +20,19 @@ module Developers
             .call(endpoint_id: params[:endpoint_id], state: params[:state]),
           limit: 25
         )
+      elsif tab == "reference"
+        spec = CoreApiClient.new.openapi_spec
+        if spec.empty?
+          cache = Rails.root.join("config/openapi_spec_cache.json")
+          spec  = JSON.parse(File.read(cache)) rescue {}
+        end
       end
 
       render Developers::IndexView.new(
         tab: tab, api_keys: api_keys, webhooks: webhooks,
-        deliveries: deliveries, pagy: pagy, reveal_key: reveal_key
+        deliveries: deliveries, pagy: pagy, reveal_key: reveal_key,
+        reveal_webhook_secret: reveal_webhook_secret,
+        openapi_spec: spec
       )
     end
 
@@ -43,9 +53,9 @@ module Developers
       if result.success?
         upsert_api_key(result.body)
         flash[:reveal_key] = result.body["key"]
-        redirect_to developers_path(tab: "api_keys")
+        redirect_to developers_url(tab: "api_keys")
       else
-        redirect_to developers_path(tab: "api_keys"), alert: result.error_message
+        redirect_to developers_url(tab: "api_keys"), alert: result.error_message
       end
     end
 

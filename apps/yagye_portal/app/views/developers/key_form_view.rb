@@ -28,6 +28,7 @@ module Developers
         end
 
         form(action: developers_keys_path, method: "post",
+             data: { turbo_frame: "_top" },
              class: "flex flex-col flex-1 overflow-hidden") do
           input(type: "hidden", name: "authenticity_token", value: form_authenticity_token)
           input(type: "hidden", name: "mode", value: @mode)

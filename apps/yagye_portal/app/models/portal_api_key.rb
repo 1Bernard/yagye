@@ -5,6 +5,9 @@
 # command to Core; the consumer updates this record when Core confirms.
 class PortalApiKey < ApplicationRecord
   self.primary_key = "key_id"
+  # Core's public_id is "key_<uuid7>" — a prefixed string, not a bare UUID.
+  # Declare the type explicitly so Rails never infers :uuid from the PK column.
+  attribute :key_id, :string
 
   scope :active,   -> { where(revoked_at: nil) }
   scope :revoked,  -> { where.not(revoked_at: nil) }

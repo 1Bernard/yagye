@@ -73,9 +73,10 @@ Rails.application.routes.draw do
   scope module: "developers" do
     get "developers",                          to: "api_keys#index",              as: :developers
     get "developers/keys/new",                 to: "api_keys#new",                as: :new_developers_key
-    get "developers/webhooks/new",             to: "webhooks#new",                as: :new_developers_webhook
-    get "developers/deliveries",               to: "webhook_deliveries#index",    as: :developers_deliveries
-    get "developers/deliveries/:id",           to: "webhook_deliveries#show",     as: :developers_delivery
+    get "developers/webhooks/new",                  to: "webhooks#new",                as: :new_developers_webhook
+    get "developers/webhooks/:endpoint_id/edit",   to: "webhooks#edit",               as: :edit_developers_webhook
+    get "developers/deliveries",                   to: "webhook_deliveries#index",    as: :developers_deliveries
+    get "developers/deliveries/:id",               to: "webhook_deliveries#show",     as: :developers_delivery
     get "developers/routing-rules",            to: "routing_rules#index",         as: :developers_routing_rules
     get "developers/routing-rules/new",        to: "routing_rules#new",           as: :new_developers_routing_rule
     get "developers/routing-rules/:id/edit",   to: "routing_rules#edit",          as: :edit_developers_routing_rule
@@ -115,8 +116,10 @@ Rails.application.routes.draw do
     post   "developers/keys",                    to: "api_keys#create",   as: :developers_keys
     delete "developers/keys/:key_id",            to: "api_keys#destroy",  as: :developers_key
     post   "developers/webhooks",                to: "webhooks#create",   as: :developers_webhooks
-    delete "developers/webhooks/:endpoint_id",   to: "webhooks#destroy",  as: :developers_webhook
-    post   "developers/webhooks/:endpoint_id/test", to: "webhooks#test",  as: :test_developers_webhook
+    patch  "developers/webhooks/:endpoint_id",        to: "webhooks#update",  as: :developers_webhook
+    delete "developers/webhooks/:endpoint_id",        to: "webhooks#destroy"
+    post   "developers/webhooks/:endpoint_id/test",   to: "webhooks#test",    as: :test_developers_webhook
+    post   "developers/deliveries/:id/retry",   to: "webhook_deliveries#retry", as: :retry_developers_delivery
   end
 
   # ── Team domain ──────────────────────────────────────────────────────────

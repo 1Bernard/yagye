@@ -17,7 +17,36 @@ module Developers
       )
       if result.success?
         upsert_endpoint(result.body)
+        flash[:reveal_webhook_secret] = result.body["signing_secret"]
         redirect_to developers_path(tab: "webhooks"), notice: "Webhook endpoint added."
+      else
+        redirect_to developers_path(tab: "webhooks"), alert: result.error_message
+      end
+    end
+
+    def edit
+      authorize :developers, :manage_webhooks?
+      endpoint = PortalWebhookEndpoint.kept.find_by!(endpoint_id: params[:endpoint_id])
+      render Developers::WebhookFormView.new(mode: endpoint.mode, endpoint: endpoint)
+    end
+
+    def update
+      authorize :developers, :manage_webhooks?
+      endpoint = PortalWebhookEndpoint.kept.find_by!(endpoint_id: params[:endpoint_id])
+      result = CoreApiClient.new.update_webhook_endpoint(
+        merchant_code:     current_user.merchant_code,
+        endpoint_id:       params[:endpoint_id],
+        url:               webhook_params[:url].presence || endpoint.url,
+        subscribed_events: Array(webhook_params[:subscribed_events]),
+        active:            endpoint.active
+      )
+      if result.success?
+        endpoint.update!(
+          url:               result.body["url"],
+          subscribed_events: Array(result.body["subscribed_events"]),
+          last_applied_at:   Time.current
+        )
+        redirect_to developers_path(tab: "webhooks"), notice: "Webhook endpoint updated."
       else
         redirect_to developers_path(tab: "webhooks"), alert: result.error_message
       end
@@ -25,9 +54,14 @@ module Developers
 
     def destroy
       authorize :developers, :manage_webhooks?
-      result = CoreApiClient.new.remove_webhook_endpoint(params[:endpoint_id])
-      if result.success?
-        PortalWebhookEndpoint.find_by(endpoint_id: params[:endpoint_id])&.destroy
+      result = CoreApiClient.new.remove_webhook_endpoint(
+        merchant_code: current_user.merchant_code,
+        endpoint_id:   params[:endpoint_id]
+      )
+      # Treat 404 as success — endpoint is already absent from Core, so removing
+      # the Portal record is always safe (idempotent delete).
+      if result.success? || result.error_code == "not_found"
+        PortalWebhookEndpoint.find_by(endpoint_id: params[:endpoint_id])&.soft_delete!
         redirect_to developers_path(tab: "webhooks"), notice: "Webhook endpoint removed."
       else
         redirect_to developers_path(tab: "webhooks"), alert: result.error_message
@@ -36,7 +70,10 @@ module Developers
 
     def test
       authorize :developers, :manage_webhooks?
-      result = CoreApiClient.new.test_webhook_endpoint(params[:endpoint_id])
+      result = CoreApiClient.new.test_webhook_endpoint(
+        merchant_code: current_user.merchant_code,
+        endpoint_id:   params[:endpoint_id]
+      )
       if result.success?
         redirect_to developers_path(tab: "webhooks"), notice: "Test event sent."
       else
@@ -65,10 +102,11 @@ module Developers
           subscribed_events:    Array(body["subscribed_events"]),
           consecutive_failures: 0,
           last_event_id:        "",
-          last_applied_at:      Time.current
+          last_applied_at:      Time.current,
+          deleted_at:           nil
         },
         unique_by: :endpoint_id,
-        update_only: %i[url mode active subscribed_events consecutive_failures last_applied_at]
+        update_only: %i[url mode active subscribed_events consecutive_failures last_applied_at deleted_at]
       )
     end
   end

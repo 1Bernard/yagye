@@ -22,13 +22,20 @@ class ApiKeyEventsConsumer < ApplicationConsumer
     existing = PortalApiKey.find_by(key_id: key_id)
     return if existing&.last_event_id == event_id && event_id.present?
 
+    # Core stores mode as "sandbox"/"simulation"/"live"; Portal uses "test"/"live".
+    portal_mode = case payload["mode"]
+                  when "sandbox", "simulation" then "test"
+                  when "live"                  then "live"
+                  else payload["mode"].presence || "test"
+                  end
+
     attrs = {
       key_id:        key_id,
       merchant_code: payload["merchant_code"],
       label:         payload["label"] || "",
       key_prefix:    payload["key_prefix"] || payload["prefix"] || "",
       kind:          payload["kind"] || "secret",
-      mode:          payload["mode"] || "test",
+      mode:          portal_mode,
       scopes:        Array(payload["scopes"]),
       created_by:    payload["created_by"],
       expires_at:    payload["expires_at"],

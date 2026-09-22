@@ -16,6 +16,8 @@ class WebhookEventsConsumer < ApplicationConsumer
 
   def route(payload)
     case payload["event_type"].to_s
+    when "webhook.endpoint.deregistered"
+      delete_endpoint(payload)
     when /^webhook\.endpoint\./
       upsert_endpoint(payload)
     when /^webhook\.delivery\./
@@ -36,11 +38,19 @@ class WebhookEventsConsumer < ApplicationConsumer
       subscribed_events:    Array(payload["subscribed_events"]),
       consecutive_failures: payload["consecutive_failures"].to_i,
       last_event_id:        payload["event_id"].to_s,
-      last_applied_at:      Time.current
+      last_applied_at:      Time.current,
+      deleted_at:           nil
     }.compact
 
     PortalWebhookEndpoint.upsert(attrs, unique_by: :endpoint_id,
                                         update_only: attrs.keys - [ :endpoint_id ])
+  end
+
+  def delete_endpoint(payload)
+    endpoint_id = payload["endpoint_id"] || payload["public_id"]
+    return unless endpoint_id.present?
+
+    PortalWebhookEndpoint.find_by(endpoint_id: endpoint_id)&.soft_delete!
   end
 
   def upsert_delivery(payload)

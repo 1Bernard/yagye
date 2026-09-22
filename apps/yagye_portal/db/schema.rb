@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_09_17_100001) do
+ActiveRecord::Schema[8.1].define(version: 2026_09_22_120001) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pgcrypto"
@@ -89,7 +89,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_17_100001) do
     t.index ["state"], name: "index_portal_adjustment_approvals_on_state"
   end
 
-  create_table "portal_api_keys", primary_key: "key_id", id: :uuid, default: nil, force: :cascade do |t|
+  create_table "portal_api_keys", primary_key: "key_id", id: :text, force: :cascade do |t|
     t.datetime "created_at", default: -> { "now()" }, null: false
     t.text "created_by"
     t.datetime "expires_at"
@@ -278,11 +278,11 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_17_100001) do
     t.index ["merchant_code"], name: "index_portal_settlements_on_merchant_code"
   end
 
-  create_table "portal_webhook_deliveries", primary_key: "delivery_id", id: :uuid, default: nil, force: :cascade do |t|
+  create_table "portal_webhook_deliveries", primary_key: "delivery_id", id: :text, force: :cascade do |t|
     t.integer "attempt", default: 1, null: false
     t.datetime "delivered_at"
     t.integer "duration_ms"
-    t.uuid "endpoint_id", null: false
+    t.text "endpoint_id", null: false
     t.text "event_id"
     t.text "event_type", null: false
     t.datetime "last_applied_at", default: -> { "now()" }, null: false
@@ -297,10 +297,11 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_17_100001) do
     t.index ["merchant_code"], name: "index_portal_webhook_deliveries_on_merchant_code"
   end
 
-  create_table "portal_webhook_endpoints", primary_key: "endpoint_id", id: :uuid, default: nil, force: :cascade do |t|
+  create_table "portal_webhook_endpoints", primary_key: "endpoint_id", id: :text, force: :cascade do |t|
     t.boolean "active", default: true, null: false
     t.integer "consecutive_failures", default: 0, null: false
     t.datetime "created_at", default: -> { "now()" }, null: false
+    t.datetime "deleted_at"
     t.datetime "disabled_at"
     t.datetime "last_applied_at", default: -> { "now()" }, null: false
     t.text "last_event_id", default: "", null: false
@@ -308,6 +309,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_17_100001) do
     t.text "mode", null: false
     t.text "subscribed_events", default: [], null: false, array: true
     t.text "url", null: false
+    t.index ["deleted_at"], name: "index_portal_webhook_endpoints_on_deleted_at"
     t.index ["merchant_code", "mode", "created_at"], name: "index_portal_webhook_endpoints_on_merchant_code_mode_created_at", order: { created_at: :desc }
     t.index ["merchant_code"], name: "index_portal_webhook_endpoints_on_merchant_code"
   end

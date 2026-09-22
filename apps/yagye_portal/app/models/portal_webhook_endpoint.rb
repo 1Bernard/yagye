@@ -6,8 +6,13 @@ class PortalWebhookEndpoint < ApplicationRecord
 
   has_many :portal_webhook_deliveries, foreign_key: :endpoint_id, primary_key: :endpoint_id
 
+  scope :kept,     -> { where(deleted_at: nil) }
   scope :for_mode, ->(mode) { where(mode: mode) }
   scope :recent,   -> { order(created_at: :desc) }
+
+  def soft_delete!
+    update!(deleted_at: Time.current, active: false)
+  end
 
   def events_count
     Array(subscribed_events).size

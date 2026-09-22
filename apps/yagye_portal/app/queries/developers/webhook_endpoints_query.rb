@@ -2,7 +2,7 @@
 
 module Developers
   class WebhookEndpointsQuery
-    def initialize(relation = PortalWebhookEndpoint.all)
+    def initialize(relation = PortalWebhookEndpoint.kept)
       @relation = relation
     end
 

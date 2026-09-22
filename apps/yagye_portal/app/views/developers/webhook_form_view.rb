@@ -10,24 +10,31 @@ module Developers
       merchant.kyb.approved merchant.kyb.rejected
     ].freeze
 
-    def initialize(mode: "test")
-      @mode = mode
+    def initialize(mode: "test", endpoint: nil)
+      @mode     = mode
+      @endpoint = endpoint
     end
 
     def view_template
+      editing   = @endpoint.present?
+      form_url  = editing ? developers_webhook_path(@endpoint.endpoint_id) : developers_webhooks_path
+      method    = editing ? "patch" : "post"
+
       turbo_frame_tag "drawer-frame" do
         div(class: DRAWER_HEAD) do
           div do
-            p(class: TYPE_TITLE) { plain "Add webhook endpoint" }
+            p(class: TYPE_TITLE) { plain(editing ? "Edit webhook endpoint" : "Add webhook endpoint") }
             p(class: "#{TYPE_CAPTION} mt-[3px]") { plain "Yagye will POST signed events to this URL." }
           end
           button(type: "button", class: XBTN,
                  data: { action: "click->drawer#close" }) { plain "✕" }
         end
 
-        form(action: developers_webhooks_path, method: "post",
+        form(action: form_url, method: "post",
+             data: { turbo_frame: "_top" },
              class: "flex flex-col flex-1 overflow-hidden") do
           input(type: "hidden", name: "authenticity_token", value: form_authenticity_token)
+          input(type: "hidden", name: "_method", value: method) if editing
 
           div(class: "flex-1 overflow-y-auto") do
             # Endpoint URL
@@ -36,6 +43,7 @@ module Developers
               div(class: "mt-3") do
                 render UI::InputField.new(name: "url", label: nil, type: "url",
                                          placeholder: "https://your-server.com/webhooks",
+                                         value: @endpoint&.url,
                                          required: true)
               end
             end
@@ -45,10 +53,11 @@ module Developers
               section_label("Events to receive", :bell, "purple")
               p(class: "#{TYPE_CAPTION} mt-1 mb-3") { plain "Yagye sends a POST request for each selected event." }
               div(class: "flex flex-col gap-1") do
+                subscribed = @endpoint ? Array(@endpoint.subscribed_events) : ALL_EVENTS
                 ALL_EVENTS.each do |event|
                   label(class: "flex items-center gap-3 px-2 py-[8px] rounded-xl hover:bg-gray-50 cursor-pointer transition-colors -mx-2") do
                     input(type: "checkbox", name: "subscribed_events[]", value: event,
-                          checked: true,
+                          checked: subscribed.include?(event),
                           class: "w-[13px] h-[13px] flex-shrink-0 cursor-pointer",
                           style: "accent-color:#{BRAND}")
                     span(class: TYPE_MONO) { plain event }
@@ -65,8 +74,8 @@ module Developers
               plain "Cancel"
             end
             button(type: "submit", class: BTN_PRIMARY) do
-              render UI::Icon.new(:plus, class: ICON_SM)
-              plain "Add endpoint"
+              render UI::Icon.new(editing ? :check : :plus, class: ICON_SM)
+              plain(editing ? "Save changes" : "Add endpoint")
             end
           end
         end

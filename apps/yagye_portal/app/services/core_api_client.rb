@@ -67,20 +67,33 @@ class CoreApiClient
 
   # ── Webhooks ───────────────────────────────────────────────────────────────
 
-  # POST /v1/webhook-endpoints
+  # POST /internal/merchants/:merchant_code/webhook-endpoints
   def add_webhook_endpoint(merchant_code:, url:, subscribed_events:, mode:)
-    post("/v1/webhook-endpoints",
+    post("/internal/merchants/#{merchant_code}/webhook-endpoints",
          { url: url, subscribed_events: subscribed_events, mode: mode })
   end
 
-  # DELETE /v1/webhook-endpoints/:endpoint_id
-  def remove_webhook_endpoint(endpoint_id)
-    delete("/v1/webhook-endpoints/#{endpoint_id}", {})
+  # PATCH /internal/merchants/:merchant_code/webhook-endpoints/:endpoint_id
+  def update_webhook_endpoint(merchant_code:, endpoint_id:, url:, subscribed_events:, active:)
+    patch("/internal/merchants/#{merchant_code}/webhook-endpoints/#{endpoint_id}",
+          { url: url, subscribed_events: subscribed_events, active: active })
   end
 
-  # POST /v1/webhook-endpoints/:endpoint_id/test
-  def test_webhook_endpoint(endpoint_id)
-    post("/v1/webhook-endpoints/#{endpoint_id}/test", {})
+  # DELETE /internal/merchants/:merchant_code/webhook-endpoints/:endpoint_id
+  def remove_webhook_endpoint(merchant_code:, endpoint_id:)
+    delete("/internal/merchants/#{merchant_code}/webhook-endpoints/#{endpoint_id}", {})
+  end
+
+  # POST /internal/merchants/:merchant_code/webhook-endpoints/:endpoint_id/test
+  def test_webhook_endpoint(merchant_code:, endpoint_id:)
+    post("/internal/merchants/#{merchant_code}/webhook-endpoints/#{endpoint_id}/test", {})
+  end
+
+  # POST /internal/webhook-deliveries/retry (portal → core service token)
+  def retry_webhook_delivery(endpoint_id:, event_id:, event_type:, attempt:, body:)
+    post("/internal/webhook-deliveries/retry",
+         { endpoint_id: endpoint_id, event_id: event_id,
+           event_type: event_type, attempt: attempt, body: body })
   end
 
   # ── Routing configurations ─────────────────────────────────────────────────
@@ -398,6 +411,13 @@ class CoreApiClient
   # POST /internal/adjustment_approvals/:break_id/reject
   def reject_adjustment(break_id:, rejected_reason:)
     post("/internal/adjustment_approvals/#{break_id}/reject", { rejected_reason: rejected_reason })
+  end
+
+  def openapi_spec
+    resp = @conn.get("/api/openapi")
+    resp.success? ? JSON.parse(resp.body) : {}
+  rescue StandardError
+    {}
   end
 
   private
