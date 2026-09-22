@@ -72,19 +72,14 @@ module Payments
           ? "#{count} early payout request#{"s" if count != 1} awaiting review" \
           : "Your payout request is under review"
 
-        div(class: "flex items-center justify-between rounded-2xl px-5 py-3.5 mb-4",
-            style: "background:#fffbeb;border:1px solid #fde68a") do
-          div(class: "flex items-center gap-3") do
-            span(class: "flex-shrink-0") do
-              render UI::Icon.new(:clock, class: "w-4 h-4", style: "color:#d97706")
-            end
-            p(class: "text-[13px] font-medium text-amber-800") { plain label }
-          end
-          a(href: payout_requests_path,
-            class: "text-[12.5px] font-semibold no-underline whitespace-nowrap",
-            style: "color:#d97706") do
-            plain "View #{count == 1 ? "request" : "all"} →"
-          end
+        div(class: "mb-4") do
+          render UI::Notice.new(
+            variant:      :warning,
+            icon:         :clock,
+            title:        label,
+            action_label: "View #{count == 1 ? "request" : "all"}",
+            action_href:  payout_requests_path
+          )
         end
       end
 

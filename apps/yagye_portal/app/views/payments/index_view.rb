@@ -75,8 +75,29 @@ module Payments
         end
         t.column("Amount", class: "text-right tabular-nums font-semibold") { |p| p.formatted_amount }
         t.column("Customer") do |p|
-          val = can_view_pii ? p.customer_display : (p.masked_msisdn || p.customer_email&.gsub(/.(?=.*@)/, "•") || "—")
-          plain val
+          if can_view_pii
+            email  = p.customer_email.presence
+            msisdn = p.masked_msisdn
+            if email || msisdn
+              div do
+                span(class: "block text-[13px] text-gray-800") { plain email } if email
+                span(class: "block text-[11.5px] text-gray-400 font-mono mt-px") { plain msisdn } if msisdn
+              end
+            else
+              plain "—"
+            end
+          else
+            masked_email = p.customer_email&.gsub(/.(?=.*@)/, "•")
+            msisdn       = p.masked_msisdn
+            if msisdn || masked_email
+              div do
+                span(class: "block text-[13px] text-gray-800 font-mono") { plain msisdn } if msisdn
+                span(class: "block text-[11.5px] text-gray-400 mt-px") { plain masked_email } if masked_email
+              end
+            else
+              plain "—"
+            end
+          end
         end
         t.column("Method") do |p|
           mode_cls = case p.mode
@@ -87,8 +108,9 @@ module Payments
           div do
             div(class: "flex items-center gap-1.5") do
               if (logo = p.method_logo)
-                img(src: asset_path(logo), alt: "",
-                    class: "h-4 w-auto object-contain flex-shrink-0")
+                div(class: "w-9 h-5 rounded border border-gray-200 dark:border-white/10 bg-white flex items-center justify-center flex-shrink-0 px-1 overflow-hidden") do
+                  img(src: asset_path(logo), alt: "", class: "max-h-full max-w-full object-contain")
+                end
               else
                 span(class: "w-3.5 h-3.5 text-gray-400 flex-shrink-0") do
                   render UI::Icon.new(p.method_icon, class: "w-full h-full")

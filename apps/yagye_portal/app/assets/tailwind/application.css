@@ -593,3 +593,18 @@ dialog.side-panel[open]::backdrop {
 /* a utility on the child, so a plain CSS rule handles the cascade.         */
 .role-card-check { opacity: 0; transition: opacity 150ms ease; }
 label:has(input[type="radio"]:checked) .role-card-check { opacity: 1; }
+
+/* ── KYB banner lazy-load reveal ────────────────────────────────────────── */
+/* The banner is a Turbo Frame loaded asynchronously. Without animation it  */
+/* hard-pops in and shoves content down. Slide-reveal expands height         */
+/* smoothly so the layout shift feels intentional, not glitchy.             */
+@media (prefers-reduced-motion: no-preference) {
+  .kyb-banner-reveal {
+    animation: kyb-banner-reveal 280ms cubic-bezier(0.4, 0, 0.2, 1) both;
+    overflow: hidden;
+  }
+}
+@keyframes kyb-banner-reveal {
+  from { max-height: 0; opacity: 0; }
+  to   { max-height: 80px; opacity: 1; }
+}

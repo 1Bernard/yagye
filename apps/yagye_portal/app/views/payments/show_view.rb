@@ -235,8 +235,9 @@ module Payments
     def network_logo_label(payment)
       div(class: "flex items-center gap-2") do
         if (logo = payment.method_logo)
-          img(src: asset_path(logo), alt: "",
-              class: "h-5 w-auto object-contain flex-shrink-0")
+          div(class: "w-11 h-6 rounded border border-gray-200 dark:border-white/10 bg-white flex items-center justify-center flex-shrink-0 px-1 overflow-hidden") do
+            img(src: asset_path(logo), alt: "", class: "max-h-full max-w-full object-contain")
+          end
         end
         span(class: UI::Theme::TYPE_BODY_MD) { plain payment.method_label }
       end

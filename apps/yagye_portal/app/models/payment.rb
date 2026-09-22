@@ -10,13 +10,13 @@ class Payment < ApplicationRecord
   }.freeze
 
   PROVIDER_LOGOS = {
-    "mtn_momo"     => "mtn.svg",
-    "telecel_cash" => "telecel.svg",
-    "airteltigo"   => "at.svg"
+    "mtn_momo"     => "mtn.png",
+    "telecel_cash" => "telecel.png",
+    "airteltigo"   => "at.png"
   }.freeze
 
   METHOD_LOGOS = {
-    "card" => "card.svg"
+    "card" => "visa.svg"
   }.freeze
 
   scope :for_merchant, ->(code) { where(merchant_code: code) }
@@ -45,7 +45,7 @@ class Payment < ApplicationRecord
 
   def method_label
     case payment_method
-    when "mobile_money"  then provider_label
+    when "mobile_money"  then provider_label.presence || "Mobile Money"
     when "card"          then "Card"
     when "bank_transfer" then "Bank Transfer"
     else payment_method&.humanize || "—"
