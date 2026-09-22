@@ -64,7 +64,13 @@ defmodule YagyeCoreWeb.Router do
   alias YagyeCoreWeb.Controllers.Routing.RoutingConfigurationsController
   alias YagyeCoreWeb.Controllers.Routing.RoutingController
   alias YagyeCoreWeb.Controllers.Settlement.SettlementController
-  alias YagyeCoreWeb.Controllers.Webhooks.{ProviderWebhookController, WebhookEndpointsController}
+
+  alias YagyeCoreWeb.Controllers.Webhooks.{
+    InternalWebhookEndpointsController,
+    ProviderWebhookController,
+    WebhookDeliveriesController,
+    WebhookEndpointsController
+  }
 
   # Internal service-to-service pipeline — portal → core ops actions.
   # Authenticated by X-Service-Token shared secret (see AuthenticateInternal plug).
@@ -256,6 +262,33 @@ defmodule YagyeCoreWeb.Router do
 
     # FX rates — no merchant context needed, read-only reference data
     get("/fx-rates", YagyeCoreWeb.Controllers.Fx.FxRateController, :index)
+
+    # P15 — Webhook endpoints (portal → core via service token)
+    post(
+      "/merchants/:merchant_code/webhook-endpoints",
+      InternalWebhookEndpointsController,
+      :create
+    )
+
+    patch(
+      "/merchants/:merchant_code/webhook-endpoints/:endpoint_id",
+      InternalWebhookEndpointsController,
+      :update
+    )
+
+    delete(
+      "/merchants/:merchant_code/webhook-endpoints/:endpoint_id",
+      InternalWebhookEndpointsController,
+      :delete
+    )
+
+    post(
+      "/merchants/:merchant_code/webhook-endpoints/:endpoint_id/test",
+      InternalWebhookEndpointsController,
+      :test
+    )
+
+    post("/webhook-deliveries/retry", InternalWebhookEndpointsController, :retry_delivery)
   end
 
   # v1 merchant-facing API
@@ -308,10 +341,12 @@ defmodule YagyeCoreWeb.Router do
     get("/payouts", PayoutController, :index)
     get("/payouts/:id", PayoutController, :show)
 
-    # P15 — Outbound webhook endpoints
+    # P15 — Outbound webhook endpoints (merchant self-service via their API key)
     post("/webhook-endpoints", WebhookEndpointsController, :create)
+    patch("/webhook-endpoints/:endpoint_id", WebhookEndpointsController, :update)
     delete("/webhook-endpoints/:endpoint_id", WebhookEndpointsController, :delete)
     post("/webhook-endpoints/:endpoint_id/test", WebhookEndpointsController, :test)
+    post("/webhook-deliveries/retry", WebhookDeliveriesController, :retry)
 
     # P13 — Invoices
     resources "/invoices", InvoiceController, only: [:create, :index, :show], param: "id" do

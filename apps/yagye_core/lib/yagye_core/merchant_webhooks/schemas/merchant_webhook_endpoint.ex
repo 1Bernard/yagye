@@ -26,6 +26,7 @@ defmodule YagyeCore.MerchantWebhooks.Schemas.MerchantWebhookEndpoint do
   def changeset(endpoint, attrs) do
     endpoint
     |> cast(attrs, @required ++ @optional)
+    |> update_change(:url, &String.trim/1)
     |> validate_required(@required)
     |> validate_inclusion(:mode, ~w[live test])
     |> validate_format(:url, ~r/\Ahttps?:\/\//i, message: "must be a valid HTTP/S URL")

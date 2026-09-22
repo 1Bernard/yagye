@@ -12,7 +12,8 @@ defmodule YagyeCoreWeb.Controllers.Webhooks.WebhookEndpointsController do
 
   action_fallback YagyeCoreWeb.FallbackController
 
-  plug Authorize, [scope: "webhooks:write", kind: :secret] when action in [:create, :delete]
+  plug Authorize,
+       [scope: "webhooks:write", kind: :secret] when action in [:create, :update, :delete]
 
   def create(conn, params) do
     merchant_id = conn.assigns.merchant_id
@@ -46,6 +47,40 @@ defmodule YagyeCoreWeb.Controllers.Webhooks.WebhookEndpointsController do
 
       {:error, :not_found} ->
         conn |> put_status(404) |> json(%{error: %{code: "merchant_not_found"}})
+    end
+  end
+
+  def update(conn, %{"endpoint_id" => endpoint_public_id} = params) do
+    with {:ok, endpoint} <- MerchantWebhooks.get_endpoint_by_public_id(endpoint_public_id),
+         true <- endpoint.merchant_id == conn.assigns.merchant_id,
+         {:ok, updated} <- MerchantWebhooks.update_endpoint(endpoint, params) do
+      conn
+      |> put_status(200)
+      |> json(%{
+        id: updated.public_id,
+        object: "webhook_endpoint",
+        url: updated.url,
+        mode: updated.mode,
+        active: updated.active,
+        subscribed_events: updated.subscribed_events,
+        created_at: DateTime.to_iso8601(updated.inserted_at)
+      })
+    else
+      false ->
+        conn |> put_status(403) |> json(%{error: %{code: "forbidden"}})
+
+      {:error, :not_found} ->
+        conn |> put_status(404) |> json(%{error: %{code: "not_found"}})
+
+      {:error, %Ecto.Changeset{} = cs} ->
+        conn
+        |> put_status(422)
+        |> json(%{error: %{code: "validation_error", details: format_errors(cs)}})
+
+      {:error, reason} ->
+        conn
+        |> put_status(422)
+        |> json(%{error: %{code: "unprocessable", message: inspect(reason)}})
     end
   end
 

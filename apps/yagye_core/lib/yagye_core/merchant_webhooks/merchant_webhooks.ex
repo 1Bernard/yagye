@@ -17,49 +17,48 @@ defmodule YagyeCore.MerchantWebhooks do
 
   def register_endpoint(merchant, attrs) do
     signing_secret = :crypto.strong_rand_bytes(32)
+    encrypted = Vault.encrypt(signing_secret)
 
-    with {:ok, encrypted} <- Vault.encrypt(signing_secret) do
-      changeset =
-        MerchantWebhookEndpoint.changeset(%MerchantWebhookEndpoint{}, %{
-          public_id: "whe_#{Uniq.UUID.uuid7()}",
-          merchant_id: merchant.id,
-          mode: attrs["mode"] || "test",
-          url: attrs["url"],
-          subscribed_events: attrs["subscribed_events"] || [],
-          secret_encrypted: encrypted
-        })
+    changeset =
+      MerchantWebhookEndpoint.changeset(%MerchantWebhookEndpoint{}, %{
+        public_id: "whe_#{Uniq.UUID.uuid7()}",
+        merchant_id: merchant.id,
+        mode: attrs["mode"] || "test",
+        url: attrs["url"],
+        subscribed_events: attrs["subscribed_events"] || [],
+        secret_encrypted: encrypted
+      })
 
-      outbox_fn = fn %{endpoint: endpoint} ->
-        payload = %{
-          "event_type" => "webhook.endpoint.registered",
-          "endpoint_id" => endpoint.public_id,
-          "merchant_code" => merchant.public_id,
-          "url" => endpoint.url,
-          "mode" => endpoint.mode,
-          "active" => true,
-          "subscribed_events" => endpoint.subscribed_events,
-          "consecutive_failures" => 0
-        }
+    outbox_fn = fn %{endpoint: endpoint} ->
+      payload = %{
+        "event_type" => "webhook.endpoint.registered",
+        "endpoint_id" => endpoint.public_id,
+        "merchant_code" => merchant.public_id,
+        "url" => endpoint.url,
+        "mode" => endpoint.mode,
+        "active" => true,
+        "subscribed_events" => endpoint.subscribed_events,
+        "consecutive_failures" => 0
+      }
 
-        {:ok,
-         Outbox.build_changeset(
-           %{id: endpoint.id, merchant_id: merchant.id, mode: endpoint.mode, version: 1},
-           "webhook.endpoint.registered",
-           payload,
-           destination: "kafka:yagye.webhooks.v1"
-         )}
-      end
+      {:ok,
+       Outbox.build_changeset(
+         endpoint,
+         "webhook.endpoint.registered",
+         payload,
+         destination: "kafka:yagye.webhooks.v1"
+       )}
+    end
 
-      Multi.new()
-      |> Multi.insert(:endpoint, changeset)
-      |> Multi.run(:outbox, fn _repo, ctx -> outbox_fn.(ctx) |> then(&{:ok, &1}) end)
-      |> Multi.insert(:outbox_msg, fn %{outbox: cs} -> cs end)
-      |> Repo.transaction()
-      |> case do
-        {:ok, %{endpoint: endpoint}} -> {:ok, endpoint, signing_secret}
-        {:error, :endpoint, cs, _} -> {:error, cs}
-        {:error, _, reason, _} -> {:error, reason}
-      end
+    Multi.new()
+    |> Multi.insert(:endpoint, changeset)
+    |> Multi.run(:outbox, fn _repo, ctx -> outbox_fn.(ctx) end)
+    |> Multi.insert(:outbox_msg, fn %{outbox: cs} -> cs end)
+    |> Repo.transaction()
+    |> case do
+      {:ok, %{endpoint: endpoint}} -> {:ok, endpoint, signing_secret}
+      {:error, :endpoint, cs, _} -> {:error, cs}
+      {:error, _, reason, _} -> {:error, reason}
     end
   end
 
@@ -68,7 +67,7 @@ defmodule YagyeCore.MerchantWebhooks do
 
     outbox_cs =
       Outbox.build_changeset(
-        %{id: endpoint.id, merchant_id: endpoint.merchant_id, mode: endpoint.mode, version: 1},
+        endpoint,
         "webhook.endpoint.deregistered",
         %{
           "event_type" => "webhook.endpoint.deregistered",
@@ -103,6 +102,53 @@ defmodule YagyeCore.MerchantWebhooks do
     end
   end
 
+  def update_endpoint(endpoint, attrs) do
+    merchant = Repo.get!(Merchant, endpoint.merchant_id)
+
+    changeset =
+      MerchantWebhookEndpoint.changeset(endpoint, %{
+        url: attrs["url"] || endpoint.url,
+        subscribed_events: attrs["subscribed_events"] || endpoint.subscribed_events,
+        active: Map.get(attrs, "active", endpoint.active)
+      })
+
+    outbox_fn = fn %{endpoint: ep} ->
+      payload = %{
+        "event_type" => "webhook.endpoint.updated",
+        "endpoint_id" => ep.public_id,
+        "merchant_code" => merchant.public_id,
+        "url" => ep.url,
+        "mode" => ep.mode,
+        "active" => ep.active,
+        "subscribed_events" => ep.subscribed_events,
+        "consecutive_failures" => ep.consecutive_failures
+      }
+
+      {:ok,
+       Outbox.build_changeset(
+         ep,
+         "webhook.endpoint.updated",
+         payload,
+         destination: "kafka:yagye.webhooks.v1"
+       )}
+    end
+
+    Multi.new()
+    |> Multi.update(:endpoint, changeset)
+    |> Multi.run(:outbox, fn _repo, ctx -> outbox_fn.(ctx) end)
+    |> Multi.insert(:outbox_msg, fn %{outbox: cs} -> cs end)
+    |> Repo.transaction()
+    |> case do
+      {:ok, %{endpoint: endpoint}} -> {:ok, endpoint}
+      {:error, :endpoint, cs, _} -> {:error, cs}
+      {:error, _, reason, _} -> {:error, reason}
+    end
+  end
+
+  def publish_delivery_task(task) do
+    Publisher.publish(task)
+  end
+
   # ── Dispatch: fan-out an event to all matching endpoints ──────────────────────
 
   @doc """
@@ -110,10 +156,13 @@ defmodule YagyeCore.MerchantWebhooks do
   to that event type and publish a delivery task to RabbitMQ for each one.
   """
   def dispatch_event(merchant_id, merchant_code, event_type, event_id, mode, payload) do
+    # Core payments use "simulation" for non-live; endpoint schema uses "test".
+    endpoint_mode = if mode == "simulation", do: "test", else: mode
+
     endpoints =
       MerchantWebhookEndpoint
       |> where([e], e.merchant_id == ^merchant_id)
-      |> where([e], e.mode == ^mode)
+      |> where([e], e.mode == ^endpoint_mode)
       |> where([e], e.active == true)
       |> where([e], ^event_type in e.subscribed_events or [] == e.subscribed_events)
       |> Repo.all()
@@ -121,6 +170,7 @@ defmodule YagyeCore.MerchantWebhooks do
     Enum.each(endpoints, fn ep ->
       task = %{
         "endpoint_id" => ep.id,
+        "endpoint_public_id" => ep.public_id,
         "url" => ep.url,
         # Hex-encode binary so JSON-serialisable; producer decodes back to binary
         "secret_encrypted" => Base.encode16(ep.secret_encrypted, case: :lower),
