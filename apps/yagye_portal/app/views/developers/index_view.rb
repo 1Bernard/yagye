@@ -724,7 +724,7 @@ module Developers
             end
             p(class: TYPE_CAPTION) { plain "All endpoints use Bearer token auth. Amounts are in minor units (pesewas for GHS)." }
           end
-          a(href: "#{core_api_base}/api/swaggerui", target: "_blank", rel: "noopener",
+          a(href: "#{core_api_base}/swaggerui", target: "_blank", rel: "noopener",
             class: BTN_SECONDARY) do
             render UI::Icon.new(:external_link, class: ICON_SM)
             plain "Interactive docs"
