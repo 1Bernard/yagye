@@ -81,6 +81,58 @@ The retry worker fetches the endpoint's **current URL from the database** before
 re-publishing to RabbitMQ. This means a URL update by the merchant takes effect
 on the next retry without any queue manipulation.
 
+### Deduplication strategy
+
+The delivery pipeline is designed for at-least-once delivery. Three layers
+prevent duplicate records; they do not prevent duplicate HTTP POSTs.
+
+**Layer 1 — Core DB (`merchant_webhook_deliveries`)**
+
+`record_delivery/1` upserts with `conflict_target: [:endpoint_id, :event_id, :attempt]`:
+
+```elixir
+Repo.insert(changeset,
+  on_conflict: {:replace, [:state, :response_status, :response_body,
+                            :duration_ms, :delivered_at, :updated_at]},
+  conflict_target: [:endpoint_id, :event_id, :attempt]
+)
+```
+
+If the same RabbitMQ message is processed twice (e.g. Broadway crashes after
+the HTTP POST but before the ack, and RabbitMQ redelivers the unacked message
+on reconnect), the second insert updates the existing record rather than
+creating a duplicate row. The `delivery_id` field is not in the conflict
+`on_conflict` list, so the first generated ID wins.
+
+**Layer 2 — Portal DB (`portal_webhook_deliveries`)**
+
+`WebhookEventsConsumer` upserts on `unique_by: :delivery_id`. Replaying a
+`webhook.delivery.attempted` event (e.g. Karafka consumer restart) is safe
+— it updates the record in place rather than inserting a duplicate.
+
+**Layer 3 — Portal DB (`portal_webhook_endpoints`)**
+
+`WebhookEventsConsumer` upserts endpoints on `unique_by: :endpoint_id`.
+Out-of-order Redpanda replays do not create duplicate endpoint rows.
+
+### At-least-once delivery — merchant obligation
+
+The three dedup layers above protect Yagye's internal records. They do **not**
+prevent a merchant's endpoint from receiving the same HTTP POST twice.
+
+**Scenario:** Broadway processes a message, POSTs successfully to the merchant,
+then crashes before acking RabbitMQ. On reconnect, RabbitMQ redelivers the
+message. Broadway processes it again — another POST goes to the merchant with
+a new `X-Yagye-Delivery` ID (a fresh UUIDv7 generated per attempt).
+
+The merchant sees two deliveries with different `X-Yagye-Delivery` headers but
+identical event payloads and the same event `id`.
+
+**Merchant obligation:** Implement idempotency keyed on the event `id` field
+(`data.object.id` for payments), not on `X-Yagye-Delivery`. The delivery
+header is a per-attempt identifier for logging — it changes on each attempt
+and cannot be used for deduplication.
+
 ### Why `on_failure: :reject` (not `:reject_and_requeue`)
 
 `:reject_and_requeue` causes RabbitMQ to immediately re-deliver the message to

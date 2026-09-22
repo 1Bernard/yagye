@@ -62,3 +62,4 @@ What did we decide? One clear statement.
 | [0023](0023-ml-scoring-service.md) | ML scoring service | Accepted |
 | [0024](0024-agentic-finance-api-surface.md) | Agentic finance API surface | Accepted |
 | [0025](0025-rabbitmq-broadway-webhook-delivery.md) | RabbitMQ + Broadway for outbound webhook delivery | Accepted |
+| [0026](0026-portal-read-model-soft-delete.md) | Soft-delete on portal read models for JOIN preservation | Accepted |

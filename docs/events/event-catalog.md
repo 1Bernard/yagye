@@ -279,6 +279,17 @@ merchant endpoint. Emitted via the outbox after the attempt completes.
 ```
 `state` is one of `delivered | failed | exhausted`.
 
+After every attempt, `merchant_webhook_endpoints.consecutive_failures` is
+updated atomically:
+- **Delivered:** reset to `0`.
+- **Failed:** incremented by `1`. At `50`, the endpoint is auto-suspended
+  (`active = false`, `disabled_at` set) and no further deliveries are
+  scheduled until the merchant re-enables it.
+
+The Portal's `WebhookEventsConsumer` mirrors this counter from the
+`webhook.endpoint.*` events so the developer console badge stays in sync
+without querying Core.
+
 ---
 
 ## API Keys

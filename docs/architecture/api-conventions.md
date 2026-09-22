@@ -1,6 +1,6 @@
 # API Conventions
 
-**Last updated:** 2026-08-30
+**Last updated:** 2026-09-22
 
 All merchant-facing endpoints under `/v1` follow these conventions. Internal
 (`/internal`) and webhook (`/provider-webhooks`) endpoints share most of them
@@ -253,6 +253,159 @@ define its operation in the corresponding spec module under
 
 The spec is also exported as a static JSON file to `contracts/openapi/yagye-core.json`
 as part of the schema export process.
+
+---
+
+## Outbound Webhooks
+
+Yagye delivers domain events to merchant-registered HTTPS endpoints. This
+section documents the wire format, signature scheme, and the reliability
+contract merchants must build against.
+
+### Event envelope
+
+Every POST body is a JSON event envelope:
+
+```json
+{
+  "id": "evt_01j9qx…",
+  "object": "event",
+  "event": "payment.paid",
+  "created_at": "2026-09-22T14:00:00.000000Z",
+  "livemode": true,
+  "data": {
+    "object": {
+      "id": "pay_01j9…",
+      "object": "payment",
+      "status": "paid",
+      "amount": 10000,
+      "net_amount": 9720,
+      "currency": "GHS",
+      "method": "momo",
+      "provider": "mtn_momo",
+      "merchant_reference": "order-1234",
+      "customer_msisdn": "233241000001",
+      "paid_at": "2026-09-22T14:00:00.000000Z"
+    }
+  }
+}
+```
+
+**Internal → merchant event name translation:**
+
+Domain events use past-tense internal names. The outbound webhook translates
+them to merchant-facing names:
+
+| Internal event | Merchant webhook event |
+|---|---|
+| `payment.succeeded` | `payment.paid` |
+| `payment.failed` | `payment.failed` |
+| `payout.completed` | `payout.completed` |
+| `invoice.paid` | `invoice.paid` |
+
+Correspondingly, the internal `state: "succeeded"` field is exposed as
+`status: "paid"` in the `data.object`. Merchants see only the merchant-facing
+names — the internal state names are never sent in webhook payloads.
+
+### Request headers
+
+| Header | Description |
+|---|---|
+| `Content-Type` | `application/json` |
+| `User-Agent` | `Yagye-Webhook/1.0` |
+| `X-Yagye-Signature` | HMAC-SHA256 signature (see below) |
+| `X-Yagye-Delivery` | UUIDv7 per attempt — changes on every retry |
+| `X-Yagye-Event` | Event name, e.g. `payment.paid` |
+| `X-Yagye-Timestamp` | Unix timestamp of delivery attempt (seconds) |
+
+### Signature verification
+
+Every webhook POST is signed with the endpoint's signing secret using
+HMAC-SHA256. The signature covers the raw request body bytes.
+
+```
+X-Yagye-Signature: sha256=<hex-encoded-hmac>
+```
+
+**Verification (pseudocode):**
+
+```python
+import hmac, hashlib
+
+def verify_webhook(body_bytes, header, signing_secret):
+    expected = "sha256=" + hmac.new(
+        signing_secret.encode(),
+        body_bytes,
+        hashlib.sha256
+    ).hexdigest()
+    return hmac.compare_digest(expected, header)
+```
+
+```ruby
+# Ruby
+digest = OpenSSL::HMAC.hexdigest("SHA256", signing_secret, request.body.read)
+expected = "sha256=#{digest}"
+ActiveSupport::SecurityUtils.secure_compare(expected, request.headers["X-Yagye-Signature"])
+```
+
+```javascript
+// Node.js
+const crypto = require('crypto');
+const sig = crypto.createHmac('sha256', signingSecret)
+                  .update(rawBody)
+                  .digest('hex');
+const expected = `sha256=${sig}`;
+const valid = crypto.timingSafeEqual(Buffer.from(expected), Buffer.from(header));
+```
+
+**Important rules:**
+- Always use a **timing-safe comparison** (`hmac.compare_digest`, `timingSafeEqual`,
+  `secure_compare`). String equality (`==`) is vulnerable to timing attacks.
+- Compute the HMAC over the **raw body bytes**, not a parsed/re-serialised object.
+  Whitespace differences in re-serialisation will break the signature.
+- The signing secret is revealed **once only** when the endpoint is created. Store
+  it immediately in an environment variable or secrets manager — it cannot be
+  retrieved again.
+- Optionally validate `X-Yagye-Timestamp` is within ±5 minutes to prevent replay
+  attacks.
+
+### At-least-once delivery
+
+Yagye guarantees **at-least-once** delivery, not exactly-once. In rare failure
+scenarios (process crash after a successful HTTP POST but before the RabbitMQ
+ack), the same event may be delivered more than once. Duplicate deliveries will
+have different `X-Yagye-Delivery` headers but identical event `id` values.
+
+**Merchant obligation:** implement idempotency keyed on the event `id` field
+(or the `data.object.id` of the resource). Do not key on `X-Yagye-Delivery` —
+it is a per-attempt logging identifier, not a stable idempotency key.
+
+```python
+# Example: idempotent handler
+def handle_webhook(event):
+    if already_processed(event["id"]):
+        return  # idempotent — skip duplicate
+    process(event["data"]["object"])
+    mark_processed(event["id"])
+```
+
+### Response expectations
+
+Yagye considers any `2xx` response a successful delivery. Any other status
+(including `3xx` redirects, which are not followed) is treated as a failure
+and scheduled for retry per the exponential backoff policy (ADR-0025).
+
+Respond as quickly as possible — the delivery times out at **5 seconds**. If
+processing the event takes longer, respond `200` immediately and process
+asynchronously.
+
+### Endpoint suspension
+
+After **50 consecutive delivery failures**, the endpoint is automatically
+suspended (`active = false`, `disabled_at` set). Suspended endpoints receive
+no further deliveries until explicitly re-enabled via the Portal developer
+console or the API. The Portal shows a `consecutive_failures` badge on the
+endpoint row when failures accumulate.
 
 ---
 
