@@ -11,5 +11,10 @@ class PortalMsisdnAllowlist < ApplicationRecord
     message: "must be a valid phone number (digits only, 7–15 characters)"
   }
 
+  scope :kept,         -> { where(deleted_at: nil) }
   scope :for_merchant, ->(code) { where(merchant_code: code) }
+
+  def soft_delete!
+    update!(deleted_at: Time.current)
+  end
 end

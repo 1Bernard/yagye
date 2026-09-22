@@ -11,5 +11,10 @@ class PortalIpAllowlist < ApplicationRecord
     message: "must be a valid IPv4 address or CIDR (e.g. 192.168.1.1 or 10.0.0.0/24)"
   }
 
+  scope :kept,         -> { where(deleted_at: nil) }
   scope :for_merchant, ->(code) { where(merchant_code: code) }
+
+  def soft_delete!
+    update!(deleted_at: Time.current)
+  end
 end

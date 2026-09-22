@@ -23,7 +23,7 @@ module Account
       entry = decode_id(PortalIpAllowlist)
       authorize entry, policy_class: PortalIpAllowlistPolicy
       cidr = entry.cidr
-      entry.destroy
+      entry.soft_delete!
       UserAuditEvents::Record.call(user: current_user, event_type: :ip_removed, request: request,
                                    metadata: { cidr: cidr })
       redirect_to settings_path(tab: "allowlists"), notice: "IP address removed."
@@ -50,7 +50,7 @@ module Account
       entry = decode_id(PortalMsisdnAllowlist)
       authorize entry, policy_class: PortalMsisdnAllowlistPolicy
       msisdn = entry.msisdn
-      entry.destroy
+      entry.soft_delete!
       UserAuditEvents::Record.call(user: current_user, event_type: :msisdn_removed, request: request,
                                    metadata: { msisdn: msisdn })
       redirect_to settings_path(tab: "allowlists"), notice: "Phone number removed."
