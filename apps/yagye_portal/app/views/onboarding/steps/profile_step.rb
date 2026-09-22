@@ -5,13 +5,15 @@ module Onboarding
     class ProfileStep < ApplicationComponent
       include UI::Theme
 
+      BRAND = UI::Theme::BRAND
+
       BUSINESS_TYPES = [
-        ["Sole Proprietorship", "sole_proprietorship"],
-        ["Partnership",         "partnership"],
-        ["Limited Liability Company (LLC)", "llc"],
-        ["Private Limited Company", "private_limited"],
-        ["Public Limited Company",  "public_limited"],
-        ["Non-Governmental Organisation", "ngo"]
+        ["Sole Proprietorship",                  "sole_proprietorship"],
+        ["Partnership",                           "partnership"],
+        ["Limited Liability Company (LLC)",       "llc"],
+        ["Private Limited Company",               "private_limited"],
+        ["Public Limited Company",                "public_limited"],
+        ["Non-Governmental Organisation",         "ngo"]
       ].freeze
 
       REGISTRATION_TYPES = [
@@ -21,15 +23,15 @@ module Onboarding
       ].freeze
 
       CATEGORIES = [
-        ["E-commerce & Retail", "ecommerce_retail"],
-        ["Food & Beverage",     "food_beverage"],
-        ["Professional Services", "professional_services"],
-        ["Education",            "education"],
-        ["Healthcare",           "healthcare"],
-        ["Travel & Hospitality", "travel_hospitality"],
-        ["Entertainment & Media", "entertainment_media"],
-        ["Non-profit / NGO",     "nonprofit"],
-        ["Other",                "other"]
+        ["E-commerce & Retail",        "ecommerce_retail"],
+        ["Food & Beverage",            "food_beverage"],
+        ["Professional Services",      "professional_services"],
+        ["Education",                  "education"],
+        ["Healthcare",                 "healthcare"],
+        ["Travel & Hospitality",       "travel_hospitality"],
+        ["Entertainment & Media",      "entertainment_media"],
+        ["Non-profit / NGO",           "nonprofit"],
+        ["Other",                      "other"]
       ].freeze
 
       def initialize(progress:)
@@ -42,115 +44,103 @@ module Onboarding
           step_header(
             title:       "Business Profile",
             description: "Tell us about your business — this information will be used to verify your identity.",
-            step:        "1 of 5"
+            step:        "1 of 5",
+            icon:        :building
           )
 
-          form(action: update_kyb_profile_path, method: :post, class: "p-6 space-y-5") do
+          form(action: update_kyb_profile_path, method: :post) do
             input(type: "hidden", name: "_method", value: "patch")
-            csrf_meta_tags_field
+            input(type: "hidden", name: "authenticity_token", value: form_authenticity_token)
 
-            div(class: "grid grid-cols-1 sm:grid-cols-2 gap-5") do
-              form_field(
-                name:     "business_type",
-                label:    "Business Type",
-                required: true,
-                hint:     "Select the legal structure of your business."
-              ) do
-                select_input("business_type", BUSINESS_TYPES, @merchant["business_type"])
-              end
+            div(class: "px-6 py-5 space-y-5") do
+              div(class: "grid grid-cols-1 sm:grid-cols-2 gap-5") do
+                form_field(name: "business_type", label: "Business Type", required: true,
+                           hint: "Select the legal structure of your business.") do
+                  select_input("business_type", BUSINESS_TYPES, @merchant["business_type"])
+                end
 
-              form_field(
-                name:  "registration_type",
-                label: "Registration Authority",
-                hint:  "Where your business is registered."
-              ) do
-                select_input("registration_type", REGISTRATION_TYPES, @merchant["registration_type"])
-              end
+                form_field(name: "registration_type", label: "Registration Authority",
+                           hint: "Where your business is registered.") do
+                  select_input("registration_type", REGISTRATION_TYPES, @merchant["registration_type"])
+                end
 
-              form_field(
-                name:  "category",
-                label: "Business Category",
-                hint:  "What best describes your core business activity?"
-              ) do
-                select_input("category", CATEGORIES, @merchant["category"])
-              end
+                form_field(name: "category", label: "Business Category",
+                           hint: "What best describes your core business activity?") do
+                  select_input("category", CATEGORIES, @merchant["category"])
+                end
 
-              form_field(
-                name:  "tin",
-                label: "Tax Identification Number (TIN)",
-                hint:  "Your Ghana Revenue Authority TIN."
-              ) do
-                input(
-                  type:        "text",
-                  name:        "tin",
-                  value:       @merchant["tin"],
-                  placeholder: "C0000000000",
-                  class:       input_class
-                )
+                form_field(name: "tin", label: "Tax Identification Number (TIN)",
+                           hint: "Your Ghana Revenue Authority TIN.") do
+                  input(type: "text", name: "tin", id: "tin",
+                        value: @merchant["tin"], placeholder: "C0000000000",
+                        class: INPUT_FIELD)
+                end
               end
             end
 
-            step_footer(next_label: "Save & Continue")
+            step_footer(submit_label: "Save & Continue")
           end
         end
       end
 
       private
 
-      def step_header(title:, description:, step:)
-        div(class: "px-6 py-5 border-b", style: "border-color: #{colors[:border]}") do
-          div(class: "flex items-center justify-between mb-1") do
-            h2(class: "text-base font-semibold", style: "color: #{colors[:text_primary]}") { title }
-            span(class: "text-xs font-medium px-2 py-0.5 rounded-full",
-                 style: "background: #{colors[:surface_subtle]}; color: #{colors[:text_muted]}") { step }
+      def step_header(title:, description:, step:, icon: :building)
+        div(class: "px-6 py-5 border-b border-gray-100") do
+          div(class: "flex items-start justify-between gap-4 mb-3") do
+            div(
+              class: "w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0",
+              style: "background: rgba(61,71,245,0.08); border: 1px solid rgba(61,71,245,0.16)"
+            ) do
+              span(class: "flex w-[15px] h-[15px]", style: "color: #{BRAND}") do
+                render UI::Icon.new(icon, class: "w-full h-full")
+              end
+            end
+            span(
+              class: "text-[11px] font-semibold px-[9px] py-[3px] rounded-full flex-shrink-0 mt-[5px]",
+              style: "background: rgba(61,71,245,0.08); color: #{BRAND}"
+            ) { plain step }
           end
-          p(class: "text-sm", style: "color: #{colors[:text_secondary]}") { description }
+          p(class: TYPE_TITLE) { plain title }
+          p(class: "#{TYPE_CAPTION} mt-[3px]") { plain description }
         end
       end
 
       def form_field(name:, label:, required: false, hint: nil, &block)
         div do
-          div(class: "flex items-baseline justify-between mb-1.5") do
-            label(for: name, class: "block text-sm font-medium",
-                  style: "color: #{colors[:text_primary]}") do
-              plain label
-              sup(class: "text-red-500 ml-0.5") { "*" } if required
-            end
+          div(class: "flex items-baseline gap-1 mb-1.5") do
+            label(for: name, class: "block text-[13px] font-medium text-gray-700") { plain label }
+            sup(class: "text-red-500 ml-0.5") { "*" } if required
           end
           yield
-          p(class: "mt-1 text-xs", style: "color: #{colors[:text_muted]}") { hint } if hint
+          p(class: "#{TYPE_CAPTION} mt-1") { plain hint } if hint
         end
       end
 
       def select_input(name, options, selected_value)
-        select(name: name, id: name, class: input_class) do
-          option(value: "") { "Select…" }
-          options.each do |label, value|
-            opt = option(value: value) { label }
-            opt["selected"] = "selected" if selected_value == value
+        select(name: name, id: name, class: SELECT_FIELD) do
+          option(value: "") { plain "Select…" }
+          options.each do |lbl, value|
+            option(value: value, selected: selected_value == value || nil) { plain lbl }
           end
         end
       end
 
-      def step_footer(next_label: "Save & Continue")
-        div(class: "pt-2 flex justify-end") do
-          button(
-            type:  "submit",
-            class: "inline-flex items-center px-5 py-2.5 rounded-lg text-sm font-medium text-white transition-colors",
-            style: "background: #{colors[:brand_primary]}"
-          ) { next_label }
+      def step_footer(back_step: nil, submit_label: "Save & Continue")
+        div(class: "px-6 py-4 border-t border-gray-100 flex items-center justify-between") do
+          if back_step
+            a(href: verify_step_path(back_step), class: BTN_SECONDARY) do
+              render UI::Icon.new(:arrow_left, class: ICON_SM)
+              plain "Back"
+            end
+          else
+            div
+          end
+          button(type: "submit", class: BTN_PRIMARY) do
+            plain submit_label
+            render UI::Icon.new(:arrow_right, class: ICON_SM)
+          end
         end
-      end
-
-      def input_class
-        "w-full rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-900 " \
-          "focus:outline-none focus:ring-2 focus:ring-blue-500/10 focus:border-blue-400 " \
-          "focus:bg-white transition-all"
-      end
-
-      def csrf_meta_tags_field
-        input(type: "hidden", name: "authenticity_token",
-              value: form_authenticity_token)
       end
     end
   end

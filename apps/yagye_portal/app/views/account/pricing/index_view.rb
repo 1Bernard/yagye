@@ -11,10 +11,9 @@ module Account
 
       def view_template
         render Layout::Shell.new(
-          active_nav:  :settings,
-          title:       "Pricing",
+          active_nav:  :settings_pricing,
+          title:       "Pricing & Fees",
           breadcrumbs: [
-            { label: "Settings", url: settings_path },
             { label: "Pricing & Fees" }
           ]
         ) do

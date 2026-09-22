@@ -54,20 +54,12 @@ module Merchants
     end
 
     def info_banner
-      div(class: "rounded-2xl px-6 py-5 flex items-start gap-4",
-          style: "background:rgba(61,71,245,0.06);border:1px solid rgba(61,71,245,0.18)") do
-        span(class: "flex-shrink-0 mt-[2px]") do
-          render UI::Icon.new(:info_circle, class: "w-5 h-5", style: "color:#3D47F5")
-        end
-        div do
-          p(class: "text-[13.5px] font-semibold text-gray-800 mb-1") do
-            plain "How settlement controls work"
-          end
-          p(class: "#{TYPE_CAPTION} leading-relaxed") do
-            plain "When a settlement batch exceeds the approval threshold, it must be manually approved by one of the listed approvers before dispatch. Leave the threshold blank to auto-approve all batches."
-          end
-        end
-      end
+      render UI::Notice.new(
+        variant: :info,
+        size:    :lg,
+        title:   "How settlement controls work",
+        body:    "When a settlement batch exceeds the approval threshold, it must be manually approved by one of the listed approvers before dispatch. Leave the threshold blank to auto-approve all batches."
+      )
     end
 
     def controls_card

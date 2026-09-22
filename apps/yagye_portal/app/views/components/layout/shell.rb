@@ -4,12 +4,13 @@ module Layout
   class Shell < ApplicationComponent
     include UI::Theme
 
-    def initialize(active_nav:, title:, subtitle: nil, breadcrumbs: nil, padded: true)
-      @active_nav  = active_nav
-      @title       = title
-      @subtitle    = subtitle
-      @breadcrumbs = breadcrumbs
-      @padded      = padded
+    def initialize(active_nav:, title:, subtitle: nil, breadcrumbs: nil, padded: true, show_kyb_banner: true)
+      @active_nav       = active_nav
+      @title            = title
+      @subtitle         = subtitle
+      @breadcrumbs      = breadcrumbs
+      @padded           = padded
+      @show_kyb_banner  = show_kyb_banner
     end
 
     def view_template
@@ -19,7 +20,9 @@ module Layout
           render Layout::Topbar.new(title: @title, subtitle: @subtitle, breadcrumbs: @breadcrumbs)
           # Lazy-loaded KYB banner — fetched after page render so it never blocks load.
           # The frame stays empty if KYB is complete or user is not a merchant.
-          turbo_frame_tag("kyb-banner", src: kyb_banner_path) if current_user&.merchant_user?
+          if current_user&.merchant_user? && @show_kyb_banner
+            turbo_frame_tag("kyb-banner", src: kyb_banner_path)
+          end
           main(class: "flex-1 min-h-0 #{@padded ? 'p-6 overflow-y-auto' : 'overflow-hidden'}") { yield }
         end
       end

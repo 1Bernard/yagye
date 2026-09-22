@@ -25,7 +25,7 @@ module Team
         ) do
           render UI::PageHeader.new(
             title:    "Roles & permissions",
-            subtitle: "Define what each team member can see and do across Yagye."
+            subtitle: "Define what each team member can see and do."
           ) do
             if @can_manage
               render UI::Button.new(variant: :primary, href: new_team_role_path,
@@ -52,12 +52,13 @@ module Team
         merchant_count = @roles.count { |r| r.scope == "merchant" }
         internal_count = @roles.count { |r| r.scope == "internal" }
         total_perms    = @roles.sum { |r| r.permissions.size }
+        mixed          = merchant_count > 0 && internal_count > 0
 
-        div(class: "grid grid-cols-4 gap-3") do
-          stat_tile("Total roles",       @roles.size,    :key,       "icon-brand")
-          stat_tile("Merchant roles",    merchant_count, :building,  "icon-green")
-          stat_tile("Internal roles",    internal_count, :users,     "icon-purple")
-          stat_tile("Permission grants", total_perms,    :shield,    "icon-teal")
+        div(class: "grid grid-cols-#{mixed ? 4 : 3} gap-3") do
+          stat_tile("Total roles",       @roles.size,    :key,      "icon-brand")
+          stat_tile("Merchant roles",    merchant_count, :building, "icon-green")
+          stat_tile("Internal roles",    internal_count, :users,    "icon-purple") if mixed
+          stat_tile("Permission grants", total_perms,    :shield,   "icon-teal")
         end
       end
 
@@ -81,7 +82,7 @@ module Team
 
         div(class: "flex flex-col gap-4") do
           scope_section("Merchant roles",    merchant_roles, "merchant")
-          scope_section("Yagye staff roles", internal_roles, "internal")
+          scope_section("Yagye staff roles", internal_roles, "internal") if internal_roles.any?
         end
       end
 

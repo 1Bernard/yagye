@@ -51,7 +51,15 @@ module Acl
     def currency        = @p["currency"].presence || "GHS"
     def reference       = @p["merchant_reference"]
     def description     = @p["description"]
-    def mode            = @p["mode"]
+    # Core uses "sandbox" + "simulation" for non-live payments;
+    # Portal normalises both to "test" to match Current.mode.
+    def mode
+      case @p["mode"]
+      when "sandbox", "simulation" then "test"
+      when "live"                  then "live"
+      else @p["mode"].to_s
+      end
+    end
     def provider        = @p["provider"]
     def customer_msisdn = @p["customer_msisdn"]
     def customer_email  = @p["customer_email"]

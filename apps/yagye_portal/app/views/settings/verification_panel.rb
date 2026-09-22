@@ -71,9 +71,8 @@ module Settings
         end
 
         if @tier == 1
-          render UI::Button.new(variant: :secondary, href: "mailto:compliance@yagye.com") do
-            render UI::Icon.new(:mail, class: ICON_SM)
-            plain "Contact compliance"
+          render UI::Button.new(variant: :primary, href: verify_path, data: { turbo_frame: "_top" }) do
+            plain "Start verification →"
           end
         elsif @tier == 3
           span(class: "badge-green text-[12px] font-semibold px-3 py-1.5 rounded-full flex-shrink-0") do
@@ -189,10 +188,9 @@ module Settings
         div(class: "px-6 py-5 border-b border-gray-100") do
           p(class: TYPE_TITLE) { plain "Required documents" }
           p(class: "#{TYPE_CAPTION} mt-[3px]") do
-            plain "Prepare these and email to "
-            a(href: "mailto:compliance@yagye.com",
-              style: "color:#{BRAND};font-weight:500;text-decoration:none") { plain "compliance@yagye.com" }
-            plain " to start your review."
+            plain "Upload these through the verification flow. "
+            a(href: verify_path,
+              style: "color:#{BRAND};font-weight:500;text-decoration:none") { plain "Start verification →" }
           end
         end
 

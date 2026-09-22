@@ -30,22 +30,14 @@ module Settings
     private
 
     def warning_banner
-      div(class: "flex items-start gap-4 rounded-2xl px-5 py-4 mb-6",
-          style: "background:rgba(217,119,6,0.08);border:1px solid rgba(217,119,6,0.25)") do
-        div(class: "w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0 mt-[1px]",
-            style: "background:rgba(217,119,6,0.15)") do
-          span(class: "flex w-[15px] h-[15px] text-amber-600") do
-            render UI::Icon.new(:alert_triangle, class: "w-full h-full")
-          end
-        end
-        div do
-          p(class: "text-[13px] font-semibold text-gray-900 mb-[2px]") do
-            plain "Save these codes now — you won't see them again."
-          end
-          p(class: TYPE_CAPTION) do
-            plain "Each code can be used once to sign in if you lose access to your authenticator app. Store them in a password manager or a secure location."
-          end
-        end
+      div(class: "mb-6") do
+        render UI::Notice.new(
+          variant: :warning,
+          icon:    :alert_triangle,
+          size:    :lg,
+          title:   "Save these codes now — you won't see them again.",
+          body:    "Each code can be used once to sign in if you lose access to your authenticator app. Store them in a password manager or a secure location."
+        )
       end
     end
 

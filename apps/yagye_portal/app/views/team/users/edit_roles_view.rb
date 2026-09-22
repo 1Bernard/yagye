@@ -95,9 +95,10 @@ module Team
 
       def effect_notice
         render UI::Notice.new(
-          variant:  :warning,
-          title:    "Requires a second approver",
-          body:     "Role changes are not applied immediately. A member with team management access must approve this request before any permissions change."
+          variant:     :warning,
+          title:       "Requires a second approver",
+          body:        "Role changes are not applied immediately. A member with team management access must approve this request before any permissions change.",
+          dismissable: true
         )
       end
 

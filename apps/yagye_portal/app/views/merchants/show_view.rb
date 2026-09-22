@@ -299,17 +299,12 @@ module Merchants
     end
 
     def ubo_block_notice
-      div(class: "flex items-start gap-2 p-3 rounded-xl bg-amber-50 border border-amber-100") do
-        span(class: "flex-shrink-0 mt-[1px]") do
-          render UI::Icon.new(:alert_circle, class: "w-4 h-4 text-amber-500")
-        end
-        div do
-          p(class: "text-[12.5px] font-semibold text-amber-800 mb-0.5") { plain "UBO screening incomplete" }
-          p(class: "text-[12px] text-amber-700 leading-snug") do
-            plain "One or more beneficial owners with ≥25% ownership have not been cleared by AML screening. Resolve all open hits before approving."
-          end
-        end
-      end
+      render UI::Notice.new(
+        variant: :warning,
+        size:    :sm,
+        title:   "UBO screening incomplete",
+        body:    "One or more beneficial owners with ≥25% ownership have not been cleared by AML screening. Resolve all open hits before approving."
+      )
     end
 
     def approve_form
