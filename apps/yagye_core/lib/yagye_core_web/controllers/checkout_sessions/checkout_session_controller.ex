@@ -20,7 +20,12 @@ defmodule YagyeCoreWeb.Controllers.CheckoutSessions.CheckoutSessionController do
 
   def create(conn, _params) do
     merchant_id = conn.assigns.merchant_id
-    attrs = conn.body_params |> Map.from_struct() |> atomise_line_items()
+
+    attrs =
+      conn.body_params
+      |> Map.from_struct()
+      |> Map.reject(fn {_k, v} -> is_nil(v) end)
+      |> atomise_line_items()
 
     with {:ok, {session, url_token}} <- CheckoutSessions.create_session(merchant_id, attrs) do
       Response.created(conn, CheckoutSessionJSON.data(session, url_token))

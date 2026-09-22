@@ -5,6 +5,8 @@ defmodule YagyeCore.Merchants do
 
   alias Ecto.Multi
 
+  alias YagyeCore.Merchants.Workers.ApiKeyUsageWorker
+
   alias YagyeCore.Merchants.Commands.{
     ApproveMerchant,
     ApproveMerchantApplication,
@@ -202,6 +204,11 @@ defmodule YagyeCore.Merchants do
       |> Repo.all()
 
     {:ok, merchants}
+  end
+
+  def schedule_key_usage(api_key_id) do
+    ApiKeyUsageWorker.new(%{"api_key_id" => api_key_id}) |> Oban.insert()
+    :ok
   end
 
   def list_api_keys(merchant_id) do

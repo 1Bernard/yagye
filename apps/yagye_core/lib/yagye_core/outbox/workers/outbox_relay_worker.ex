@@ -112,12 +112,14 @@ defmodule YagyeCore.Outbox.Workers.OutboxRelayWorker do
   defp maybe_add(list, true, worker), do: [worker | list]
   defp maybe_add(list, false, _worker), do: list
 
-  # Event types that merchants can subscribe to via webhook endpoints
+  # Internal Core event types eligible for merchant webhook fan-out.
+  # WebhookDispatchWorker translates these to merchant-facing names before delivery.
   @webhook_eligible ~w[
     payment.succeeded payment.failed payment.refunded payment.disputed
     dispute.opened dispute.evidence_submitted dispute.resolved
     refund.created refund.failed
     payout.created payout.paid payout.failed
+    merchant.kyb.approved merchant.kyb.rejected
   ]
 
   defp maybe_dispatch_webhooks(msg, %EventEnvelope{event_type: event_type} = envelope)

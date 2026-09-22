@@ -3,13 +3,17 @@ defmodule YagyeCoreWeb.Controllers.ApiKeys.ApiKeyJSON do
 
   alias YagyeCore.Merchants.Schemas.ApiKey
 
+  # Portal uses "test"/"live"; Core stores "sandbox"/"live". Translate on the way out.
+  defp core_mode_to_portal(:sandbox), do: "test"
+  defp core_mode_to_portal(mode), do: to_string(mode)
+
   # raw_key is present ONLY on creation — shown once and never stored.
   def data(%ApiKey{} = k, raw_key \\ nil) do
     base = %{
       id: k.public_id,
       object: "api_key",
       kind: k.kind,
-      mode: k.mode,
+      mode: core_mode_to_portal(k.mode),
       label: k.label || "",
       key_prefix: k.key_prefix,
       scopes: k.scopes,

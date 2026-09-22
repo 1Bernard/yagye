@@ -16,6 +16,8 @@ defmodule YagyeCoreWeb.Plugs.Authenticate do
       {:ok, raw_key} ->
         case Merchants.authenticate(raw_key) do
           {:ok, api_key} ->
+            Merchants.schedule_key_usage(api_key.id)
+
             conn
             |> assign(:api_key, api_key)
             |> assign(:merchant_id, api_key.merchant_id)

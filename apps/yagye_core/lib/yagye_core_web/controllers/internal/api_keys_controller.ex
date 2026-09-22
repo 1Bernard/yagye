@@ -15,7 +15,7 @@ defmodule YagyeCoreWeb.Controllers.Internal.ApiKeysController do
   def create(conn, %{"code" => merchant_code} = params) do
     with {:ok, merchant} <- Merchants.get_merchant(merchant_code),
          attrs = build_attrs(params, conn),
-         {:ok, {api_key, raw_key, _event}} <- Merchants.issue_api_key(merchant.id, attrs) do
+         {:ok, {api_key, raw_key, _event}} <- Merchants.issue_api_key(merchant.public_id, attrs) do
       conn
       |> put_status(201)
       |> json(ApiKeyJSON.data(api_key, raw_key))
@@ -32,9 +32,17 @@ defmodule YagyeCoreWeb.Controllers.Internal.ApiKeysController do
     end
   end
 
+  # Portal uses "test"/"live"; Core's YagyeMode uses "sandbox"/"live".
+  defp portal_mode_to_core(mode) do
+    case mode do
+      "test" -> "sandbox"
+      other -> other || "sandbox"
+    end
+  end
+
   defp build_attrs(params, _conn) do
     %{
-      mode: params["mode"] || "live",
+      mode: portal_mode_to_core(params["mode"]),
       kind: params["kind"] || "secret",
       label: params["label"] || "",
       scopes: params["scopes"] || [],

@@ -1930,10 +1930,12 @@ defmodule YagyeCheckoutWeb.Live.CheckoutLive do
 
     case CoreClient.complete_session(session_id, pay_id) do
       {:ok, %{"success_url" => url}} when is_binary(url) and url != "" ->
-        if connected?(socket) and external_url?(url) do
-          Process.send_after(self(), {:auto_redirect, url}, 3_500)
+        sid = socket.assigns.session_public_id
+        final_url = String.replace(url, "{CHECKOUT_SESSION_ID}", sid || "")
+        if connected?(socket) and external_url?(final_url) do
+          Process.send_after(self(), {:auto_redirect, final_url}, 3_500)
         end
-        {:noreply, assign(socket, page_state: :done, success_url: url)}
+        {:noreply, assign(socket, page_state: :done, success_url: final_url)}
 
       _ ->
         {:noreply, assign(socket, page_state: :done)}

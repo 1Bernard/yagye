@@ -122,22 +122,6 @@ defmodule YagyeCore.Payments do
     |> Multi.run(:succeeded_event, fn _repo, %{succeeded: p} ->
       insert_event(p, "payment.succeeded", "authorised", "succeeded")
     end)
-    |> Multi.insert(:succeeded_outbox, fn %{succeeded: p} ->
-      Outbox.build_changeset(
-        p,
-        "payment.succeeded",
-        %{
-          public_id: p.public_id,
-          state: p.state,
-          merchant_code: merchant_code(p.merchant_id),
-          provider_code: result[:provider_code],
-          amount: p.amount,
-          currency: p.currency,
-          net_amount: p.amount
-        },
-        correlation_id: p.public_id
-      )
-    end)
     |> Multi.run(:ledger, fn _repo, %{succeeded: p} ->
       Ledger.post_payment_settled(p, attempt)
     end)
@@ -153,6 +137,31 @@ defmodule YagyeCore.Payments do
       else
         {:ok, nil}
       end
+    end)
+    |> Multi.insert(:succeeded_outbox, fn %{succeeded: p, fee_record: fr} ->
+      Outbox.build_changeset(
+        p,
+        "payment.succeeded",
+        %{
+          public_id: p.public_id,
+          state: p.state,
+          mode: p.mode,
+          method: p.method,
+          merchant_code: merchant_code(p.merchant_id),
+          merchant_reference: p.merchant_reference,
+          description: p.description,
+          provider_code: result[:provider_code],
+          provider: network_to_provider(get_in(p.metadata, ["network"])),
+          amount: p.amount,
+          currency: p.currency,
+          net_amount: if(fr, do: p.amount - fr.amount, else: p.amount),
+          checkout_session_id: get_in(p.metadata, ["checkout_session_id"]),
+          customer_msisdn: get_in(p.metadata, ["msisdn"]),
+          customer_email: get_in(p.metadata, ["customer_email"]),
+          paid_at: DateTime.utc_now() |> DateTime.to_iso8601()
+        },
+        correlation_id: p.public_id
+      )
     end)
     |> Multi.run(:fee_ledger, fn _repo, %{succeeded: p, fee_record: fr} ->
       if fr, do: Ledger.post_fee_deduction(p, fr), else: {:ok, nil}
@@ -468,7 +477,9 @@ defmodule YagyeCore.Payments do
           description: p.description,
           merchant_code: m.public_id,
           merchant_reference: p.merchant_reference,
-          customer_reference: Map.get(attrs, :customer_reference)
+          customer_reference: Map.get(attrs, :customer_reference),
+          customer_msisdn: get_in(p.metadata, ["msisdn"]),
+          customer_email: get_in(p.metadata, ["customer_email"])
         },
         correlation_id: p.public_id
       )
@@ -524,6 +535,12 @@ defmodule YagyeCore.Payments do
       nil -> nil
     end
   end
+
+  defp network_to_provider("MTN"), do: "mtn_momo"
+  defp network_to_provider("TELECEL"), do: "telecel_cash"
+  defp network_to_provider("VODAFONE"), do: "telecel_cash"
+  defp network_to_provider("AIRTELTIGO"), do: "airteltigo"
+  defp network_to_provider(_), do: nil
 
   defp current_mode(merchant) do
     cond do
