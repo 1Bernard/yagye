@@ -9,6 +9,10 @@ Rails.application.routes.draw do
     get "dashboard/provider-split", to: "dashboard#provider_split_breakdown", as: :dashboard_provider_split
   end
 
+  # Team invitation acceptance — public, no auth required
+  get   "invitations/:token", to: "account/invitations#show",   as: :accept_invitation
+  patch "invitations/:token", to: "account/invitations#update"
+
   devise_scope :user do
     get  "users/otp-challenge", to: "users/sessions#otp_challenge", as: :users_otp_challenge
     post "users/otp-challenge", to: "users/sessions#verify_otp",    as: :users_verify_otp

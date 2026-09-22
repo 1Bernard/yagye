@@ -26,6 +26,9 @@ module Team
         return Result.new(success?: false, error: "Merchant users cannot assign internal roles")
       end
 
+      raw_token, digest = MerchantMembership.generate_invitation_token!
+
+      membership = nil
       user = nil
       User.transaction do
         user = User.create!(
@@ -42,17 +45,18 @@ module Team
           granted_by:    @invited_by,
           merchant_code: @merchant_code
         )
-        MerchantMembership.create!(
-          user:                   user,
-          merchant_code:          @merchant_code,
-          merchant_name:          @merchant_name,
-          state:                  "invited",
-          invited_by:             @invited_by,
-          invitation_expires_at:  7.days.from_now
+        membership = MerchantMembership.create!(
+          user:                    user,
+          merchant_code:           @merchant_code,
+          merchant_name:           @merchant_name,
+          state:                   "invited",
+          invited_by:              @invited_by,
+          invitation_token_digest: digest,
+          invitation_expires_at:   7.days.from_now
         )
       end
 
-      # TODO P13: enqueue UserMailer::invitation_instructions
+      UserMailer.invitation_instructions(user, membership, raw_token).deliver_later
 
       audit_log(action: "team.user_invited", resource_type: "User",
                 resource_code: user.id, merchant_code: @merchant_code, outcome: "succeeded")

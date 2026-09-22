@@ -1,0 +1,16 @@
+You've been invited to <%= @merchant %> on Yagye
+=======================================================
+
+<%= @invited_by %> has invited you to join <%= @merchant %> as a team member.
+
+Invited email: <%= @user.email %>
+Expires:       <%= @expires_at.strftime("%d %B %Y at %H:%M UTC") %>
+
+Accept your invitation:
+<%= @accept_url %>
+
+If you didn't expect this invitation, you can safely ignore this email.
+This link expires in 7 days.
+
+---
+Yagye — Payment infrastructure for Africa
