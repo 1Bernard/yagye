@@ -10,6 +10,11 @@ class PortalIpAllowlist < ApplicationRecord
     with:    /\A(\d{1,3}\.){3}\d{1,3}(\/\d{1,2})?\z/,
     message: "must be a valid IPv4 address or CIDR (e.g. 192.168.1.1 or 10.0.0.0/24)"
   }
+  validates :cidr, uniqueness: {
+    scope:      :merchant_code,
+    conditions: -> { kept },
+    message:    "is already in your IP allowlist"
+  }
 
   scope :kept,         -> { where(deleted_at: nil) }
   scope :for_merchant, ->(code) { where(merchant_code: code) }

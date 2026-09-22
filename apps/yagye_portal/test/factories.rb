@@ -83,6 +83,26 @@ FactoryBot.define do
 
   # ── Portal merchant applications ──────────────────────────────────────────
 
+  # ── IP allowlists ─────────────────────────────────────────────────────────
+
+  factory :portal_ip_allowlist do
+    merchant_code { "MCH-TEST" }
+    sequence(:cidr) { |n| "10.0.#{n / 256}.#{n % 256}" }
+    label         { nil }
+    created_by    { "owner@example.com" }
+    deleted_at    { nil }
+  end
+
+  # ── MSISDN allowlists ──────────────────────────────────────────────────────
+
+  factory :portal_msisdn_allowlist do
+    merchant_code { "MCH-TEST" }
+    sequence(:msisdn) { |n| "23324100#{n.to_s.rjust(4, '0')}" }
+    label         { nil }
+    created_by    { "owner@example.com" }
+    deleted_at    { nil }
+  end
+
   factory :portal_merchant_application do
     application_code { "APP-#{SecureRandom.hex(4).upcase}" }
     merchant_code    { "MCH-#{SecureRandom.hex(4).upcase}" }

@@ -10,6 +10,11 @@ class PortalMsisdnAllowlist < ApplicationRecord
     with:    /\A\+?[0-9]{7,15}\z/,
     message: "must be a valid phone number (digits only, 7–15 characters)"
   }
+  validates :msisdn, uniqueness: {
+    scope:      :merchant_code,
+    conditions: -> { kept },
+    message:    "is already in your MSISDN allowlist"
+  }
 
   scope :kept,         -> { where(deleted_at: nil) }
   scope :for_merchant, ->(code) { where(merchant_code: code) }

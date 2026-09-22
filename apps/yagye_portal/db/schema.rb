@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_09_22_140001) do
+ActiveRecord::Schema[8.1].define(version: 2026_09_22_160001) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pgcrypto"
@@ -143,6 +143,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_22_140001) do
     t.text "merchant_code", null: false
     t.datetime "updated_at", null: false
     t.index ["deleted_at"], name: "index_portal_ip_allowlists_on_deleted_at"
+    t.index ["merchant_code", "cidr"], name: "idx_portal_ip_allowlists_unique_active", unique: true, where: "(deleted_at IS NULL)"
     t.index ["merchant_code"], name: "index_portal_ip_allowlists_on_merchant_code"
   end
 
@@ -190,6 +191,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_22_140001) do
     t.text "msisdn", null: false
     t.datetime "updated_at", null: false
     t.index ["deleted_at"], name: "index_portal_msisdn_allowlists_on_deleted_at"
+    t.index ["merchant_code", "msisdn"], name: "idx_portal_msisdn_allowlists_unique_active", unique: true, where: "(deleted_at IS NULL)"
     t.index ["merchant_code"], name: "index_portal_msisdn_allowlists_on_merchant_code"
   end
 
