@@ -96,9 +96,16 @@ module Invitations
             type:  :submit,
             class: "w-full inline-flex items-center justify-center rounded-xl px-4 py-3.5 " \
                    "text-sm font-semibold text-white transition-opacity hover:opacity-90 shadow-lg",
-            style: "background-color: #3D47F5"
+            style: "background-color: #3D47F5",
+            data: {
+              controller: "loading-button",
+              action: "click->loading-button#start",
+              loading_button_loading_text_value: "Activating…"
+            }
           ) do
-            plain "Activate account"
+            render UI::Icon.new(:spinner, class: "w-4 h-4 mr-2 animate-spin hidden",
+                                          data: { loading_button_target: "spinner" })
+            span(data: { loading_button_target: "label" }) { plain "Activate account" }
           end
         end
       end

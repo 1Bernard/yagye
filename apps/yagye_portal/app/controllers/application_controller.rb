@@ -14,7 +14,8 @@ class ApplicationController < ActionController::Base
 
   after_action :verify_authorized, unless: :devise_controller?
 
-  rescue_from Pundit::NotAuthorizedError, with: :user_not_authorized
+  rescue_from Pundit::NotAuthorizedError,          with: :user_not_authorized
+  rescue_from ActionController::InvalidAuthenticityToken, with: :handle_csrf_expiry
 
   private
 
@@ -65,6 +66,16 @@ class ApplicationController < ActionController::Base
   def user_not_authorized
     flash[:alert] = t("pundit.not_authorized")
     redirect_back_or_to root_path, status: :see_other
+  end
+
+  # CSRF token mismatch — most likely the session expired (Devise timeoutable
+  # resets the session, invalidating the token embedded in the open page).
+  # A full redirect to sign_in with 303 tells Turbo Drive to do a top-level
+  # GET navigation, clearing the stale page state entirely.
+  def handle_csrf_expiry
+    sign_out current_user if user_signed_in?
+    redirect_to new_user_session_path, status: :see_other,
+                alert: "Your session expired. Please sign in again."
   end
 
   # Looks up a record by its primary key (UUID or string code) and verifies
