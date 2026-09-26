@@ -6,7 +6,15 @@ module Payments
       authorize PortalPayoutRequest, :index?
       scope = policy_scope(PortalPayoutRequest)
       pagy, requests = pagy(scope.recent, limit: 25)
-      render Payments::PayoutRequests::IndexView.new(requests: requests, pagy: pagy)
+      render Payments::PayoutRequests::IndexView.new(
+        requests: requests,
+        pagy:     pagy,
+        stats:    {
+          pending:  scope.pending_review.count,
+          approved: scope.where(state: "approved").count,
+          rejected: scope.where(state: "rejected").count
+        }
+      )
     end
 
     def new

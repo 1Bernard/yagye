@@ -111,23 +111,40 @@ module Payments
       end
 
       def timeline_card
-        state       = @b["state"] || "pending"
-        states      = %w[pending approved dispatched settled]
-        current_idx = states.index(state) || 0
+        batch_state = @b["state"] || "pending"
+
+        ordered = case batch_state
+                  when "awaiting_approval"
+                    %w[pending awaiting_approval processing settled]
+                  when "dispatch_rejected"
+                    %w[pending processing dispatch_rejected]
+                  when "failed"
+                    %w[pending processing failed]
+                  else
+                    %w[pending processing settled]
+                  end
+
+        current_idx = ordered.index(batch_state) || 0
 
         render UI::Card.new do |card|
           card.header("State timeline")
           card.body do
-            states.each_with_index do |s, i|
+            ordered.each_with_index do |s, i|
               done  = i <= current_idx
-              color = done ? GREEN : BORDER
+              color = if done && %w[failed dispatch_rejected].include?(s)
+                        RED
+                      elsif done
+                        GREEN
+                      else
+                        BORDER
+                      end
               div(class: "flex gap-3") do
                 div(class: "flex flex-col items-center flex-shrink-0") do
                   div(class: "w-[10px] h-[10px] rounded-full flex-shrink-0 mt-[3px]", style: "background:#{color}")
-                  div(class: "w-[1px] flex-1 bg-gray-100 mt-1") unless i == states.length - 1
+                  div(class: "w-[1px] flex-1 bg-gray-100 mt-1") unless i == ordered.length - 1
                 end
-                div(class: i == states.length - 1 ? "" : "pb-[14px]") do
-                  p(class: done ? TYPE_BODY_MD : TYPE_CAPTION) { plain s.capitalize }
+                div(class: i == ordered.length - 1 ? "" : "pb-[14px]") do
+                  p(class: done ? TYPE_BODY_MD : TYPE_CAPTION) { plain s.tr("_", " ").capitalize }
                 end
               end
             end

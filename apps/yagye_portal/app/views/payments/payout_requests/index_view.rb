@@ -5,9 +5,10 @@ module Payments
     class IndexView < ApplicationComponent
       include UI::Theme
 
-      def initialize(requests:, pagy:)
+      def initialize(requests:, pagy:, stats: {})
         @requests = requests
         @pagy     = pagy
+        @stats    = stats
       end
 
       def view_template
@@ -16,25 +17,34 @@ module Payments
           title:      "Payout Requests",
           subtitle:   "Early payout requests submitted by merchants"
         ) do
-          render UI::Datatable.new(records: @requests, pagy: @pagy,
-                                   empty_message: "No payout requests yet.") do |t|
-            t.header do
-              div(class: "flex items-center gap-2") do
-                p(class: TYPE_TITLE) { plain "Payout Requests" }
-              end
-            end
+          stat_band if @stats.any?
+          requests_table
+        end
+      end
 
-            t.column("Merchant")  { |r| span(class: TYPE_MONO) { plain r.merchant_code } }
-            t.column("Amount")    { |r| plain r.formatted_amount }
-            t.column("Status")     { |r| render UI::StatusBadge.new(status: r.state) }
-            t.column("Submitted") { |r| plain r.created_at.strftime("%d %b %Y, %H:%M") }
-            t.column("Reviewed")  { |r| plain r.reviewed_at&.strftime("%d %b %Y") || "—" }
+      private
 
-            t.actions do |r|
-              a(href: payout_request_path(r), class: DROPDOWN_ITEM) do
-                render UI::Icon.new(:eye, class: ICON_SM)
-                plain "Review"
-              end
+      def stat_band
+        render UI::Grid.new(columns: 3) do
+          stat_cell("Pending Review", @stats[:pending].to_s,  icon: :clock,        color: AMBER, tint: TINT_AMBER)
+          stat_cell("Approved",       @stats[:approved].to_s, icon: :check_circle, color: GREEN, tint: TINT_GREEN)
+          stat_cell("Rejected",       @stats[:rejected].to_s, icon: :x_circle,     color: RED,   tint: TINT_RED)
+        end
+      end
+
+      def requests_table
+        render UI::Datatable.new(records: @requests, pagy: @pagy,
+                                 empty_message: "No payout requests yet.") do |t|
+          t.column("Merchant")  { |r| span(class: TYPE_MONO) { plain r.merchant_code } }
+          t.column("Amount")    { |r| plain r.formatted_amount }
+          t.column("Status")     { |r| render UI::StatusBadge.new(status: r.state) }
+          t.column("Submitted") { |r| plain r.created_at.strftime("%d %b %Y, %H:%M") }
+          t.column("Reviewed")  { |r| plain r.reviewed_at&.strftime("%d %b %Y") || "—" }
+
+          t.actions do |r|
+            a(href: payout_request_path(r), class: DROPDOWN_ITEM) do
+              render UI::Icon.new(:eye, class: ICON_SM)
+              plain "Review"
             end
           end
         end

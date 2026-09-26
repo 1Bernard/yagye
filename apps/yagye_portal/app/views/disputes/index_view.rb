@@ -189,42 +189,6 @@ module Disputes
       end
     end
 
-    def deadline_chip(dispute)
-      unless dispute.network_deadline.present? && dispute.open?
-        return span(class: TYPE_CAPTION) { plain "—" }
-      end
-
-      deadline = Date.parse(dispute.network_deadline) rescue nil
-      return span(class: TYPE_CAPTION) { plain "—" } unless deadline
-
-      days = (deadline - Date.current).to_i
-
-      if days < 0
-        color, tint, label = RED, TINT_RED, "Overdue"
-      else
-        date_str  = deadline.strftime("%-d %b")
-        countdown = case days
-                    when 0 then "today"
-                    when 1 then "tomorrow"
-                    else        "#{days}d left"
-                    end
-        label     = "#{date_str} · #{countdown}"
-        color, tint = if days <= 2
-                        [RED, TINT_RED]
-                      elsif days <= 6
-                        [AMBER, TINT_AMBER]
-                      else
-                        [GREEN, TINT_GREEN]
-                      end
-      end
-
-      span(class: "inline-flex items-center gap-1.5 text-[11px] font-semibold px-2 py-[3px] rounded-full whitespace-nowrap",
-           style: "color:#{color};background:#{tint}") do
-        span(class: "w-[5px] h-[5px] rounded-full flex-shrink-0 mt-px", style: "background:#{color}")
-        plain label
-      end
-    end
-
     def empty_message
       case @tab
       when "open" then "No open disputes at the moment."
