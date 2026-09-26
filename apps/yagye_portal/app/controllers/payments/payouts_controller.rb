@@ -4,11 +4,10 @@ module Payments
   class PayoutsController < ApplicationController
     def index
       authorize PortalPayout, :index?
-      scope = policy_scope(PortalPayout)
-      scope = scope.where(state: params[:state]) if params[:state].present?
-      scope = scope.where("created_at >= ?", params[:from]) if params[:from].present?
-      scope = scope.where("created_at <= ?", params[:to])   if params[:to].present?
-      pagy, payouts = pagy(scope.order(last_applied_at: :desc), limit: 25)
+      filtered = ::Payouts::PayoutsQuery.new(policy_scope(PortalPayout)).call(
+        state: params[:state], from: params[:from], to: params[:to]
+      )
+      pagy, payouts = pagy(filtered, limit: 25)
       render Payments::Payouts::IndexView.new(
         payouts:      payouts,
         pagy:         pagy,

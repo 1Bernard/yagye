@@ -4,13 +4,11 @@ module Payments
   class SettlementsController < ApplicationController
     def index
       authorize PortalSettlement, :index?
-      scope = policy_scope(PortalSettlement)
-        .joins("LEFT JOIN portal_merchants ON portal_merchants.merchant_code = portal_settlements.merchant_code")
-        .select("portal_settlements.*, COALESCE(NULLIF(portal_merchants.trading_name, ''), portal_settlements.merchant_code) AS merchant_name")
-      scope = scope.where(portal_settlements: { state: params[:state] }) if params[:state].present?
-      scope = scope.where("portal_settlements.value_date >= ?", params[:from]) if params[:from].present?
-      scope = scope.where("portal_settlements.value_date <= ?", params[:to])   if params[:to].present?
-      pagy, settlements = pagy(scope.order("portal_settlements.last_applied_at DESC"), limit: 25)
+      base_scope = Payments::SettlementsQuery.with_merchant_name(policy_scope(PortalSettlement))
+      filtered   = Payments::SettlementsQuery.new(base_scope).call(
+        state: params[:state], from: params[:from], to: params[:to]
+      )
+      pagy, settlements = pagy(filtered, limit: 25)
       core_result  = CoreApiClient.new.get_ops_settlement_dashboard
       ops_dashboard = core_result.success? ? core_result.body : {}
       render Payments::Settlements::IndexView.new(

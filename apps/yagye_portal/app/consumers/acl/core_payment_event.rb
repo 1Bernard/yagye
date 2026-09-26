@@ -67,6 +67,11 @@ module Acl
     def paid_at                = @p["paid_at"]
     def settled_at             = @p["settled_at"]
 
+    # ── Fee breakdown (only present on payment.succeeded events) ─────────────
+    # net_amount = amount - platform_fee. When nil the event predates fee recording.
+    def net_amount = @p.key?("net_amount") ? @p["net_amount"].to_i : nil
+    def fee_amount = net_amount.nil? ? nil : (amount - net_amount)
+
     # ── Fulfilment / shipping risk signals ────────────────────────────────────
     # These three come from the merchant at payment creation time.
     # billing_shipping_match is a boolean computed by the merchant — never an address.

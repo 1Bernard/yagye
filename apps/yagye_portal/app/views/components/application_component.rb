@@ -19,6 +19,7 @@ class ApplicationComponent < Phlex::HTML
   register_value_helper :l
 
   register_element :turbo_frame
+  register_value_helper :turbo_stream_from
 
   def can?(query, record) = policy(record).public_send(query)
 
@@ -81,6 +82,23 @@ class ApplicationComponent < Phlex::HTML
         div(class: "mt-0.5") { yield }
       else
         p(class: mono ? UI::Theme::TYPE_MONO : UI::Theme::TYPE_BODY_MD) { plain value.to_s }
+      end
+    end
+  end
+
+  def copyable_mono(value)
+    text = value.to_s
+    display = text.presence || "—"
+    div(class: "flex items-center gap-1.5 group",
+        data: { controller: "clipboard", clipboard_text_value: text }) do
+      span(class: UI::Theme::TYPE_MONO) { plain display }
+      if text.present?
+        button(type: "button",
+               title: "Copy",
+               class: "opacity-0 group-hover:opacity-100 transition-opacity p-0.5 rounded text-gray-400 hover:text-gray-700 focus:opacity-100",
+               data: { action: "click->clipboard#copy" }) do
+          span(class: "flex w-3 h-3") { render UI::Icon.new(:copy, class: "w-full h-full") }
+        end
       end
     end
   end

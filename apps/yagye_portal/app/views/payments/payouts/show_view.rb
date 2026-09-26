@@ -5,6 +5,24 @@ module Payments
     class ShowView < ApplicationComponent
       include UI::Theme
 
+      FAILURE_DIAGNOSES = {
+        "destination_inactive"        => {
+          title:    "Destination wallet inactive",
+          message:  "The MoMo wallet or bank account set as your payout destination is no longer active.",
+          guidance: "Contact your network operator to reactivate the wallet, or add a new verified destination and request a fresh payout."
+        },
+        "destination_unverified"      => {
+          title:    "Destination not verified",
+          message:  "The payout destination hasn't completed the verification process.",
+          guidance: "Complete name-enquiry verification for your payout destination before retrying."
+        },
+        "insufficient_payable_balance" => {
+          title:    "Insufficient settled balance",
+          message:  "There wasn't enough settled balance to cover this payout at the time of processing.",
+          guidance: "Your pending settlements may not have cleared yet. Once new settlements are reconciled, the next scheduled payout will include these funds."
+        }
+      }.freeze
+
       def initialize(payout:)
         @payout = payout
       end
@@ -113,13 +131,44 @@ module Payments
       end
 
       def failure_card
-        div(class: "bg-white border border-red-300 rounded-2xl overflow-hidden") do
-          div(class: "px-5 py-[18px] border-b border-red-200") do
-            p(class: "text-[13px] font-semibold text-red-600") { plain "Failure details" }
+        raw_code = @payout.failure_code.to_s
+        base_key = raw_code.split(":").first
+        diag     = FAILURE_DIAGNOSES[base_key]
+        is_internal = raw_code.start_with?("ledger_commit_failed")
+
+        div(class: "bg-white border border-red-200 rounded-2xl overflow-hidden") do
+          div(class: "flex items-center gap-2 px-5 py-[14px] bg-red-50 border-b border-red-100") do
+            span(class: "flex w-4 h-4 text-red-500 flex-shrink-0") do
+              render UI::Icon.new(:alert_circle, class: "w-full h-full")
+            end
+            p(class: "text-[13px] font-semibold text-red-700") do
+              plain diag ? diag[:title] : (is_internal ? "Internal processing error" : "Payout failed")
+            end
           end
-          div(class: "px-5 py-4") do
-            p(class: TYPE_CAPTION) { plain "Failure code" }
-            p(class: "#{TYPE_MONO} mt-1 text-red-600") { plain @payout.failure_code }
+
+          div(class: "px-5 py-4 flex flex-col gap-3") do
+            if diag
+              p(class: "text-[13px] text-gray-700 leading-relaxed") { plain diag[:message] }
+              div(class: "bg-amber-50 border border-amber-100 rounded-xl px-4 py-3") do
+                p(class: "text-[11px] font-semibold text-amber-700 uppercase tracking-wide mb-1") { plain "What to do" }
+                p(class: "text-[12.5px] text-amber-900 leading-relaxed") { plain diag[:guidance] }
+              end
+            elsif is_internal
+              p(class: "text-[13px] text-gray-700 leading-relaxed") do
+                plain "An internal accounting error occurred while processing this payout. This is usually transient."
+              end
+              div(class: "bg-amber-50 border border-amber-100 rounded-xl px-4 py-3") do
+                p(class: "text-[11px] font-semibold text-amber-700 uppercase tracking-wide mb-1") { plain "What to do" }
+                p(class: "text-[12.5px] text-amber-900 leading-relaxed") do
+                  plain "Contact support and quote the payout code below. Our team can manually retry the ledger entry."
+                end
+              end
+            end
+
+            div(class: "pt-2 border-t border-gray-100") do
+              p(class: TYPE_CAPTION) { plain "Failure code" }
+              p(class: "#{TYPE_MONO} mt-0.5 text-red-600 text-[12px]") { plain raw_code }
+            end
           end
         end
       end

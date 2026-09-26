@@ -39,6 +39,18 @@ class Payment < ApplicationRecord
     format("%s %.2f", currency, major)
   end
 
+  def formatted_fee_amount
+    return nil unless fee_amount.present?
+    format("%s %.2f", currency, fee_amount / 100.0)
+  end
+
+  def formatted_net_amount
+    return formatted_amount unless net_amount.present?
+    format("%s %.2f", currency, net_amount / 100.0)
+  end
+
+  def has_fee? = fee_amount.present? && fee_amount.positive?
+
   def provider_label
     PROVIDERS.fetch(provider.to_s, provider.to_s.humanize)
   end

@@ -145,9 +145,21 @@ module Account
                        "All amounts"
                      end
 
-        tr(class: "hover:bg-gray-50 transition-colors") do
+        is_default = r["method"].nil? && r["provider_code"].nil?
+        row_cls    = is_default ? "bg-gray-50/60 hover:bg-gray-50 transition-colors" : "hover:bg-gray-50 transition-colors"
+
+        tr(class: row_cls) do
           td(class: "px-5 py-3 #{TYPE_BODY_MD}") do
-            plain(r["method"]&.humanize || "Any method")
+            if is_default
+              span(class: "inline-flex items-center gap-1.5") do
+                plain "Default"
+                span(class: "text-[10.5px] font-medium px-1.5 py-px rounded-full bg-gray-200 text-gray-500 leading-none") do
+                  plain "catch-all"
+                end
+              end
+            else
+              plain(r["method"]&.humanize || "—")
+            end
           end
           td(class: "px-5 py-3 #{TYPE_BODY_MD} text-gray-500") do
             plain(r["provider_code"]&.upcase || "—")
@@ -169,7 +181,8 @@ module Account
             ul(class: "#{TYPE_CAPTION} text-blue-700 space-y-1 list-disc list-inside") do
               li { plain "Fees are automatically deducted from each settlement batch." }
               li { plain "Your settlement net amount = gross volume − platform fees." }
-              li { plain "No separate invoice — everything is visible on each settlement batch." }
+              li { plain "Fee and net amount are shown on each payment and each settlement batch." }
+              li { plain "No separate invoice — everything is visible in your dashboard." }
             end
           else
             ul(class: "#{TYPE_CAPTION} text-blue-700 space-y-1 list-disc list-inside") do

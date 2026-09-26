@@ -19,6 +19,14 @@ module Compliance
       scoped = @relation
       tab    = filters[:tab].to_s
       scoped = scoped.where(status: TAB_STATUSES[tab]) if TAB_STATUSES.key?(tab)
+      if filters[:q].present?
+        q      = "%#{ActiveRecord::Base.sanitize_sql_like(filters[:q])}%"
+        scoped = scoped.where("legal_name ILIKE ? OR merchant_code ILIKE ?", q, q)
+      end
+      scoped = scoped.where("last_applied_at >= ?", filters[:from])        if filters[:from].present?
+      scoped = scoped.where("last_applied_at <= ?", filters[:to])          if filters[:to].present?
+      scoped = scoped.where(reviewed_by: nil)                              if filters[:reviewer] == "unassigned"
+      scoped = scoped.where(reviewed_by: filters[:current_user_code])      if filters[:reviewer] == "mine"
       scoped.recent
     end
   end

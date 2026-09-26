@@ -5,6 +5,14 @@ module Payments
   # Receives a policy-scoped relation from the controller so tenancy is
   # already applied before any filter runs.
   class TransactionsQuery
+    # Enriches a payments relation with the merchant trading name.
+    # Used by ops views; safe to skip for merchant-scoped queries.
+    def self.with_merchant_name(relation = Payment.all)
+      relation
+        .joins("LEFT JOIN portal_merchants ON portal_merchants.merchant_code = portal_payments.merchant_code")
+        .select("portal_payments.*, COALESCE(NULLIF(portal_merchants.trading_name, ''), portal_payments.merchant_code) AS merchant_name")
+    end
+
     def initialize(relation = Payment.all)
       @relation = relation
     end

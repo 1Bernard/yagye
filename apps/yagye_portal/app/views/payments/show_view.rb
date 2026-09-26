@@ -4,11 +4,12 @@ module Payments
   class ShowView < ApplicationComponent
     include UI::Theme
 
-    def initialize(payment:, events: [], can_refund: false, can_view_pii: false)
-      @payment      = payment
-      @events       = events
-      @can_refund   = can_refund
-      @can_view_pii = can_view_pii
+    def initialize(payment:, events: [], can_refund: false, can_view_pii: false, other_payments: [])
+      @payment        = payment
+      @events         = events
+      @can_refund     = can_refund
+      @can_view_pii   = can_view_pii
+      @other_payments = other_payments
     end
 
     def view_template
@@ -42,6 +43,7 @@ module Payments
       div(class: "flex flex-col gap-5") do
         timeline_card
         actions_card if @can_refund
+        customer_payments_card if @other_payments.any?
       end
     end
 
@@ -56,8 +58,17 @@ module Payments
           end
           render UI::StatusBadge.new(@payment.status)
         end
+
+        if @payment.has_fee?
+          div(class: "grid grid-cols-3 gap-[1px] bg-gray-100 rounded-xl overflow-hidden mb-3") do
+            meta_cell("Gross",   @payment.formatted_amount, mono: true)
+            meta_cell("Fee",     @payment.formatted_fee_amount, mono: true)
+            meta_cell("Net",     @payment.formatted_net_amount, mono: true)
+          end
+        end
+
         div(class: "grid grid-cols-3 gap-[1px] bg-gray-100 rounded-xl overflow-hidden") do
-          meta_cell("Reference", @payment.reference.presence || "—", mono: true)
+          meta_cell("Reference") { copyable_mono(@payment.reference) }
           meta_cell("Provider") { network_logo_label(@payment) }
           meta_cell("Date",      @payment.created_at.strftime("%d %b %Y, %H:%M"))
         end
@@ -72,12 +83,12 @@ module Payments
         c.body(padding: false) do
           render UI::DetailList.new do |list|
             list.row("Customer",        customer_value)
-            list.row("Core payment ID", @payment.core_payment_id || "—", mono: true)
+            list.row("Core payment ID") { copyable_mono(@payment.core_payment_id) }
             list.row("Payment method") { network_logo_label(@payment) }
             list.row("Status")         { render UI::StatusBadge.new(@payment.status) }
             list.row("Created",        @payment.created_at.strftime("%d %b %Y at %H:%M UTC"))
             list.row("Settled",        settled_label)
-            list.row("Merchant",       @payment.merchant_code || "—", mono: true)
+            list.row("Merchant") { copyable_mono(@payment.merchant_code) }
             if @payment.fulfilment_type.present?
               list.row("Fulfilment") do
                 span(class: "inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium bg-gray-100 text-gray-600") do
@@ -187,13 +198,44 @@ module Payments
       end
     end
 
+    # ── Customer's other payments ─────────────────────────────────────────────
+
+    def customer_payments_card
+      render UI::Card.new do |c|
+        c.header("Other payments from this customer")
+        c.body(padding: false) do
+          div(class: "divide-y divide-gray-50") do
+            @other_payments.each_with_index do |p, i|
+              last = i == @other_payments.length - 1
+              a(href: payment_path(p),
+                class: "flex items-center justify-between px-5 py-[11px] hover:bg-gray-50 transition-colors no-underline #{last ? '' : 'border-b border-gray-50'}") do
+                div(class: "flex-1 min-w-0") do
+                  span(class: "block #{TYPE_MONO} text-[11.5px] truncate") { plain p.reference.presence || p.core_payment_id&.first(12) || "—" }
+                  span(class: "block #{TYPE_CAPTION} mt-px") { plain p.created_at.strftime("%-d %b %Y") }
+                end
+                div(class: "flex items-center gap-2 flex-shrink-0") do
+                  span(class: "text-[13px] font-semibold text-gray-900 tabular-nums") { plain p.formatted_amount }
+                  render UI::StatusBadge.new(p.status)
+                end
+              end
+            end
+          end
+        end
+      end
+    end
+
     # ── Helpers ───────────────────────────────────────────────────────────────
 
     # ── Core events card ──────────────────────────────────────────────────────
 
     def core_events_card
       render UI::Card.new do |c|
-        c.header("Payment events")
+        c.header("Payment events") do
+          a(href: developers_path(tab: "deliveries"),
+            class: "#{TYPE_CAPTION} text-[#3D47F5] hover:underline no-underline") do
+            plain "Webhook logs →"
+          end
+        end
         c.body(padding: false) do
           div(class: "divide-y divide-gray-50") do
             @events.each_with_index do |ev, i|

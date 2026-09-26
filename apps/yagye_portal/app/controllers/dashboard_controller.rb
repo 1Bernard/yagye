@@ -6,22 +6,7 @@ class DashboardController < ApplicationController
     provider_code = params[:provider_code].to_s
     return head :bad_request if provider_code.blank?
 
-    scope     = payment_scope
-    mtd_start = Time.current.beginning_of_month
-
-    rows = scope
-      .joins("LEFT JOIN portal_merchants ON portal_merchants.merchant_code = portal_payments.merchant_code")
-      .where(provider: provider_code, status: "paid")
-      .where("portal_payments.paid_at >= ?", mtd_start)
-      .group("portal_payments.merchant_code, COALESCE(NULLIF(portal_merchants.trading_name, ''), portal_payments.merchant_code)")
-      .select(
-        "COALESCE(NULLIF(portal_merchants.trading_name, ''), portal_payments.merchant_code) AS merchant_name",
-        "portal_payments.merchant_code",
-        "SUM(portal_payments.amount) AS total_volume",
-        "COUNT(portal_payments.id) AS tx_count"
-      )
-      .order("SUM(portal_payments.amount) DESC")
-      .limit(10)
+    rows = Payments::ProviderSplitQuery.new(payment_scope).call(provider_code: provider_code)
 
     total         = rows.sum { |r| r.total_volume.to_i }
     provider_name = Payment::PROVIDERS.fetch(provider_code, provider_code.humanize)
@@ -38,13 +23,17 @@ class DashboardController < ApplicationController
 
   def index
     authorize :dashboard, :index?
-    scope      = payment_scope
-    summary    = Payments::VolumeSummaryQuery.new(scope).call
-    fx_currency = resolve_fx_currency
+    scope        = payment_scope
+    summary      = Payments::VolumeSummaryQuery.new(scope).call
+    fx_currency  = resolve_fx_currency
+    fx_corridor  = fetch_corridor_rates
     cookies[:fx_currency] = fx_currency
 
     render Dashboard::IndexView.new(
       volume:             summary[:volume],
+      net_volume:         summary[:net_volume],
+      refunded_volume:    summary[:refunded_volume],
+      refunded_count:     summary[:refunded_count],
       prev_volume:        summary[:prev_volume],
       tx_count:           summary[:tx_count],
       prev_tx_count:      summary[:prev_tx_count],
@@ -61,8 +50,13 @@ class DashboardController < ApplicationController
       method_data:        summary[:method_data],
       recent_payments:    scope.recent.limit(8),
       fx_currency:        fx_currency,
-      fx_rate:            fetch_fx_rate(fx_currency),
-      is_ops:             current_user.internal_staff?
+      fx_rate:            fx_corridor.find { |r| r[:currency] == fx_currency },
+      fx_corridor:        fx_corridor,
+      is_ops:             current_user.internal_staff?,
+      network_health:     network_health_data(scope),
+      upcoming_payout:    upcoming_payout_data,
+      payout_balance:     payout_balance_data,
+      feed_stream_key:    merchant_feed_stream_key
     )
   end
 
@@ -80,16 +74,15 @@ class DashboardController < ApplicationController
     "GHS"
   end
 
-  def fetch_fx_rate(currency)
-    return nil if currency == "GHS"
-
+  def fetch_corridor_rates
     result = CoreApiClient.new.list_fx_rates
-    return nil unless result.success?
+    return [] unless result.success?
 
-    rates = result.body["data"] || []
-    rates.find { |r| r["from_currency"] == "GHS" && r["to_currency"] == currency }
+    (result.body["data"] || [])
+      .select { |r| r["base"] == "GHS" }
+      .map { |r| { currency: r["quote"], rate: r["rate"].to_f } }
   rescue StandardError
-    nil
+    []
   end
 
   def payment_scope
@@ -116,5 +109,35 @@ class DashboardController < ApplicationController
            .count(:merchant_code)
   rescue StandardError
     0
+  end
+
+  def network_health_data(scope)
+    Payments::NetworkHealthQuery.new(scope).call
+  rescue StandardError
+    []
+  end
+
+  def upcoming_payout_data
+    payout_rel = current_user.internal_staff? ? PortalPayout.all : PortalPayout.for_merchant(current_user.merchant_code)
+    Payouts::UpcomingPayoutQuery.new(payout_rel, is_ops: current_user.internal_staff?).call
+  rescue StandardError
+    nil
+  end
+
+  def payout_balance_data
+    return nil if current_user.internal_staff?
+    code       = current_user.merchant_code
+    Payouts::BalanceSummaryQuery.new(
+      Payment.for_merchant(code),
+      PortalPayout.for_merchant(code)
+    ).call
+  rescue StandardError
+    nil
+  end
+
+  def merchant_feed_stream_key
+    return nil if current_user.internal_staff?
+    mode = Current.mode.presence || "live"
+    "dashboard_feed_#{current_user.merchant_code}_#{mode}"
   end
 end

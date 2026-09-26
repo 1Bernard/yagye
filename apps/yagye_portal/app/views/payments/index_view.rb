@@ -6,18 +6,20 @@ module Payments
 
     def initialize(payments:, pagy:, stats: {}, show_merchant: false,
                    can_view_pii: false, can_export: false,
-                   status_filter: nil, method_filter: nil, from: nil, to: nil, query: nil)
-      @payments       = payments
-      @pagy           = pagy
-      @stats          = stats
-      @show_merchant  = show_merchant
-      @can_view_pii   = can_view_pii
-      @can_export     = can_export
-      @status_filter  = status_filter
-      @method_filter  = method_filter
-      @from           = from
-      @to             = to
-      @query          = query
+                   status_filter: nil, method_filter: nil, from: nil, to: nil, query: nil,
+                   payments_stream_key: nil)
+      @payments            = payments
+      @pagy                = pagy
+      @stats               = stats
+      @show_merchant       = show_merchant
+      @can_view_pii        = can_view_pii
+      @can_export          = can_export
+      @status_filter       = status_filter
+      @method_filter       = method_filter
+      @from                = from
+      @to                  = to
+      @query               = query
+      @payments_stream_key = payments_stream_key
     end
 
     def view_template
@@ -49,9 +51,12 @@ module Payments
     end
 
     def payments_table
-      can_view_pii  = @can_view_pii
-      show_merchant = @show_merchant
-      offset        = @pagy.offset
+      can_view_pii         = @can_view_pii
+      show_merchant        = @show_merchant
+      offset               = @pagy.offset
+      payments_stream_key  = @payments_stream_key
+
+      raw safe(turbo_stream_from(payments_stream_key)) if payments_stream_key
 
       render UI::Datatable.new(records: @payments, pagy: @pagy, empty_message: empty_message) do |t|
         t.header { toolbar_content }
@@ -73,7 +78,19 @@ module Payments
             end
           end
         end
-        t.column("Amount", class: "text-right tabular-nums font-semibold") { |p| p.formatted_amount }
+        t.column("Amount", class: "text-right tabular-nums") do |p|
+          div do
+            span(class: "font-semibold text-gray-900") { plain p.formatted_amount }
+            if p.has_fee?
+              span(class: "block text-[11px] text-gray-400 mt-px") do
+                plain "Fee #{p.formatted_fee_amount}"
+              end
+              span(class: "block text-[11px] text-gray-500 font-medium mt-px") do
+                plain "Net #{p.formatted_net_amount}"
+              end
+            end
+          end
+        end
         t.column("Customer") do |p|
           if can_view_pii
             email  = p.customer_email.presence
@@ -128,7 +145,9 @@ module Payments
         t.column("Reference", class: "font-mono text-[11.5px]") do |p|
           plain(p.reference.presence || p.core_payment_id&.first(12) || "—")
         end
-        t.column("Status")  { |p| render UI::StatusBadge.new(status: p.status) }
+        t.column("Status") do |p|
+          div(id: "payment-status-#{p.id}") { render UI::StatusBadge.new(status: p.status) }
+        end
         t.column("Date")    { |p| p.created_at.strftime("%d %b %Y, %H:%M") }
 
         t.actions do |p|

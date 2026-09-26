@@ -19,6 +19,14 @@ module Exports
       end
     end
 
+    # Yields one CSV line at a time (header first, then each record row).
+    # Use this for streaming responses so memory stays flat and the request
+    # doesn't time out on large datasets.
+    def stream
+      yield CSV.generate_line(@columns.keys)
+      @records.find_each(batch_size: 500) { |r| yield CSV.generate_line(row_values(r)) }
+    end
+
     private
 
     def row_values(record)

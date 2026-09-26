@@ -73,13 +73,33 @@ module Disputes
         t.column("Status")    { |d| render UI::StatusBadge.new(status: d.status) }
         t.column("SLA") do |d|
           if d.network_deadline.present? && d.open?
-            today   = Date.current.to_s
-            overdue = d.network_deadline < today
-            due_str = Date.parse(d.network_deadline).strftime("%d %b") rescue d.network_deadline
-            cls     = overdue ? "text-[12px] font-semibold text-red-600" : "text-[12px] text-gray-500"
-            span(class: cls) { plain(overdue ? "Overdue" : "Due #{due_str}") }
+            deadline = (Date.parse(d.network_deadline) rescue nil)
+            if deadline
+              days = (deadline - Date.current).to_i
+              if days < 0
+                color, tint, label = "#dc2626", "rgba(220,38,38,0.08)", "Overdue"
+              else
+                date_str  = deadline.strftime("%-d %b")
+                countdown = days == 0 ? "today" : days == 1 ? "tomorrow" : "#{days}d left"
+                label     = "#{date_str} · #{countdown}"
+                color, tint = if days <= 2
+                                ["#dc2626", "rgba(220,38,38,0.08)"]
+                              elsif days <= 6
+                                ["#d97706", "rgba(217,119,6,0.08)"]
+                              else
+                                ["#16a34a", "rgba(22,163,74,0.08)"]
+                              end
+              end
+              span(class: "inline-flex items-center gap-1.5 text-[11px] font-semibold px-2 py-[3px] rounded-full whitespace-nowrap",
+                   style: "color:#{color};background:#{tint}") do
+                span(class: "w-[5px] h-[5px] rounded-full flex-shrink-0 mt-px", style: "background:#{color}")
+                plain label
+              end
+            else
+              span(class: "text-[11px] text-gray-400") { plain "—" }
+            end
           else
-            span(class: TYPE_CAPTION) { plain "—" }
+            span(class: "text-[11px] text-gray-400") { plain "—" }
           end
         end
         t.column("Opened") { |d| plain d.created_at.strftime("%d %b %Y") }
@@ -166,6 +186,42 @@ module Disputes
             plain filter_count.to_s
           end
         end
+      end
+    end
+
+    def deadline_chip(dispute)
+      unless dispute.network_deadline.present? && dispute.open?
+        return span(class: TYPE_CAPTION) { plain "—" }
+      end
+
+      deadline = Date.parse(dispute.network_deadline) rescue nil
+      return span(class: TYPE_CAPTION) { plain "—" } unless deadline
+
+      days = (deadline - Date.current).to_i
+
+      if days < 0
+        color, tint, label = RED, TINT_RED, "Overdue"
+      else
+        date_str  = deadline.strftime("%-d %b")
+        countdown = case days
+                    when 0 then "today"
+                    when 1 then "tomorrow"
+                    else        "#{days}d left"
+                    end
+        label     = "#{date_str} · #{countdown}"
+        color, tint = if days <= 2
+                        [RED, TINT_RED]
+                      elsif days <= 6
+                        [AMBER, TINT_AMBER]
+                      else
+                        [GREEN, TINT_GREEN]
+                      end
+      end
+
+      span(class: "inline-flex items-center gap-1.5 text-[11px] font-semibold px-2 py-[3px] rounded-full whitespace-nowrap",
+           style: "color:#{color};background:#{tint}") do
+        span(class: "w-[5px] h-[5px] rounded-full flex-shrink-0 mt-px", style: "background:#{color}")
+        plain label
       end
     end
 

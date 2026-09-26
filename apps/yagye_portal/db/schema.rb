@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_09_22_160001) do
+ActiveRecord::Schema[8.1].define(version: 2026_09_25_000001) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pgcrypto"
@@ -204,10 +204,12 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_22_160001) do
     t.text "customer_email"
     t.text "customer_msisdn"
     t.text "description"
+    t.bigint "fee_amount"
     t.text "fulfilment_type"
     t.text "merchant_code", null: false
     t.jsonb "metadata", default: {}, null: false
     t.text "mode", default: "test", null: false
+    t.bigint "net_amount"
     t.datetime "paid_at"
     t.text "payment_method"
     t.text "provider"

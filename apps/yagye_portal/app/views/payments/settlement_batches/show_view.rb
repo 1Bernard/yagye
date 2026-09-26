@@ -88,14 +88,22 @@ module Payments
       end
 
       def amounts_card
-        cur   = @b["currency"] || "GHS"
-        gross = @b["gross_amount"].to_i
+        cur          = @b["currency"] || "GHS"
+        gross        = @b["gross_amount"].to_i
+        platform_fee = @b["platform_fees"]&.to_i
+        net          = @b["net_amount"]&.to_i
 
         render UI::Card.new do |card|
           card.header("Amounts")
           card.body(padding: false) do
             render UI::DetailList.new do |list|
-              list.row("Gross amount",  format_money(gross, currency: cur))
+              if net && platform_fee
+                list.row("Gross amount",   format_money(gross,        currency: cur))
+                list.row("Platform fees",  format_money(platform_fee, currency: cur))
+                list.row("Net amount",     format_money(net,          currency: cur))
+              else
+                list.row("Gross amount", format_money(gross, currency: cur))
+              end
               list.row("Payment count", (@b["payment_count"] || "—").to_s)
             end
           end

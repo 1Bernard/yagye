@@ -5,13 +5,14 @@ module Compliance
     def index
       authorize :kyb_reviews, :index?
       tab   = params[:tab].presence_in(%w[pending in_review approved rejected]) || "pending"
-      scope = Compliance::ApplicationsQuery.new.call(tab: tab, query: params[:q])
-      scope = scope.where("last_applied_at >= ?", params[:from])    if params[:from].present?
-      scope = scope.where("last_applied_at <= ?", params[:to])      if params[:to].present?
-      case params[:reviewer]
-      when "unassigned" then scope = scope.where(reviewed_by: nil)
-      when "mine"       then scope = scope.where(reviewed_by: current_user.user_code)
-      end
+      scope = Compliance::ApplicationsQuery.new.call(
+        tab:               tab,
+        q:                 params[:q],
+        from:              params[:from],
+        to:                params[:to],
+        reviewer:          params[:reviewer].presence_in(%w[unassigned mine]),
+        current_user_code: current_user.user_code
+      )
       pagy, applications = pagy(scope, limit: 25)
       render KybReviews::IndexView.new(
         tab: tab, applications: applications, pagy: pagy,
@@ -131,14 +132,8 @@ module Compliance
     end
 
     def mtd_volumes(applications)
-      codes = applications.filter_map(&:merchant_code).uniq
-      return {} if codes.empty?
-
-      Payment
-        .where(merchant_code: codes, status: "paid")
-        .where("created_at >= ?", Time.current.beginning_of_month)
-        .group(:merchant_code)
-        .sum(:amount)
+      codes = applications.filter_map(&:merchant_code)
+      Payments::MtdVolumesQuery.new.call(merchant_codes: codes)
     end
   end
 end

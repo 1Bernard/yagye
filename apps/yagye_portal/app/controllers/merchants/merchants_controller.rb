@@ -5,8 +5,6 @@ module Merchants
     def index
       authorize :merchants, :index?
       scope = Merchants::MerchantsQuery.new.call(filters)
-      scope = scope.where("last_applied_at >= ?", params[:from]) if params[:from].present?
-      scope = scope.where("last_applied_at <= ?", params[:to])   if params[:to].present?
       pagy, merchants = pagy(scope, limit: 25)
       render Merchants::IndexView.new(
         merchants: merchants, pagy: pagy,
@@ -93,18 +91,12 @@ module Merchants
     private
 
     def filters
-      params.permit(:status, :q, :country).to_h.symbolize_keys
+      params.permit(:status, :q, :country, :from, :to).to_h.symbolize_keys
     end
 
     def mtd_volumes(merchants)
-      codes = merchants.filter_map(&:merchant_code).uniq
-      return {} if codes.empty?
-
-      Payment
-        .where(merchant_code: codes, status: "paid")
-        .where("created_at >= ?", Time.current.beginning_of_month)
-        .group(:merchant_code)
-        .sum(:amount)
+      codes = merchants.filter_map(&:merchant_code)
+      Payments::MtdVolumesQuery.new.call(merchant_codes: codes)
     end
 
     def merchant_stats

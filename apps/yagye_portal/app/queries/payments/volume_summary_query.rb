@@ -32,11 +32,12 @@ module Payments
       prev_start = mtd_start.prev_month
       prev_end   = prev_start + now.day.days
 
-      paid     = @relation.where(status: "paid")
-      mtd_paid = paid.where(paid_at: mtd_start..now)
-      mtd_all  = @relation.where(created_at: mtd_start..now)
-      prev_paid = paid.where(paid_at: prev_start...prev_end)
-      prev_all  = @relation.where(created_at: prev_start...prev_end)
+      paid          = @relation.where(status: "paid")
+      mtd_paid      = paid.where(paid_at: mtd_start..now)
+      mtd_all       = @relation.where(created_at: mtd_start..now)
+      prev_paid     = paid.where(paid_at: prev_start...prev_end)
+      prev_all      = @relation.where(created_at: prev_start...prev_end)
+      mtd_refunded  = @relation.where(status: "refunded", updated_at: mtd_start..now)
 
       window_start = CHART_DAYS.days.ago.to_date
       daily_sums   = paid
@@ -49,12 +50,18 @@ module Payments
       method_totals   = mtd_paid.group(:payment_method).sum(:amount)
       total_vol       = provider_totals.values.sum.to_f
 
-      success_count = mtd_paid.count
-      tx_count      = mtd_all.count
+      success_count    = mtd_paid.count
+      tx_count         = mtd_all.count
+      gross_volume     = mtd_paid.sum(:amount)
+      refunded_volume  = mtd_refunded.sum(:amount)
+      refunded_count   = mtd_refunded.count
 
       {
-        volume:      mtd_paid.sum(:amount),
-        prev_volume: prev_paid.sum(:amount),
+        volume:          gross_volume,
+        net_volume:      gross_volume - refunded_volume,
+        refunded_volume: refunded_volume,
+        refunded_count:  refunded_count,
+        prev_volume:     prev_paid.sum(:amount),
         tx_count:          tx_count,
         prev_tx_count:     prev_all.count,
         success_count:     success_count,

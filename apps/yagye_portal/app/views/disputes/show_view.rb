@@ -161,14 +161,42 @@ module Disputes
     end
 
     def sla_card
-      div(class: "bg-white border border-yellow-200 rounded-2xl px-[18px] py-4") do
+      return unless @dispute.network_deadline.present?
+
+      deadline = Date.parse(@dispute.network_deadline) rescue nil
+      return unless deadline
+
+      days = (deadline - Date.current).to_i
+
+      border_cls, icon_color, title_cls, body_cls, title, body =
+        if days < 0
+          ["border-red-200",    RED,   "text-red-800",    "text-red-600",
+           "Deadline passed",   "Response was due #{deadline.strftime("%-d %b %Y")} — #{days.abs} day#{'s' if days.abs != 1} ago"]
+        elsif days == 0
+          ["border-red-200",    RED,   "text-red-800",    "text-red-600",
+           "Respond today",     "Deadline: #{deadline.strftime("%-d %b %Y")}"]
+        elsif days == 1
+          ["border-red-200",    RED,   "text-red-800",    "text-red-600",
+           "Respond tomorrow",  "Deadline: #{deadline.strftime("%-d %b %Y")}"]
+        elsif days <= 2
+          ["border-red-200",    RED,   "text-red-800",    "text-red-600",
+           "#{days} days left", "Deadline: #{deadline.strftime("%-d %b %Y")}"]
+        elsif days <= 6
+          ["border-yellow-200", AMBER, "text-amber-800",  "text-amber-600",
+           "#{days} days left", "Deadline: #{deadline.strftime("%-d %b %Y")}"]
+        else
+          ["border-green-200",  GREEN, "text-green-800",  "text-green-600",
+           "#{days} days left", "Deadline: #{deadline.strftime("%-d %b %Y")}"]
+        end
+
+      div(class: "bg-white #{border_cls} rounded-2xl px-[18px] py-4 border") do
         div(class: "flex items-center gap-2 mb-2") do
-          span(class: "flex w-[14px] h-[14px] text-amber-500 flex-shrink-0") do
+          span(class: "flex w-[14px] h-[14px] flex-shrink-0", style: "color:#{icon_color}") do
             render UI::Icon.new(:clock, class: "w-full h-full")
           end
-          p(class: "text-[12.5px] font-bold text-amber-800") { plain "Network deadline" }
+          p(class: "text-[12.5px] font-bold #{title_cls}") { plain title }
         end
-        p(class: "#{TYPE_CAPTION} text-amber-600") { plain @dispute.network_deadline }
+        p(class: "text-[11.5px] #{body_cls}") { plain body }
       end
     end
 

@@ -17,6 +17,8 @@ module Merchants
         q      = "%#{ActiveRecord::Base.sanitize_sql_like(filters[:q])}%"
         scoped = scoped.where("legal_name ILIKE ? OR merchant_code ILIKE ?", q, q)
       end
+      scoped = scoped.where("last_applied_at >= ?", filters[:from]) if filters[:from].present?
+      scoped = scoped.where("last_applied_at <= ?", filters[:to])   if filters[:to].present?
       scoped.recent
     end
   end
