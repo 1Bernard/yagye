@@ -38,6 +38,23 @@ module Account
       end
     end
 
+    def update_destination
+      authorize :settings, :update?
+      attrs = {
+        settlement_msisdn:         params[:settlement_msisdn].presence,
+        settlement_bank_code:      params[:settlement_bank_code].presence,
+        settlement_account_number: params[:settlement_account_number].presence,
+        settlement_account_name:   params[:settlement_account_name].presence
+      }.compact
+      result = CoreApiClient.new.update_settlement_destination(current_user.merchant_code, attrs)
+      if result.success?
+        redirect_to settings_path(tab: "payouts"), notice: "Payout destination updated."
+      else
+        redirect_to settings_path(tab: "payouts"),
+                    alert: result.body["message"].presence || "Could not update payout destination."
+      end
+    end
+
     def update_password
       authorize :settings, :update?
       unless current_user.valid_password?(params[:current_password])

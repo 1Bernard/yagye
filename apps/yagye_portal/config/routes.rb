@@ -168,8 +168,9 @@ Rails.application.routes.draw do
     get   "settings",                   to: "settings#index",           as: :settings
     get   "settings/pricing",           to: "pricing#index",            as: :settings_pricing
     get   "settings/fee-invoices",      to: "pricing#fee_invoices",     as: :settings_fee_invoices
-    patch "settings/profile",           to: "settings#update_profile",  as: :settings_profile
-    patch "settings/password",          to: "settings#update_password", as: :settings_password
+    patch "settings/profile",              to: "settings#update_profile",     as: :settings_profile
+    patch "settings/password",             to: "settings#update_password",    as: :settings_password
+    patch "settings/payout-destination",   to: "settings#update_destination", as: :settings_payout_destination
     get   "help",                       to: "help#index",               as: :help
 
     post   "settings/allowlists/ip",         to: "allowlists#create_ip",      as: :settings_add_ip
