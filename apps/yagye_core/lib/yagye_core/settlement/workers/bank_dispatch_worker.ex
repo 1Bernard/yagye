@@ -98,7 +98,7 @@ defmodule YagyeCore.Settlement.Workers.BankDispatchWorker do
     case Settlement.get_settlement_controls(batch.merchant_id) do
       nil -> true
       %{approval_threshold: nil} -> true
-      %{approval_threshold: threshold} -> batch.gross_amount < threshold
+      %{approval_threshold: threshold} -> (batch.net_amount || batch.gross_amount) < threshold
     end
   end
 
@@ -132,7 +132,7 @@ defmodule YagyeCore.Settlement.Workers.BankDispatchWorker do
 
       if function_exported?(adapter, :disburse, 2) do
         params = %{
-          amount: batch.gross_amount,
+          amount: batch.net_amount || batch.gross_amount,
           currency: batch.currency,
           reference: batch.id,
           recipient_msisdn: msisdn
@@ -151,7 +151,7 @@ defmodule YagyeCore.Settlement.Workers.BankDispatchWorker do
 
   defp call_bank_disbursement(batch, bank_code, account_number, name, credential) do
     params = %{
-      amount: batch.gross_amount,
+      amount: batch.net_amount || batch.gross_amount,
       currency: batch.currency,
       reference: batch.id,
       recipient_bank_code: bank_code,
@@ -211,6 +211,8 @@ defmodule YagyeCore.Settlement.Workers.BankDispatchWorker do
         state: "dispatched",
         currency: b.currency,
         gross_amount: b.gross_amount,
+        platform_fees: b.platform_fees,
+        net_amount: b.net_amount,
         bank_dispatch_ref: b.bank_dispatch_ref,
         bank_dispatched_at: b.bank_dispatched_at && DateTime.to_iso8601(b.bank_dispatched_at),
         period_start: b.period_start && DateTime.to_iso8601(b.period_start),

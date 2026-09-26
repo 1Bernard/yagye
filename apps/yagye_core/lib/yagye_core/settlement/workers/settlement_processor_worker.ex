@@ -27,9 +27,17 @@ defmodule YagyeCore.Settlement.Workers.SettlementProcessorWorker do
   defp process(%SettlementBatch{state: state}) when state in ["settled", "failed"], do: :ok
 
   defp process(%SettlementBatch{} = batch) do
+    fee_totals = compute_fee_totals(batch)
+
     result =
       Multi.new()
-      |> Multi.update(:processing, SettlementBatch.transition_changeset(batch, "processing"))
+      |> Multi.update(
+        :processing,
+        batch
+        |> SettlementBatch.transition_changeset("processing")
+        |> Ecto.Changeset.put_change(:platform_fees, fee_totals.expected_platform_fees)
+        |> Ecto.Changeset.put_change(:net_amount, fee_totals.expected_net)
+      )
       |> Multi.run(:ledger, fn _repo, %{processing: b} ->
         Ledger.post_batch_approved(b)
       end)
@@ -48,6 +56,8 @@ defmodule YagyeCore.Settlement.Workers.SettlementProcessorWorker do
           currency: b.currency,
           payment_count: b.payment_count,
           gross_amount: b.gross_amount,
+          platform_fees: b.platform_fees,
+          net_amount: b.net_amount,
           period_start: b.period_start && DateTime.to_iso8601(b.period_start),
           period_end: b.period_end && DateTime.to_iso8601(b.period_end),
           settled_at: b.settled_at && DateTime.to_iso8601(b.settled_at)
@@ -60,18 +70,28 @@ defmodule YagyeCore.Settlement.Workers.SettlementProcessorWorker do
 
     case result do
       {:ok, %{settled: settled_batch}} ->
-        # Best-effort: create the Settlement + SettlementItems for reconciliation.
-        # Failure here does not roll back the batch settlement.
-        case Settlement.create_settlement_from_batch(settled_batch) do
-          {:ok, _} -> :ok
-          {:error, reason} -> {:warning, "settlement record creation failed: #{inspect(reason)}"}
-        end
-
+        try_record_settlement(settled_batch)
         {:ok, settled_batch}
 
       {:error, _step, reason, _changes} ->
         mark_failed(batch, reason)
         {:error, reason}
+    end
+  end
+
+  defp compute_fee_totals(batch) do
+    case Settlement.compute_batch_fee_totals(batch) do
+      {:ok, totals} -> totals
+      _ -> %{expected_platform_fees: 0, expected_net: batch.gross_amount}
+    end
+  end
+
+  # Best-effort: create the Settlement + SettlementItems for reconciliation.
+  # Failure here does not roll back the batch settlement.
+  defp try_record_settlement(settled_batch) do
+    case Settlement.create_settlement_from_batch(settled_batch) do
+      {:ok, _} -> :ok
+      {:error, reason} -> {:warning, "settlement record creation failed: #{inspect(reason)}"}
     end
   end
 

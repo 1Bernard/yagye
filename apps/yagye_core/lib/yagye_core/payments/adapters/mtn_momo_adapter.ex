@@ -72,9 +72,12 @@ defmodule YagyeCore.Payments.Adapters.MTNMomoAdapter do
 
       Req.post(
         collection_url(credential, "/requesttopay"),
-        json: body,
-        headers: api_headers(credential, token, reference_id),
-        receive_timeout: 15_000
+        [
+          json: body,
+          headers: api_headers(credential, token, reference_id),
+          receive_timeout: 15_000
+        ] ++
+          extra_req_opts()
       )
       |> translate_charge_response(reference_id)
     end
@@ -94,8 +97,8 @@ defmodule YagyeCore.Payments.Adapters.MTNMomoAdapter do
     with {:ok, token} <- fetch_token(credential) do
       Req.get(
         collection_url(credential, "/requesttopay/#{ref}"),
-        headers: api_headers(credential, token, nil),
-        receive_timeout: 10_000
+        [headers: api_headers(credential, token, nil), receive_timeout: 10_000] ++
+          extra_req_opts()
       )
       |> translate_query_response()
     end
@@ -108,8 +111,8 @@ defmodule YagyeCore.Payments.Adapters.MTNMomoAdapter do
 
       Req.get(
         collection_url(credential, "/accountholder/msisdn/#{msisdn}/basicuserinfo"),
-        headers: api_headers(credential, token, nil),
-        receive_timeout: 10_000
+        [headers: api_headers(credential, token, nil), receive_timeout: 10_000] ++
+          extra_req_opts()
       )
       |> translate_name_enquiry_response()
     end
@@ -143,9 +146,11 @@ defmodule YagyeCore.Payments.Adapters.MTNMomoAdapter do
 
       Req.post(
         disbursement_url(credential, "/transfer"),
-        json: body,
-        headers: disbursement_headers(credential, token, reference_id, disbursement_sub_key),
-        receive_timeout: 15_000
+        [
+          json: body,
+          headers: disbursement_headers(credential, token, reference_id, disbursement_sub_key),
+          receive_timeout: 15_000
+        ] ++ extra_req_opts()
       )
       |> translate_disburse_response(reference_id)
     end
@@ -160,14 +165,17 @@ defmodule YagyeCore.Payments.Adapters.MTNMomoAdapter do
     sub_key = credential["disbursement_subscription_key"] || credential["subscription_key"]
     encoded = Base.encode64("#{user_id}:#{api_key}")
 
-    Req.post("#{base_url}/disbursement/token/",
-      body: "",
-      headers: [
-        {"Authorization", "Basic #{encoded}"},
-        {"Ocp-Apim-Subscription-Key", sub_key},
-        {"Content-Length", "0"}
-      ],
-      receive_timeout: 10_000
+    Req.post(
+      "#{base_url}/disbursement/token/",
+      [
+        body: "",
+        headers: [
+          {"Authorization", "Basic #{encoded}"},
+          {"Ocp-Apim-Subscription-Key", sub_key},
+          {"Content-Length", "0"}
+        ],
+        receive_timeout: 10_000
+      ] ++ extra_req_opts()
     )
     |> parse_disbursement_token_response()
   end
@@ -209,14 +217,17 @@ defmodule YagyeCore.Payments.Adapters.MTNMomoAdapter do
        }) do
     credentials = Base.encode64("#{user_id}:#{api_key}")
 
-    case Req.post("#{base_url}/collection/token/",
-           body: "",
-           headers: [
-             {"Authorization", "Basic #{credentials}"},
-             {"Ocp-Apim-Subscription-Key", sub_key},
-             {"Content-Length", "0"}
-           ],
-           receive_timeout: 10_000
+    case Req.post(
+           "#{base_url}/collection/token/",
+           [
+             body: "",
+             headers: [
+               {"Authorization", "Basic #{credentials}"},
+               {"Ocp-Apim-Subscription-Key", sub_key},
+               {"Content-Length", "0"}
+             ],
+             receive_timeout: 10_000
+           ] ++ extra_req_opts()
          ) do
       {:ok, %Req.Response{status: 200, body: %{"access_token" => token}}} ->
         {:ok, token}
@@ -450,4 +461,6 @@ defmodule YagyeCore.Payments.Adapters.MTNMomoAdapter do
   end
 
   defp extract_mtn_error(_), do: "mtn_error"
+
+  defp extra_req_opts, do: Application.get_env(:yagye_core, :mtn_momo_req_opts, [])
 end

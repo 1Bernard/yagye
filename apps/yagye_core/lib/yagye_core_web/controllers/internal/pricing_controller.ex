@@ -55,6 +55,7 @@ defmodule YagyeCoreWeb.Controllers.Internal.PricingController do
   defp rule_data(rule) do
     %{
       id: rule.id,
+      specificity: rule.specificity,
       method: rule.method,
       provider_code: rule.provider_code,
       card_brand: rule.card_brand,

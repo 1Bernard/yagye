@@ -316,6 +316,62 @@ alias YagyeCore.Routing.Schemas.{RoutingRule, RoutingRuleAction}
   end
 end)
 
+# ── 6d. Default pricing plan ──────────────────────────────────────────────────
+# One plan covers all merchants until per-merchant pricing is configured.
+# mobile_money: 1.5% (150 bps), minimum GHS 0.50. catch-all: 1.75% (175 bps).
+# SoD: created_by <> approved_by is enforced by DB CHECK — use distinct seed actors.
+
+alias YagyeCore.Pricing.Schemas.{PricingPlan, PricingRule}
+
+default_plan =
+  case Repo.get_by(PricingPlan, name: "Standard GHS", version: 1) do
+    %PricingPlan{} = p ->
+      IO.puts("Default pricing plan  : already exists (#{p.public_id})")
+      p
+
+    nil ->
+      {:ok, plan} =
+        %PricingPlan{}
+        |> PricingPlan.create_changeset(%{
+          name: "Standard GHS",
+          version: 1,
+          currency: "GHS",
+          fee_mode: "deducted",
+          effective_from: ~U[2026-01-01 00:00:00Z]
+        })
+        |> Repo.insert()
+
+      {:ok, mm_rule} =
+        %PricingRule{}
+        |> PricingRule.create_changeset(%{
+          plan_id: plan.id,
+          method: "mobile_money",
+          percentage_bps: 150,
+          fixed_amount: 0,
+          minimum_fee: 50,
+          created_by: "seed:system"
+        })
+        |> Repo.insert()
+
+      Repo.update!(PricingRule.approve_changeset(mm_rule, "seed:approve"))
+
+      {:ok, catch_all} =
+        %PricingRule{}
+        |> PricingRule.create_changeset(%{
+          plan_id: plan.id,
+          percentage_bps: 175,
+          fixed_amount: 0,
+          minimum_fee: 50,
+          created_by: "seed:system"
+        })
+        |> Repo.insert()
+
+      Repo.update!(PricingRule.approve_changeset(catch_all, "seed:approve"))
+
+      IO.puts("Default pricing plan  : created (#{plan.public_id}) — 2 rules")
+      plan
+  end
+
 # ── 7. Portal demo merchant (MCH_DEMO_001 — "Kofi Builds Ltd") ────────────────
 # This public_id matches the portal's DEMO_MERCHANT_CODE so the demo merchant
 # user (owner@kofibuilds.com) can see invoices and payment links via the API.
@@ -345,6 +401,14 @@ demo_merchant =
       IO.puts("Demo merchant         : created (MCH_DEMO_001)")
       m
   end
+
+# Assign the default pricing plan to the demo merchant if not already set.
+if is_nil(demo_merchant.pricing_plan_id) do
+  Repo.update!(Ecto.Changeset.change(demo_merchant, pricing_plan_id: default_plan.id))
+  IO.puts("Demo merchant         : pricing plan assigned (#{default_plan.public_id})")
+else
+  IO.puts("Demo merchant         : pricing plan already set")
+end
 
 # ── 8. Demo invoices for MCH_DEMO_001 ─────────────────────────────────────────
 

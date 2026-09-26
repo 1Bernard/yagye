@@ -36,8 +36,8 @@ defmodule YagyeCore.Customers do
     end
   end
 
-  def get_customer(customer_id) do
-    case Repo.get(Customer, customer_id) do
+  def get_customer(public_id) do
+    case Repo.get_by(Customer, public_id: public_id) do
       nil -> {:error, :not_found}
       customer -> {:ok, customer}
     end

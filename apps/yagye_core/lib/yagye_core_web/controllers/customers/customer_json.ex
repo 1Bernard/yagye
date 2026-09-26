@@ -15,6 +15,9 @@ defmodule YagyeCoreWeb.Controllers.Customers.CustomerJSON do
       merchant_customer_ref: c.merchant_customer_ref,
       kyc_tier: c.kyc_tier,
       kyc_verified_at: c.kyc_verified_at,
+      msisdn: c.phone,
+      email: c.email,
+      name: c.name,
       inserted_at: c.inserted_at
     }
   end

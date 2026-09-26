@@ -26,6 +26,7 @@ defmodule YagyeCore.Payments.Schemas.Payment do
     field :version, :integer, default: 0
     field :metadata, :map, default: %{}
     field :settlement_batch_id, :binary_id
+    field :fee_amount, :integer, virtual: true
 
     belongs_to :merchant, Merchant
     belongs_to :customer, Customer

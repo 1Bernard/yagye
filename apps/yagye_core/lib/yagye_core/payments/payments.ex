@@ -13,6 +13,7 @@ defmodule YagyeCore.Payments do
   alias YagyeCore.Merchants.Schemas.Merchant
   alias YagyeCore.Outbox
   alias YagyeCore.Payments.Schemas.{MomoNetworkConfig, Payment, PaymentAttempt, PaymentEvent}
+  alias YagyeCore.Pricing.Schemas.FeeRecord
 
   alias YagyeCore.Payments.Workers.{
     PaymentDispatchWorker,
@@ -28,7 +29,8 @@ defmodule YagyeCore.Payments do
 
   def list_payments(merchant_id, opts \\ []) do
     base = from(p in Payment, where: p.merchant_id == ^merchant_id)
-    {:ok, Pagination.paginate(base, :public_id, opts)}
+    page = Pagination.paginate(base, :public_id, opts)
+    {:ok, %{page | data: attach_fees(page.data)}}
   end
 
   def create_payment(merchant_id, attrs) do
@@ -414,7 +416,7 @@ defmodule YagyeCore.Payments do
   def get_payment(public_id) do
     case Repo.get_by(Payment, public_id: public_id) do
       nil -> {:error, :not_found}
-      payment -> {:ok, payment}
+      payment -> {:ok, attach_fee(payment)}
     end
   end
 
@@ -430,6 +432,42 @@ defmodule YagyeCore.Payments do
   end
 
   # ── Private ──────────────────────────────────────────────────────────────────
+
+  defp attach_fee(%Payment{} = payment) do
+    fee =
+      from(fr in FeeRecord,
+        join: pa in PaymentAttempt,
+        on: pa.id == fr.source_id,
+        where:
+          fr.source_type == "payment_attempt" and pa.payment_id == ^payment.id and
+            fr.party == "platform",
+        select: sum(fr.amount)
+      )
+      |> Repo.one()
+
+    %{payment | fee_amount: fee}
+  end
+
+  defp attach_fees([]), do: []
+
+  defp attach_fees(payments) do
+    payment_ids = Enum.map(payments, & &1.id)
+
+    fee_map =
+      from(fr in FeeRecord,
+        join: pa in PaymentAttempt,
+        on: pa.id == fr.source_id,
+        where:
+          fr.source_type == "payment_attempt" and pa.payment_id in ^payment_ids and
+            fr.party == "platform",
+        group_by: pa.payment_id,
+        select: {pa.payment_id, sum(fr.amount)}
+      )
+      |> Repo.all()
+      |> Map.new()
+
+    Enum.map(payments, fn p -> %{p | fee_amount: Map.get(fee_map, p.id)} end)
+  end
 
   defp resolve_customer(_merchant_id, nil), do: {:ok, nil}
 

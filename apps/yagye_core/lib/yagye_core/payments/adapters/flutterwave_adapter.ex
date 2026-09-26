@@ -59,10 +59,9 @@ defmodule YagyeCore.Payments.Adapters.FlutterwaveAdapter do
       fullname: get_in(payment.metadata, ["account_name"]) || "Customer"
     }
 
-    Req.post(url("/charges", credential, type: "mobile_money_gh"),
-      json: body,
-      headers: auth_headers(credential),
-      receive_timeout: 15_000
+    Req.post(
+      url("/charges", credential, type: "mobile_money_gh"),
+      [json: body, headers: auth_headers(credential), receive_timeout: 15_000] ++ extra_req_opts()
     )
     |> translate_charge_http_response()
   end
@@ -82,9 +81,9 @@ defmodule YagyeCore.Payments.Adapters.FlutterwaveAdapter do
   def query_charge(%PaymentAttempt{provider_reference: ref} = _attempt, credential) do
     # provider_reference for Flutterwave is the numeric transaction ID (data.id
     # from the charge response), stored as a string.
-    case Req.get(url("/transactions/#{ref}/verify", credential),
-           headers: auth_headers(credential),
-           receive_timeout: 10_000
+    case Req.get(
+           url("/transactions/#{ref}/verify", credential),
+           [headers: auth_headers(credential), receive_timeout: 10_000] ++ extra_req_opts()
          ) do
       {:ok, %Req.Response{status: 200, body: %{"status" => "success", "data" => data}}} ->
         translate_verify_response(data)
@@ -178,4 +177,6 @@ defmodule YagyeCore.Payments.Adapters.FlutterwaveAdapter do
   end
 
   defp auth_headers(%{"secret_key" => key}), do: [{"Authorization", "Bearer #{key}"}]
+
+  defp extra_req_opts, do: Application.get_env(:yagye_core, :flutterwave_req_opts, [])
 end

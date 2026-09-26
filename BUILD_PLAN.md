@@ -107,65 +107,78 @@ These four items must exist in `yagye_core` before the portal's compliance view 
 integrity. They don't need to be production-grade — stubs are fine — but the endpoints
 must exist and return real data shapes.
 
-- [ ] `beneficial_owners` CRUD API: list, add, update UBOs per merchant
-- [ ] 25% UBO ownership threshold guard at `Merchants.approve/2` — cannot approve if any
-      `beneficial_owner.ownership_bps >= 2500` has an unscreened/uncleared subject
-- [ ] AML screening foundation: enrol `screening_subjects` on merchant creation; query
-      endpoints for `screening_status` and `screening_hits` (stubbed provider OK)
-- [ ] `kyb_documents` metadata upload endpoint — store `kind`, `checksum`, `uploaded_by`,
-      return placeholder `s3_key`; real S3 presigned URLs come at P21
+- [x] `beneficial_owners` CRUD API: list, add, update, delete UBOs per merchant —
+      `GET/POST /merchants/:code/beneficial-owners`, `PUT/DELETE /beneficial-owners/:id`
+      via `ComplianceController`.
+- [x] 25% UBO ownership threshold guard at `Merchants.approve/2` — `Compliance.ubo_threshold_cleared?(merchant.id)`
+      called in `merchants.ex:563` before any KYB approval proceeds.
+- [x] AML screening foundation: `screening_subjects` enrolled on merchant creation;
+      `GET /merchants/:id/screening-status` and `screening_hits` endpoints live
+      via `ComplianceController` (stubbed provider responses OK for now).
+- [x] `kyb_documents` metadata upload endpoint — `POST /merchants/:code/documents`
+      (`KybController`) + `POST /documents` (`ComplianceController`); stores `kind`,
+      `checksum`, `uploaded_by`, returns placeholder `s3_key`. Real S3 presigned URLs
+      come at P21.
 
 ---
 
 ### P4 — Gateway Simulator + Anti-Corruption Layer
 
-- [ ] `providers.capabilities` jsonb column migration — deferred because routing branching
-      only pays off with 2+ providers. Add in P4 Step 1 migration alongside
-      `merchant_provider_connections`.
+- [x] `providers.capabilities` jsonb column migration — added in
+      `20260907200001_p16_step0_providers_capabilities.exs` alongside checkout work.
 
 ---
 
 ### P5 — Failure, Indeterminacy & Transaction Reconciliation
 
-- [ ] **Inbound MoMo callback polling/retry** ← highest-risk unassigned gap.
-      When a telecom drops its webhook to Yagye before we receive it, payments sit in
-      `initiated` indefinitely even though the customer was debited. This is the root cause
-      of the "PENDING eternity" problem Yagye is supposed to eliminate for merchants.
-      Definition of done: a worker polls the provider API for payments stuck in `initiated`
-      beyond a configurable timeout (e.g. 90 seconds) and transitions them to their true
-      terminal state. Must be part of P5's definition of done — not left to P9.
+- [x] **Inbound MoMo callback polling/retry** — `StuckPaymentScannerWorker` now recovers
+      all three stuck states: `created` (90 s threshold — Oban dispatch job lost before
+      the payment was ever sent to the provider; re-enqueues `PaymentDispatchWorker`),
+      `processing` (5 min — node crash after state transition; re-enqueues
+      `PaymentDispatchWorker`), and `requires_action` (7 min — defensive backstop for a
+      dropped `PaymentStatusCheckWorker`; re-enqueues it immediately). The `created`
+      recovery closes the "PENDING eternity" gap: if the telecom drops the webhook AND the
+      initial dispatch job was lost, the scanner picks it up within 5 min and retries.
+      `recover_created_payments/0` in
+      `lib/yagye_core/payments/workers/stuck_payment_scanner_worker.ex`;
+      5 tests all green.
 
 ---
 
 ### P6 — Inbound Webhooks, the Inbox & Asynchrony
 
-- [ ] Inbox pattern for idempotent telecom callback receipt — deduplicate before any state
-      transition so a double-delivered callback from the telecom cannot double-process a
-      payment.
+- [x] Inbox pattern for idempotent telecom callback receipt — `webhook_events` has a
+      `unique_constraint([:provider_code, :event_id])`; `WebhookProcessorWorker` uses
+      `idempotency_token` as the canonical de-duplication key. An ON CONFLICT on insert
+      is the deduplication gate before any payment state transition fires.
 
 ---
 
 ### P9 — Settlement
 
-- [ ] `providers.settlement_cadence` jsonb column migration — `cutoff_hour` (int, UTC) +
-      `cutoff_timezone` (text) per provider; drives `SettlementSchedulerWorker`. Add in
-      P9 Step 1 migration alongside `settlement_batches`.
-- [ ] Settlement saga fully wired: collect eligible payments → create batch →
-      send to bank → confirm receipt → post ledger entries → notify merchant via outbox.
-- [ ] `SettlementSchedulerWorker` reads `settlement_cadence` per provider and enqueues
-      the sweep at the correct local cutoff time.
+- [x] `providers.settlement_cadence` jsonb column migration — added in
+      `20260823000005_create_settlement.exs` (`cutoff_hour` int + `cutoff_timezone` text).
+- [x] Settlement saga fully wired: `SettlementSchedulerWorker` sweeps eligible payments →
+      creates batch → `SettlementProcessorWorker` posts ledger entries (`Ledger.post_batch_approved`)
+      → transitions to `settled` → emits `settlement.batch.settled` outbox event →
+      enqueues `BankDispatchWorker` → disburses via MoMo or bank transfer → posts
+      closing ledger entry → notifies merchant via outbox.
+- [x] `SettlementSchedulerWorker` reads `settlement_cadence` per provider (`past_cutoff?/1`
+      at line 38) and enqueues `SettlementProcessorWorker` at the correct local cutoff time.
 
 ---
 
 ### P10 — Reconciliation
 
-- [ ] Full automated recon pipeline — eliminates the manual 3-hour daily close.
-      Automated matching of Yagye ledger vs. provider settlement statements.
-- [ ] Exception escalation pathway — unmatched transactions surface as `reconciliation_breaks`
-      requiring human review before the run can be closed.
-- [ ] Human resolution workflow in the portal: ops reviews breaks, records disposition,
-      closes the run. SoD: `proposed_by ≠ approved_by` on `adjustment_approvals`
-      (CHECK constraint + changeset guard already done ✅).
+- [x] Full automated recon pipeline — `ReconciliationRunWorker` matches Yagye ledger
+      entries vs. provider settlement statements automatically; eliminates manual close.
+- [x] Exception escalation pathway — unmatched transactions surface as `reconciliation_breaks`
+      with severity and state; portal `Payments::ReconciliationController` exposes index
+      (with filter by state/severity/date), show, and `propose_adjustment`.
+- [x] Human resolution workflow in the portal — ops reviews breaks and proposes adjustments
+      via `ReconciliationController#propose_adjustment`; a second ops user approves via
+      `Compliance::ApprovalsController#approve_adjustment`. SoD enforced:
+      `proposed_by ≠ approved_by` (DB CHECK constraint + changeset guard in place).
 
 ---
 
@@ -235,21 +248,30 @@ Core event backbone complete:
 
 Redpanda config: `localhost:19092` (dev), `KAFKA_BOOTSTRAP_SERVERS` env (prod), no clients (test).
 
-Remaining P14 items:
-- [ ] SSO/SAML (enterprise-gated): `omniauth-saml` + `create_sso_configurations` migration +
-      `Settings::SsoSection` (ops config + enterprise merchant config) + `Auth::SsoButton`
-      shown only when `SsoConfiguration.active_for_email_domain?(email)` returns true.
+- [x] SSO/SAML (enterprise-gated): `ruby-saml 1.17` in Gemfile + `SsoConfiguration` model
+      + `SsoConfigurationsController` (ops config) + `Users::SsoController` (check/initiate/callback)
+      + `Auth::SsoButton` component wired in sign-in view; shown only when
+      `SsoConfiguration.active_for_email_domain?(email)` returns true.
 
 ---
 
 ### P15 — RabbitMQ & Outbound Webhook Delivery
 
-- [ ] Exchange → per-merchant queue (`yagye.webhooks.<merchant_id>`) → consumer POSTs to
-      merchant URL → acks on 2xx → nacks + requeues on failure → dead-letters to
-      `yagye.webhooks.dead_letter` after max attempts.
-- [ ] Wire the portal's developers/webhooks UI (already built) to the live RabbitMQ delivery
-      layer here. The `DeliveryDrawerView` and event log table are ready; they just need
-      real delivery records from the RabbitMQ consumer.
+- [x] **Single shared queue design (supersedes per-merchant queue)** — see ADR-0025.
+      `yagye.webhooks` (direct exchange) → `yagye.webhooks.delivery` (durable, DLX-configured,
+      `x-delivery-limit: 5`) → Broadway `DeliveryPipeline` (concurrency: 10, prefetch: 20).
+      Always-ACK strategy: Broadway ACKs every message; retries are driven by Oban
+      `WebhookDeliveryRetryWorker` with exponential backoff (10 s / 60 s / 10 min / 1 h),
+      never by RabbitMQ requeue. Dead-letters route to `yagye.webhooks.dead_letter` for ops
+      inspection. Connection managed by singleton GenServer with auto-reconnect.
+- [x] Portal developers/webhooks UI fully wired — `toggle_active` action added to
+      `Developers::WebhooksController`; cooldown error surfaced in portal alert.
+      `WebhookEventsConsumer` (Karafka) populates delivery log from `webhook.delivery.attempted`
+      outbox events via Redpanda.
+- [x] **Webhook auto-suspension & cooldown** — 50 consecutive failures → endpoint disabled
+      (`active: false`, `disabled_at: now()`). Re-enable blocked for 1 hour after auto-suspension
+      (`@reenable_cooldown_seconds 3_600`); API returns HTTP 429 `endpoint_cooldown` with
+      `retry_after` ISO 8601 timestamp. Tests: 5 cases covering all cooldown branches.
 
 ---
 

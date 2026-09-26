@@ -65,10 +65,9 @@ defmodule YagyeCore.Payments.Adapters.PaystackAdapter do
       }
     }
 
-    Req.post(url("/charge", credential),
-      json: body,
-      headers: auth_headers(credential),
-      receive_timeout: 15_000
+    Req.post(
+      url("/charge", credential),
+      [json: body, headers: auth_headers(credential), receive_timeout: 15_000] ++ extra_req_opts()
     )
     |> translate_charge_http_response()
   end
@@ -86,9 +85,9 @@ defmodule YagyeCore.Payments.Adapters.PaystackAdapter do
   def query_charge(%PaymentAttempt{provider_reference: ref} = _attempt, credential) do
     # provider_reference for Paystack is the transaction reference string —
     # the same idempotency_token we passed as the charge reference.
-    case Req.get(url("/transaction/verify/#{ref}", credential),
-           headers: auth_headers(credential),
-           receive_timeout: 10_000
+    case Req.get(
+           url("/transaction/verify/#{ref}", credential),
+           [headers: auth_headers(credential), receive_timeout: 10_000] ++ extra_req_opts()
          ) do
       {:ok, %Req.Response{status: 200, body: %{"status" => true, "data" => data}}} ->
         translate_verify_response(data)
@@ -148,10 +147,10 @@ defmodule YagyeCore.Payments.Adapters.PaystackAdapter do
       currency: currency
     }
 
-    case Req.post(url("/transferrecipient", credential),
-           json: body,
-           headers: auth_headers(credential),
-           receive_timeout: 15_000
+    case Req.post(
+           url("/transferrecipient", credential),
+           [json: body, headers: auth_headers(credential), receive_timeout: 15_000] ++
+             extra_req_opts()
          ) do
       {:ok,
        %Req.Response{
@@ -192,10 +191,10 @@ defmodule YagyeCore.Payments.Adapters.PaystackAdapter do
       reason: "Yagye settlement #{reference}"
     }
 
-    case Req.post(url("/transfer", credential),
-           json: body,
-           headers: auth_headers(credential),
-           receive_timeout: 15_000
+    case Req.post(
+           url("/transfer", credential),
+           [json: body, headers: auth_headers(credential), receive_timeout: 15_000] ++
+             extra_req_opts()
          ) do
       {:ok,
        %Req.Response{
@@ -300,4 +299,6 @@ defmodule YagyeCore.Payments.Adapters.PaystackAdapter do
   defp url(path, _), do: "https://api.paystack.co" <> path
 
   defp auth_headers(%{"secret_key" => key}), do: [{"Authorization", "Bearer #{key}"}]
+
+  defp extra_req_opts, do: Application.get_env(:yagye_core, :paystack_req_opts, [])
 end

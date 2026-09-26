@@ -307,6 +307,16 @@ defmodule YagyeCore.Settlement do
     if exists, do: {:error, :batch_already_open}, else: {:ok, :no_open_batch}
   end
 
+  @doc """
+  Computes fee totals for a batch by querying fee_records for all succeeded attempts.
+  Called by SettlementProcessorWorker to stamp net_amount/platform_fees on the batch.
+  """
+  def compute_batch_fee_totals(%SettlementBatch{} = batch) do
+    with {:ok, attempt_payment_pairs} <- load_attempts_for_batch(batch) do
+      load_fee_totals(batch, attempt_payment_pairs)
+    end
+  end
+
   defp load_attempts_for_batch(%SettlementBatch{} = batch) do
     attempt_payment_pairs =
       from(pa in PaymentAttempt,
@@ -332,8 +342,8 @@ defmodule YagyeCore.Settlement do
       |> Repo.all()
       |> Map.new()
 
-    platform_fees = fees["merchant"] || 0
-    provider_fees = fees["provider"] || 0
+    platform_fees = decimal_to_int(fees["platform"])
+    provider_fees = decimal_to_int(fees["provider"])
     gross = batch.gross_amount
     expected_net = gross - platform_fees - provider_fees
 
@@ -366,16 +376,30 @@ defmodule YagyeCore.Settlement do
   end
 
   defp insert_settlement_items(%Settlement{} = settlement, attempt_payment_pairs) do
+    attempt_ids = Enum.map(attempt_payment_pairs, fn {attempt, _} -> attempt.id end)
+
+    fee_map =
+      from(f in FeeRecord,
+        where:
+          f.source_type == "payment_attempt" and f.source_id in ^attempt_ids and
+            f.party == "platform",
+        select: {f.source_id, f.amount}
+      )
+      |> Repo.all()
+      |> Map.new()
+
     items =
       Enum.map(attempt_payment_pairs, fn {attempt, payment} ->
+        platform_fee = Map.get(fee_map, attempt.id, 0)
+
         attrs = %{
           settlement_id: settlement.id,
           source_type: "payment_attempt",
           source_id: attempt.id,
           gross_amount: payment.amount,
           provider_fee: 0,
-          platform_fee: 0,
-          net_amount: payment.amount,
+          platform_fee: platform_fee,
+          net_amount: payment.amount - platform_fee,
           currency: payment.currency
         }
 
@@ -430,4 +454,8 @@ defmodule YagyeCore.Settlement do
       nil -> nil
     end
   end
+
+  defp decimal_to_int(nil), do: 0
+  defp decimal_to_int(%Decimal{} = d), do: Decimal.to_integer(d)
+  defp decimal_to_int(n) when is_integer(n), do: n
 end

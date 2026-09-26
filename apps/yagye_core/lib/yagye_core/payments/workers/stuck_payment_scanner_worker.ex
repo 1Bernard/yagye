@@ -1,6 +1,16 @@
 defmodule YagyeCore.Payments.Workers.StuckPaymentScannerWorker do
   @moduledoc """
-  Cron worker that recovers payments orphaned in the `processing` or `requires_action` state.
+  Cron worker that recovers payments orphaned in the `created`, `processing`, or
+  `requires_action` state.
+
+  **`created` recovery**: `create_payment` inserts both the payment and a
+  `PaymentDispatchWorker` Oban job atomically. If that job is lost (node crash before
+  acknowledgement, manual deletion, exhausted retries before dispatch) the payment stays in
+  `created` indefinitely even though the customer may have been prompted. Payments older than
+  90 s in `created` have a missing or dead Oban job; this scanner re-enqueues
+  `PaymentDispatchWorker` so they are dispatched. This is the primary guard against the
+  "PENDING eternity" failure mode on MoMo: the telecom drops its outbound webhook AND the
+  initial dispatch job was lost.
 
   **`processing` recovery**: a payment gets stuck here when `PaymentDispatchWorker` crashes
   after `dispatch_payment` sets state to `processing` but before the provider responds. On
@@ -28,14 +38,38 @@ defmodule YagyeCore.Payments.Workers.StuckPaymentScannerWorker do
   alias YagyeCore.Payments.Workers.{PaymentDispatchWorker, PaymentStatusCheckWorker}
   alias YagyeCore.Repo
 
+  @stuck_created_seconds 90
   @stuck_threshold_minutes 5
   @stuck_requires_action_minutes 7
   @batch_size 50
 
   @impl Oban.Worker
   def perform(_job) do
+    recover_created_payments()
     recover_processing_payments()
     recover_requires_action_payments()
+  end
+
+  defp recover_created_payments do
+    cutoff = DateTime.add(DateTime.utc_now(), -@stuck_created_seconds, :second)
+
+    stuck =
+      from(p in Payment,
+        where: p.state == "created" and p.inserted_at < ^cutoff,
+        select: p.id,
+        limit: @batch_size
+      )
+      |> Repo.all()
+
+    if stuck != [] do
+      Logger.info(
+        "[StuckPaymentScannerWorker] re-enqueueing #{length(stuck)} stuck created payments"
+      )
+
+      Oban.insert_all(Enum.map(stuck, &PaymentDispatchWorker.new(%{payment_id: &1})))
+    end
+
+    :ok
   end
 
   defp recover_processing_payments do

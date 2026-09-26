@@ -4,6 +4,7 @@ defmodule YagyeCore.Settlement.Workers.SettlementProcessorWorkerTest do
   alias YagyeCore.Fixtures
   alias YagyeCore.Outbox.Schemas.OutboxMessage
   alias YagyeCore.Payments.Schemas.{Payment, PaymentAttempt}
+  alias YagyeCore.Pricing.Schemas.FeeRecord
   alias YagyeCore.Repo
   alias YagyeCore.Settlement
   alias YagyeCore.Settlement.Workers.SettlementProcessorWorker
@@ -76,6 +77,85 @@ defmodule YagyeCore.Settlement.Workers.SettlementProcessorWorkerTest do
         )
 
       assert msg != nil
+    end
+  end
+
+  describe "fee totals on batch" do
+    setup do
+      merchant = Fixtures.merchant_fixture()
+      provider = Fixtures.simulator_provider_fixture()
+      %{merchant: merchant, provider: provider}
+    end
+
+    test "stamps net_amount and platform_fees when fee records exist", %{
+      merchant: merchant,
+      provider: provider
+    } do
+      payment = Fixtures.payment_fixture(merchant, %{currency: "GHS", amount: 10_000})
+
+      attempt =
+        Repo.insert!(
+          PaymentAttempt.changeset(%PaymentAttempt{}, %{
+            payment_id: payment.id,
+            provider_id: provider.id,
+            attempt_number: 1,
+            state: "succeeded",
+            provider_reference: "chg_#{System.unique_integer([:positive])}",
+            idempotency_token: Uniq.UUID.uuid7()
+          })
+        )
+
+      {:ok, _} = payment |> Payment.transition_changeset("succeeded") |> Repo.update()
+      {:ok, batch} = Settlement.create_batch(merchant.id, provider.id, "GHS", "simulation")
+
+      Repo.insert!(
+        FeeRecord.record_changeset(%FeeRecord{}, %{
+          source_type: "payment_attempt",
+          source_id: attempt.id,
+          merchant_id: merchant.id,
+          mode: "simulation",
+          party: "platform",
+          fee_kind: "psp_margin",
+          amount: 150,
+          currency: "GHS",
+          computation: %{"basis_points" => 150}
+        })
+      )
+
+      assert {:ok, settled} = run_worker(batch)
+      assert settled.platform_fees == 150
+      assert settled.net_amount == 10_000 - 150
+    end
+
+    test "stamps net_amount equal to gross when no fee records", %{
+      merchant: merchant,
+      provider: provider
+    } do
+      {batch, payment} = batch_with_payment(merchant, provider)
+
+      assert {:ok, settled} = run_worker(batch)
+      assert settled.platform_fees == 0
+      assert settled.net_amount == payment.amount
+    end
+
+    test "outbox settled event includes net_amount and platform_fees", %{
+      merchant: merchant,
+      provider: provider
+    } do
+      {batch, _payment} = batch_with_payment(merchant, provider)
+      run_worker(batch)
+
+      msg =
+        Repo.get_by(OutboxMessage,
+          aggregate_type: "settlementbatch",
+          aggregate_id: batch.id,
+          event_type: "settlement.batch.settled"
+        )
+
+      assert msg != nil
+      payload = msg.envelope["payload"]
+      assert Map.has_key?(payload, "net_amount")
+      assert Map.has_key?(payload, "platform_fees")
     end
   end
 

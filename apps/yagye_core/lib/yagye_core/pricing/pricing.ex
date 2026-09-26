@@ -95,7 +95,8 @@ defmodule YagyeCore.Pricing do
         {:error, :no_pricing_plan}
 
       id ->
-        plan = Repo.get!(PricingPlan, id) |> Repo.preload(:rules)
+        rules_q = from(r in PricingRule, order_by: [desc: r.specificity])
+        plan = Repo.get!(PricingPlan, id) |> Repo.preload(rules: rules_q)
         {:ok, plan}
     end
   end

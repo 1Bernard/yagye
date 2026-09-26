@@ -20,6 +20,8 @@ defmodule YagyeCore.Settlement.Schemas.SettlementBatch do
     field :period_end, :utc_datetime_usec
     field :payment_count, :integer, default: 0
     field :gross_amount, :integer, default: 0
+    field :platform_fees, :integer
+    field :net_amount, :integer
     field :state, :string, default: "pending"
     field :error, :string
     field :settled_at, :utc_datetime_usec

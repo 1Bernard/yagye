@@ -4,11 +4,15 @@ defmodule YagyeCoreWeb.Controllers.Payments.PaymentJSON do
   alias YagyeCore.Payments.Schemas.{Payment, PaymentEvent}
 
   def data(%Payment{} = p) do
+    net_amount = if p.fee_amount, do: p.amount - p.fee_amount, else: nil
+
     %{
       id: p.public_id,
       object: "payment",
       mode: p.mode,
       amount: p.amount,
+      fee_amount: p.fee_amount,
+      net_amount: net_amount,
       currency: p.currency,
       state: p.state,
       rail: p.rail,

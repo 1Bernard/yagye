@@ -12,6 +12,57 @@ defmodule YagyeCore.Payments.Workers.StuckPaymentScannerWorkerTest do
     %{merchant: merchant}
   end
 
+  test "re-enqueues dispatch worker for old created payments (lost Oban job)", %{
+    merchant: merchant
+  } do
+    payment = Fixtures.payment_fixture(merchant)
+
+    # Back-date so the payment appears older than the 90-second created threshold
+    Repo.update_all(
+      from(p in Payment, where: p.id == ^payment.id),
+      set: [inserted_at: DateTime.add(DateTime.utc_now(), -120, :second)]
+    )
+
+    # Clear any dispatch job the fixture may have inserted
+    Repo.delete_all(
+      from(j in Oban.Job,
+        where: j.worker == ^to_string(PaymentDispatchWorker),
+        where: fragment("args->>'payment_id' = ?", ^payment.id)
+      )
+    )
+
+    assert :ok = perform_job(StuckPaymentScannerWorker, %{})
+
+    assert_enqueued(worker: PaymentDispatchWorker, args: %{"payment_id" => payment.id})
+  end
+
+  test "ignores created payments younger than 90-second threshold", %{merchant: merchant} do
+    payment = Fixtures.payment_fixture(merchant)
+
+    jobs_before =
+      Repo.aggregate(
+        from(j in Oban.Job,
+          where: j.worker == ^to_string(PaymentDispatchWorker),
+          where: fragment("args->>'payment_id' = ?", ^payment.id)
+        ),
+        :count
+      )
+
+    assert :ok = perform_job(StuckPaymentScannerWorker, %{})
+
+    jobs_after =
+      Repo.aggregate(
+        from(j in Oban.Job,
+          where: j.worker == ^to_string(PaymentDispatchWorker),
+          where: fragment("args->>'payment_id' = ?", ^payment.id)
+        ),
+        :count
+      )
+
+    # Scanner must not have added extra dispatch jobs for a brand-new payment
+    assert jobs_after == jobs_before
+  end
+
   test "re-enqueues dispatch worker for old processing payments", %{merchant: merchant} do
     payment = Fixtures.payment_fixture(merchant)
     {:ok, processing} = payment |> Payment.transition_changeset("processing") |> Repo.update()
