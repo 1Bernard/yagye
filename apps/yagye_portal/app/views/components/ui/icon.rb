@@ -18,6 +18,8 @@ module UI
       external_link link layers tag hash
       smartphone shield_off alert_triangle
       minus paper_plane grip
+      qr_code
+      printer
     ].freeze
 
     def initialize(name, **attrs)
@@ -461,6 +463,28 @@ module UI
       s.circle(cx: "15", cy: "12", r: "1", fill: "currentColor")
       s.circle(cx: "9", cy: "18", r: "1", fill: "currentColor")
       s.circle(cx: "15", cy: "18", r: "1", fill: "currentColor")
+    end
+
+    def qr_code(s)
+      # Outer corner squares
+      s.rect(x: "3",  y: "3",  width: "7", height: "7", rx: "1")
+      s.rect(x: "14", y: "3",  width: "7", height: "7", rx: "1")
+      s.rect(x: "3",  y: "14", width: "7", height: "7", rx: "1")
+      # Inner corner fills
+      s.rect(x: "5",  y: "5",  width: "3", height: "3", fill: "currentColor", stroke: "none")
+      s.rect(x: "16", y: "5",  width: "3", height: "3", fill: "currentColor", stroke: "none")
+      s.rect(x: "5",  y: "16", width: "3", height: "3", fill: "currentColor", stroke: "none")
+      # Bottom-right data dots
+      s.rect(x: "14", y: "14", width: "3", height: "3", fill: "currentColor", stroke: "none")
+      s.rect(x: "18", y: "14", width: "3", height: "3", fill: "currentColor", stroke: "none")
+      s.rect(x: "14", y: "18", width: "3", height: "3", fill: "currentColor", stroke: "none")
+      s.rect(x: "18", y: "18", width: "3", height: "3", fill: "currentColor", stroke: "none")
+    end
+
+    def printer(s)
+      s.polyline(points: "6 9 6 2 18 2 18 9")
+      s.path(d: "M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2")
+      s.rect(x: "6", y: "14", width: "12", height: "8")
     end
   end
 end

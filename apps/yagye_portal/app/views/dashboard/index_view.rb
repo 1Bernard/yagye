@@ -54,12 +54,9 @@ module Dashboard
         div(data: { controller: "dashboard-refresh",
                     dashboard_refresh_interval_value: "60" }) do
           refresh_bar
-          network_health_bar
           kpi_row
-          payout_balance_card
+          payout_actions_bar
           upcoming_payout_card
-          quick_actions_bar
-          funnel_card
           chart_card
           breakdown_row
         end
@@ -77,21 +74,38 @@ module Dashboard
         div(class: "flex items-center gap-3") do
           fx_toggle
           fx_corridor_rates
+          inline_network_chips
         end
 
-        div(class: "flex items-center gap-3") do
-          span(class: TYPE_CAPTION) do
-            plain "Updated "
-            span(data: { dashboard_refresh_target: "timestamp" }) { plain "just now" }
-            plain " · auto-refreshes every minute"
+        button(type: "button", title: "Refresh",
+               class: "flex items-center justify-center w-7 h-7 rounded-lg " \
+                      "border border-gray-200 bg-white hover:border-gray-300 " \
+                      "transition-colors cursor-pointer flex-shrink-0",
+               data: { action: "click->dashboard-refresh#reload" }) do
+          span(class: "flex w-[13px] h-[13px] text-gray-400") do
+            render UI::Icon.new(:refresh, class: "w-full h-full")
           end
-          button(type: "button",
-                 class: "flex items-center gap-1.5 #{TYPE_CAPTION} text-[#3D47F5] font-medium " \
-                        "hover:opacity-70 transition-opacity border-0 bg-transparent cursor-pointer p-0",
-                 data: { action: "click->dashboard-refresh#reload" }) do
-            span(class: "flex w-[11px] h-[11px]") { render UI::Icon.new(:refresh, class: "w-full h-full") }
-            plain "Refresh"
-          end
+        end
+      end
+    end
+
+    def inline_network_chips
+      return if @network_health.blank?
+      return if @network_health.all? { |n| n[:status] == :no_data }
+
+      div(class: "hidden sm:flex items-center gap-1.5") do
+        span(class: "text-[10.5px] font-bold text-gray-400 uppercase tracking-wide mr-1") { plain "Network" }
+        @network_health.each { |n| compact_network_chip(n) }
+      end
+    end
+
+    def compact_network_chip(n)
+      dot_color = network_dot_color(n[:status])
+      span(class: "flex items-center gap-1.5 px-2.5 py-1 bg-gray-50 rounded-lg border border-gray-100") do
+        span(class: "w-1.5 h-1.5 rounded-full flex-shrink-0", style: "background:#{dot_color}")
+        span(class: "text-[11.5px] font-medium text-gray-700") { plain n[:name] }
+        if n[:rate]
+          span(class: "text-[11px] tabular-nums text-gray-400") { plain "#{n[:rate]}%" }
         end
       end
     end
@@ -211,7 +225,7 @@ module Dashboard
           color:   PURPLE,
           tint:    TINT_PURPLE,
           delta:   tx_delta,
-          sub:     failed_sub_label
+          funnel:  @tx_count.to_i.positive? ? { success: @success_count, failed: @failed_count, pending: @pending_count } : nil
         )
         kpi_card(
           label:   "Success Rate",
@@ -241,7 +255,7 @@ module Dashboard
       end
     end
 
-    def kpi_card(label:, value:, icon:, color:, tint:, delta: nil, sub: nil)
+    def kpi_card(label:, value:, icon:, color:, tint:, delta: nil, sub: nil, funnel: nil)
       div(class: "bg-white border border-gray-100 rounded-2xl p-[22px]") do
         # Icon row + optional delta chip
         div(class: "flex items-start justify-between mb-4") do
@@ -263,8 +277,39 @@ module Dashboard
         p(class: TYPE_HEADING) { plain label }
         p(class: "#{TYPE_STAT} mt-2", style: "color:#{color}") { plain value }
 
-        if sub
+        if funnel
+          mini_funnel_bar(funnel)
+        elsif sub
           p(class: "#{TYPE_CAPTION} mt-[10px] truncate") { plain sub }
+        end
+      end
+    end
+
+    def mini_funnel_bar(funnel)
+      paid_pct    = pct_of(@tx_count, funnel[:success])
+      failed_pct  = pct_of(@tx_count, funnel[:failed])
+      pending_pct = pct_of(@tx_count, funnel[:pending])
+
+      div(class: "mt-[10px]") do
+        div(class: "flex gap-px rounded-full overflow-hidden", style: "height:5px;") do
+          div(style: "flex:#{paid_pct};background:#{GREEN}")    if paid_pct    > 0
+          div(style: "flex:#{failed_pct};background:#{RED}")    if failed_pct  > 0
+          div(style: "flex:#{pending_pct};background:#{AMBER}") if pending_pct > 0
+        end
+        div(class: "flex items-center gap-3 mt-[7px] flex-wrap") do
+          mini_funnel_dot(funnel[:success], "paid",    GREEN)
+          mini_funnel_dot(funnel[:failed],  "failed",  RED)
+          mini_funnel_dot(funnel[:pending], "pending", AMBER)
+        end
+      end
+    end
+
+    def mini_funnel_dot(count, label, color)
+      return if count.to_i.zero?
+      div(class: "flex items-center gap-1") do
+        span(class: "w-[6px] h-[6px] rounded-full flex-shrink-0", style: "background:#{color}")
+        span(class: "text-[11px] font-medium text-gray-500") do
+          plain "#{number_with_delimiter(count)} #{label}"
         end
       end
     end
@@ -302,20 +347,78 @@ module Dashboard
     end
 
     # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-    # QUICK ACTIONS BAR
+    # PAYOUT BALANCE + QUICK ACTIONS (combined bar)
     # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-    def quick_actions_bar
-      div(class: "flex items-center gap-3 mb-5 flex-wrap") do
-        if @is_ops
-          quick_btn(icon: :shield,  label: "Review KYB",   href: kyb_reviews_path)
-          quick_btn(icon: :flag,    label: "Disputes",      href: disputes_path)
-          quick_btn(icon: :layers,  label: "Settlements",   href: settlements_path)
-        else
-          quick_btn(icon: :link,    label: "New payment link",   href: new_payment_link_path)
-          quick_btn(icon: :users,   label: "Invite team member", href: new_team_user_path, data: { turbo_frame: "drawer-frame" })
-          quick_btn(icon: :wallet,  label: "Request payout",     href: new_payout_request_path)
+    def payout_actions_bar
+      if @payout_balance
+        combined_payout_actions_bar
+      else
+        div(class: "flex items-center gap-3 mb-5 flex-wrap") { action_buttons }
+      end
+    end
+
+    def combined_payout_actions_bar
+      pb = @payout_balance
+
+      div(class: "flex items-center mb-5 bg-white border border-gray-100 rounded-2xl overflow-hidden") do
+        # ── Balance ─────────────────────────────────────────────────────────
+        div(class: "flex flex-col justify-center px-6 py-[18px] flex-shrink-0") do
+          p(class: TYPE_CAPTION) { plain "Balance" }
+          p(class: "text-[20px] font-extrabold tabular-nums tracking-tight text-gray-900 mt-[5px] leading-none") do
+            plain format_money(pb[:balance], currency: pb[:currency])
+          end
+          p(class: "#{TYPE_CAPTION} mt-[5px]") do
+            plain "#{number_with_delimiter(pb[:payment_count])} payment#{pb[:payment_count] == 1 ? '' : 's'}"
+            plain " since #{pb[:cycle_start].strftime('%-d %b')}" if pb[:cycle_start]
+          end
         end
+
+        # ── Divider ─────────────────────────────────────────────────────────
+        div(class: "w-px self-stretch bg-gray-100 flex-shrink-0")
+
+        # ── Next payout ─────────────────────────────────────────────────────
+        div(class: "flex flex-col justify-center px-6 py-[18px] flex-shrink-0") do
+          p(class: TYPE_CAPTION) { plain "Next payout" }
+          if pb[:next_payout_date]
+            p(class: "text-[15px] font-bold text-gray-900 mt-[5px] leading-none") do
+              plain pb[:next_payout_date].strftime("%a, %-d %b")
+            end
+            div(class: "flex items-center gap-2 mt-[5px] flex-wrap") do
+              if pb[:next_payout_amount]
+                span(class: "text-[12px] font-semibold text-gray-600") do
+                  plain format_money(pb[:next_payout_amount], currency: pb[:currency])
+                end
+              end
+              payout_state_chip(pb[:next_payout_state]) if pb[:next_payout_state]
+            end
+          else
+            p(class: "text-[13px] text-gray-400 mt-[5px]") { plain "None scheduled" }
+          end
+        end
+
+        # ── Spacer ──────────────────────────────────────────────────────────
+        div(class: "flex-1 min-w-0")
+
+        # ── Divider ─────────────────────────────────────────────────────────
+        div(class: "w-px self-stretch bg-gray-100 flex-shrink-0 hidden sm:block")
+
+        # ── Action buttons ───────────────────────────────────────────────────
+        div(class: "flex items-center gap-2 px-5 py-[18px] flex-wrap flex-shrink-0") do
+          action_buttons
+        end
+      end
+    end
+
+    def action_buttons
+      if @is_ops
+        quick_btn(icon: :shield,  label: "Review KYB",        href: kyb_reviews_path)
+        quick_btn(icon: :flag,    label: "Disputes",           href: disputes_path)
+        quick_btn(icon: :layers,  label: "Settlements",        href: settlements_path)
+      else
+        quick_btn(icon: :link,    label: "New payment link",   href: new_payment_link_path)
+        quick_btn(icon: :users,   label: "Invite team member", href: new_team_user_path, data: { turbo_frame: "drawer-frame" })
+        quick_btn(icon: :wallet,  label: "Request payout",     href: new_payout_request_path)
       end
     end
 
@@ -334,63 +437,6 @@ module Dashboard
     # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
     # UPCOMING PAYOUT CARD
     # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-    def payout_balance_card
-      return if @payout_balance.nil?
-
-      pb = @payout_balance
-
-      div(class: "bg-white border border-gray-100 rounded-2xl px-6 py-5 mb-5") do
-        div(class: "flex items-start gap-6 flex-wrap") do
-          # ── Accumulated balance ──────────────────────────────────────────────
-          div(class: "flex-1 min-w-[160px]") do
-            p(class: TYPE_CAPTION) { plain "Balance" }
-            p(class: "text-[26px] font-extrabold tabular-nums tracking-tight text-gray-900 mt-[6px] leading-none") do
-              plain format_money(pb[:balance], currency: pb[:currency])
-            end
-            p(class: "#{TYPE_CAPTION} mt-[6px]") do
-              plain "#{number_with_delimiter(pb[:payment_count])} payment#{pb[:payment_count] == 1 ? '' : 's'} collected"
-              if pb[:cycle_start]
-                plain " since #{pb[:cycle_start].strftime('%-d %b')}"
-              end
-            end
-          end
-
-          # ── Divider ──────────────────────────────────────────────────────────
-          div(class: "w-px self-stretch bg-gray-100 flex-shrink-0 hidden sm:block")
-
-          # ── Next payout ──────────────────────────────────────────────────────
-          div(class: "flex-1 min-w-[140px]") do
-            p(class: TYPE_CAPTION) { plain "Next payout" }
-            if pb[:next_payout_date]
-              p(class: "text-[18px] font-bold text-gray-900 mt-[6px] leading-none") do
-                plain pb[:next_payout_date].strftime("%a, %-d %b")
-              end
-              div(class: "flex items-center gap-2 mt-[8px] flex-wrap") do
-                if pb[:next_payout_amount]
-                  span(class: "text-[12.5px] font-semibold text-gray-700") do
-                    plain format_money(pb[:next_payout_amount], currency: pb[:currency])
-                  end
-                end
-                if pb[:next_payout_state]
-                  payout_state_chip(pb[:next_payout_state])
-                end
-              end
-            else
-              p(class: "text-[15px] text-gray-400 mt-[6px]") { plain "None scheduled" }
-            end
-          end
-
-          # ── View link ────────────────────────────────────────────────────────
-          a(href: "#",
-            class: "self-center flex items-center gap-1 text-[12px] font-semibold no-underline flex-shrink-0 hover:opacity-70 transition-opacity",
-            style: "color:#{BRAND}") do
-            plain "View payouts"
-            span(class: "flex w-[11px] h-[11px]") { render UI::Icon.new(:arrow_right, class: "w-full h-full") }
-          end
-        end
-      end
-    end
 
     def upcoming_payout_card
       return if @upcoming_payout.nil?
@@ -456,66 +502,6 @@ module Dashboard
                   end
       span(class: "text-[10px] font-bold px-[6px] py-[2px] rounded-full capitalize flex-shrink-0",
            style: "color:#{color};background:#{bg}") { plain state.capitalize }
-    end
-
-    # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-    # CONVERSION FUNNEL
-    # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-    def funnel_card
-      return if @tx_count.to_i.zero?
-
-      dropped     = @tx_count - @success_count - @pending_count
-      paid_pct    = pct_of(@tx_count, @success_count)
-      failed_pct  = pct_of(@tx_count, dropped)
-      pending_pct = pct_of(@tx_count, @pending_count)
-
-      div(class: "bg-white border border-gray-100 rounded-2xl px-6 py-5 mb-5") do
-        # ── Header ────────────────────────────────────────────────────────────
-        div(class: "flex items-start justify-between mb-1") do
-          div do
-            p(class: TYPE_TITLE) { plain "Payment Funnel" }
-            p(class: "#{TYPE_CAPTION} mt-1") do
-              plain "#{number_with_delimiter(@tx_count)} payment attempts this month"
-            end
-          end
-          div(class: "flex items-baseline gap-[6px]") do
-            span(class: "text-[30px] font-extrabold tracking-[-0.03em] tabular-nums leading-none",
-                 style: "color:#{rate_color}") { plain "#{@success_rate || 0}%" }
-            span(class: TYPE_CAPTION) { plain "success rate" }
-          end
-        end
-
-        # ── Stacked bar ───────────────────────────────────────────────────────
-        div(class: "flex gap-1 my-5", style: "height:8px") do
-          funnel_bar_segment(paid_pct,    GREEN)
-          funnel_bar_segment(failed_pct,  RED)
-          funnel_bar_segment(pending_pct, AMBER)
-        end
-
-        # ── Stat tiles ────────────────────────────────────────────────────────
-        div(class: "flex items-stretch gap-3") do
-          funnel_tile(@success_count, "Paid",              paid_pct,    GREEN,  "#f0fdf4")
-          funnel_tile(dropped,        "Failed",            failed_pct,  RED,    "#fef2f2")
-          funnel_tile(@pending_count, "Pending",            pending_pct, AMBER,  "#fffbeb")
-        end
-      end
-    end
-
-    def funnel_bar_segment(pct, color)
-      return if pct.to_f <= 0
-      div(style: "flex:#{pct};background:#{color};border-radius:4px;transition:flex 0.4s ease")
-    end
-
-    def funnel_tile(count, label, pct, color, bg)
-      div(class: "flex-1 rounded-xl px-4 py-3", style: "background:#{bg}") do
-        p(class: "text-[22px] font-extrabold tabular-nums tracking-tight leading-none mb-1",
-          style: "color:#{color}") { plain number_with_delimiter(count) }
-        p(class: TYPE_BODY_MD) { plain label }
-        p(class: "text-[11px] font-semibold mt-0.5 text-gray-400") do
-          plain "#{pct}% of total"
-        end
-      end
     end
 
     def pct_of(total, part)

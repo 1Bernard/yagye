@@ -158,6 +158,22 @@ module Payments
             render UI::StatusBadge.new(status: b["state"] || "pending")
           end
 
+          t.column("Recon") do |b|
+            if b["reconciliation_run_id"].present?
+              span(class: "inline-flex items-center gap-[5px] px-[8px] py-[3px] rounded-full text-[11px] font-semibold",
+                   style: "background:rgba(22,163,74,0.08);color:#16a34a") do
+                span(class: "w-[5px] h-[5px] rounded-full bg-current flex-shrink-0")
+                plain "Reconciled"
+              end
+            else
+              span(class: "inline-flex items-center gap-[5px] px-[8px] py-[3px] rounded-full text-[11px] font-semibold",
+                   style: "background:rgba(107,114,128,0.08);color:#6b7280") do
+                span(class: "w-[5px] h-[5px] rounded-full bg-current flex-shrink-0")
+                plain "Pending"
+              end
+            end
+          end
+
           t.column("Settled") do |b|
             ts = b["settled_at"]
             plain(ts ? Time.parse(ts).strftime("%d %b %Y") : "—")

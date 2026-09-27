@@ -292,11 +292,17 @@ Redpanda config: `localhost:19092` (dev), `KAFKA_BOOTSTRAP_SERVERS` env (prod), 
 
 ---
 
-### P17 — Horizontal Scale & Distributed State
+### P17 — Horizontal Scale & Distributed State ✓ (2026-09-26)
 
-- [ ] Redis for distributed rate limiting — replace in-process ETS rate-limit counters
-      with Redis-backed sliding window (key: `rate_limit:{merchant_id}:{window}`)
-- [ ] Redis-backed session store for portal (replace cookie store at scale)
+- [x] Redis for distributed rate limiting — `Redix` added to Core; `RateLimiter` now uses
+      `INCR + EXPIRE` on Redis key `rl:{ip}:{window}` (120 s TTL). ETS remains as an
+      in-process fallback with a warning log when Redis is unavailable — fail-open, never
+      crash. Redis service added to docker-compose on `data` network; Core depends_on it.
+- [x] Redis-backed session store for portal — `redis` + `redis-session-store` gems added;
+      `config/initializers/session_store.rb` switches to `:redis_session_store` when
+      `REDIS_URL` env var is present (docker-compose + `.env.development`), cookie store
+      otherwise. `on_redis_down` logs and degrades rather than 500ing. Portal DB = 1,
+      Core DB = 0 (separate key spaces in the same Redis).
 - [ ] Horizontal pod autoscaling validation — Core + Portal stateless check,
       Oban queue uniqueness under multi-node (`:global` vs `:local` queue config)
 - [ ] Connection pool tuning: PgBouncer or Ecto pool_size review under load

@@ -262,6 +262,8 @@ module Merchants
             end
             if @app.approved?
               suspend_form
+            elsif @app.suspended?
+              reactivate_form
             end
             if @app.merchant_code.present?
               render UI::Button.new(
@@ -342,6 +344,19 @@ module Merchants
         render UI::Button.new(variant: :danger, type: "submit", class: "w-full justify-center") do
           render UI::Icon.new(:archive, class: ICON_SM)
           plain "Suspend merchant"
+        end
+      end
+    end
+
+    def reactivate_form
+      form(action: merchant_path(@app), method: "post",
+           data: { turbo_confirm: "Reactivate this merchant? They will be able to process payments again." }) do
+        input(type: "hidden", name: "_method",            value: "patch")
+        input(type: "hidden", name: "authenticity_token", value: form_authenticity_token)
+        input(type: "hidden", name: "status",             value: "active")
+        render UI::Button.new(variant: :primary, type: "submit", class: "w-full justify-center") do
+          render UI::Icon.new(:check_circle, class: ICON_SM)
+          plain "Reactivate merchant"
         end
       end
     end

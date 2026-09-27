@@ -23,8 +23,10 @@ module UI
       if @href
         a(href: @href, class: "#{wrapper} cursor-pointer", **@attrs) { track(bg) }
       else
-        label(class: "#{wrapper} cursor-pointer", **@attrs) do
-          input(type: "checkbox", name: @name, class: "sr-only",
+        label(class: "#{wrapper} cursor-pointer",
+              data: { controller: "toggle", toggle_on_value: BRAND, toggle_off_value: BORDER_MED },
+              **@attrs) do
+          input(type: "checkbox", name: @name, value: "1", class: "sr-only",
                 checked: @checked, disabled: @disabled)
           track(bg)
         end
@@ -35,9 +37,11 @@ module UI
 
     def track(bg)
       div(class: "w-9 h-5 rounded-full relative transition-[background] duration-150",
-          style: "background:#{bg}") do
+          style: "background:#{bg}",
+          data: { toggle_target: "track" }) do
         div(class: "absolute top-[2px] w-4 h-4 rounded-full bg-white shadow-sm transition-[left] duration-150",
-            style: "left:#{@checked ? '18px' : '2px'}")
+            style: "left:#{@checked ? '18px' : '2px'}",
+            data: { toggle_target: "knob" })
       end
     end
   end
