@@ -20,7 +20,7 @@ module Checkout
       authorize :invoice, :show?
       result = core.get_invoice(params[:id])
       return redirect_to invoices_path, alert: "Invoice not found." unless result.success?
-      render Checkout::Invoices::ShowView.new(invoice: result.body)
+      render Checkout::Invoices::ShowView.new(invoice: result.body, logo_url: extract_logo_url(result.body))
     end
 
     def new
@@ -65,7 +65,7 @@ module Checkout
       unless invoice["state"] == "draft"
         return redirect_to invoice_path(params[:id]), alert: "Only draft invoices can be edited."
       end
-      render Checkout::Invoices::FormView.new(invoice: invoice, mode: Current.mode)
+      render Checkout::Invoices::FormView.new(invoice: invoice, mode: Current.mode, logo_url: extract_logo_url(invoice))
     end
 
     def update
@@ -75,9 +75,10 @@ module Checkout
       if line_items.empty?
         re = core.get_invoice(params[:id])
         return render Checkout::Invoices::FormView.new(
-          invoice: re.success? ? re.body : nil,
-          errors:  ["Add at least one line item."],
-          mode:    Current.mode
+          invoice:  re.success? ? re.body : nil,
+          errors:   ["Add at least one line item."],
+          mode:     Current.mode,
+          logo_url: extract_logo_url(re.success? ? re.body : nil)
         ), status: :unprocessable_entity
       end
 
@@ -98,9 +99,10 @@ module Checkout
       else
         re = core.get_invoice(params[:id])
         render Checkout::Invoices::FormView.new(
-          invoice: re.success? ? re.body : nil,
-          errors:  extract_errors(result),
-          mode:    Current.mode
+          invoice:  re.success? ? re.body : nil,
+          errors:   extract_errors(result),
+          mode:     Current.mode,
+          logo_url: extract_logo_url(re.success? ? re.body : nil)
         ), status: :unprocessable_entity
       end
     end
@@ -142,7 +144,15 @@ module Checkout
       authorize :invoice, :create?
       result = core.get_invoice(params[:id])
       return redirect_to invoices_path, alert: "Invoice not found." unless result.success?
-      render Checkout::Invoices::FormView.new(prefill: result.body, mode: Current.mode)
+      render Checkout::Invoices::FormView.new(prefill: result.body, mode: Current.mode, logo_url: extract_logo_url(result.body))
+    end
+
+    def print_view
+      authorize :invoice, :show?
+      result = core.get_invoice(params[:id])
+      return redirect_to invoices_path, alert: "Invoice not found." unless result.success?
+      invoice = result.body
+      render Checkout::Invoices::PrintView.new(invoice: invoice, logo_url: extract_logo_url(invoice)), layout: false
     end
 
     private
@@ -182,6 +192,12 @@ module Checkout
           tax_rate_bps: (item[:tax_rate_bps] || item["tax_rate_bps"] || 0).to_i
         }
       end
+    end
+
+    def extract_logo_url(invoice)
+      return nil unless invoice
+      invoice.dig("checkout_layout", "logo_url").presence ||
+        invoice.dig("payment_link", "checkout_layout", "logo_url").presence
     end
 
     def core

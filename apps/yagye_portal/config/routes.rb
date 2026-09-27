@@ -25,6 +25,7 @@ Rails.application.routes.draw do
   end
 
   get  "up" => "rails/health#show", as: :rails_health_check
+  post "session/keepalive", to: "sessions#keepalive", as: :session_keepalive
   get  "locale", to: "locale#set",         as: :locale
   post "portal/mode", to: "portal/mode#update", as: :portal_mode
 
@@ -35,8 +36,9 @@ Rails.application.routes.draw do
     get "payments/:id",      to: "transactions#show",   as: :payment
     get   "disputes",          to: "disputes#index",  as: :disputes
     get   "disputes/filter",   to: "disputes#filter", as: :filter_disputes
-    get   "disputes/:id",      to: "disputes#show",   as: :dispute
-    patch "disputes/:id",   to: "disputes#update"
+    get   "disputes/:id",              to: "disputes#show",            as: :dispute
+    post  "disputes/:id/evidence",    to: "disputes#submit_evidence", as: :dispute_evidence
+    post  "disputes/:id/resolve",     to: "disputes#resolve",         as: :resolve_dispute
 
     get "customers",        to: "customers#index", as: :customers
     get "customers/:id",    to: "customers#show",  as: :customer
@@ -130,6 +132,7 @@ Rails.application.routes.draw do
   # ── Team domain ──────────────────────────────────────────────────────────
   scope module: "team" do
     get  "team",                        to: "users#index",      as: :team
+    get  "team/activity-log",           to: "users#activity_log", as: :team_activity_log
     get  "team/users",                  to: "users#index",      as: :team_users
     get  "team/users/filter",            to: "users#filter",     as: :filter_team_users
     get  "team/users/new",              to: "users#new",        as: :new_team_user
@@ -168,15 +171,27 @@ Rails.application.routes.draw do
     get   "settings",                   to: "settings#index",           as: :settings
     get   "settings/pricing",           to: "pricing#index",            as: :settings_pricing
     get   "settings/fee-invoices",      to: "pricing#fee_invoices",     as: :settings_fee_invoices
-    patch "settings/profile",              to: "settings#update_profile",     as: :settings_profile
-    patch "settings/password",             to: "settings#update_password",    as: :settings_password
-    patch "settings/payout-destination",   to: "settings#update_destination", as: :settings_payout_destination
+    patch "settings/profile",              to: "settings#update_profile",       as: :settings_profile
+    patch "settings/password",             to: "settings#update_password",      as: :settings_password
+    patch "settings/notifications",        to: "settings#update_notifications",  as: :settings_notifications
+
+    # Payout destinations management (dedicated page, merchant-only)
+    post   "settings/payout-destinations",              to: "payout_destinations#create",      as: :settings_payout_destinations
+    post   "settings/payout-destinations/:id/default", to: "payout_destinations#set_default", as: :settings_payout_destination_default
+    delete "settings/payout-destinations/:id",          to: "payout_destinations#destroy",     as: :settings_payout_destination_remove
     get   "help",                       to: "help#index",               as: :help
 
-    post   "settings/allowlists/ip",         to: "allowlists#create_ip",      as: :settings_add_ip
-    delete "settings/allowlists/ip/:id",     to: "allowlists#destroy_ip",     as: :settings_remove_ip
-    post   "settings/allowlists/msisdn",     to: "allowlists#create_msisdn",  as: :settings_add_msisdn
-    delete "settings/allowlists/msisdn/:id", to: "allowlists#destroy_msisdn", as: :settings_remove_msisdn
+    post   "settings/allowlists/ip",              to: "allowlists#create_ip",           as: :settings_add_ip
+    delete "settings/allowlists/ip/:id",          to: "allowlists#destroy_ip",          as: :settings_remove_ip
+    post   "settings/allowlists/msisdn",          to: "allowlists#create_msisdn",       as: :settings_add_msisdn
+    delete "settings/allowlists/msisdn/:id",      to: "allowlists#destroy_msisdn",      as: :settings_remove_msisdn
+    post   "settings/blocklists/msisdn",          to: "allowlists#create_msisdn_block",     as: :settings_add_msisdn_block
+    delete "settings/blocklists/msisdn/:id",      to: "allowlists#destroy_msisdn_block",    as: :settings_remove_msisdn_block
+    post   "settings/blocklists/ip",              to: "allowlists#create_ip_block",         as: :settings_add_ip_block
+    delete "settings/blocklists/ip/:id",          to: "allowlists#destroy_ip_block",        as: :settings_remove_ip_block
+
+    patch  "settings/business/branding",          to: "merchant_branding#update",           as: :settings_merchant_branding
+    delete "settings/business/branding/logo",     to: "merchant_branding#remove_logo",      as: :settings_remove_merchant_logo
 
     get    "settings/totp/new",              to: "totp#new",           as: :settings_totp_new
     post   "settings/totp",                  to: "totp#create",        as: :settings_totp
@@ -201,6 +216,7 @@ Rails.application.routes.draw do
     post "payment-links",                    to: "payment_links#create"
     get  "payment-links/:id",                to: "payment_links#show",       as: :payment_link
     get  "payment-links/:id/layout",         to: "payment_links#layout",     as: :payment_link_layout
+    get  "payment-links/:id/display",        to: "payment_links#display",    as: :payment_link_display
     patch "payment-links/:id/layout",        to: "payment_links#update_layout"
     post "payment-links/:id/deactivate",     to: "payment_links#deactivate", as: :deactivate_payment_link
   end
@@ -216,6 +232,7 @@ Rails.application.routes.draw do
     post  "invoices/:id/issue",    to: "invoices#issue",  as: :issue_invoice
     post  "invoices/:id/void",      to: "invoices#void",      as: :void_invoice
     get   "invoices/:id/duplicate", to: "invoices#duplicate", as: :duplicate_invoice
+    get   "invoices/:id/print",     to: "invoices#print_view", as: :invoice_print
   end
 
   # ── Checkout Sessions (P16) ───────────────────────────────────────────────────
@@ -223,6 +240,10 @@ Rails.application.routes.draw do
     get "checkout-sessions",      to: "checkout_sessions#index", as: :checkout_sessions
     get "checkout-sessions/:id",  to: "checkout_sessions#show",  as: :checkout_session
   end
+
+  # ── Notifications ─────────────────────────────────────────────────────────
+  get   "notifications/:id/open", to: "notifications#open",    as: :notification_open
+  patch "notifications/read-all", to: "notifications#read_all", as: :notifications_read_all
 
   # Ops-only SSO configuration CRUD (top-level controller, settings URL namespace)
   resources "settings/sso",
