@@ -25,12 +25,13 @@ module Checkout
         terms: "Payment is due within 30 days of this invoice date."
       }.freeze
 
-      def initialize(errors: [], mode: "test", invoice: nil, prefill: nil)
-        @errors  = errors
-        @mode    = mode
-        @invoice = invoice
-        @prefill = prefill
-        @editing = invoice.present?
+      def initialize(errors: [], mode: "test", invoice: nil, prefill: nil, logo_url: nil)
+        @errors   = errors
+        @mode     = mode
+        @invoice  = invoice
+        @prefill  = prefill
+        @editing  = invoice.present?
+        @logo_url = logo_url
       end
 
       def view_template
@@ -63,6 +64,7 @@ module Checkout
               editor_panel
               preview_area
             end
+            back_btn_script
           end
         end
       end
@@ -93,7 +95,8 @@ module Checkout
                  "bg-white border border-gray-200/80 rounded-2xl px-[10px] py-[7px] " \
                  "shadow-[0_4px_24px_rgba(0,0,0,0.08)] select-none"
         ) do
-          a(href: @editing ? invoice_path(@invoice["id"]) : invoices_path,
+          a(id:   "form-back-btn",
+            href: @editing ? invoice_path(@invoice["id"]) : invoices_path,
             class: "flex items-center justify-center w-8 h-8 rounded-xl " \
                    "hover:bg-gray-100 text-gray-400 hover:text-gray-700 transition-colors flex-shrink-0") do
             span(class: "flex w-[14px] h-[14px]") { render UI::Icon.new(:chev_left, class: "w-full h-full") }
@@ -104,6 +107,20 @@ module Checkout
 
           span(class: "text-[10.5px] font-semibold px-[8px] py-[2px] rounded-full bg-gray-100 text-gray-500") do
             plain @mode.capitalize
+          end
+
+          if @editing
+            span(class: "text-[10.5px] font-semibold px-[8px] py-[2px] rounded-full flex items-center gap-[4px]",
+                 style: "background:rgba(61,71,245,0.10);color:#3D47F5;border:1px solid rgba(61,71,245,0.20)") do
+              span(class: "flex w-[10px] h-[10px]") { render UI::Icon.new(:edit, class: "w-full h-full") }
+              plain "Editing invoice"
+            end
+          else
+            span(class: "text-[10.5px] font-semibold px-[8px] py-[2px] rounded-full flex items-center gap-[4px]",
+                 style: "background:rgba(61,71,245,0.10);color:#3D47F5;border:1px solid rgba(61,71,245,0.20)") do
+              span(class: "flex w-[10px] h-[10px]") { render UI::Icon.new(:plus, class: "w-full h-full") }
+              plain "New invoice"
+            end
           end
 
           div(class: "w-px h-5 bg-gray-200 flex-shrink-0")
@@ -127,8 +144,9 @@ module Checkout
 
       def editor_panel
         div(
-          class: "absolute top-5 left-5 bottom-5 z-20 w-[340px] flex flex-col " \
+          class: "absolute top-5 left-5 z-20 w-[340px] flex flex-col " \
                  "bg-white border border-gray-200/70 rounded-2xl overflow-hidden " \
+                 "max-h-[calc(100%-40px)] " \
                  "shadow-[0_8px_32px_rgba(0,0,0,0.07),0_2px_8px_rgba(0,0,0,0.04)]"
         ) do
           div(class: "flex items-center px-4 pt-[14px] pb-[10px] flex-shrink-0") do
@@ -136,7 +154,7 @@ module Checkout
           end
           div(class: "h-px bg-gray-100 flex-shrink-0 mx-3")
 
-          div(class: "flex-1 overflow-y-auto") do
+          div(class: "flex-1 min-h-0 overflow-y-auto") do
             bill_to_section
             section_divider
             line_items_section
@@ -327,9 +345,7 @@ module Checkout
                  "shadow-[0_12px_40px_rgba(0,0,0,0.09),0_2px_10px_rgba(0,0,0,0.05)]"
         ) do
           preview_header
-          preview_meta_strip
-          preview_from_to
-          preview_divider
+          preview_billing_strip
           preview_line_items
           preview_totals
           preview_notes_terms
@@ -341,80 +357,66 @@ module Checkout
 
       def preview_header
         merchant_name = current_user.active_membership&.merchant_name.to_s.presence || "Your business"
+        merchant_code = current_user.merchant_code.to_s
         initials      = merchant_name.split.first(2).map { |w| w[0].upcase }.join
 
-        div(class: "flex items-start justify-between px-10 pt-8 pb-6") do
-          # Business identity (left)
-          div(class: "flex items-center gap-3") do
-            div(
-              class: "w-11 h-11 rounded-[10px] bg-[#3D47F5] flex items-center justify-center flex-shrink-0 " \
-                     "shadow-[0_2px_8px_rgba(61,71,245,0.35)]"
-            ) do
-              span(class: "text-[12px] font-bold text-white tracking-tight") { plain initials }
+        div(class: "flex items-start justify-between px-10 pt-8 pb-6 gap-6") do
+          # Left: logo + merchant identity
+          div(class: "flex items-center gap-3.5") do
+            if @logo_url.present?
+              img(src: @logo_url, alt: "Logo",
+                  class: "w-12 h-12 rounded-[10px] object-cover border border-gray-100 flex-shrink-0")
+            else
+              div(class: "w-12 h-12 rounded-[10px] bg-[#3D47F5] flex items-center justify-center flex-shrink-0 " \
+                         "shadow-[0_2px_8px_rgba(61,71,245,0.30)]") do
+                span(class: "text-[13px] font-extrabold text-white tracking-tight") { plain initials }
+              end
             end
             div do
               p(class: "text-[14px] font-bold text-gray-900 leading-tight") { plain merchant_name }
-              p(class: "text-[11px] text-gray-400 mt-[1px]") { plain current_user.email }
+              p(class: "text-[11.5px] text-gray-400 mt-0.5") { plain merchant_code }
             end
           end
-
-          # Invoice identity (right)
-          div(class: "flex flex-col items-end gap-2") do
-            div(class: "flex items-center gap-2") do
-              span(class: "text-[10px] font-bold tracking-[0.25em] uppercase text-[#3D47F5]") { plain "Invoice" }
-              span(class: "text-[10.5px] font-semibold px-2.5 py-[3px] rounded-full bg-amber-50 text-amber-600 border border-amber-200/70") do
-                plain "Draft"
-              end
-            end
-            p(class: "text-[30px] font-extrabold text-gray-900 leading-none tabular-nums tracking-tight",
+          # Right: INVOICE + number + Draft badge
+          div(class: "flex flex-col items-end gap-1.5") do
+            p(class: "text-[28px] font-extrabold text-[#3D47F5] leading-none tracking-tight") { plain "INVOICE" }
+            p(class: "text-[13px] font-semibold text-gray-500 font-mono mt-1",
               data: { invoice_compose_target: "pvNumber" }) do
               plain @editing ? @invoice["number"].to_s : (@prefill ? "" : DEMO[:number])
             end
+            span(class: "text-[10.5px] font-semibold px-2.5 py-[3px] rounded-full bg-amber-50 text-amber-600 border border-amber-200/70 mt-0.5") do
+              plain "Draft"
+            end
           end
         end
       end
 
-      # ── Preview: dates strip ──────────────────────────────────────────────────
+      # ── Preview: billing strip ────────────────────────────────────────────────
 
-      def preview_meta_strip
-        div(class: "mx-10 mb-6 flex items-center gap-8 px-4 py-3 rounded-xl bg-gray-50 border border-gray-100") do
-          div(class: "flex items-center gap-2") do
-            p(class: "text-[9.5px] font-bold uppercase tracking-[0.12em] text-gray-400") { plain "Issued" }
-            p(class: "text-[12.5px] font-semibold text-gray-700 tabular-nums",
-              data: { invoice_compose_target: "pvIssued" }) { plain Date.today.strftime("%d %b %Y") }
-          end
-          div(class: "w-px h-4 bg-gray-200")
-          div(class: "flex items-center gap-2") do
-            p(class: "text-[9.5px] font-bold uppercase tracking-[0.12em] text-gray-400") { plain "Due" }
-            p(class: "text-[12.5px] font-semibold text-gray-700 tabular-nums",
-              data: { invoice_compose_target: "pvDue" }) { plain (Date.today + 30).strftime("%d %b %Y") }
-          end
-        end
-      end
-
-      # ── Preview: from / to ────────────────────────────────────────────────────
-
-      def preview_from_to
+      def preview_billing_strip
         merchant_name = current_user.active_membership&.merchant_name.to_s.presence || "Your business"
         bill_to_value = @editing ? @invoice["customer_reference"].to_s
                       : (@prefill  ? @prefill["customer_reference"].to_s
                                    : DEMO[:customer])
 
-        div(class: "grid grid-cols-2 gap-8 px-10 pb-6") do
-          div do
-            p(class: "text-[9.5px] font-bold uppercase tracking-[0.12em] text-gray-400 mb-2") { plain "From" }
-            p(class: "text-[13px] font-semibold text-gray-800 leading-snug") { plain merchant_name }
-          end
-          div do
-            p(class: "text-[9.5px] font-bold uppercase tracking-[0.12em] text-gray-400 mb-2") { plain "Bill to" }
-            p(class: "text-[13px] font-semibold text-gray-800 leading-snug",
-              data: { invoice_compose_target: "pvBillTo" }) { plain bill_to_value }
-          end
+        div(class: "grid grid-cols-4 px-10 py-5 bg-[#f8fafc] border-t border-b border-gray-100") do
+          preview_billing_cell("Issue date", Date.today.strftime("%d %b %Y"), :pvIssued)
+          preview_billing_cell("Due date",   (Date.today + 30).strftime("%d %b %Y"), :pvDue)
+          preview_billing_cell("From",       merchant_name)
+          preview_billing_cell("Bill to",    bill_to_value, :pvBillTo)
         end
       end
 
-      def preview_divider
-        div(class: "mx-10 border-t border-dashed border-gray-200")
+      def preview_billing_cell(label, value, target_sym = nil)
+        div(class: "pr-3") do
+          p(class: "text-[9.5px] font-bold uppercase tracking-[0.1em] text-gray-400 mb-1") { plain label }
+          if target_sym
+            p(class: "text-[12.5px] font-semibold text-gray-800 leading-snug",
+              data: { invoice_compose_target: target_sym }) { plain value || "—" }
+          else
+            p(class: "text-[12.5px] font-semibold text-gray-800 leading-snug") { plain value || "—" }
+          end
+        end
       end
 
       # ── Preview: line items table ─────────────────────────────────────────────
@@ -423,7 +425,7 @@ module Checkout
         div(class: "overflow-x-auto mt-1") do
           table(class: "w-full") do
             thead do
-              tr(class: "bg-gray-50/80 border-y border-gray-100") do
+              tr(style: "background:rgba(61,71,245,0.05);border-bottom:1px solid rgba(61,71,245,0.10)") do
                 th_cell("Description", "text-left pl-10 pr-4")
                 th_cell("Qty",         "text-right px-3 w-14")
                 th_cell("Unit price",  "text-right px-3 w-28")
@@ -484,9 +486,9 @@ module Checkout
 
             # Amount due
             div(class: "mt-3 flex items-center justify-between " \
-                        "rounded-xl bg-gray-50 border border-gray-100 px-4 py-3.5") do
-              p(class: "text-[12px] font-bold text-gray-700") { plain "Amount due" }
-              p(class: "text-[17px] font-extrabold text-gray-900 tabular-nums tracking-tight",
+                        "rounded-xl bg-[#3D47F5]/[0.06] px-4 py-3.5") do
+              p(class: "text-[12px] font-bold text-[#3D47F5]") { plain "Amount due" }
+              p(class: "text-[17px] font-extrabold text-[#3D47F5] tabular-nums tracking-tight",
                 data: { invoice_compose_target: "pvAmountDue" }) do
                 plain "GH₵ #{sprintf('%.2f', demo_subtotal / 100.0)}"
               end
@@ -510,7 +512,7 @@ module Checkout
           class: "border-t border-dashed border-gray-200 mx-10"
         )
         div(
-          class: "px-10 py-6 grid grid-cols-2 gap-6",
+          class: "px-10 py-6 flex flex-col gap-5",
           data:  { invoice_compose_target: "pvNotesTermsSection" }
         ) do
           div(data: { invoice_compose_target: "pvNotesSection" }) do
@@ -529,13 +531,9 @@ module Checkout
       # ── Preview: footer ───────────────────────────────────────────────────────
 
       def preview_footer
-        div(class: "mx-10 border-t border-gray-100")
-        div(class: "px-10 py-5 flex items-center justify-between") do
-          p(class: "text-[10px] text-gray-300") { plain "yagye.com" }
-          div(class: "flex items-center gap-[5px]") do
-            span(class: "text-[10px] text-gray-300") { plain "Payment powered by" }
-            span(class: "text-[10px] font-bold text-[#3D47F5]/60") { plain "Yagye" }
-          end
+        div(class: "border-t border-gray-100 px-10 py-4 flex items-center justify-between") do
+          p(class: "text-[10.5px] text-gray-300") { plain "Generated #{Date.today.strftime("%d %b %Y")}" }
+          p(class: "text-[10.5px] text-gray-300") { plain "Payment powered by Yagye" }
         end
       end
 
@@ -555,6 +553,25 @@ module Checkout
           rows.any? ? rows : DEMO[:rows]
         else
           DEMO[:rows]
+        end
+      end
+
+      # ── Back button script ────────────────────────────────────────────────────
+
+      def back_btn_script
+        script do
+          raw safe(<<~JS)
+            (function () {
+              var btn = document.getElementById('form-back-btn');
+              if (!btn) return;
+              btn.addEventListener('click', function (e) {
+                if (history.length > 1) {
+                  e.preventDefault();
+                  history.back();
+                }
+              });
+            })();
+          JS
         end
       end
 

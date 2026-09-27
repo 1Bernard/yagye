@@ -11,8 +11,9 @@ module Checkout
         { value: "bank_transfer", label: "Bank transfer",  desc: "Direct bank-to-bank transfers" }
       ].freeze
 
-      def initialize(invoice:)
-        @inv = invoice
+      def initialize(invoice:, logo_url: nil)
+        @inv      = invoice
+        @logo_url = logo_url
       end
 
       def view_template
@@ -32,6 +33,7 @@ module Checkout
             end
           end
           copy_script if checkout_url.present?
+          print_script
         end
       end
 
@@ -57,7 +59,7 @@ module Checkout
         div(
           class: "absolute top-4 left-1/2 -translate-x-1/2 z-30 flex items-center gap-[6px] " \
                  "bg-white border border-gray-200/80 rounded-2xl px-[10px] py-[7px] " \
-                 "shadow-[0_4px_24px_rgba(0,0,0,0.08)] select-none"
+                 "shadow-[0_4px_24px_rgba(0,0,0,0.08)] select-none inv-no-print"
         ) do
           a(href: invoices_path,
             class: "flex items-center justify-center w-8 h-8 rounded-xl " \
@@ -75,6 +77,24 @@ module Checkout
 
           span(class: "text-[10.5px] font-semibold px-[8px] py-[2px] rounded-full bg-gray-100 text-gray-500") do
             plain (@inv["mode"] || "simulation").capitalize
+          end
+
+          span(class: "text-[10.5px] font-semibold px-[8px] py-[2px] rounded-full bg-gray-100 text-gray-500 " \
+                      "flex items-center gap-[4px]") do
+            span(class: "flex w-[10px] h-[10px]") { render UI::Icon.new(:eye, class: "w-full h-full") }
+            plain "Overview"
+          end
+
+          toolbar_divider
+
+          button(
+            type:  "button",
+            id:    "inv-print-btn",
+            class: "flex items-center gap-[5px] px-[10px] py-[5px] rounded-xl text-[12.5px] font-medium " \
+                   "text-gray-600 hover:bg-gray-50 transition-colors cursor-pointer border-0 bg-transparent"
+          ) do
+            render UI::Icon.new(:printer, class: "w-3.5 h-3.5 text-gray-400")
+            plain "Print"
           end
 
           toolbar_divider
@@ -138,30 +158,34 @@ module Checkout
       # ── Left panel ───────────────────────────────────────────────────────────
 
       def left_panel
-        div(class: "absolute top-5 left-5 bottom-5 w-[340px] overflow-y-auto " \
-                   "bg-white/80 backdrop-blur-sm border border-white/60 rounded-2xl " \
-                   "shadow-[0_8px_32px_rgba(0,0,0,0.08),0_2px_8px_rgba(0,0,0,0.04)]") do
-          div(class: "p-5 flex flex-col gap-4") do
+        div(class: "absolute top-5 left-5 z-20 w-[340px] flex flex-col " \
+                   "bg-white border border-gray-200/70 rounded-2xl overflow-hidden " \
+                   "max-h-[calc(100%-40px)] inv-no-print " \
+                   "shadow-[0_8px_32px_rgba(0,0,0,0.07),0_2px_8px_rgba(0,0,0,0.04)]") do
+          # Fixed header — stays visible while scrolling
+          div(class: "px-5 pt-[14px] pb-[10px] flex-shrink-0") do
             panel_header
-            customer_section
-            panel_divider
-            details_section
-            panel_divider
-            amounts_section
+          end
+          div(class: "h-px bg-gray-100 flex-shrink-0 mx-3")
 
-            if @inv["state"] == "draft"
+          # Scrollable body — min-h-0 prevents flex item from overflowing its container
+          div(class: "flex-1 min-h-0 overflow-y-auto") do
+            div(class: "px-5 pt-4 pb-5 flex flex-col gap-4") do
+              customer_section
               panel_divider
-              issue_section
-            end
+              details_section
+              panel_divider
+              amounts_section
 
-            if checkout_url.present? && @inv["state"] != "draft"
-              panel_divider
-              link_section
-            end
+              if @inv["state"] == "draft"
+                panel_divider
+                issue_section
+              end
 
-            if @inv["notes"].present? || @inv["terms"].present?
-              panel_divider
-              notes_section
+              if @inv["notes"].present? || @inv["terms"].present?
+                panel_divider
+                notes_section
+              end
             end
           end
         end
@@ -315,43 +339,66 @@ module Checkout
         end
       end
 
-      # ── Payment link section ──────────────────────────────────────────────────
+      # ── Share pill (above invoice document) ──────────────────────────────────
 
-      def link_section
+      def share_pill
         url = checkout_url
+        return unless url.present? && @inv["state"] != "draft"
 
-        div(class: "flex flex-col gap-2") do
-          p(class: "text-[10px] font-bold uppercase tracking-[0.12em] text-gray-400") { plain "Invoice link" }
+        num    = @inv["number"].presence || "Invoice"
+        due    = @inv["amount_due"].to_i
+        wa_msg = "#{num} — #{format_money(due)}: #{url}"
 
-          div(class: "flex items-center gap-2 bg-gray-50 border border-gray-200 " \
-                     "rounded-xl px-3 py-2 overflow-hidden") do
-            span(class: "flex-shrink-0 text-gray-400") do
-              render UI::Icon.new(:link, class: "w-3.5 h-3.5")
+        div(class: "w-full max-w-[680px] flex items-center gap-0 mb-3 inv-no-print " \
+                   "bg-white border border-gray-200/80 rounded-2xl overflow-hidden " \
+                   "shadow-[0_4px_20px_rgba(0,0,0,0.06)]") do
+          div(class: "flex items-center gap-2.5 flex-1 min-w-0 px-4 py-[9px]") do
+            span(class: "text-[10px] font-bold uppercase tracking-[0.1em] text-gray-300 flex-shrink-0") do
+              plain "Share"
             end
-            p(class: "font-mono text-[10.5px] text-gray-600 truncate flex-1",
-              id:    "inv-checkout-url",
-              data:  { url: url }) { plain url }
+            span(class: "w-px h-3 bg-gray-200 flex-shrink-0")
+            a(href: url, target: "_blank", rel: "noopener noreferrer",
+              class: "font-mono text-[11px] text-[#3D47F5] hover:underline truncate") { plain url }
           end
 
-          div(class: "flex gap-2") do
-            button(
-              type:  "button",
-              id:    "copy-inv-url-btn",
-              class: "flex-1 flex items-center justify-center gap-1.5 h-8 px-3 " \
-                     "border border-gray-200 rounded-[8px] text-[11.5px] font-medium " \
-                     "text-gray-600 hover:border-gray-300 hover:bg-gray-50 transition-colors"
-            ) do
-              render UI::Icon.new(:copy, class: "w-3.5 h-3.5 text-gray-400")
-              plain "Copy link"
-            end
-            a(href:   url, target: "_blank", rel: "noopener noreferrer",
-              class:  "flex items-center justify-center gap-1.5 h-8 px-3 " \
-                      "border border-gray-200 rounded-[8px] text-[11.5px] font-medium " \
-                      "text-gray-600 hover:border-gray-300 hover:bg-gray-50 transition-colors") do
-              render UI::Icon.new(:arrow_right, class: "w-3.5 h-3.5 text-gray-400")
-              plain "Open"
-            end
+          span(class: "w-px h-5 bg-gray-100 flex-shrink-0")
+
+          button(
+            type:  "button",
+            id:    "copy-inv-url-btn",
+            data:  { url: url },
+            class: "flex items-center gap-[5px] px-3.5 py-[9px] text-[11.5px] font-medium " \
+                   "text-gray-500 hover:bg-gray-50 hover:text-gray-800 transition-colors cursor-pointer border-0 bg-transparent"
+          ) do
+            render UI::Icon.new(:copy, class: "w-3.5 h-3.5")
+            plain "Copy"
           end
+
+          span(class: "w-px h-5 bg-gray-100 flex-shrink-0")
+
+          a(href:   "https://wa.me/?text=#{CGI.escape(wa_msg)}",
+            target: "_blank",
+            rel:    "noopener noreferrer",
+            class:  "flex items-center gap-[5px] px-3.5 py-[9px] text-[11.5px] font-medium " \
+                    "text-gray-500 hover:bg-gray-50 hover:text-gray-800 transition-colors no-underline") do
+            span(class: "text-[13px] leading-none") { plain "💬" }
+            plain "WhatsApp"
+          end
+        end
+      end
+
+      def print_script
+        print_url = invoice_print_path(@inv["id"])
+        script do
+          raw safe(<<~JS)
+            (function () {
+              var btn = document.getElementById('inv-print-btn');
+              if (!btn) return;
+              btn.addEventListener('click', function () {
+                window.open(#{print_url.to_json}, '_blank');
+              });
+            })();
+          JS
         end
       end
 
@@ -359,18 +406,19 @@ module Checkout
         script do
           raw safe(<<~JS)
             (function () {
-              var urlEl = document.getElementById('inv-checkout-url');
-              if (!urlEl) return;
-              var url = urlEl.dataset.url;
               var btn = document.getElementById('copy-inv-url-btn');
               if (!btn) return;
+              var url = btn.dataset.url;
+              if (!url) return;
               btn.addEventListener('click', function () {
                 navigator.clipboard.writeText(url).then(function () {
-                  btn.textContent = 'Copied!';
+                  btn.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg><span>Copied</span>';
+                  btn.style.color = '#16a34a';
                   setTimeout(function () {
-                    btn.innerHTML = '<svg class="w-3.5 h-3.5 text-gray-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>Copy link';
+                    btn.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg><span>Copy</span>';
+                    btn.style.color = '';
                   }, 2000);
-                });
+                }).catch(function () {});
               });
             })();
           JS
@@ -403,18 +451,20 @@ module Checkout
       # ── Right area: invoice document ──────────────────────────────────────────
 
       def right_area
-        div(class: "absolute top-5 right-0 bottom-0 overflow-y-auto",
+        div(class: "absolute top-5 right-0 bottom-0 overflow-y-auto inv-right-area",
             style: "left: 385px") do
-          div(class: "min-h-full flex flex-col items-center justify-start py-10 px-6") do
-            div(class: "w-full max-w-[680px] bg-white rounded-2xl overflow-hidden " \
+          div(class: "min-h-full flex flex-col items-center justify-start pt-0 pb-10 px-6 inv-doc-inner") do
+            share_pill
+            div(class: "w-full max-w-[680px] bg-white rounded-2xl overflow-hidden inv-doc-card " \
                        "shadow-[0_8px_40px_rgba(0,0,0,0.10),0_2px_12px_rgba(0,0,0,0.06)]") do
               document_header
+              billing_strip_section
               status_banner
-              from_to_section
               document_divider
               line_items_section
               totals_section
               notes_footer if @inv["notes"].present? || @inv["terms"].present?
+              invoice_doc_footer
             end
           end
         end
@@ -423,29 +473,35 @@ module Checkout
       # ── Invoice document ──────────────────────────────────────────────────────
 
       def document_header
-        div(class: "flex items-start justify-between px-10 pt-9 pb-7 border-b border-gray-100") do
-          div do
-            p(class: "text-[11px] font-bold tracking-[0.18em] uppercase text-[#3D47F5] mb-1") do
-              plain "Invoice"
+        merchant_name = current_user.active_membership&.merchant_name.to_s.presence || "Your business"
+        merchant_code = current_user.merchant_code.to_s
+        initials      = merchant_name.split.first(2).map { |w| w[0].upcase }.join
+
+        div(class: "flex items-start justify-between px-10 pt-9 pb-7 gap-6") do
+          # Left: logo + merchant identity
+          div(class: "flex items-center gap-3.5") do
+            if @logo_url.present?
+              img(src: @logo_url, alt: "Logo",
+                  class: "w-12 h-12 rounded-[10px] object-cover border border-gray-100 flex-shrink-0")
+            else
+              div(class: "w-12 h-12 rounded-[10px] bg-[#3D47F5] flex items-center justify-center flex-shrink-0 " \
+                         "shadow-[0_2px_8px_rgba(61,71,245,0.30)]") do
+                span(class: "text-[13px] font-extrabold text-white tracking-tight") { plain initials }
+              end
             end
-            p(class: "text-[28px] font-bold text-gray-900 leading-none") do
+            div do
+              p(class: "text-[14px] font-bold text-gray-900 leading-tight") { plain merchant_name }
+              p(class: "text-[11.5px] text-gray-400 mt-0.5") { plain merchant_code }
+            end
+          end
+          # Right: INVOICE + number + state chip
+          div(class: "flex flex-col items-end gap-1.5") do
+            p(class: "text-[28px] font-extrabold text-[#3D47F5] leading-none tracking-tight") { plain "INVOICE" }
+            p(class: "text-[13px] font-semibold text-gray-500 font-mono mt-1") do
               plain @inv["number"] || @inv["id"].to_s.first(12)
             end
-          end
-          div(class: "flex flex-col items-end gap-3") do
             state_badge(@inv["state"])
-            div(class: "grid grid-cols-2 gap-x-8 gap-y-1 text-right") do
-              doc_date_cell("Issued", @inv["issue_date"])
-              doc_date_cell("Due",    @inv["due_date"])
-            end
           end
-        end
-      end
-
-      def doc_date_cell(label, value)
-        p(class: "text-[10.5px] font-semibold uppercase tracking-wide text-gray-400") { plain label }
-        p(class: "text-[12.5px] font-medium text-gray-800") do
-          plain value ? (Date.parse(value) rescue value).then { |d| d.respond_to?(:strftime) ? d.strftime("%d %b %Y") : d } : "—"
         end
       end
 
@@ -471,25 +527,27 @@ module Checkout
         end
       end
 
-      def from_to_section
+      def billing_strip_section
         merchant_name = current_user.active_membership&.merchant_name.to_s.presence || "Your business"
+        div(class: "grid grid-cols-4 px-10 py-5 bg-[#f8fafc] border-t border-b border-gray-100") do
+          billing_cell("Issue date", fmt_date(@inv["issue_date"]))
+          billing_cell("Due date",   fmt_date(@inv["due_date"]))
+          billing_cell("From",       merchant_name)
+          billing_cell("Bill to",    @inv["customer_reference"].presence || "—")
+        end
+      end
 
-        div(class: "grid grid-cols-2 gap-8 px-10 py-7") do
-          div do
-            p(class: "text-[10.5px] font-bold uppercase tracking-[0.12em] text-gray-400 mb-2") { plain "From" }
-            p(class: "text-[13px] font-semibold text-gray-800 leading-snug") { plain merchant_name }
-            p(class: "text-[12px] text-gray-400 mt-0.5") { plain current_user.merchant_code || "—" }
-          end
-          div do
-            p(class: "text-[10.5px] font-bold uppercase tracking-[0.12em] text-gray-400 mb-2") { plain "Bill to" }
-            if @inv["customer_reference"].present?
-              p(class: "text-[13px] font-semibold text-gray-800 leading-snug") do
-                plain @inv["customer_reference"]
-              end
-            else
-              p(class: "text-[12.5px] text-gray-400 italic") { plain "No customer reference" }
-            end
-          end
+      def billing_cell(label, value)
+        div(class: "pr-3") do
+          p(class: "text-[9.5px] font-bold uppercase tracking-[0.1em] text-gray-400 mb-1") { plain label }
+          p(class: "text-[12.5px] font-semibold text-gray-800 leading-snug") { plain value }
+        end
+      end
+
+      def invoice_doc_footer
+        div(class: "border-t border-gray-100 px-10 py-4 flex items-center justify-between") do
+          p(class: "text-[10.5px] text-gray-300") { plain "Generated #{Time.now.strftime("%d %b %Y")}" }
+          p(class: "text-[10.5px] text-gray-300") { plain "Payment powered by Yagye" }
         end
       end
 
@@ -504,7 +562,7 @@ module Checkout
         div(class: "overflow-x-auto") do
           table(class: "w-full") do
             thead do
-              tr(class: "border-b border-gray-100") do
+              tr(style: "background:rgba(61,71,245,0.05);border-bottom:1px solid rgba(61,71,245,0.10)") do
                 th(class: "text-left px-10 py-3 text-[10.5px] font-bold uppercase tracking-[0.1em] text-gray-400") { plain "Description" }
                 th(class: "text-right px-4 py-3 text-[10.5px] font-bold uppercase tracking-[0.1em] text-gray-400")  { plain "Qty" }
                 th(class: "text-right px-4 py-3 text-[10.5px] font-bold uppercase tracking-[0.1em] text-gray-400")  { plain "Unit price" }
@@ -576,8 +634,7 @@ module Checkout
 
       def notes_footer
         div(class: "border-t border-dashed border-gray-200 mx-10 mt-1")
-        div(class: "px-10 py-7 grid gap-4 " \
-                   "#{@inv['notes'].present? && @inv['terms'].present? ? 'grid-cols-2' : 'grid-cols-1'}") do
+        div(class: "px-10 py-7 flex flex-col gap-5") do
           if @inv["notes"].present?
             div do
               p(class: "text-[10.5px] font-bold uppercase tracking-[0.1em] text-gray-400 mb-1.5") { plain "Notes" }
