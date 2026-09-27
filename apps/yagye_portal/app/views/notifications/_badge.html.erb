@@ -1,0 +1,10 @@
+<span id="notif-bell" style="position:absolute;top:-5px;right:-5px;pointer-events:none;">
+  <% if unread_count > 0 %>
+    <span style="display:flex;align-items:center;justify-content:center;min-width:16px;height:16px;
+                 padding:0 3px;border-radius:8px;background:#EF4444;
+                 font-size:9px;font-weight:700;color:#fff;line-height:1;
+                 border:1.5px solid #fff;">
+      <%= unread_count > 99 ? "99+" : unread_count %>
+    </span>
+  <% end %>
+</span>

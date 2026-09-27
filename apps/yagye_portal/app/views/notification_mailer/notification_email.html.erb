@@ -1,0 +1,61 @@
+<table width="100%" cellpadding="0" cellspacing="0" style="background-color:#f4f5f7;padding:32px 0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;">
+  <tr>
+    <td align="center">
+      <table width="560" cellpadding="0" cellspacing="0" style="background:#ffffff;border-radius:12px;overflow:hidden;box-shadow:0 1px 4px rgba(0,0,0,0.08);">
+
+        <%# Header %>
+        <tr>
+          <td style="background-color:#3D47F5;padding:28px 40px;">
+            <span style="font-size:18px;font-weight:700;color:#ffffff;letter-spacing:-0.3px;">Yagye</span>
+          </td>
+        </tr>
+
+        <%# Body %>
+        <tr>
+          <td style="padding:36px 40px 28px;">
+            <h1 style="margin:0 0 8px;font-size:20px;font-weight:700;color:#0f1117;letter-spacing:-0.4px;">
+              <%= @notification.title %>
+            </h1>
+            <p style="margin:0 0 28px;font-size:14px;color:#6b7280;line-height:1.6;">
+              <%= @notification.body %>
+            </p>
+
+            <% if @action_url.present? %>
+              <table cellpadding="0" cellspacing="0" style="margin-bottom:24px;">
+                <tr>
+                  <td style="border-radius:10px;background-color:#3D47F5;">
+                    <a href="<%= @action_url %>"
+                       style="display:inline-block;padding:12px 24px;font-size:14px;font-weight:600;color:#ffffff;text-decoration:none;letter-spacing:-0.1px;">
+                      View details
+                    </a>
+                  </td>
+                </tr>
+              </table>
+            <% end %>
+
+            <table width="100%" cellpadding="0" cellspacing="0" style="background:#f8f9fa;border-radius:8px;border:1px solid #e5e7eb;">
+              <tr>
+                <td style="padding:14px 18px;">
+                  <p style="margin:0 0 4px;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.08em;color:#9ca3af;">Received</p>
+                  <p style="margin:0;font-size:13px;color:#374151;"><%= @notification.created_at.strftime("%d %B %Y at %H:%M UTC") %></p>
+                </td>
+              </tr>
+            </table>
+          </td>
+        </tr>
+
+        <%# Footer %>
+        <tr>
+          <td style="padding:18px 40px;border-top:1px solid #f3f4f6;">
+            <p style="margin:0;font-size:11.5px;color:#9ca3af;line-height:1.6;">
+              You're receiving this because you have <strong style="color:#6b7280;"><%= @subject %></strong> alerts enabled.
+              Manage your preferences in
+              <a href="<%= portal_url("/settings?tab=notifications") %>" style="color:#3D47F5;text-decoration:none;">Notification Settings</a>.
+            </p>
+          </td>
+        </tr>
+
+      </table>
+    </td>
+  </tr>
+</table>
