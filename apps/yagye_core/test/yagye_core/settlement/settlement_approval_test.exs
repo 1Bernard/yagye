@@ -12,7 +12,7 @@ defmodule YagyeCore.Settlement.SettlementApprovalTest do
     %{merchant: merchant, provider: provider}
   end
 
-  defp insert_batch(merchant, provider, attrs \\ %{}) do
+  defp insert_batch(merchant, provider, attrs) do
     Repo.insert!(
       %SettlementBatch{
         merchant_id: merchant.id,

@@ -44,9 +44,10 @@ module Checkout
       "bank_transfer" => { bg: "rgba(245,158,11,0.09)", icon: "#f59e0b" }
     }.freeze
 
-    def initialize(link:, all_links:)
+    def initialize(link:, all_links:, branding: nil)
       @link      = link
       @all_links = all_links
+      @branding  = branding
     end
 
     def view_template
@@ -74,6 +75,7 @@ module Checkout
           floating_toolbar
           editor_panel
           preview_area
+          back_btn_script
         end
       end
     end
@@ -126,8 +128,9 @@ module Checkout
                "bg-white border border-gray-200/80 rounded-2xl px-[10px] py-[7px] " \
                "shadow-[0_4px_24px_rgba(0,0,0,0.08)] select-none"
       ) do
-        # Back to link show page
+        # Back button — uses history.back() so it returns to wherever the user came from
         a(
+          id:   "cl-back-btn",
           href: payment_link_path(@link["id"]),
           class: "flex items-center justify-center w-8 h-8 rounded-xl hover:bg-gray-100 " \
                  "text-gray-400 hover:text-gray-700 transition-colors flex-shrink-0"
@@ -147,6 +150,13 @@ module Checkout
           class: "text-[10.5px] font-semibold px-[8px] py-[2px] rounded-full " \
                  "bg-gray-100 text-gray-500"
         ) { plain (@link["mode"] || "simulation").capitalize }
+
+        # Intent badge — tells the user they are editing
+        span(class: "text-[10.5px] font-semibold px-[8px] py-[2px] rounded-full flex items-center gap-[4px]",
+             style: "background:rgba(61,71,245,0.10);color:#3D47F5;border:1px solid rgba(61,71,245,0.20)") do
+          span(class: "flex w-[10px] h-[10px]") { render UI::Icon.new(:edit, class: "w-full h-full") }
+          plain "Editing layout"
+        end
 
         if @all_links.size > 1
           div(class: "w-px h-5 bg-gray-200 flex-shrink-0")
@@ -205,18 +215,38 @@ module Checkout
         # Branding
         div(class: "px-3 pt-2 pb-3 flex-shrink-0") do
           p(class: "text-[9px] font-bold uppercase tracking-[0.1em] text-gray-400 mb-[7px]") { plain "Branding" }
-          label(class: "text-[10px] font-semibold text-gray-500 block mb-[5px]") { plain "Logo URL" }
-          input(
-            type:        "url",
-            placeholder: "https://example.com/logo.png",
-            value:       @link.dig("checkout_layout", "logo_url").to_s,
-            class:       "w-full text-[11px] border border-gray-200 rounded-lg px-2 py-[6px] " \
-                         "outline-none focus:border-[#3D47F5] text-gray-700 placeholder-gray-300",
-            data: {
-              checkout_layout_target: "logoUrlInput",
-              action:                 "input->checkout-layout#updateLogo"
-            }
-          )
+
+          if @branding&.logo&.attached?
+            logo_url = @branding.logo_url
+            div(class: "flex items-center gap-2") do
+              img(src: logo_url, alt: "Logo",
+                  class: "w-8 h-8 rounded-lg object-contain border border-gray-100 bg-white flex-shrink-0",
+                  data: { checkout_layout_target: "previewLogoImg" })
+              div(class: "flex-1 min-w-0") do
+                p(class: "text-[10px] font-semibold text-gray-700 truncate") do
+                  plain @branding.display_name.presence || "Your logo"
+                end
+                a(href: settings_path(tab: "verification"),
+                  class: "text-[10px] text-[#3D47F5] hover:underline") { plain "Change in Settings →" }
+              end
+            end
+            input(type: "hidden", value: logo_url,
+                  data: { checkout_layout_target: "logoUrlInput",
+                          action: "input->checkout-layout#updateLogo" })
+          else
+            div(class: "flex items-center gap-[7px] px-[10px] py-[9px] bg-gray-50 rounded-xl border border-dashed border-gray-200") do
+              span(class: "flex w-[14px] h-[14px] text-gray-300 flex-shrink-0") do
+                render UI::Icon.new(:upload, class: "w-full h-full")
+              end
+              div do
+                p(class: "text-[10px] font-medium text-gray-500 leading-tight") { plain "No logo uploaded" }
+                a(href: settings_path(tab: "verification"),
+                  class: "text-[10px] text-[#3D47F5] hover:underline leading-tight") do
+                  plain "Upload in Settings →"
+                end
+              end
+            end
+          end
         end
 
         div(class: "h-px bg-gray-100 flex-shrink-0 mx-3 mb-1")
@@ -368,18 +398,33 @@ module Checkout
       ) do
         # Share URL pill
         div(
-          class: "flex items-center gap-2 mb-5 px-4 py-[7px] bg-white border border-gray-200/80 " \
-                 "rounded-2xl shadow-[0_2px_8px_rgba(0,0,0,0.05)] text-[11.5px] " \
-                 "shadow-[0_4px_24px_rgba(0,0,0,0.06)]"
+          class: "flex items-center gap-0 mb-5 bg-white border border-gray-200/80 " \
+                 "rounded-2xl overflow-hidden shadow-[0_4px_20px_rgba(0,0,0,0.06)] select-none"
         ) do
-          span(class: "text-[10.5px] font-bold uppercase tracking-[0.08em] text-gray-300") { plain "Share" }
-          span(class: "w-px h-3 bg-gray-200")
-          a(
-            href:   @link["checkout_url"],
-            target: "_blank",
-            class:  "font-mono text-[11px] text-[#3D47F5] hover:underline",
-            data:   { checkout_layout_target: "checkoutUrl" }
-          ) { plain @link["checkout_url"] }
+          div(class: "flex items-center gap-2.5 px-4 py-[9px]") do
+            span(class: "text-[10px] font-bold uppercase tracking-[0.1em] text-gray-300 flex-shrink-0") { plain "Share" }
+            span(class: "w-px h-3 bg-gray-200 flex-shrink-0")
+            a(
+              href:   @link["checkout_url"],
+              target: "_blank",
+              rel:    "noopener noreferrer",
+              class:  "font-mono text-[11px] text-[#3D47F5] hover:underline max-w-[260px] truncate",
+              data:   { checkout_layout_target: "checkoutUrl" }
+            ) { plain @link["checkout_url"] }
+          end
+
+          span(class: "w-px h-5 bg-gray-100 flex-shrink-0")
+
+          button(
+            type:  "button",
+            class: "flex items-center gap-[5px] px-3.5 py-[9px] text-[11.5px] font-medium " \
+                   "text-gray-500 hover:bg-gray-50 hover:text-gray-700 transition-colors cursor-pointer",
+            data:  { action: "click->checkout-layout#copyUrl",
+                     checkout_layout_target: "copyUrlBtn" }
+          ) do
+            render UI::Icon.new(:copy, class: "w-3.5 h-3.5")
+            plain "Copy"
+          end
         end
 
         checkout_card_preview
@@ -617,6 +662,24 @@ module Checkout
         %(<svg width="22" height="22" viewBox="0 0 32 32" fill="none"><circle cx="16" cy="16" r="16" fill="#1A2B4C"/><path d="M0 16a16 16 0 0 0 32 0H0z" fill="#ED1C24"/><text x="16" y="19" font-family="Inter,sans-serif" font-size="12" font-weight="900" fill="#FFF" text-anchor="middle">at</text></svg>)
       else
         %(<svg width="22" height="22" viewBox="0 0 32 32" fill="none"><circle cx="16" cy="16" r="16" fill="#E5E7EB"/></svg>)
+      end
+    end
+
+    def back_btn_script
+      script do
+        raw safe(<<~JS)
+          (function () {
+            var btn = document.getElementById('cl-back-btn');
+            if (!btn) return;
+            btn.addEventListener('click', function (e) {
+              if (history.length > 1) {
+                e.preventDefault();
+                history.back();
+              }
+              // else: let the href fallback navigate to the show page
+            });
+          })();
+        JS
       end
     end
 

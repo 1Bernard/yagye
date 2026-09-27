@@ -46,10 +46,10 @@ defmodule YagyeCore.Shared.RateLimiterTest do
     # Simulate moving to the next minute window by using a future window key.
     next_window = System.os_time(:second) |> div(60) |> Kernel.+(1)
     key = {ip, next_window}
-    assert :ets.lookup(:yagye_rate_limiter, key) == []
+    assert :ets.lookup(:yagye_rate_limiter_ets, key) == []
 
     # A request in the next window should be allowed.
-    :ets.insert(:yagye_rate_limiter, {key, 1})
-    assert :ets.lookup(:yagye_rate_limiter, key) == [{key, 1}]
+    :ets.insert(:yagye_rate_limiter_ets, {key, 1})
+    assert :ets.lookup(:yagye_rate_limiter_ets, key) == [{key, 1}]
   end
 end

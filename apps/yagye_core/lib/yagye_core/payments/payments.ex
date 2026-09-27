@@ -23,6 +23,7 @@ defmodule YagyeCore.Payments do
 
   alias YagyeCore.Pricing
   alias YagyeCore.Repo
+  alias YagyeCore.Reserves
   alias YagyeCore.Shared.Pagination
 
   # ── Public API ───────────────────────────────────────────────────────────────
@@ -127,18 +128,9 @@ defmodule YagyeCore.Payments do
     |> Multi.run(:ledger, fn _repo, %{succeeded: p} ->
       Ledger.post_payment_settled(p, attempt)
     end)
-    |> Multi.run(:fee, fn _repo, %{succeeded: p} ->
-      case Pricing.compute_fee(p.merchant_id, p.amount, p.method, nil) do
-        {:ok, fee} -> {:ok, fee}
-        {:error, _} -> {:ok, nil}
-      end
-    end)
+    |> Multi.run(:fee, fn _repo, %{succeeded: p} -> fetch_payment_fee(p) end)
     |> Multi.run(:fee_record, fn _repo, %{succeeded: p, fee: fee} ->
-      if fee do
-        Pricing.record_fee("payment_attempt", attempt.id, p.merchant_id, fee, p.mode)
-      else
-        {:ok, nil}
-      end
+      record_payment_fee(attempt.id, p, fee)
     end)
     |> Multi.insert(:succeeded_outbox, fn %{succeeded: p, fee_record: fr} ->
       Outbox.build_changeset(
@@ -167,6 +159,16 @@ defmodule YagyeCore.Payments do
     end)
     |> Multi.run(:fee_ledger, fn _repo, %{succeeded: p, fee_record: fr} ->
       if fr, do: Ledger.post_fee_deduction(p, fr), else: {:ok, nil}
+    end)
+    |> Multi.run(:reserve_hold, fn _repo, %{succeeded: p} ->
+      case Reserves.create_hold(p) do
+        {:ok, result} ->
+          {:ok, result}
+
+        {:error, reason} ->
+          Logger.warning("reserve hold skipped", payment_id: p.id, reason: inspect(reason))
+          {:ok, nil}
+      end
     end)
     |> Repo.transaction()
     |> case do
@@ -573,6 +575,19 @@ defmodule YagyeCore.Payments do
       nil -> nil
     end
   end
+
+  defp fetch_payment_fee(payment) do
+    case Pricing.compute_fee(payment.merchant_id, payment.amount, payment.method, nil) do
+      {:ok, fee} -> {:ok, fee}
+      {:error, _} -> {:ok, nil}
+    end
+  end
+
+  defp record_payment_fee(_attempt_id, _payment, nil),
+    do: {:ok, nil}
+
+  defp record_payment_fee(attempt_id, payment, fee),
+    do: Pricing.record_fee("payment_attempt", attempt_id, payment.merchant_id, fee, payment.mode)
 
   defp network_to_provider("MTN"), do: "mtn_momo"
   defp network_to_provider("TELECEL"), do: "telecel_cash"

@@ -33,6 +33,7 @@ defmodule YagyeCoreWeb.Router do
   alias YagyeCoreWeb.Controllers.Internal.ReconciliationController,
     as: InternalReconciliationController
 
+  alias YagyeCoreWeb.Controllers.Internal.PayoutDestinationsController
   alias YagyeCoreWeb.Controllers.Internal.SettlementBatchApprovalsController
   alias YagyeCoreWeb.Controllers.Internal.SettlementControlsController
 
@@ -53,7 +54,9 @@ defmodule YagyeCoreWeb.Router do
   alias YagyeCoreWeb.Controllers.Internal.SettlementBatchesController,
     as: InternalSettlementBatchesController
 
+  alias YagyeCoreWeb.Controllers.Internal.DisputesController, as: InternalDisputesController
   alias YagyeCoreWeb.Controllers.Internal.KybController
+  alias YagyeCoreWeb.Controllers.Internal.ReservesController, as: InternalReservesController
 
   alias YagyeCoreWeb.Controllers.Fx.FxRateController
   alias YagyeCoreWeb.Controllers.Invoices.InvoiceController
@@ -197,6 +200,26 @@ defmodule YagyeCoreWeb.Router do
     get("/merchants/:merchant_id/settlement-controls", SettlementControlsController, :show)
     put("/merchants/:merchant_id/settlement-controls", SettlementControlsController, :upsert)
 
+    # Disputes — evidence submission + ops resolution (portal → core)
+    post("/disputes/:id/evidence", InternalDisputesController, :submit_evidence)
+    post("/disputes/:id/resolve", InternalDisputesController, :resolve)
+
+    # Payout destinations (portal → core, service-token authenticated)
+    get("/merchants/:merchant_code/payout-destinations", PayoutDestinationsController, :index)
+    post("/merchants/:merchant_code/payout-destinations", PayoutDestinationsController, :create)
+
+    post(
+      "/merchants/:merchant_code/payout-destinations/:id/set-default",
+      PayoutDestinationsController,
+      :set_default
+    )
+
+    delete(
+      "/merchants/:merchant_code/payout-destinations/:id",
+      PayoutDestinationsController,
+      :deactivate
+    )
+
     # Dashboard KPIs (portal ops view + merchant settlement summary)
     get("/dashboard/ops", InternalDashboardController, :ops_summary)
 
@@ -259,6 +282,9 @@ defmodule YagyeCoreWeb.Router do
     # Pricing — merchant rate card and fee invoices
     get("/merchants/:merchant_code/pricing-plan", InternalPricingController, :show_plan)
     get("/merchants/:merchant_code/fee-invoices", InternalPricingController, :list_fee_invoices)
+
+    # Reserves — active policy + holds (portal read-only)
+    get("/merchants/:merchant_code/reserves", InternalReservesController, :index)
 
     # FX rates — no merchant context needed, read-only reference data
     get("/fx-rates", YagyeCoreWeb.Controllers.Fx.FxRateController, :index)
