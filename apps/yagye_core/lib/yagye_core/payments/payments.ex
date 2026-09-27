@@ -12,7 +12,15 @@ defmodule YagyeCore.Payments do
   alias YagyeCore.Ledger
   alias YagyeCore.Merchants.Schemas.Merchant
   alias YagyeCore.Outbox
-  alias YagyeCore.Payments.Schemas.{MomoNetworkConfig, Payment, PaymentAttempt, PaymentEvent}
+
+  alias YagyeCore.Payments.Schemas.{
+    MomoNetworkConfig,
+    Payment,
+    PaymentAttempt,
+    PaymentEvent,
+    PaymentMobileMoneyDetails
+  }
+
   alias YagyeCore.Pricing.Schemas.FeeRecord
 
   alias YagyeCore.Payments.Workers.{
@@ -170,6 +178,7 @@ defmodule YagyeCore.Payments do
           {:ok, nil}
       end
     end)
+    |> maybe_update_momo_financial_id(payment, result)
     |> Repo.transaction()
     |> case do
       {:ok, %{succeeded: payment}} -> {:ok, payment}
@@ -289,6 +298,7 @@ defmodule YagyeCore.Payments do
     |> Multi.update(:attempt, attempt_cs)
     |> Multi.update(:payment, Payment.transition_changeset(payment, "requires_action"))
     |> maybe_store_virtual_account(payment, pending_data)
+    |> maybe_insert_momo_details(payment, charge_ref)
     |> Multi.run(:event, fn _repo, %{payment: p} ->
       insert_event(p, "payment.requires_action", "processing", "requires_action")
     end)
@@ -601,6 +611,81 @@ defmodule YagyeCore.Payments do
       YagyeCore.Merchants.sandbox_mode_enabled?(merchant.id) -> "sandbox"
       true -> "simulation"
     end
+  end
+
+  # ── MoMo details helpers ─────────────────────────────────────────────────────
+
+  # Inserts a payment_mobile_money_details row when the RequestToPay prompt is
+  # sent. on_conflict: :nothing is safe — a retry of handle_pending_auth on the
+  # same payment is idempotent.
+  defp maybe_insert_momo_details(multi, %{method: "mobile_money"} = payment, charge_ref) do
+    msisdn = get_in(payment.metadata, ["msisdn"]) || ""
+    norm = normalise_msisdn_e164(msisdn)
+
+    if norm == "" do
+      multi
+    else
+      Multi.run(multi, :momo_details, fn repo, _changes ->
+        %PaymentMobileMoneyDetails{}
+        |> PaymentMobileMoneyDetails.changeset(%{
+          payment_id: payment.id,
+          network: normalise_network(get_in(payment.metadata, ["network"])),
+          network_source: "user_selected",
+          msisdn_masked: mask_payment_msisdn(norm),
+          msisdn_hash: hash_msisdn(norm),
+          charge_bearer: "merchant",
+          prompt_sent_at: DateTime.utc_now(),
+          network_reference: charge_ref
+        })
+        |> repo.insert(on_conflict: :nothing)
+      end)
+    end
+  end
+
+  defp maybe_insert_momo_details(multi, _payment, _ref), do: multi
+
+  # Updates financial_transaction_id + approved_at when the network confirms
+  # success. This is the MTN financialTransactionId used in settlement files.
+  defp maybe_update_momo_financial_id(multi, %{method: "mobile_money"} = payment, %{
+         auth_code: code
+       })
+       when not is_nil(code) do
+    Multi.run(multi, :momo_financial_id, fn repo, _changes ->
+      {_count, _} =
+        from(d in PaymentMobileMoneyDetails, where: d.payment_id == ^payment.id)
+        |> repo.update_all(set: [financial_transaction_id: code, approved_at: DateTime.utc_now()])
+
+      {:ok, :updated}
+    end)
+  end
+
+  defp maybe_update_momo_financial_id(multi, _payment, _result), do: multi
+
+  defp normalise_network("MTN"), do: "mtn"
+  defp normalise_network("TELECEL"), do: "telecel"
+  defp normalise_network("VODAFONE"), do: "telecel"
+  defp normalise_network("AIRTELTIGO"), do: "airteltigo"
+  defp normalise_network(_), do: "mtn"
+
+  defp normalise_msisdn_e164("+" <> rest), do: String.replace(rest, ~r/\D/, "")
+  defp normalise_msisdn_e164("0" <> rest), do: "233" <> rest
+  defp normalise_msisdn_e164(msisdn), do: msisdn
+
+  defp mask_payment_msisdn(digits) do
+    len = String.length(digits)
+
+    if len >= 7 do
+      prefix = String.slice(digits, 0, 3)
+      suffix = String.slice(digits, -4, 4)
+      middle = String.duplicate("X", len - 7)
+      "#{prefix}#{middle}#{suffix}"
+    else
+      digits
+    end
+  end
+
+  defp hash_msisdn(digits) do
+    :crypto.hash(:sha256, digits) |> Base.encode16(case: :lower)
   end
 
   defp insert_event(payment, event_type, from_state, to_state) do
