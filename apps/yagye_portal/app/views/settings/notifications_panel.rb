@@ -20,39 +20,41 @@ module Settings
     end
 
     def view_template
-      div(class: "bg-white border border-gray-100 rounded-2xl overflow-hidden") do
-        div(class: "px-6 py-5 border-b border-gray-100") do
-          p(class: TYPE_TITLE) { plain "Notification preferences" }
-          p(class: "#{TYPE_CAPTION} mt-[3px]") { plain "Choose which events alert you and how you receive them." }
-        end
+      form(action: settings_notifications_path, method: "post") do
+        input(type: "hidden", name: "_method",            value: "patch")
+        input(type: "hidden", name: "authenticity_token", value: form_authenticity_token)
 
-        div(class: "px-6 py-5 border-b border-gray-100") do
-          div(class: "flex items-center justify-between mb-[18px]") do
-            p(class: "text-[10.5px] font-semibold text-gray-400 uppercase tracking-widest") { plain "Alert me when…" }
-            a(href: "#", class: "text-[11px] font-semibold no-underline", style: "color:#{BRAND}") { plain "Select all" }
+        div(class: "bg-white border border-gray-100 rounded-2xl overflow-hidden") do
+          div(class: "px-6 py-5 border-b border-gray-100") do
+            p(class: TYPE_TITLE) { plain "Notification preferences" }
+            p(class: "#{TYPE_CAPTION} mt-[3px]") { plain "Choose which events alert you and how you receive them." }
           end
-          div(class: "flex flex-col") do
-            EVENTS.each { |notif| event_row(notif) }
+
+          div(class: "px-6 py-5 border-b border-gray-100") do
+            div(class: "flex items-center justify-between mb-[18px]") do
+              p(class: "text-[10.5px] font-semibold text-gray-400 uppercase tracking-widest") { plain "Alert me when…" }
+            end
+            div(class: "flex flex-col") do
+              EVENTS.each { |notif| event_row(notif) }
+            end
           end
-        end
 
-        div(class: "px-6 py-5 border-b border-gray-100") do
-          p(class: "text-[10.5px] font-semibold text-gray-400 uppercase tracking-widest mb-4") { plain "Delivery channels" }
-          channel_row(:mail,  "Email",
-                      "Send to #{@current_user&.email || 'your email address'}",
-                      checked: true)
-          channel_row(:bell,  "In-app",
-                      "Alerts and badges inside the portal",
-                      checked: true)
-          channel_row(:phone, "SMS",
-                      "Text message to your registered phone number",
-                      coming_soon: true)
-        end
+          div(class: "px-6 py-5 border-b border-gray-100") do
+            p(class: "text-[10.5px] font-semibold text-gray-400 uppercase tracking-widest mb-4") { plain "Delivery channels" }
+            channel_row(:mail,  "email",  "Email",
+                        "Send to #{@current_user&.email || 'your email address'}")
+            channel_row(:bell,  "in_app", "In-app",
+                        "Alerts and badges inside the portal")
+            channel_row(:phone, nil, "SMS",
+                        "Text message to your registered phone number",
+                        coming_soon: true)
+          end
 
-        div(class: "px-6 py-4 bg-gray-50 border-t border-gray-100 flex justify-end") do
-          render UI::Button.new(variant: :primary) do
-            render UI::Icon.new(:check, class: ICON_SM)
-            plain "Save preferences"
+          div(class: "px-6 py-4 bg-gray-50 border-t border-gray-100 flex justify-end") do
+            render UI::Button.new(variant: :primary, type: "submit") do
+              render UI::Icon.new(:check, class: ICON_SM)
+              plain "Save preferences"
+            end
           end
         end
       end
@@ -60,11 +62,22 @@ module Settings
 
     private
 
+    def event_checked?(key)
+      @current_user&.notification_pref("events", key) != false
+    end
+
+    def channel_checked?(key)
+      @current_user&.notification_pref("channels", key) != false
+    end
+
     def event_row(notif)
       label(class: "flex items-center gap-4 py-[10px] px-3 -mx-3 rounded-xl hover:bg-gray-50/70 cursor-pointer transition-colors") do
-        input(type: "checkbox", name: "notifications[#{notif[:key]}]", value: "1", checked: true,
-              class: "flex-shrink-0 cursor-pointer rounded-[4px] w-[15px] h-[15px]",
-              style: "accent-color:#{BRAND}")
+        input(type: "checkbox",
+              name:    "notifications[#{notif[:key]}]",
+              value:   "1",
+              checked: event_checked?(notif[:key]),
+              class:   "flex-shrink-0 cursor-pointer rounded-[4px] w-[15px] h-[15px]",
+              style:   "accent-color:#{BRAND}")
         div(class: "flex-1 min-w-0") do
           p(class: TYPE_BODY_MD) { plain notif[:label] }
           p(class: TYPE_CAPTION) { plain notif[:desc] }
@@ -72,7 +85,7 @@ module Settings
       end
     end
 
-    def channel_row(icon, label_text, desc, checked: false, coming_soon: false)
+    def channel_row(icon, key, label_text, desc, coming_soon: false)
       div(class: "flex items-center gap-4 py-[13px] border-b border-gray-50 last:border-0 #{coming_soon ? 'opacity-50' : ''}") do
         div(class: "w-9 h-9 rounded-xl bg-gray-100 border border-gray-200 flex items-center justify-center flex-shrink-0") do
           span(class: "flex w-[15px] h-[15px] text-gray-400") do
@@ -88,7 +101,11 @@ module Settings
           end
           p(class: TYPE_CAPTION) { plain desc }
         end
-        render UI::Toggle.new(name: "channel_#{label_text.downcase}", checked: coming_soon ? false : checked)
+        if coming_soon
+          render UI::Toggle.new(name: "channel_sms", checked: false, disabled: true)
+        else
+          render UI::Toggle.new(name: "channels[#{key}]", checked: channel_checked?(key))
+        end
       end
     end
   end

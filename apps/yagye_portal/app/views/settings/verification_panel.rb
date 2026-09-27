@@ -22,17 +22,27 @@ module Settings
       { label: "Limits unlocked",       sub: "No daily limit — all payment types enabled", icon: :unlock     }
     ].freeze
 
-    def initialize(tier:)
-      @tier = tier
+    def initialize(tier:, branding: nil, merchant: nil, kyb_application: nil)
+      @tier            = tier
+      @branding        = branding
+      @merchant        = merchant
+      @kyb_application = kyb_application
     end
 
     def view_template
       div(class: "flex flex-col gap-5") do
-        status_banner
+        if @kyb_application&.rejected?
+          rejection_banner
+        else
+          status_banner
+        end
         progress_card
         timeline_card if @tier == 2
         docs_card     if @tier == 1
         contact_row
+        if @branding
+          render Settings::BusinessPanel.new(branding: @branding, merchant: @merchant)
+        end
       end
     end
 
@@ -77,6 +87,46 @@ module Settings
         elsif @tier == 3
           span(class: "badge-green text-[12px] font-semibold px-3 py-1.5 rounded-full flex-shrink-0") do
             plain "Fully verified"
+          end
+        end
+      end
+    end
+
+    # ── Rejection banner ──────────────────────────────────────────────────────
+
+    def rejection_banner
+      div(class: "rounded-2xl px-7 py-6",
+          style: "background:rgba(220,38,38,0.06);border:1px solid rgba(220,38,38,0.25)") do
+        div(class: "flex items-start gap-5") do
+          div(class: "w-[44px] h-[44px] rounded-full flex-shrink-0 flex items-center justify-center",
+              style: "background:rgba(220,38,38,0.10);border:1.5px solid rgba(220,38,38,0.30)") do
+            span(class: "flex w-[18px] h-[18px]", style: "color:#dc2626") do
+              render UI::Icon.new(:x_circle, class: "w-full h-full")
+            end
+          end
+
+          div(class: "flex-1 min-w-0") do
+            p(class: "text-[15px] font-bold mb-1", style: "color:#991b1b") { plain "Application not approved" }
+            p(class: "text-[13px] text-gray-600 leading-relaxed mb-4") do
+              plain "Unfortunately, your KYB application could not be approved at this time. "
+              plain "You can resubmit once the issues below have been addressed."
+            end
+
+            if @kyb_application.rejected_reason.present?
+              div(class: "rounded-xl px-4 py-3 mb-4",
+                  style: "background:rgba(220,38,38,0.07);border:1px solid rgba(220,38,38,0.18)") do
+                p(class: "text-[11px] font-semibold uppercase tracking-widest mb-1", style: "color:#dc2626") do
+                  plain "Reason from our compliance team"
+                end
+                p(class: "text-[13px] text-gray-700 leading-relaxed") do
+                  plain @kyb_application.rejected_reason
+                end
+              end
+            end
+
+            render UI::Button.new(variant: :primary, href: verify_path, data: { turbo_frame: "_top" }) do
+              plain "Resubmit application →"
+            end
           end
         end
       end

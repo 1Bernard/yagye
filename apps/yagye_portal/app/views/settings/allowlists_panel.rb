@@ -4,15 +4,35 @@ module Settings
   class AllowlistsPanel < ApplicationComponent
     include UI::Theme
 
-    def initialize(ip_allowlists: [], msisdn_allowlists: [])
+    REASON_LABELS = {
+      "fraud"             => "Fraud",
+      "unauthorized_use"  => "Unauthorized use",
+      "customer_request"  => "Customer request",
+      "chargeback"        => "Chargeback",
+      "other"             => "Other"
+    }.freeze
+
+    IP_BLOCK_REASON_LABELS = {
+      "fraud"      => "Fraud",
+      "abuse"      => "Abuse / scraping",
+      "dos_attack" => "DoS attack",
+      "scraping"   => "Scraping",
+      "other"      => "Other"
+    }.freeze
+
+    def initialize(ip_allowlists: [], msisdn_allowlists: [], msisdn_blocklists: [], ip_blocklists: [])
       @ip_allowlists     = ip_allowlists
       @msisdn_allowlists = msisdn_allowlists
+      @msisdn_blocklists = msisdn_blocklists
+      @ip_blocklists     = ip_blocklists
     end
 
     def view_template
       div(class: "flex flex-col gap-5") do
         ip_allowlist_card
         msisdn_allowlist_card
+        ip_blocklist_card
+        msisdn_blocklist_card
       end
     end
 
@@ -303,6 +323,309 @@ module Settings
             render UI::Button.new(variant: :primary, type: "submit") do
               render UI::Icon.new(:plus, class: ICON_SM)
               plain "Add number"
+            end
+          end
+        end
+      end
+    end
+
+    # ── IP blocklist ─────────────────────────────────────────────────────────
+
+    def ip_blocklist_card
+      count = @ip_blocklists.size
+      div(class: "bg-white border border-gray-100 rounded-2xl overflow-hidden") do
+        div(class: "px-6 py-5 border-b border-gray-100") do
+          div(class: "flex items-start gap-3") do
+            div(class: "w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 mt-px",
+                style: "background:#{TINT_RED};border:1px solid rgba(220,38,38,0.15)") do
+              span(class: "flex w-[15px] h-[15px]", style: "color:#{RED}") do
+                render UI::Icon.new(:shield_off, class: "w-full h-full")
+              end
+            end
+            div(class: "flex-1 min-w-0") do
+              div(class: "flex items-center gap-2 mb-[2px]") do
+                p(class: TYPE_TITLE) { plain "IP blocklist" }
+                if count > 0
+                  span(class: "text-[11px] font-semibold px-[9px] py-[2px] rounded-full",
+                       style: "color:#{RED};background:#{TINT_RED}") do
+                    plain "#{count} #{count == 1 ? 'address' : 'addresses'} blocked"
+                  end
+                end
+              end
+              p(class: TYPE_CAPTION) do
+                plain "Block specific IP addresses or CIDR ranges from accessing your portal and API."
+              end
+            end
+            render UI::Button.new(variant: :secondary,
+                   data: { action: "click->dialog#open", dialog_target_param: "add-ip-block-dialog" }) do
+              render UI::Icon.new(:x, class: ICON_SM)
+              plain "Block IP"
+            end
+            add_ip_block_dialog
+          end
+        end
+
+        if @ip_blocklists.any?
+          div(class: "px-6 py-[11px] border-b flex items-center gap-3",
+              style: "background:rgba(220,38,38,0.04);border-color:rgba(220,38,38,0.12)") do
+            span(class: "flex w-[13px] h-[13px] flex-shrink-0", style: "color:#{RED}") do
+              render UI::Icon.new(:info_circle, class: "w-full h-full")
+            end
+            p(class: "text-[12px]", style: "color:#991b1b") do
+              plain "#{count} #{count == 1 ? 'address' : 'addresses'} blocked — requests from these IPs will be rejected."
+            end
+          end
+          div(class: "divide-rows") do
+            @ip_blocklists.each { |entry| ip_block_entry_row(entry) }
+          end
+        else
+          div(class: "px-6 py-10 flex flex-col items-center text-center") do
+            div(class: "w-10 h-10 rounded-xl flex items-center justify-center mb-3",
+                style: "background:#{TINT_RED}") do
+              span(class: "flex w-[17px] h-[17px]", style: "color:#{RED}") do
+                render UI::Icon.new(:shield_off, class: "w-full h-full")
+              end
+            end
+            p(class: "#{TYPE_BODY_MD} mb-1") { plain "No IPs blocked" }
+            p(class: TYPE_CAPTION) do
+              plain "Block malicious IP addresses to prevent fraudulent or abusive requests."
+            end
+          end
+        end
+      end
+    end
+
+    def ip_block_entry_row(entry)
+      badge_label, badge_color, badge_bg = cidr_badge_attrs(entry.cidr)
+      reason_label = IP_BLOCK_REASON_LABELS[entry.reason] if entry.reason.present?
+      div(class: "group flex items-center gap-4 px-6 py-[14px] hover:bg-gray-50/50 transition-colors") do
+        div(class: "w-[34px] h-[34px] rounded-[9px] flex items-center justify-center flex-shrink-0",
+            style: "background:#{TINT_RED};border:1px solid rgba(220,38,38,0.15)") do
+          span(class: "flex w-[13px] h-[13px]", style: "color:#{RED}") do
+            render UI::Icon.new(:shield_off, class: "w-full h-full")
+          end
+        end
+        div(class: "flex-1 min-w-0") do
+          div(class: "flex items-center gap-2 mb-[3px]") do
+            code(class: "#{TYPE_MONO} text-[12.5px]") { plain entry.cidr }
+            span(class: "text-[10px] font-semibold px-[7px] py-[2px] rounded-full flex-shrink-0",
+                 style: "color:#{badge_color};background:#{badge_bg}") { plain badge_label }
+            if reason_label
+              span(class: "text-[10px] font-semibold px-[7px] py-[2px] rounded-full flex-shrink-0",
+                   style: "color:#{RED};background:#{TINT_RED}") { plain reason_label }
+            end
+          end
+          p(class: TYPE_CAPTION) do
+            parts = []
+            parts << entry.label if entry.label.present?
+            parts << "by #{entry.created_by.presence || 'you'}"
+            parts << entry.created_at.strftime("%d %b %Y")
+            plain parts.join(" · ")
+          end
+        end
+        div(class: "flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0") do
+          copy_button(entry.cidr)
+          remove_button(settings_remove_ip_block_path(entry),
+                        "Remove #{entry.cidr} from blocklist? Requests from this IP will be allowed again.")
+        end
+      end
+    end
+
+    def add_ip_block_dialog
+      dialog(id: "add-ip-block-dialog",
+             class: "border-0 rounded-2xl p-0 shadow-2xl w-full max-w-[420px] bg-white") do
+        div(class: "px-6 py-[22px] border-b border-gray-100") do
+          div(class: "flex items-center gap-[10px] mb-1") do
+            span(class: "flex w-[16px] h-[16px]", style: "color:#{RED}") do
+              render UI::Icon.new(:shield_off, class: "w-full h-full")
+            end
+            p(class: TYPE_TITLE) { plain "Block IP address" }
+          end
+          p(class: "#{TYPE_CAPTION} mt-[3px]") do
+            plain "Requests from this IP or CIDR range will be rejected immediately."
+          end
+        end
+        form(action: settings_add_ip_block_path, method: "post",
+             class: "px-6 py-[22px] flex flex-col gap-[14px]") do
+          input(type: "hidden", name: "authenticity_token", value: form_authenticity_token)
+          render UI::InputField.new(name: "cidr", label: "IP address or CIDR",
+                                    placeholder: "e.g. 203.0.113.0/24", required: true)
+          div do
+            label(class: "block #{TYPE_CAPTION} mb-1.5") { plain "Reason" }
+            select(name: "reason",
+                   class: "w-full h-9 border border-gray-200 rounded-[9px] px-3 text-[13px] " \
+                          "text-gray-700 bg-white outline-none focus:ring-1 focus:ring-[#{RED}]") do
+              option(value: "") { plain "Select a reason…" }
+              IP_BLOCK_REASON_LABELS.each { |key, lbl| option(value: key) { plain lbl } }
+            end
+          end
+          render UI::InputField.new(name: "label", label: "Internal note (optional)",
+                                    placeholder: "e.g. Scraped product data")
+          div(class: "flex gap-[10px] justify-end mt-1") do
+            render UI::Button.new(variant: :secondary,
+                   data: { action: "click->dialog#close", dialog_target_param: "add-ip-block-dialog" }) do
+              render UI::Icon.new(:x, class: ICON_SM)
+              plain "Cancel"
+            end
+            render UI::Button.new(variant: :danger, type: "submit") do
+              render UI::Icon.new(:shield_off, class: ICON_SM)
+              plain "Block IP"
+            end
+          end
+        end
+      end
+    end
+
+    # ── MSISDN blocklist ──────────────────────────────────────────────────────
+
+    def msisdn_blocklist_card
+      count = @msisdn_blocklists.size
+      div(class: "bg-white border border-gray-100 rounded-2xl overflow-hidden") do
+        # Header
+        div(class: "px-6 py-5 border-b border-gray-100") do
+          div(class: "flex items-start gap-3") do
+            div(class: "w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 mt-px",
+                style: "background:#{TINT_RED};border:1px solid rgba(220,38,38,0.15)") do
+              span(class: "flex w-[15px] h-[15px]", style: "color:#{RED}") do
+                render UI::Icon.new(:shield_off, class: "w-full h-full")
+              end
+            end
+            div(class: "flex-1 min-w-0") do
+              div(class: "flex items-center gap-2 mb-[2px]") do
+                p(class: TYPE_TITLE) { plain "MSISDN blocklist" }
+                if count > 0
+                  span(class: "text-[11px] font-semibold px-[9px] py-[2px] rounded-full",
+                       style: "color:#{RED};background:#{TINT_RED}") do
+                    plain "#{count} #{count == 1 ? 'number' : 'numbers'} blocked"
+                  end
+                end
+              end
+              p(class: TYPE_CAPTION) do
+                plain "Permanently block specific phone numbers from initiating payments on your integration."
+              end
+            end
+            render UI::Button.new(variant: :secondary,
+                   data: { action: "click->dialog#open", dialog_target_param: "add-block-dialog" }) do
+              render UI::Icon.new(:x, class: ICON_SM)
+              plain "Block number"
+            end
+            add_block_dialog
+          end
+        end
+
+        # Callout when active
+        if @msisdn_blocklists.any?
+          div(class: "px-6 py-[11px] border-b flex items-center gap-3",
+              style: "background:rgba(220,38,38,0.04);border-color:rgba(220,38,38,0.12)") do
+            span(class: "flex w-[13px] h-[13px] flex-shrink-0", style: "color:#{RED}") do
+              render UI::Icon.new(:info_circle, class: "w-full h-full")
+            end
+            p(class: "text-[12px]", style: "color:#991b1b") do
+              plain "#{count} #{count == 1 ? 'number' : 'numbers'} blocked — payment attempts from these MSISDNs will be rejected."
+            end
+          end
+          div(class: "divide-rows") do
+            @msisdn_blocklists.each { |entry| blocklist_entry_row(entry) }
+          end
+        else
+          blocklist_empty_state
+        end
+      end
+    end
+
+    def blocklist_empty_state
+      div(class: "px-6 py-10 flex flex-col items-center text-center") do
+        div(class: "w-10 h-10 rounded-xl flex items-center justify-center mb-3",
+            style: "background:#{TINT_RED}") do
+          span(class: "flex w-[17px] h-[17px]", style: "color:#{RED}") do
+            render UI::Icon.new(:shield_off, class: "w-full h-full")
+          end
+        end
+        p(class: "#{TYPE_BODY_MD} mb-1") { plain "No numbers blocked" }
+        p(class: TYPE_CAPTION) do
+          plain "Block specific MSISDNs to prevent fraudulent or unwanted payment attempts."
+        end
+      end
+    end
+
+    def blocklist_entry_row(entry)
+      telco = detect_telco(entry.msisdn)
+      reason_label = REASON_LABELS[entry.reason] if entry.reason.present?
+      div(class: "group flex items-center gap-4 px-6 py-[14px] hover:bg-gray-50/50 transition-colors") do
+        div(class: "w-[34px] h-[34px] rounded-[9px] flex items-center justify-center flex-shrink-0",
+            style: "background:#{TINT_RED};border:1px solid rgba(220,38,38,0.15)") do
+          span(class: "flex w-[13px] h-[13px]", style: "color:#{RED}") do
+            render UI::Icon.new(:shield_off, class: "w-full h-full")
+          end
+        end
+        div(class: "flex-1 min-w-0") do
+          div(class: "flex items-center gap-2 mb-[3px]") do
+            code(class: "#{TYPE_MONO} text-[12.5px]") { plain entry.msisdn }
+            if telco
+              t_name, t_color, t_bg = telco
+              span(class: "text-[10px] font-semibold px-[7px] py-[2px] rounded-full flex-shrink-0",
+                   style: "color:#{t_color};background:#{t_bg}") { plain t_name }
+            end
+            if reason_label
+              span(class: "text-[10px] font-semibold px-[7px] py-[2px] rounded-full flex-shrink-0",
+                   style: "color:#{RED};background:#{TINT_RED}") { plain reason_label }
+            end
+          end
+          p(class: TYPE_CAPTION) do
+            parts = []
+            parts << entry.label if entry.label.present?
+            parts << "by #{entry.created_by.presence || 'you'}"
+            parts << entry.created_at.strftime("%d %b %Y")
+            plain parts.join(" · ")
+          end
+        end
+        div(class: "flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0") do
+          copy_button(entry.msisdn)
+          remove_button(settings_remove_msisdn_block_path(entry),
+                        "Remove #{entry.msisdn} from blocklist? They will be able to make payments again.")
+        end
+      end
+    end
+
+    def add_block_dialog
+      dialog(id: "add-block-dialog",
+             class: "border-0 rounded-2xl p-0 shadow-2xl w-full max-w-[420px] bg-white") do
+        div(class: "px-6 py-[22px] border-b border-gray-100") do
+          div(class: "flex items-center gap-[10px] mb-1") do
+            span(class: "flex w-[16px] h-[16px]", style: "color:#{RED}") do
+              render UI::Icon.new(:shield_off, class: "w-full h-full")
+            end
+            p(class: TYPE_TITLE) { plain "Block phone number" }
+          end
+          p(class: "#{TYPE_CAPTION} mt-[3px]") do
+            plain "Payment attempts from this MSISDN will be rejected immediately."
+          end
+        end
+        form(action: settings_add_msisdn_block_path, method: "post",
+             class: "px-6 py-[22px] flex flex-col gap-[14px]") do
+          input(type: "hidden", name: "authenticity_token", value: form_authenticity_token)
+          render UI::InputField.new(name: "msisdn", label: "Phone number (MSISDN)",
+                                    placeholder: "e.g. +233241234567", required: true)
+          div do
+            label(class: "block #{TYPE_CAPTION} mb-1.5") { plain "Reason" }
+            select(name: "reason",
+                   class: "w-full h-9 border border-gray-200 rounded-[9px] px-3 text-[13px] " \
+                          "text-gray-700 bg-white outline-none focus:ring-1 focus:ring-[#{RED}]") do
+              option(value: "") { plain "Select a reason…" }
+              REASON_LABELS.each { |key, lbl| option(value: key) { plain lbl } }
+            end
+          end
+          render UI::InputField.new(name: "label", label: "Internal note (optional)",
+                                    placeholder: "e.g. Reported fraud #1234")
+          div(class: "flex gap-[10px] justify-end mt-1") do
+            render UI::Button.new(variant: :secondary,
+                   data: { action: "click->dialog#close", dialog_target_param: "add-block-dialog" }) do
+              render UI::Icon.new(:x, class: ICON_SM)
+              plain "Cancel"
+            end
+            render UI::Button.new(variant: :danger, type: "submit") do
+              render UI::Icon.new(:x, class: ICON_SM)
+              plain "Block number"
             end
           end
         end

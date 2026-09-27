@@ -4,17 +4,23 @@ module Settings
   class IndexView < ApplicationComponent
     include UI::Theme
 
-    def initialize(tab: "profile", current_user: nil, roles: [], ip_allowlists: [], msisdn_allowlists: [],
-                   audit_events: [], sso_configs: [], tier: 1, payout_controls: {})
-      @tab               = tab
-      @current_user      = current_user
-      @roles             = roles
-      @ip_allowlists     = ip_allowlists
-      @msisdn_allowlists = msisdn_allowlists
-      @audit_events      = audit_events
-      @sso_configs       = sso_configs
-      @tier              = tier
-      @payout_controls   = payout_controls
+    def initialize(tab: "profile", current_user: nil, roles: [], ip_allowlists: [], ip_blocklists: [],
+                   msisdn_allowlists: [], msisdn_blocklists: [], branding: nil, kyb_application: nil,
+                   audit_events: [], sso_configs: [], tier: 1, payout_controls: {}, payout_destinations: [])
+      @tab                 = tab
+      @current_user        = current_user
+      @roles               = roles
+      @ip_allowlists       = ip_allowlists
+      @ip_blocklists       = ip_blocklists
+      @msisdn_allowlists   = msisdn_allowlists
+      @msisdn_blocklists   = msisdn_blocklists
+      @branding            = branding
+      @kyb_application     = kyb_application
+      @audit_events        = audit_events
+      @sso_configs         = sso_configs
+      @tier                = tier
+      @payout_controls     = payout_controls
+      @payout_destinations = payout_destinations
     end
 
     def view_template
@@ -41,12 +47,20 @@ module Settings
               render Settings::NotificationsPanel.new(current_user: @current_user)
             when "allowlists"
               render Settings::AllowlistsPanel.new(
-                ip_allowlists: @ip_allowlists, msisdn_allowlists: @msisdn_allowlists
+                ip_allowlists:    @ip_allowlists,
+                ip_blocklists:    @ip_blocklists,
+                msisdn_allowlists: @msisdn_allowlists,
+                msisdn_blocklists: @msisdn_blocklists
               )
             when "sso"
               render Settings::SsoSection.new(current_user: @current_user, configs: @sso_configs)
             when "verification"
-              render Settings::VerificationPanel.new(tier: @tier)
+              render Settings::VerificationPanel.new(
+                tier:            @tier,
+                branding:        @branding,
+                kyb_application: @kyb_application,
+                merchant:        @current_user&.merchant_user? ? PortalMerchant.find_for(@current_user.merchant_code) : nil
+              )
             when "payouts"
               if @current_user&.merchant_user?
                 merchant_code = @current_user.merchant_code
@@ -60,7 +74,8 @@ module Settings
                   controls:        @payout_controls,
                   next_value_date: next_date,
                   unsettled_amount: unsettled,
-                  currency:        currency
+                  currency:        currency,
+                  destinations:    @payout_destinations
                 )
               end
             end
@@ -94,7 +109,9 @@ module Settings
       if @current_user&.merchant_user?
         groups << {
           label: "Finance",
-          items: [ { key: "payouts", label: "Payouts", icon: :trending_up } ]
+          items: [
+            { key: "payouts", label: "Payouts", icon: :trending_up }
+          ]
         }
       end
 

@@ -6,16 +6,24 @@ module Settings
 
     WEEKDAY_NAMES = %w[_ Monday Tuesday Wednesday Thursday Friday Saturday Sunday].freeze
 
-    def initialize(controls: {}, next_value_date: nil, unsettled_amount: 0, currency: "GHS")
+    NETWORK_LABELS = {
+      "mtn"        => "MTN Mobile Money",
+      "telecel"    => "Telecel Cash",
+      "airteltigo" => "AirtelTigo Money"
+    }.freeze
+
+    def initialize(controls: {}, next_value_date: nil, unsettled_amount: 0, currency: "GHS",
+                   destinations: [])
       @controls        = controls
       @next_value_date = next_value_date
       @unsettled       = unsettled_amount.to_i
       @currency        = currency
+      @destinations    = destinations
     end
 
     def view_template
       div(class: "flex flex-col gap-5") do
-        destination_card
+        destinations_card
         schedule_card
         balance_card
       end
@@ -23,176 +31,216 @@ module Settings
 
     private
 
-    NETWORKS = [
-      ["MTN Mobile Money",   "mtn"],
-      ["Vodafone Cash",      "vodafone"],
-      ["AirtelTigo Money",   "airteltigo"]
-    ].freeze
+    # ── Destinations ──────────────────────────────────────────────────────────
 
-    def destination_type
-      return :momo if @controls["settlement_msisdn"].present?
-      return :bank if @controls["settlement_account_number"].present?
-      nil
-    end
-
-    def masked_msisdn
-      raw = @controls["settlement_msisdn"].to_s.gsub(/\s/, "")
-      return "—" if raw.blank?
-      raw.length > 6 ? "#{raw[0..2]} *** #{raw[-4..]}" : raw
-    end
-
-    def masked_account_number
-      raw = @controls["settlement_account_number"].to_s
-      return "—" if raw.blank?
-      raw.length > 4 ? "••••#{raw[-4..]}" : raw
-    end
-
-    def destination_card
-      type = destination_type
-
+    def destinations_card
       div(class: "bg-white border border-gray-100 rounded-2xl overflow-hidden") do
+        # Header
         div(class: "px-6 py-5 border-b border-gray-100 flex items-center justify-between") do
           div do
-            p(class: TYPE_TITLE) { plain "Payout Destination" }
-            p(class: "#{TYPE_CAPTION} mt-[3px]") { plain "Where your settled funds are disbursed." }
-          end
-          if type
-            span(class: "inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold bg-green-50 text-green-700") do
-              span(class: "w-1.5 h-1.5 rounded-full flex-shrink-0 bg-green-500")
-              plain "Configured"
+            p(class: TYPE_TITLE) { plain "Payout Destinations" }
+            p(class: "#{TYPE_CAPTION} mt-[3px]") do
+              plain "Bank accounts and mobile wallets that receive your settled funds."
             end
-          else
-            span(class: "inline-flex items-center px-2.5 py-1 rounded-full text-[11px] font-semibold bg-amber-50 text-amber-700") do
-              plain "Not set"
+          end
+          if @destinations.any?
+            span(class: "text-[11px] font-semibold px-2.5 py-1 rounded-full bg-green-50 text-green-700") do
+              plain "#{@destinations.count} #{@destinations.count == 1 ? 'account' : 'accounts'}"
             end
           end
         end
 
-        div(class: "px-6 py-5") do
-          if type == :momo
-            div(class: "flex items-center gap-3 mb-5") do
-              div(class: "w-9 h-9 rounded-xl bg-gray-50 border border-gray-100 flex items-center justify-center flex-shrink-0") do
-                span(class: "flex w-[17px] h-[17px] text-gray-500") do
-                  render UI::Icon.new(:smartphone, class: "w-full h-full")
-                end
-              end
-              div do
-                p(class: "text-[13px] font-semibold text-gray-800") { plain "Mobile Money" }
-                p(class: "text-[12px] font-mono text-gray-500 mt-px") { plain masked_msisdn }
-              end
-            end
-          elsif type == :bank
-            div(class: "flex items-center gap-3 mb-5") do
-              div(class: "w-9 h-9 rounded-xl bg-gray-50 border border-gray-100 flex items-center justify-center flex-shrink-0") do
-                span(class: "flex w-[17px] h-[17px] text-gray-500") do
-                  render UI::Icon.new(:bank, class: "w-full h-full")
-                end
-              end
-              div do
-                p(class: "text-[13px] font-semibold text-gray-800") do
-                  plain @controls["settlement_account_name"].presence || "Bank Account"
-                end
-                p(class: "#{TYPE_CAPTION} mt-px") do
-                  plain "#{@controls['settlement_bank_code']} · #{masked_account_number}"
-                end
-              end
-            end
-          else
-            p(class: "#{TYPE_CAPTION} mb-5") do
-              plain "No payout destination configured. Please complete your account setup."
+        # Destination rows
+        if @destinations.empty?
+          div(class: "px-6 py-8 flex flex-col items-center gap-2 text-center") do
+            p(class: TYPE_BODY_MD) { plain "No payout accounts yet" }
+            p(class: TYPE_CAPTION) do
+              plain "Add a mobile money wallet or bank account to receive your settlements."
             end
           end
+        else
+          div(class: "divide-y divide-gray-50") do
+            @destinations.each { |dest| destination_row(dest) }
+          end
+        end
 
+        # Add account — always-visible expandable at the bottom of the card
+        div(class: "border-t border-gray-100") do
           details(class: "group") do
-            summary(class: "cursor-pointer list-none flex items-center gap-1.5 text-[12.5px] font-medium " \
-                           "text-[#{BRAND}] select-none hover:opacity-80") do
-              span(class: "flex w-[13px] h-[13px] flex-shrink-0", style: "color:#{BRAND}") do
-                render UI::Icon.new(:edit, class: "w-full h-full")
+            summary(class: "px-6 py-4 cursor-pointer list-none flex items-center gap-2 " \
+                           "text-[12.5px] font-semibold select-none hover:bg-gray-50 transition-colors",
+                    style: "color:#{BRAND}") do
+              span(class: "flex w-[13px] h-[13px]", style: "color:#{BRAND}") do
+                render UI::Icon.new(:plus, class: "w-full h-full")
               end
-              plain(type ? "Change destination" : "Set up destination")
+              plain "Add account"
             end
 
-            div(class: "mt-4 pt-4 border-t border-gray-100") do
-              destination_form
+            div(class: "px-6 pb-6") do
+              add_destination_form
             end
           end
         end
       end
     end
 
-    def destination_form
-      momo_active = destination_type == :momo || destination_type.nil?
+    def destination_row(dest)
+      is_default   = dest["is_default"]
+      verify_state = dest["verification_state"] || "unverified"
 
-      div(data: { controller: "tabs" }) do
-        div(class: "flex gap-1 p-1 rounded-xl bg-gray-100 mb-4") do
-          %w[momo bank].each do |key|
-            is_active = (key == "momo") == momo_active
-            button(type: "button",
-                   class: "flex-1 py-2 px-4 rounded-lg text-[13px] font-medium transition-all",
-                   style: is_active ?
-                            "background:white;color:#{BRAND};box-shadow:0 1px 2px rgba(0,0,0,0.08)" :
-                            "color:#6B7280",
-                   data: { action: "click->tabs#switch",
-                            tabs_target: "tab",
-                            tab_key: key }) do
-              plain key == "momo" ? "Mobile Money" : "Bank Account"
+      div(class: "px-6 py-4 flex items-center gap-4") do
+        # Kind icon
+        div(class: "w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0",
+            style: "background:#{TINT_BRAND}") do
+          span(class: "flex w-[17px] h-[17px]", style: "color:#{BRAND}") do
+            render UI::Icon.new(dest["kind"] == "bank" ? :bank : :smartphone, class: "w-full h-full")
+          end
+        end
+
+        # Details
+        div(class: "flex-1 min-w-0") do
+          div(class: "flex items-center gap-2 flex-wrap") do
+            p(class: "text-[13px] font-semibold text-gray-800 truncate") do
+              plain destination_label(dest)
+            end
+            if is_default
+              span(class: "text-[10px] font-bold px-[6px] py-[2px] rounded-full",
+                   style: "color:#{BRAND};background:#{TINT_BRAND}") { plain "Default" }
+            end
+            verification_badge(verify_state)
+          end
+          p(class: "#{TYPE_CAPTION} mt-[2px] font-mono truncate") { plain dest["masked_account"].to_s }
+          if dest["added_by"].present? || dest["verified_by"].present?
+            p(class: "#{TYPE_CAPTION} mt-[2px]") do
+              parts = []
+              parts << "Added by #{dest['added_by']}"   if dest["added_by"].present?
+              parts << "Verified by #{dest['verified_by']}" if dest["verified_by"].present?
+              plain parts.join(" · ")
             end
           end
         end
 
-        form(action: settings_payout_destination_path, method: "post",
-             class: momo_active ? "" : "hidden",
-             data: { tabs_target: "panel", tab_key: "momo" }) do
-          input(type: "hidden", name: "_method",             value: "patch")
-          input(type: "hidden", name: "authenticity_token",  value: form_authenticity_token)
+        # Actions
+        div(class: "flex items-center gap-2 flex-shrink-0") do
+          unless is_default
+            form(action: settings_payout_destination_default_path(dest["id"]), method: "post") do
+              input(type: "hidden", name: "authenticity_token", value: form_authenticity_token)
+              button(type: "submit",
+                     class: "text-[12px] font-medium text-gray-500 hover:text-gray-700 " \
+                            "border border-gray-200 rounded-[8px] px-3 py-1.5 bg-white " \
+                            "transition-colors cursor-pointer") do
+                plain "Set default"
+              end
+            end
+          end
+
+          form(action: settings_payout_destination_remove_path(dest["id"]), method: "post",
+               data: { turbo_confirm: "Remove this account? This cannot be undone." }) do
+            input(type: "hidden", name: "_method",            value: "delete")
+            input(type: "hidden", name: "authenticity_token", value: form_authenticity_token)
+            button(type: "submit",
+                   class: "flex items-center justify-center w-7 h-7 rounded-[8px] " \
+                          "border border-gray-200 text-gray-400 hover:text-red-500 " \
+                          "hover:border-red-200 bg-white transition-colors cursor-pointer") do
+              span(class: "flex w-[13px] h-[13px]") { render UI::Icon.new(:minus, class: "w-full h-full") }
+            end
+          end
+        end
+      end
+    end
+
+    def add_destination_form
+      div(data: { controller: "tabs" }) do
+        # Tab switcher
+        div(class: "flex gap-1 p-1 rounded-xl bg-gray-100 mb-4") do
+          [["mobile_money", "Mobile Money"], ["bank", "Bank Account"]].each_with_index do |(key, label), i|
+            active = i.zero?
+            button(type: "button",
+                   class: "flex-1 py-2 px-4 rounded-lg text-[13px] font-medium transition-all",
+                   style: active ?
+                            "background:white;color:#{BRAND};box-shadow:0 1px 2px rgba(0,0,0,0.08)" :
+                            "color:#6B7280",
+                   data: { action: "click->tabs#switch", tabs_target: "tab", tab_key: key }) do
+              plain label
+            end
+          end
+        end
+
+        # MoMo form
+        form(action: settings_payout_destinations_path, method: "post",
+             data: { tabs_target: "panel", tab_key: "mobile_money" }) do
+          input(type: "hidden", name: "authenticity_token", value: form_authenticity_token)
+          input(type: "hidden", name: "kind",               value: "mobile_money")
           div(class: "space-y-3") do
             div do
+              label(class: "block #{TYPE_CAPTION} mb-1.5") { plain "Network" }
+              select(name: "network",
+                     class: "w-full h-9 border border-gray-200 rounded-[9px] px-3 text-[13px] " \
+                            "text-gray-700 bg-white outline-none focus:ring-1 focus:ring-[#{BRAND}]") do
+                NETWORK_LABELS.each { |key, lbl| option(value: key) { plain lbl } }
+              end
+            end
+            div do
               label(class: "block #{TYPE_CAPTION} mb-1.5") { plain "Mobile Money Number" }
-              input(type: "tel", name: "settlement_msisdn",
-                    value: @controls["settlement_msisdn"],
-                    placeholder: "024 000 0000",
+              input(type: "tel", name: "msisdn", placeholder: "024 000 0000",
                     class: "w-full h-9 border border-gray-200 rounded-[9px] px-3 text-[13px] " \
                            "text-gray-700 bg-white outline-none focus:ring-1 focus:ring-[#{BRAND}]")
             end
-            render UI::Button.new(variant: :primary, type: "submit") { plain "Save" }
+            render UI::Button.new(variant: :primary, type: "submit") { plain "Add account" }
           end
         end
 
-        form(action: settings_payout_destination_path, method: "post",
-             class: momo_active ? "hidden" : "",
+        # Bank form
+        form(action: settings_payout_destinations_path, method: "post",
+             class: "hidden",
              data: { tabs_target: "panel", tab_key: "bank" }) do
-          input(type: "hidden", name: "_method",             value: "patch")
-          input(type: "hidden", name: "authenticity_token",  value: form_authenticity_token)
+          input(type: "hidden", name: "authenticity_token", value: form_authenticity_token)
+          input(type: "hidden", name: "kind",               value: "bank")
           div(class: "space-y-3") do
             div do
               label(class: "block #{TYPE_CAPTION} mb-1.5") { plain "Bank Code" }
-              input(type: "text", name: "settlement_bank_code",
-                    value: @controls["settlement_bank_code"],
-                    placeholder: "e.g. GCB001",
+              input(type: "text", name: "bank_code", placeholder: "e.g. GCB001",
                     class: "w-full h-9 border border-gray-200 rounded-[9px] px-3 text-[13px] " \
                            "text-gray-700 bg-white outline-none focus:ring-1 focus:ring-[#{BRAND}]")
             end
             div do
               label(class: "block #{TYPE_CAPTION} mb-1.5") { plain "Account Number" }
-              input(type: "text", name: "settlement_account_number",
-                    value: @controls["settlement_account_number"],
-                    placeholder: "1234567890",
+              input(type: "text", name: "account_number", placeholder: "1234567890",
                     class: "w-full h-9 border border-gray-200 rounded-[9px] px-3 text-[13px] " \
                            "text-gray-700 bg-white outline-none focus:ring-1 focus:ring-[#{BRAND}]")
             end
             div do
               label(class: "block #{TYPE_CAPTION} mb-1.5") { plain "Account Name" }
-              input(type: "text", name: "settlement_account_name",
-                    value: @controls["settlement_account_name"],
-                    placeholder: "Business name on account",
+              input(type: "text", name: "account_name", placeholder: "Business name on account",
                     class: "w-full h-9 border border-gray-200 rounded-[9px] px-3 text-[13px] " \
                            "text-gray-700 bg-white outline-none focus:ring-1 focus:ring-[#{BRAND}]")
             end
-            render UI::Button.new(variant: :primary, type: "submit") { plain "Save" }
+            render UI::Button.new(variant: :primary, type: "submit") { plain "Add account" }
           end
         end
       end
     end
+
+    def verification_badge(state)
+      color, bg, label = case state
+                         when "verified"           then [GREEN, TINT_GREEN, "Verified"]
+                         when "micro_deposit_sent" then [AMBER, TINT_AMBER, "Pending verification"]
+                         when "failed"             then [RED,   TINT_RED,   "Verification failed"]
+                         else                           [AMBER, TINT_AMBER, "Unverified"]
+                         end
+      span(class: "text-[10px] font-bold px-[6px] py-[2px] rounded-full",
+           style: "color:#{color};background:#{bg}") { plain label }
+    end
+
+    def destination_label(dest)
+      if dest["kind"] == "mobile_money"
+        NETWORK_LABELS[dest["network"]] || dest["network"] || "Mobile Money"
+      else
+        dest["account_name"].presence || "Bank Account"
+      end
+    end
+
+    # ── Schedule ──────────────────────────────────────────────────────────────
 
     def frequency      = @controls["settlement_frequency"] || "daily"
     def settlement_day = @controls["settlement_day"].to_i
@@ -200,8 +248,7 @@ module Settings
     def schedule_label
       case frequency
       when "weekly"
-        day_name = WEEKDAY_NAMES[settlement_day] || "Monday"
-        "Every #{day_name}"
+        "Every #{WEEKDAY_NAMES[settlement_day] || 'Monday'}"
       when "monthly"
         "#{settlement_day.ordinalize} of each month"
       else
@@ -214,11 +261,11 @@ module Settings
         div(class: "px-6 py-5 border-b border-gray-100") do
           p(class: TYPE_TITLE) { plain "Payout Schedule" }
           p(class: "#{TYPE_CAPTION} mt-[3px]") do
-            plain "When your settled funds are released to your bank account."
+            plain "When your settled funds are released to your accounts."
           end
         end
 
-        div(class: "px-6 py-5 flex flex-col gap-4") do
+        div(class: "px-6 py-5") do
           render UI::DetailList.new do |list|
             list.row("Frequency") do
               span(class: "text-[13px] font-semibold text-gray-800") { plain schedule_label }
@@ -246,6 +293,8 @@ module Settings
         end
       end
     end
+
+    # ── Balance ───────────────────────────────────────────────────────────────
 
     def balance_card
       div(class: "bg-white border border-gray-100 rounded-2xl overflow-hidden") do

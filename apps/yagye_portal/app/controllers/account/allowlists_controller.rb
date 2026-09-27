@@ -55,5 +55,61 @@ module Account
                                    metadata: { msisdn: msisdn })
       redirect_to settings_path(tab: "allowlists"), notice: "Phone number removed."
     end
+
+    def create_msisdn_block
+      entry = PortalMsisdnBlocklist.new(
+        merchant_code: Current.user.merchant_code,
+        msisdn:        params[:msisdn].to_s.strip,
+        label:         params[:label].to_s.strip.presence,
+        reason:        params[:reason].presence_in(PortalMsisdnBlocklist::REASONS),
+        created_by:    Current.user.email
+      )
+      authorize entry, policy_class: PortalMsisdnBlocklistPolicy
+      if entry.save
+        UserAuditEvents::Record.call(user: current_user, event_type: :msisdn_blocked, request: request,
+                                     metadata: { msisdn: entry.msisdn, reason: entry.reason })
+        redirect_to settings_path(tab: "allowlists"), notice: "Phone number added to blocklist."
+      else
+        redirect_to settings_path(tab: "allowlists"), alert: entry.errors.full_messages.to_sentence
+      end
+    end
+
+    def destroy_msisdn_block
+      entry = decode_id(PortalMsisdnBlocklist)
+      authorize entry, policy_class: PortalMsisdnBlocklistPolicy
+      msisdn = entry.msisdn
+      entry.soft_delete!
+      UserAuditEvents::Record.call(user: current_user, event_type: :msisdn_unblocked, request: request,
+                                   metadata: { msisdn: msisdn })
+      redirect_to settings_path(tab: "allowlists"), notice: "Phone number removed from blocklist."
+    end
+
+    def create_ip_block
+      entry = PortalIpBlocklist.new(
+        merchant_code: Current.user.merchant_code,
+        cidr:          params[:cidr].to_s.strip,
+        label:         params[:label].to_s.strip.presence,
+        reason:        params[:reason].presence_in(PortalIpBlocklist::REASONS),
+        created_by:    Current.user.email
+      )
+      authorize entry, policy_class: PortalIpBlocklistPolicy
+      if entry.save
+        UserAuditEvents::Record.call(user: current_user, event_type: :ip_blocked, request: request,
+                                     metadata: { cidr: entry.cidr, reason: entry.reason })
+        redirect_to settings_path(tab: "allowlists"), notice: "IP address added to blocklist."
+      else
+        redirect_to settings_path(tab: "allowlists"), alert: entry.errors.full_messages.to_sentence
+      end
+    end
+
+    def destroy_ip_block
+      entry = decode_id(PortalIpBlocklist)
+      authorize entry, policy_class: PortalIpBlocklistPolicy
+      cidr = entry.cidr
+      entry.soft_delete!
+      UserAuditEvents::Record.call(user: current_user, event_type: :ip_unblocked, request: request,
+                                   metadata: { cidr: cidr })
+      redirect_to settings_path(tab: "allowlists"), notice: "IP address removed from blocklist."
+    end
   end
 end

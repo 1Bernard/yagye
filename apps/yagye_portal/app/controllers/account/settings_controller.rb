@@ -5,16 +5,25 @@ module Account
     def index
       authorize :settings, :index?
       tab = params[:tab].presence_in(%w[profile security notifications allowlists sso verification payouts]) || "profile"
-      ip_allowlists     = PortalIpAllowlist.kept.for_merchant(current_user.merchant_code).order(:created_at)
-      msisdn_allowlists = PortalMsisdnAllowlist.kept.for_merchant(current_user.merchant_code).order(:created_at)
-      audit_events      = current_user.user_audit_events.recent.limit(15)
-      sso_configs       = tab == "sso" ? SsoConfiguration.order(:name) : []
-      tier              = current_user.merchant_tier || 1
-      payout_controls   = tab == "payouts" && current_user.merchant_user? ? load_payout_controls : {}
+      ip_allowlists        = PortalIpAllowlist.kept.for_merchant(current_user.merchant_code).order(:created_at)
+      ip_blocklists        = PortalIpBlocklist.kept.for_merchant(current_user.merchant_code).order(:created_at)
+      msisdn_allowlists    = PortalMsisdnAllowlist.kept.for_merchant(current_user.merchant_code).order(:created_at)
+      msisdn_blocklists    = PortalMsisdnBlocklist.kept.for_merchant(current_user.merchant_code).order(:created_at)
+      kyb_application      = tab == "verification" && current_user.merchant_user? ? PortalMerchantApplication.find_by(merchant_code: current_user.merchant_code) : nil
+      branding             = tab == "verification" && current_user.merchant_user? ? PortalMerchantBranding.find_or_initialize_for(current_user.merchant_code) : nil
+      audit_events         = current_user.user_audit_events.recent.limit(15)
+      sso_configs          = tab == "sso" ? SsoConfiguration.order(:name) : []
+      tier                 = current_user.merchant_tier || 1
+      payout_controls, payout_destinations = tab == "payouts" && current_user.merchant_user? ? load_payouts_data : [{}, []]
       render Settings::IndexView.new(tab: tab, current_user: current_user,
-                                     ip_allowlists: ip_allowlists, msisdn_allowlists: msisdn_allowlists,
+                                     ip_allowlists: ip_allowlists, ip_blocklists: ip_blocklists,
+                                     msisdn_allowlists: msisdn_allowlists,
+                                     msisdn_blocklists: msisdn_blocklists,
+                                     branding: branding,
+                                     kyb_application: kyb_application,
                                      audit_events: audit_events, sso_configs: sso_configs, tier: tier,
-                                     payout_controls: payout_controls)
+                                     payout_controls: payout_controls,
+                                     payout_destinations: payout_destinations)
     end
 
     def update_profile
@@ -38,21 +47,18 @@ module Account
       end
     end
 
-    def update_destination
+    def update_notifications
       authorize :settings, :update?
-      attrs = {
-        settlement_msisdn:         params[:settlement_msisdn].presence,
-        settlement_bank_code:      params[:settlement_bank_code].presence,
-        settlement_account_number: params[:settlement_account_number].presence,
-        settlement_account_name:   params[:settlement_account_name].presence
-      }.compact
-      result = CoreApiClient.new.update_settlement_destination(current_user.merchant_code, attrs)
-      if result.success?
-        redirect_to settings_path(tab: "payouts"), notice: "Payout destination updated."
-      else
-        redirect_to settings_path(tab: "payouts"),
-                    alert: result.body["message"].presence || "Could not update payout destination."
-      end
+      events   = params[:notifications]&.to_unsafe_h || {}
+      channels = params[:channels]&.to_unsafe_h || {}
+
+      prefs = {
+        "events" => User::NOTIFICATION_EVENT_KEYS.index_with { |k| events[k] == "1" },
+        "channels" => User::NOTIFICATION_CHANNEL_KEYS.index_with { |k| channels[k] == "1" }
+      }
+
+      current_user.update!(notification_preferences: prefs)
+      redirect_to settings_path(tab: "notifications"), notice: "Notification preferences saved."
     end
 
     def update_password
@@ -71,11 +77,15 @@ module Account
 
     private
 
-    def load_payout_controls
-      result = CoreApiClient.new.get_settlement_controls(current_user.merchant_code)
-      result.success? ? result.body : {}
+    def load_payouts_data
+      client          = CoreApiClient.new
+      controls_result = client.get_settlement_controls(current_user.merchant_code)
+      controls        = controls_result.success? ? controls_result.body : {}
+      dest_result     = client.list_payout_destinations(current_user.merchant_code)
+      destinations    = dest_result.success? ? (dest_result.body["data"] || []) : []
+      [controls, destinations]
     rescue StandardError
-      {}
+      [{}, []]
     end
 
     def profile_params
