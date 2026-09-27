@@ -104,6 +104,7 @@ services:
       SECRET_KEY_BASE: dev_secret_key_base_replace_in_production_min_64_chars_long_abc123
       CORE_PORTAL_SERVICE_SECRET: dev_portal_service_secret_change_in_production
       RABBITMQ_URL: amqp://guest:guest@rabbitmq:5672
+      REDIS_URL: redis://redis:6379/0
       PORT: "4000"
       PHX_HOST: localhost
     # Run migrations then start server. YagyeCore.Release.migrate/0 is idempotent.
@@ -116,6 +117,8 @@ services:
       - "4000:4000"
     depends_on:
       db:
+        condition: service_healthy
+      redis:
         condition: service_healthy
       rabbitmq:
         condition: service_healthy
@@ -171,6 +174,7 @@ services:
       CABLE_DATABASE_URL: postgresql://postgres:postgres@db/yagye_portal_development
       SECRET_KEY_BASE: dev_secret_key_base_replace_in_production_min_64_chars_long_abc123
       RAILS_MASTER_KEY: ""
+      REDIS_URL: redis://redis:6379/1
       CORE_API_URL: http://yagye_core:4000
       CORE_PORTAL_SERVICE_SECRET: dev_portal_service_secret_change_in_production
       KAFKA_BOOTSTRAP_SERVERS: redpanda:9092
@@ -182,6 +186,8 @@ services:
     depends_on:
       db:
         condition: service_healthy
+      redis:
+        condition: service_healthy
       yagye_core:
         condition: service_healthy
       redpanda:
@@ -190,6 +196,22 @@ services:
       - data  # Portal DB (portal_* read models) + Redpanda bootstrap
       - edge  # Portal → Core HTTP via CoreApiClient
     # NOT on core_mesh — Portal must go through Core's API, never Simulator directly
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: redis-server --appendonly yes --maxmemory 256mb --maxmemory-policy allkeys-lru
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    networks:
+      - data
 
   rabbitmq:
     image: rabbitmq:4-management
@@ -236,13 +258,13 @@ services:
     # NOT on edge or core_mesh — consumers write to DB, they don't call other services
 
 # Services added in later phases:
-#   redis      — P17 (distributed rate limiting, session store)
 #   Floci      — P21 (local AWS emulator; S3 + KMS for KYB documents)
 
 volumes:
   postgres_data:
   redpanda_data:
   rabbitmq_data:
+  redis_data:
 
 networks:
   data:

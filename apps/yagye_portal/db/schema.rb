@@ -10,10 +10,38 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_09_25_000001) do
+ActiveRecord::Schema[8.1].define(version: 2026_09_27_000001) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pgcrypto"
+
+  create_table "active_storage_attachments", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+    t.uuid "blob_id", null: false
+    t.datetime "created_at", null: false
+    t.string "name", null: false
+    t.uuid "record_id", null: false
+    t.string "record_type", null: false
+    t.index ["blob_id"], name: "index_active_storage_attachments_on_blob_id"
+    t.index ["record_type", "record_id", "name", "blob_id"], name: "index_active_storage_attachments_uniqueness", unique: true
+  end
+
+  create_table "active_storage_blobs", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+    t.bigint "byte_size", null: false
+    t.string "checksum"
+    t.string "content_type"
+    t.datetime "created_at", null: false
+    t.string "filename", null: false
+    t.string "key", null: false
+    t.text "metadata"
+    t.string "service_name", null: false
+    t.index ["key"], name: "index_active_storage_blobs_on_key", unique: true
+  end
+
+  create_table "active_storage_variant_records", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+    t.uuid "blob_id", null: false
+    t.string "variation_digest", null: false
+    t.index ["blob_id", "variation_digest"], name: "index_active_storage_variant_records_uniqueness", unique: true
+  end
 
   create_table "audit_logs", force: :cascade do |t|
     t.text "action", null: false
@@ -115,6 +143,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_25_000001) do
     t.datetime "created_at", null: false
     t.text "currency", default: "GHS", null: false
     t.text "customer_msisdn"
+    t.datetime "evidence_submitted_at"
+    t.text "evidence_text"
     t.datetime "last_applied_at", default: -> { "now()" }, null: false
     t.text "last_event_id", default: "", null: false
     t.text "merchant_code", null: false
@@ -147,6 +177,19 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_25_000001) do
     t.index ["merchant_code"], name: "index_portal_ip_allowlists_on_merchant_code"
   end
 
+  create_table "portal_ip_blocklists", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+    t.string "cidr", null: false
+    t.datetime "created_at", null: false
+    t.string "created_by"
+    t.datetime "deleted_at"
+    t.string "label"
+    t.string "merchant_code", null: false
+    t.string "reason"
+    t.datetime "updated_at", null: false
+    t.index ["merchant_code", "cidr"], name: "index_portal_ip_blocklists_on_merchant_and_cidr_active", unique: true, where: "(deleted_at IS NULL)"
+    t.index ["merchant_code"], name: "index_portal_ip_blocklists_on_merchant_code"
+  end
+
   create_table "portal_merchant_applications", primary_key: "application_code", id: :text, force: :cascade do |t|
     t.integer "aggregate_version", default: 0, null: false
     t.text "approved_by"
@@ -164,6 +207,16 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_25_000001) do
     t.text "trading_name"
     t.index ["merchant_code"], name: "index_portal_merchant_applications_on_merchant_code"
     t.index ["status"], name: "index_portal_merchant_applications_on_status"
+  end
+
+  create_table "portal_merchant_brandings", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+    t.datetime "created_at", null: false
+    t.text "display_name"
+    t.text "merchant_code", null: false
+    t.text "support_email"
+    t.text "support_phone"
+    t.datetime "updated_at", null: false
+    t.index ["merchant_code"], name: "index_portal_merchant_brandings_on_merchant_code", unique: true
   end
 
   create_table "portal_merchants", id: false, force: :cascade do |t|
@@ -193,6 +246,35 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_25_000001) do
     t.index ["deleted_at"], name: "index_portal_msisdn_allowlists_on_deleted_at"
     t.index ["merchant_code", "msisdn"], name: "idx_portal_msisdn_allowlists_unique_active", unique: true, where: "(deleted_at IS NULL)"
     t.index ["merchant_code"], name: "index_portal_msisdn_allowlists_on_merchant_code"
+  end
+
+  create_table "portal_msisdn_blocklists", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+    t.datetime "created_at", null: false
+    t.text "created_by"
+    t.datetime "deleted_at"
+    t.text "label"
+    t.text "merchant_code", null: false
+    t.text "msisdn", null: false
+    t.text "reason"
+    t.datetime "updated_at", null: false
+    t.index ["deleted_at"], name: "index_portal_msisdn_blocklists_on_deleted_at"
+    t.index ["merchant_code", "msisdn"], name: "idx_portal_msisdn_blocklists_unique_active", unique: true, where: "(deleted_at IS NULL)"
+    t.index ["merchant_code"], name: "index_portal_msisdn_blocklists_on_merchant_code"
+  end
+
+  create_table "portal_notifications", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+    t.string "body", null: false
+    t.datetime "created_at", null: false
+    t.string "event_type", null: false
+    t.string "link"
+    t.jsonb "metadata", default: {}, null: false
+    t.datetime "read_at"
+    t.string "title", null: false
+    t.datetime "updated_at", null: false
+    t.uuid "user_id", null: false
+    t.index ["user_id", "created_at"], name: "index_portal_notifications_on_user_id_and_created_at"
+    t.index ["user_id", "read_at"], name: "index_portal_notifications_on_user_id_and_read_at"
+    t.index ["user_id"], name: "index_portal_notifications_on_user_id"
   end
 
   create_table "portal_payments", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
@@ -413,6 +495,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_25_000001) do
     t.datetime "last_sign_in_at"
     t.string "last_sign_in_ip"
     t.datetime "locked_at"
+    t.jsonb "notification_preferences", default: "{\"events\":{\"payment_success\":true,\"payment_failed\":true,\"dispute_opened\":true,\"dispute_resolved\":true,\"kyb_status\":true,\"new_team_member\":false,\"api_key_created\":false,\"login_new_device\":true},\"channels\":{\"email\":true,\"in_app\":true}}", null: false
     t.text "otp_recovery_codes"
     t.boolean "otp_required_for_login", default: false, null: false
     t.string "otp_secret"
@@ -443,10 +526,13 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_25_000001) do
     t.index ["item_type", "item_id"], name: "index_versions_on_item_type_and_item_id"
   end
 
+  add_foreign_key "active_storage_attachments", "active_storage_blobs", column: "blob_id"
+  add_foreign_key "active_storage_variant_records", "active_storage_blobs", column: "blob_id"
   add_foreign_key "audit_logs", "users"
   add_foreign_key "merchant_memberships", "users"
   add_foreign_key "merchant_memberships", "users", column: "invited_by_id"
   add_foreign_key "passkey_credentials", "users"
+  add_foreign_key "portal_notifications", "users"
   add_foreign_key "role_assignment_requests", "users", column: "requested_by_id"
   add_foreign_key "role_assignment_requests", "users", column: "reviewed_by_id"
   add_foreign_key "role_assignment_requests", "users", column: "target_user_id"
