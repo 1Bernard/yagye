@@ -119,4 +119,36 @@ defmodule YagyeCore.Payouts do
     )
     |> Repo.all()
   end
+
+  @doc """
+  Sets one destination as default, clearing is_default on all others for the same merchant.
+  Returns {:ok, destination} or {:error, :not_found | changeset}.
+  """
+  def set_default_destination(merchant_id, destination_id) do
+    Repo.transaction(fn ->
+      dest =
+        Repo.get_by(PayoutDestination, id: destination_id, merchant_id: merchant_id, active: true)
+
+      if is_nil(dest) do
+        Repo.rollback(:not_found)
+      else
+        from(d in PayoutDestination,
+          where:
+            d.merchant_id == ^merchant_id and d.id != ^destination_id and d.is_default == true
+        )
+        |> Repo.update_all(set: [is_default: false])
+
+        dest
+        |> Ecto.Changeset.change(is_default: true)
+        |> Repo.update!()
+      end
+    end)
+  end
+
+  def get_destination_by_public_id(public_id) do
+    case Repo.get_by(PayoutDestination, public_id: public_id, active: true) do
+      nil -> {:error, :not_found}
+      dest -> {:ok, dest}
+    end
+  end
 end

@@ -44,7 +44,8 @@ defmodule YagyeCoreWeb.Controllers.Settlement.SettlementJSON do
       platform_fees: b.platform_fees,
       net_amount: b.net_amount,
       settled_at: b.settled_at,
-      inserted_at: b.inserted_at
+      inserted_at: b.inserted_at,
+      reconciliation_run_id: b.reconciliation_run_id
     }
   end
 end

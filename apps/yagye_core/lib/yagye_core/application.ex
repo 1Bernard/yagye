@@ -14,6 +14,7 @@ defmodule YagyeCore.Application do
       [
         YagyeCoreWeb.Telemetry,
         YagyeCore.Repo,
+        {Redix, {redis_url(), [name: :yagye_redix]}},
         YagyeCore.Shared.RateLimiter,
         {DNSCluster, query: Application.get_env(:yagye_core, :dns_cluster_query) || :ignore},
         {Phoenix.PubSub, name: YagyeCore.PubSub},
@@ -25,6 +26,10 @@ defmodule YagyeCore.Application do
     # for other strategies and supported options
     opts = [strategy: :one_for_one, name: YagyeCore.Supervisor]
     Supervisor.start_link(children, opts)
+  end
+
+  defp redis_url do
+    System.get_env("REDIS_URL", "redis://localhost:6379/0")
   end
 
   defp rabbitmq_children do

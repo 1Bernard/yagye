@@ -80,6 +80,8 @@ defmodule YagyeCore.MixProject do
       # P15 — RabbitMQ outbound webhook delivery
       {:amqp, "~> 4.2"},
       {:broadway_rabbitmq, "~> 0.8"},
+      # P17 — distributed rate limiting via Redis
+      {:redix, "~> 1.5"},
       {:ex_machina, "~> 2.8.2", only: :test},
       {:mox, "~> 1.0", only: :test}
     ]

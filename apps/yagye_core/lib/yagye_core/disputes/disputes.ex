@@ -62,6 +62,18 @@ defmodule YagyeCore.Disputes do
     {:ok, Pagination.paginate(base, :public_id, opts)}
   end
 
+  @doc """
+  Advances a dispute to `under_review` when a merchant submits evidence.
+  No-ops if the dispute is already resolved.
+  """
+  def submit_evidence(%Dispute{stage: "resolved"} = dispute), do: {:ok, dispute}
+
+  def submit_evidence(%Dispute{} = dispute) do
+    dispute
+    |> Dispute.advance_stage_changeset("under_review")
+    |> Repo.update()
+  end
+
   def get_dispute(public_id) do
     case Repo.get_by(Dispute, public_id: public_id) do
       nil -> {:error, :not_found}
