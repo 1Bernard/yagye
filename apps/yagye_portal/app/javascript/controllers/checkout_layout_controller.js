@@ -1,7 +1,7 @@
 import { Controller } from "@hotwired/stimulus"
 
 export default class extends Controller {
-  static targets = ["methodList", "previewList", "emptyPreview", "saveBtn", "savedBadge", "checkoutUrl", "logoUrlInput", "previewLogoImg"]
+  static targets = ["methodList", "previewList", "emptyPreview", "saveBtn", "savedBadge", "checkoutUrl", "logoUrlInput", "previewLogoImg", "copyUrlBtn"]
   static values  = {
     saveUrl:  String,
     csrf:     String,
@@ -195,6 +195,18 @@ export default class extends Controller {
       }
     }
     this._markDirty()
+  }
+
+  copyUrl() {
+    const url = this.hasCheckoutUrlTarget ? this.checkoutUrlTarget.href : ""
+    if (!url) return
+    const btn = this.hasCopyUrlBtnTarget ? this.copyUrlBtnTarget : null
+    navigator.clipboard.writeText(url).then(() => {
+      if (!btn) return
+      const orig = btn.innerHTML
+      btn.innerHTML = "<span style=\"color:#16a34a;font-size:11.5px;font-weight:500\">Copied!</span>"
+      setTimeout(() => { btn.innerHTML = orig }, 2000)
+    }).catch(() => {})
   }
 
   navigateLink(event) {

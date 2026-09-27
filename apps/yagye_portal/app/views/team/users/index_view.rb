@@ -24,6 +24,10 @@ module Team
           ]
         ) do
           render UI::PageHeader.new(title: "Team members", subtitle: "Manage who has access to your account.") do
+            render UI::Button.new(variant: :secondary, href: team_activity_log_path) do
+              render UI::Icon.new(:clock, class: ICON_SM)
+              plain "Activity log"
+            end
             if @can_invite
               render UI::Button.new(variant: :primary, href: new_team_user_path,
                                     data: { turbo_frame: "drawer-frame" }) do

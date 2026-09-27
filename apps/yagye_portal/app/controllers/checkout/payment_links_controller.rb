@@ -28,7 +28,29 @@ module Checkout
       authorize :checkout, :index?
       result = core.get_payment_link(params[:id])
       return redirect_to payment_links_path, alert: "Payment link not found." unless result.success?
-      render Checkout::PaymentLinks::ShowView.new(link: result.body)
+
+      link = result.body
+      sessions_result = core.list_checkout_sessions(
+        merchant_code:   current_user.merchant_code,
+        payment_link_id: params[:id],
+        limit:           500
+      )
+      sessions  = sessions_result.success? ? Array(sessions_result.body["data"]) : []
+      analytics = {
+        views:       sessions.size,
+        completions: sessions.count { |s| s["state"] == "completed" },
+        expired:     sessions.count { |s| s["state"] == "expired" }
+      }
+
+      render Checkout::PaymentLinks::ShowView.new(link: link, analytics: analytics)
+    end
+
+    def display
+      authorize :checkout, :index?
+      result = core.get_payment_link(params[:id])
+      return redirect_to payment_links_path, alert: "Payment link not found." unless result.success?
+      link = result.body
+      render Checkout::PaymentLinks::DisplayView.new(link: link)
     end
 
     def deactivate
@@ -94,13 +116,23 @@ module Checkout
       @current = @links.find { |l| l["id"] == params[:id] }
       return redirect_to payment_links_path, alert: "Payment link not found." if @current.nil?
 
-      render Checkout::CheckoutLayoutView.new(link: @current, all_links: @links)
+      branding = current_user.merchant_user? ? PortalMerchantBranding.find_or_initialize_for(current_user.merchant_code) : nil
+      render Checkout::CheckoutLayoutView.new(link: @current, all_links: @links, branding: branding)
     end
 
     def update_layout
       authorize :checkout, :manage_layout?
       raw = params[:layout]
       layout = raw.is_a?(String) ? JSON.parse(raw) : raw&.to_unsafe_h || {}
+
+      # Logo is managed via Settings branding, not user-typed URLs — inject server-side
+      branding = current_user.merchant_user? ? PortalMerchantBranding.find_or_initialize_for(current_user.merchant_code) : nil
+      if branding&.logo&.attached?
+        layout = layout.merge("logo_url" => branding.logo_url)
+      else
+        layout = layout.except("logo_url")
+      end
+
       result = core.update_payment_link_layout(
         params[:id],
         merchant_code: current_user.merchant_code,

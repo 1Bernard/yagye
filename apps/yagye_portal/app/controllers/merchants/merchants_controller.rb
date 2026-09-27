@@ -58,12 +58,32 @@ module Merchants
       authorize :merchants, :update?
       application = decode_id(PortalMerchantApplication)
       new_status  = params[:status].to_s.strip
-      result = CoreApiClient.new.approve_application(
-        application.merchant_code || application.application_code,
-        approved_by: current_user.user_code
-      )
+      client      = CoreApiClient.new
+
+      result =
+        case new_status
+        when "approved"
+          client.approve_application(
+            application.merchant_code || application.application_code,
+            approved_by: current_user.user_code
+          )
+        when "rejected"
+          client.reject_application(
+            application.application_code,
+            rejected_by: current_user.user_code,
+            reason: params[:reason].presence || "Rejected by ops"
+          )
+        when "suspended"
+          client.suspend_merchant(application.merchant_code, suspended_by: current_user.user_code)
+        when "active"
+          client.reactivate_merchant(application.merchant_code, reactivated_by: current_user.user_code)
+        else
+          return redirect_to(merchant_path(application), alert: "Unknown status: #{new_status}")
+        end
+
       if result.success?
-        redirect_to merchant_path(application), notice: "Merchant status updated to #{new_status.humanize}."
+        application.update_column(:status, new_status == "active" ? "approved" : new_status)
+        redirect_to merchant_path(application), notice: "Merchant #{new_status.humanize}."
       else
         redirect_to merchant_path(application), alert: result.error_message
       end
@@ -104,7 +124,7 @@ module Merchants
       {
         active:       all.where(status: "approved").count,
         pending_kyb:  all.where(status: %w[submitted under_review]).count,
-        suspended:    0,
+        suspended:    all.where(status: "suspended").count,
         onboarded_30d: all.where(status: "approved")
                           .where("last_applied_at >= ?", 30.days.ago).count
       }

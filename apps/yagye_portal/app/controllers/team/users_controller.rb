@@ -34,6 +34,20 @@ module Team
       )
     end
 
+    def activity_log
+      authorize User, :index?
+      user_ids = if current_user.internal_staff?
+                   MerchantMembership.where(merchant_code: params[:merchant_code]).pluck(:user_id)
+                 else
+                   MerchantMembership.where(merchant_code: current_merchant_code).pluck(:user_id)
+                 end
+      events = UserAuditEvent.where(user_id: user_ids)
+                             .includes(:user)
+                             .recent
+                             .limit(200)
+      render Team::Users::ActivityLogView.new(events: events)
+    end
+
     def new
       authorize User, :invite?
       render Team::Users::InviteView.new

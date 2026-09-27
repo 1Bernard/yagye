@@ -210,6 +210,18 @@ class CoreApiClient
          { approved_by: approved_by })
   end
 
+  # POST /internal/merchants/:code/suspend
+  def suspend_merchant(merchant_code, suspended_by:, reason: nil)
+    post("/internal/merchants/#{merchant_code}/suspend",
+         { suspended_by: suspended_by, reason: reason }.compact)
+  end
+
+  # POST /internal/merchants/:code/reactivate
+  def reactivate_merchant(merchant_code, reactivated_by:)
+    post("/internal/merchants/#{merchant_code}/reactivate",
+         { reactivated_by: reactivated_by })
+  end
+
   # ── KYB merchant self-service (merchant-facing verify flow) ──────────────────
 
   # GET /internal/merchants/:code/kyb-status
@@ -245,6 +257,40 @@ class CoreApiClient
   # PUT /internal/merchants/:code/settlement-controls (merchant destination only)
   def update_settlement_destination(merchant_code, attrs)
     put("/internal/merchants/#{merchant_code}/settlement-controls", attrs)
+  end
+
+  # ── Payout destinations ────────────────────────────────────────────────────
+
+  # GET /internal/merchants/:code/payout-destinations
+  def list_payout_destinations(merchant_code)
+    get("/internal/merchants/#{merchant_code}/payout-destinations")
+  end
+
+  # POST /internal/merchants/:code/payout-destinations
+  def create_payout_destination(merchant_code, attrs)
+    post("/internal/merchants/#{merchant_code}/payout-destinations", attrs)
+  end
+
+  # POST /internal/merchants/:code/payout-destinations/:id/set-default
+  def set_default_payout_destination(merchant_code, destination_id)
+    post("/internal/merchants/#{merchant_code}/payout-destinations/#{destination_id}/set-default", {})
+  end
+
+  # DELETE /internal/merchants/:code/payout-destinations/:id
+  def deactivate_payout_destination(merchant_code, destination_id)
+    delete("/internal/merchants/#{merchant_code}/payout-destinations/#{destination_id}")
+  end
+
+  # ── Disputes (portal → core, service-token authenticated) ─────────────────
+
+  # POST /internal/disputes/:id/evidence
+  def submit_dispute_evidence(dispute_core_id)
+    post("/internal/disputes/#{dispute_core_id}/evidence", {})
+  end
+
+  # POST /internal/disputes/:id/resolve
+  def resolve_dispute(dispute_core_id, outcome)
+    post("/internal/disputes/#{dispute_core_id}/resolve", { outcome: outcome })
   end
 
   # ── KYB / Compliance (ops read + write) ───────────────────────────────────
@@ -393,6 +439,14 @@ class CoreApiClient
   end
 
 
+
+  # ── Reserves ─────────────────────────────────────────────────────────────
+
+  # GET /internal/merchants/:merchant_code/reserves
+  def get_reserves(merchant_code, limit: 50, offset: 0)
+    qs = "?limit=#{limit}&offset=#{offset}"
+    get("/internal/merchants/#{merchant_code}/reserves#{qs}")
+  end
 
   # ── FX rates ──────────────────────────────────────────────────────────────
 

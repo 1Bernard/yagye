@@ -28,10 +28,12 @@ module Team
               if @available_roles.empty?
                 p(class: TYPE_CAPTION) { plain "No roles available for this user type." }
               else
-                div(class: "flex flex-col gap-[10px]") do
+                div(class: "flex flex-col gap-[10px]", id: "roles-grid") do
                   @available_roles.each { |role| role_card(role) }
                 end
                 no_role_warning
+                sod_conflict_warning
+                sod_script
               end
             end
           end
@@ -40,6 +42,8 @@ module Team
       end
 
       private
+
+      SoD_PAIRS_JSON = Portal::RoleMetadata::SoD_PAIRS.to_json.freeze
 
       def role_style
         style do
@@ -51,6 +55,9 @@ module Team
             .role-chk-icon { display: none; }
             .no-role-warn { display: none; }
             #edit-roles-form:not(:has(input[type=checkbox]:checked)) .no-role-warn { display: flex; }
+            .sod-conflict-warn { display: none; }
+            .sod-conflict-warn.visible { display: flex; }
+            .role-opt.sod-blocked { border-color: rgba(220,38,38,0.4) !important; background: rgba(220,38,38,0.04) !important; }
           CSS
         end
       end
@@ -79,14 +86,24 @@ module Team
       # ── Footer ────────────────────────────────────────────────────────────────
 
       def drawer_footer
-        div(class: "sticky bottom-0 bg-white border-t border-gray-100 px-6 py-4 flex items-center gap-3") do
-          render UI::Button.new(variant: :primary, type: "submit", form: "edit-roles-form") do
-            render UI::Icon.new(:paper_plane, class: ICON_SM)
-            plain "Request role change"
+        div(class: "sticky bottom-0 bg-white border-t border-gray-100 px-6 py-4") do
+          div(class: "flex items-center gap-3 mb-3") do
+            span(class: "inline-flex items-center gap-[5px] text-[10.5px] font-semibold px-[8px] py-[3px] rounded-full",
+                 style: "background:rgba(61,71,245,0.08);color:#3D47F5;border:1px solid rgba(61,71,245,0.22)") do
+              span(class: "flex w-[9px] h-[9px]") { render UI::Icon.new(:shield, class: "w-full h-full") }
+              plain "Maker / Checker required"
+            end
+            p(class: "text-[11px] text-gray-400") { plain "A second approver must confirm." }
           end
-          button(type: "button", class: "text-[12.5px] font-medium #{LINK_MUTED}",
-                 data: { action: "click->drawer#close" }) do
-            plain "Cancel"
+          div(class: "flex items-center gap-3") do
+            render UI::Button.new(variant: :primary, type: "submit", form: "edit-roles-form") do
+              render UI::Icon.new(:paper_plane, class: ICON_SM)
+              plain "Request role change"
+            end
+            button(type: "button", class: "text-[12.5px] font-medium #{LINK_MUTED}",
+                   data: { action: "click->drawer#close" }) do
+              plain "Cancel"
+            end
           end
         end
       end
@@ -100,6 +117,50 @@ module Team
           body:        "Role changes are not applied immediately. A member with team management access must approve this request before any permissions change.",
           dismissable: true
         )
+      end
+
+      def sod_conflict_warning
+        div(class: "sod-conflict-warn items-center gap-3 rounded-xl px-4 py-3 mt-2",
+            id: "sod-conflict-warn",
+            style: "background:rgba(220,38,38,0.05);border:1px solid rgba(220,38,38,0.18)") do
+          span(class: "flex w-[14px] h-[14px] flex-shrink-0 text-red-500") do
+            render UI::Icon.new(:alert_circle, class: "w-full h-full")
+          end
+          p(class: "text-[12px] font-medium", style: "color:var(--ink)") do
+            plain "Separation of duties conflict — the selected roles cannot be held by the same person."
+          end
+        end
+      end
+
+      def sod_script
+        script do
+          raw <<~JS
+            (function() {
+              const SOD = #{SoD_PAIRS_JSON};
+              const form = document.getElementById("edit-roles-form");
+              const warn = document.getElementById("sod-conflict-warn");
+              if (!form || !warn) return;
+              function check() {
+                const checked = Array.from(form.querySelectorAll("input[type=checkbox]:checked")).map(i => i.value);
+                let conflict = false;
+                SOD.forEach(([a, b]) => {
+                  const blocked = checked.includes(a) && checked.includes(b);
+                  [a, b].forEach(key => {
+                    const opt = form.querySelector(`[data-role-key="${key}"]`);
+                    if (opt) opt.classList.toggle("sod-blocked", blocked && checked.includes(key));
+                  });
+                  if (blocked) conflict = true;
+                });
+                warn.classList.toggle("visible", conflict);
+                const submit = form.closest("[data-controller]")?.querySelector("[form='edit-roles-form'][type='submit']") ||
+                               document.querySelector("[form='edit-roles-form'][type='submit']");
+                if (submit) submit.disabled = conflict;
+              }
+              form.addEventListener("change", check);
+              check();
+            })();
+          JS
+        end
       end
 
       def no_role_warning
@@ -121,7 +182,8 @@ module Team
         checked    = @current_keys.include?(role.key)
         perm_count = role.permissions.size
 
-        label(class: "role-opt flex items-center gap-3 px-4 py-[13px] rounded-xl border border-gray-200 cursor-pointer") do
+        label(class: "role-opt flex items-center gap-3 px-4 py-[13px] rounded-xl border border-gray-200 cursor-pointer",
+              data: { role_key: role.key }) do
           input(type: "checkbox", name: "role_keys[]", value: role.key,
                 checked: checked, class: "sr-only")
 
