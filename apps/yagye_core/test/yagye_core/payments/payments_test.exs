@@ -3,7 +3,8 @@ defmodule YagyeCore.Payments.PaymentsTest do
 
   import Mox
 
-  alias YagyeCore.{Fixtures, Payments}
+  alias YagyeCore.{Fixtures, Payments, Repo}
+  alias YagyeCore.Payments.Schemas.{Payment, PaymentMobileMoneyDetails}
   alias YagyeCore.Payments.Workers.PaymentDispatchWorker
 
   setup :verify_on_exit!
@@ -253,6 +254,180 @@ defmodule YagyeCore.Payments.PaymentsTest do
 
     test "returns not_found for unknown public_id" do
       assert {:error, :not_found} = Payments.get_payment("pay_nonexistent")
+    end
+  end
+
+  # ── handle_pending_auth/3 — MoMo details row ─────────────────────────────────
+
+  describe "handle_pending_auth/3 — payment_mobile_money_details insert" do
+    setup do
+      merchant = Fixtures.merchant_fixture()
+      provider = Fixtures.simulator_provider_fixture()
+
+      payment =
+        Fixtures.payment_fixture(merchant, %{
+          method: "mobile_money",
+          metadata: %{"network" => "MTN", "msisdn" => "0241000001"}
+        })
+
+      {:ok, payment} = payment |> Payment.transition_changeset("processing") |> Repo.update()
+      {:ok, attempt} = Payments.create_attempt(payment, provider.id)
+      %{payment: payment, attempt: attempt}
+    end
+
+    test "inserts a momo_details row with masked MSISDN and network_reference", %{
+      payment: payment,
+      attempt: attempt
+    } do
+      charge_ref = "test-charge-ref-#{System.unique_integer()}"
+
+      assert {:ok, _} =
+               Payments.handle_pending_auth(payment, attempt, %{provider_reference: charge_ref})
+
+      details = Repo.get(PaymentMobileMoneyDetails, payment.id)
+      assert details != nil
+      assert details.network == "mtn"
+      assert details.network_reference == charge_ref
+      assert details.msisdn_masked =~ ~r/233XX+\d{4}/
+      assert byte_size(details.msisdn_hash) == 64
+      assert details.charge_bearer == "merchant"
+      assert details.financial_transaction_id == nil
+    end
+
+    test "normalises TELECEL/VODAFONE network strings to telecel" do
+      merchant = Fixtures.merchant_fixture()
+      provider = Fixtures.simulator_provider_fixture()
+
+      for raw_network <- ["TELECEL", "VODAFONE"] do
+        payment =
+          Fixtures.payment_fixture(merchant, %{
+            method: "mobile_money",
+            metadata: %{"network" => raw_network, "msisdn" => "0551000001"}
+          })
+
+        {:ok, payment} = payment |> Payment.transition_changeset("processing") |> Repo.update()
+        {:ok, attempt} = Payments.create_attempt(payment, provider.id)
+        ref = "ref-net-#{System.unique_integer([:positive])}"
+
+        assert {:ok, _} =
+                 Payments.handle_pending_auth(payment, attempt, %{provider_reference: ref})
+
+        details = Repo.get!(PaymentMobileMoneyDetails, payment.id)
+        assert details.network == "telecel", "expected telecel for #{raw_network}"
+      end
+    end
+
+    test "skips insert when MSISDN is absent in payment metadata" do
+      merchant = Fixtures.merchant_fixture()
+      provider = Fixtures.simulator_provider_fixture()
+
+      payment =
+        Fixtures.payment_fixture(merchant, %{
+          method: "mobile_money",
+          metadata: %{"network" => "MTN"}
+        })
+
+      {:ok, payment} = payment |> Payment.transition_changeset("processing") |> Repo.update()
+      {:ok, attempt} = Payments.create_attempt(payment, provider.id)
+
+      assert {:ok, _} =
+               Payments.handle_pending_auth(payment, attempt, %{
+                 provider_reference: "ref-no-msisdn"
+               })
+
+      assert Repo.get(PaymentMobileMoneyDetails, payment.id) == nil
+    end
+
+    test "skips insert for non-mobile_money payment method" do
+      merchant = Fixtures.merchant_fixture()
+      provider = Fixtures.simulator_provider_fixture()
+
+      payment =
+        Fixtures.payment_fixture(merchant, %{
+          method: "mobile_money",
+          metadata: %{"network" => "MTN", "msisdn" => "0241000001"}
+        })
+
+      {:ok, payment} = payment |> Payment.transition_changeset("processing") |> Repo.update()
+      payment = %{payment | method: "bank_transfer"}
+      {:ok, attempt} = Payments.create_attempt(payment, provider.id)
+
+      assert {:ok, _} =
+               Payments.handle_pending_auth(payment, attempt, %{provider_reference: "ref-bank"})
+
+      assert Repo.get(PaymentMobileMoneyDetails, payment.id) == nil
+    end
+  end
+
+  # ── handle_provider_response/3 — financial_transaction_id ────────────────────
+
+  describe "handle_provider_response/3 — financial_transaction_id written on success" do
+    setup do
+      merchant = Fixtures.merchant_fixture()
+      provider = Fixtures.simulator_provider_fixture()
+
+      payment =
+        Fixtures.payment_fixture(merchant, %{
+          method: "mobile_money",
+          metadata: %{"network" => "MTN", "msisdn" => "0241000001"}
+        })
+
+      {:ok, payment} = Payments.dispatch_payment(payment.id)
+      {:ok, attempt} = Payments.create_attempt(payment, provider.id)
+
+      # Simulate the RequestToPay being sent (inserts the momo_details row)
+      {:ok, _} =
+        Payments.handle_pending_auth(payment, attempt, %{provider_reference: "pend-ref"})
+
+      {:ok, payment} = Payments.get_payment(payment.public_id)
+      %{payment: payment, attempt: attempt}
+    end
+
+    test "writes financialTransactionId and approved_at on SUCCESSFUL query", %{
+      payment: payment,
+      attempt: attempt
+    } do
+      result = {:ok, %{provider_reference: "ext-ref", auth_code: "fin-tx-mtn-12345"}}
+
+      assert {:ok, updated} = Payments.handle_provider_response(payment, attempt, result)
+      assert updated.state == "succeeded"
+
+      details = Repo.get(PaymentMobileMoneyDetails, payment.id)
+      assert details.financial_transaction_id == "fin-tx-mtn-12345"
+      assert details.approved_at != nil
+    end
+
+    test "skips financial_transaction_id update when auth_code is nil", %{
+      payment: payment,
+      attempt: attempt
+    } do
+      result = {:ok, %{provider_reference: "ext-ref", auth_code: nil}}
+
+      assert {:ok, _} = Payments.handle_provider_response(payment, attempt, result)
+
+      details = Repo.get(PaymentMobileMoneyDetails, payment.id)
+      assert details.financial_transaction_id == nil
+    end
+
+    test "succeeds without momo_details row when MSISDN was absent" do
+      merchant = Fixtures.merchant_fixture()
+      provider = Fixtures.simulator_provider_fixture()
+
+      payment =
+        Fixtures.payment_fixture(merchant, %{
+          method: "mobile_money",
+          metadata: %{"network" => "MTN"}
+        })
+
+      {:ok, payment} = Payments.dispatch_payment(payment.id)
+      {:ok, attempt} = Payments.create_attempt(payment, provider.id)
+      {:ok, payment} = Payments.get_payment(payment.public_id)
+
+      result = {:ok, %{provider_reference: "ext-ref", auth_code: "fin-tx-99"}}
+
+      assert {:ok, succeeded} = Payments.handle_provider_response(payment, attempt, result)
+      assert succeeded.state == "succeeded"
+      assert Repo.get(PaymentMobileMoneyDetails, payment.id) == nil
     end
   end
 end
