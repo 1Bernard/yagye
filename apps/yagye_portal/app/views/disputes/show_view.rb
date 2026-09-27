@@ -5,11 +5,14 @@ module Disputes
     include UI::Theme
 
     REASON_CFG = {
-      "fraud"         => { label: "Fraudulent transaction", color: "#dc2626", tint: "rgba(220,38,38,0.08)" },
-      "duplicate"     => { label: "Duplicate charge",       color: "#d97706", tint: "rgba(217,119,6,0.08)" },
-      "not_received"  => { label: "Product not received",   color: "#6d28d9", tint: "rgba(109,40,217,0.08)" },
-      "unrecognised"  => { label: "Unrecognised charge",    color: "#0d9488", tint: "rgba(13,148,136,0.08)" },
-      "other"         => { label: "Other",                  color: "#6b7280", tint: "rgba(107,114,128,0.08)" }
+      "fraud"                  => { label: "Fraudulent transaction",       color: "#dc2626", tint: "rgba(220,38,38,0.08)" },
+      "duplicate"              => { label: "Duplicate charge",             color: "#d97706", tint: "rgba(217,119,6,0.08)" },
+      "not_received"           => { label: "Product not received",         color: "#6d28d9", tint: "rgba(109,40,217,0.08)" },
+      "unrecognised"           => { label: "Unrecognised charge",          color: "#0d9488", tint: "rgba(13,148,136,0.08)" },
+      "unauthorized_transfer"  => { label: "Unauthorized transfer",        color: "#dc2626", tint: "rgba(220,38,38,0.08)" },
+      "network_error"          => { label: "Network / telco error",        color: "#d97706", tint: "rgba(217,119,6,0.08)" },
+      "non_delivery"           => { label: "Goods / service not received", color: "#6d28d9", tint: "rgba(109,40,217,0.08)" },
+      "other"                  => { label: "Other",                        color: "#6b7280", tint: "rgba(107,114,128,0.08)" }
     }.freeze
 
     def initialize(dispute:, can_submit_evidence: false)
@@ -87,24 +90,70 @@ module Disputes
 
     def evidence_card
       render UI::Card.new do |c|
-        c.header("Evidence", icon: :file) do
-          if @can_submit_evidence && @dispute.open?
-            render UI::Button.new(variant: :secondary, style: "cursor:not-allowed;opacity:0.55", disabled: true) do
-              render UI::Icon.new(:plus, class: ICON_SM)
-              plain "Submit evidence"
+        c.header("Evidence", icon: :file)
+        c.body(padding: false) do
+          if @dispute.evidence_submitted?
+            submitted_evidence_body
+          elsif @can_submit_evidence
+            evidence_form
+          else
+            no_evidence_placeholder
+          end
+        end
+      end
+    end
+
+    def submitted_evidence_body
+      div(class: "px-6 py-5 flex flex-col gap-4") do
+        div(class: "flex items-center gap-2") do
+          span(class: "flex w-[14px] h-[14px] flex-shrink-0", style: "color:#{GREEN}") do
+            render UI::Icon.new(:check_circle, class: "w-full h-full")
+          end
+          p(class: "text-[12.5px] font-semibold", style: "color:#{GREEN}") { plain "Evidence submitted" }
+          if @dispute.evidence_submitted_at
+            p(class: TYPE_CAPTION) do
+              plain "· #{@dispute.evidence_submitted_at.strftime("%d %b %Y, %H:%M")}"
             end
           end
         end
-        c.body(padding: false) do
-          div(class: "py-12 px-6 flex flex-col items-center justify-center gap-[10px] text-center") do
-            div(class: "w-11 h-11 rounded-xl icon-purple flex items-center justify-center mb-1") do
-              span(class: "flex w-[22px] h-[22px]") do
-                render UI::Icon.new(:file, class: "w-full h-full")
-              end
-            end
-            p(class: TYPE_BODY_MD) { plain "No evidence submitted" }
-            p(class: TYPE_CAPTION) { plain "Evidence submission will be available in the next release." }
+        div(class: "bg-gray-50 rounded-xl px-4 py-3") do
+          p(class: "text-[13px] text-gray-700 leading-relaxed whitespace-pre-wrap") do
+            plain @dispute.evidence_text.to_s
           end
+        end
+      end
+    end
+
+    def evidence_form
+      div(class: "px-6 py-5") do
+        p(class: "#{TYPE_CAPTION} mb-3") do
+          plain "Provide context that supports your position in this dispute. Include relevant order details, " \
+                "delivery confirmation, or communication with the customer."
+        end
+        form(action: dispute_evidence_path(@dispute), method: "post") do
+          input(type: "hidden", name: "authenticity_token", value: form_authenticity_token)
+          div(class: "space-y-3") do
+            textarea(name: "evidence_text", rows: "5", placeholder: "Describe the transaction and why it should be resolved in your favour...",
+                     class: "w-full border border-gray-200 rounded-[10px] px-3 py-2.5 text-[13px] " \
+                            "text-gray-700 bg-white outline-none focus:ring-1 resize-none " \
+                            "focus:ring-[#{BRAND}] leading-relaxed")
+            render UI::Button.new(variant: :primary, type: "submit") { plain "Submit evidence" }
+          end
+        end
+      end
+    end
+
+    def no_evidence_placeholder
+      div(class: "py-10 px-6 flex flex-col items-center justify-center gap-[10px] text-center") do
+        div(class: "w-11 h-11 rounded-xl flex items-center justify-center mb-1",
+            style: "background:rgba(61,71,245,0.08)") do
+          span(class: "flex w-[22px] h-[22px]", style: "color:#{BRAND}") do
+            render UI::Icon.new(:file, class: "w-full h-full")
+          end
+        end
+        p(class: TYPE_BODY_MD) { plain "No evidence submitted" }
+        p(class: TYPE_CAPTION) do
+          plain @dispute.open? ? "The merchant has not submitted evidence for this dispute." : "No evidence was submitted before this dispute was resolved."
         end
       end
     end
@@ -201,18 +250,27 @@ module Disputes
     end
 
     def ops_actions_card
+      return unless @dispute.open?
+
       div(class: "bg-white border border-gray-100 rounded-2xl overflow-hidden") do
         div(class: "px-[18px] py-4 border-b border-gray-100") do
           p(class: TYPE_TITLE) { plain "Ops actions" }
         end
         div(class: "px-[18px] py-4 flex flex-col gap-2") do
-          render UI::Button.new(variant: :secondary,
-                 style: "width:100%;justify-content:center;cursor:not-allowed;opacity:0.55",
-                 disabled: true) { plain "Mark as won" }
-          render UI::Button.new(variant: :danger,
-                 style: "width:100%;justify-content:center;cursor:not-allowed;opacity:0.55",
-                 disabled: true) { plain "Mark as lost" }
-          p(class: "#{TYPE_CAPTION} text-center") { plain "Dispute resolution coming in P12." }
+          form(action: resolve_dispute_path(@dispute), method: "post",
+               data: { turbo_confirm: "Mark this dispute as won? The payment will return to succeeded." }) do
+            input(type: "hidden", name: "authenticity_token", value: form_authenticity_token)
+            input(type: "hidden", name: "outcome",            value: "won")
+            render UI::Button.new(variant: :secondary, type: "submit",
+                   style: "width:100%;justify-content:center") { plain "Mark as won" }
+          end
+          form(action: resolve_dispute_path(@dispute), method: "post",
+               data: { turbo_confirm: "Mark this dispute as lost? The payment will transition to chargebacked." }) do
+            input(type: "hidden", name: "authenticity_token", value: form_authenticity_token)
+            input(type: "hidden", name: "outcome",            value: "lost")
+            render UI::Button.new(variant: :danger, type: "submit",
+                   style: "width:100%;justify-content:center") { plain "Mark as lost" }
+          end
         end
       end
     end

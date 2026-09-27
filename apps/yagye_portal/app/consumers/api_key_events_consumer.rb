@@ -47,5 +47,29 @@ class ApiKeyEventsConsumer < ApplicationConsumer
 
     PortalApiKey.upsert(attrs, unique_by: :key_id,
                                 update_only: attrs.keys - [ :key_id ])
+
+    if payload["revoked_at"].nil? && existing.nil?
+      notify_key_created(payload)
+    end
+  end
+
+  def notify_key_created(payload)
+    merchant_code = payload["merchant_code"]
+    return if merchant_code.blank?
+
+    label  = payload["label"].presence || "API key"
+    prefix = payload["key_prefix"] || payload["prefix"]
+    body   = prefix.present? ? "#{label} (#{prefix}...)" : label
+
+    Notifications::DeliveryService.deliver(
+      merchant_code: merchant_code,
+      event_type:    "api_key_created",
+      title:         "New API key generated",
+      body:          body,
+      link:          "/developers",
+      metadata:      { key_id: payload["key_id"] || payload["public_id"] }
+    )
+  rescue StandardError => e
+    Rails.logger.warn("[ApiKeyEventsConsumer] notify failed: #{e.message}")
   end
 end

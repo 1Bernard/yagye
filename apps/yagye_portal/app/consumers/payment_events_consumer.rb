@@ -39,6 +39,7 @@ class PaymentEventsConsumer < ApplicationConsumer
       p.save!
       broadcast_to_feed(p)
       broadcast_status_update(p)
+      notify_payment(p)
     end
   end
 
@@ -55,6 +56,32 @@ class PaymentEventsConsumer < ApplicationConsumer
     )
   rescue StandardError => e
     Rails.logger.warn("[PaymentEventsConsumer] feed broadcast failed: #{e.message}")
+  end
+
+  def notify_payment(payment)
+    case payment.status
+    when "succeeded"
+      amt = payment.amount ? "#{payment.currency} #{sprintf('%.2f', payment.amount.to_f / 100)}" : ""
+      Notifications::DeliveryService.deliver(
+        merchant_code: payment.merchant_code,
+        event_type:    "payment_success",
+        title:         "Payment received",
+        body:          "#{amt} from #{payment.customer_msisdn || payment.customer_email || 'a customer'} · Ref: #{payment.reference}",
+        link:          "/payments/#{payment.id}",
+        metadata:      { payment_id: payment.id, reference: payment.reference }
+      )
+    when "failed"
+      Notifications::DeliveryService.deliver(
+        merchant_code: payment.merchant_code,
+        event_type:    "payment_failed",
+        title:         "Payment failed",
+        body:          "Ref: #{payment.reference} — #{payment.provider || 'unknown provider'}",
+        link:          "/payments/#{payment.id}",
+        metadata:      { payment_id: payment.id, reference: payment.reference }
+      )
+    end
+  rescue StandardError => e
+    Rails.logger.warn("[PaymentEventsConsumer] notify failed: #{e.message}")
   end
 
   def broadcast_status_update(payment)

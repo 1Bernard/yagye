@@ -46,6 +46,23 @@ class MerchantApplicationEventsConsumer < ApplicationConsumer
     end
 
     record.save!
+    notify_kyb_status(record)
+  end
+
+  def notify_kyb_status(record)
+    return if record.merchant_code.blank?
+
+    status_label = record.status.tr("_", " ").capitalize
+    Notifications::DeliveryService.deliver(
+      merchant_code: record.merchant_code,
+      event_type:    "kyb_status",
+      title:         "KYB status update",
+      body:          "Your application status is now: #{status_label}",
+      link:          "/settings?tab=verification",
+      metadata:      { application_code: record.application_code, status: record.status }
+    )
+  rescue StandardError => e
+    Rails.logger.warn("[MerchantApplicationEventsConsumer] notify failed: #{e.message}")
   end
 
   def activate_live_mode(event)

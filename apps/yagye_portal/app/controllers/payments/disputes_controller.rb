@@ -36,8 +36,47 @@ module Payments
     def show
       authorize :disputes, :show?
       dispute = decode_id(Dispute)
-      render Disputes::ShowView.new(dispute: dispute)
+      can_submit = current_user.merchant_user? && dispute.open? && dispute.evidence_text.blank?
+      render Disputes::ShowView.new(dispute: dispute, can_submit_evidence: can_submit)
     end
+
+    def submit_evidence
+      authorize :disputes, :update?
+      dispute = decode_id(Dispute)
+
+      unless current_user.merchant_user? && dispute.open?
+        return redirect_to dispute_path(dispute), alert: "Evidence cannot be submitted for this dispute."
+      end
+
+      text = params[:evidence_text].to_s.strip
+      if text.blank?
+        return redirect_to dispute_path(dispute), alert: "Evidence text cannot be blank."
+      end
+
+      result = CoreApiClient.new.submit_dispute_evidence(dispute.core_dispute_id)
+      if result.success?
+        dispute.update!(evidence_text: text, evidence_submitted_at: Time.current)
+        redirect_to dispute_path(dispute), notice: "Evidence submitted successfully."
+      else
+        redirect_to dispute_path(dispute), alert: "Could not submit evidence. Please try again."
+      end
+    end
+
+    def resolve
+      authorize :disputes, :resolve?
+      dispute = decode_id(Dispute)
+      outcome = params[:outcome].presence_in(%w[won lost]) || "lost"
+
+      result = CoreApiClient.new.resolve_dispute(dispute.core_dispute_id, outcome)
+      if result.success?
+        new_status = outcome == "won" ? "won" : "lost"
+        dispute.update!(status: new_status, resolved_at: Time.current)
+        redirect_to dispute_path(dispute), notice: "Dispute marked as #{outcome}."
+      else
+        redirect_to dispute_path(dispute), alert: "Could not resolve dispute. Please try again."
+      end
+    end
+
     private
 
     def dispute_stats(scope)

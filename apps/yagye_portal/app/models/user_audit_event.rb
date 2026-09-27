@@ -11,7 +11,9 @@ class UserAuditEvent < ApplicationRecord
     api_key_created api_key_revoked
     webhook_added webhook_removed
     ip_allowlisted ip_removed
+    ip_blocked ip_unblocked
     msisdn_allowlisted msisdn_removed
+    msisdn_blocked msisdn_unblocked
     session_revoked
   ].freeze
 
@@ -32,8 +34,12 @@ class UserAuditEvent < ApplicationRecord
     "webhook_removed"   => "Webhook removed",
     "ip_allowlisted"    => "IP address added",
     "ip_removed"        => "IP address removed",
-    "msisdn_allowlisted" => "Phone number added",
-    "msisdn_removed"    => "Phone number removed",
+    "ip_blocked"        => "IP address blocked",
+    "ip_unblocked"      => "IP address unblocked",
+    "msisdn_allowlisted" => "Phone number added to allowlist",
+    "msisdn_removed"    => "Phone number removed from allowlist",
+    "msisdn_blocked"    => "Phone number blocked",
+    "msisdn_unblocked"  => "Phone number unblocked",
     "session_revoked"   => "Session revoked"
   }.freeze
 
@@ -50,8 +56,12 @@ class UserAuditEvent < ApplicationRecord
     "webhook_removed"   => :link,
     "ip_allowlisted"    => :globe,
     "ip_removed"        => :globe,
+    "ip_blocked"        => :shield_off,
+    "ip_unblocked"      => :shield,
     "msisdn_allowlisted" => :phone,
     "msisdn_removed"    => :phone,
+    "msisdn_blocked"    => :shield_off,
+    "msisdn_unblocked"  => :shield,
     "session_revoked"   => :x
   }.freeze
 

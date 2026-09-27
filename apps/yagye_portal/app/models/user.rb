@@ -22,8 +22,23 @@ class User < ApplicationRecord
   has_many :merchant_memberships, dependent: :destroy
   has_one :active_membership, -> { active }, class_name: "MerchantMembership"
   has_many :passkey_credentials, dependent: :destroy
+  has_many :portal_notifications, dependent: :destroy
+
+  attribute :notification_preferences, :json, default: {}
 
   validates :kind, inclusion: { in: %w[merchant_user internal_staff] }
+
+  NOTIFICATION_EVENT_KEYS   = %w[payment_success payment_failed dispute_opened dispute_resolved
+                                  kyb_status new_team_member api_key_created login_new_device].freeze
+  NOTIFICATION_CHANNEL_KEYS = %w[email in_app].freeze
+
+  def notification_pref(scope, key)
+    prefs = notification_preferences
+    prefs = JSON.parse(prefs) if prefs.is_a?(String)
+    (prefs&.dig(scope.to_s, key.to_s) != false)
+  rescue JSON::ParserError
+    true
+  end
 
   RECOVERY_CODE_COUNT = 10
 

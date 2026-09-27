@@ -33,4 +33,8 @@ class Dispute < ApplicationRecord
   def open?
     OPEN_STATUSES.include?(status)
   end
+
+  def evidence_submitted?
+    evidence_submitted_at.present?
+  end
 end

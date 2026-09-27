@@ -1,7 +1,7 @@
 class PortalMerchantApplication < ApplicationRecord
   self.primary_key = "application_code"
 
-  STATUSES = %w[submitted under_review approved rejected].freeze
+  STATUSES = %w[submitted under_review approved rejected suspended].freeze
 
   scope :pending_review, -> { where(status: %w[submitted under_review]) }
   scope :by_status, ->(s) { where(status: s) }
@@ -15,8 +15,16 @@ class PortalMerchantApplication < ApplicationRecord
     status == "rejected"
   end
 
+  def suspended?
+    status == "suspended"
+  end
+
   def pending?
     status.in?(%w[submitted under_review])
+  end
+
+  def live?
+    status == "approved"
   end
 
   def status_label

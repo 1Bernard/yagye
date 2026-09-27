@@ -32,5 +32,31 @@ class DisputeEventsConsumer < ApplicationConsumer
 
     Dispute.upsert(attrs, unique_by: :core_dispute_id,
                           update_only: attrs.keys - %i[core_dispute_id])
+    notify_dispute(event)
+  end
+
+  def notify_dispute(event)
+    case event.status
+    when "open"
+      Notifications::DeliveryService.deliver(
+        merchant_code: event.merchant_code,
+        event_type:    "dispute_opened",
+        title:         "New dispute opened",
+        body:          "#{event.currency} #{sprintf('%.2f', event.amount.to_f / 100)} · Ref: #{event.reference}",
+        link:          "/disputes",
+        metadata:      { core_dispute_id: event.core_dispute_id, reference: event.reference }
+      )
+    when "resolved", "won", "lost"
+      Notifications::DeliveryService.deliver(
+        merchant_code: event.merchant_code,
+        event_type:    "dispute_resolved",
+        title:         "Dispute resolved",
+        body:          "Ref: #{event.reference} — #{event.status}",
+        link:          "/disputes",
+        metadata:      { core_dispute_id: event.core_dispute_id, reference: event.reference }
+      )
+    end
+  rescue StandardError => e
+    Rails.logger.warn("[DisputeEventsConsumer] notify failed: #{e.message}")
   end
 end
