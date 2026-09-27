@@ -9,23 +9,22 @@ defmodule YagyeCore.Payments.Adapters.MTNMomoAdapterSandboxTest do
   alias YagyeCore.Payments.Schemas.{Payment, PaymentAttempt}
 
   setup do
-    sub_key = System.get_env("MTN_SANDBOX_COLLECTION_SUBSCRIPTION_KEY")
+    sub_key = System.get_env("MTN_SANDBOX_SUBSCRIPTION_KEY")
 
     unless sub_key do
       raise """
-      MTN sandbox credentials not set. Export these env vars then run:
+      MTN sandbox credentials not set. Source your .env then run:
 
-        MTN_SANDBOX_COLLECTION_SUBSCRIPTION_KEY=...
-        MTN_SANDBOX_COLLECTION_API_USER_ID=...
-        MTN_SANDBOX_COLLECTION_API_KEY=...
-        mix test --include sandbox
+        source .env && mix test --include sandbox
 
-      Optional (fall back to collection creds if not set):
-        MTN_SANDBOX_DISBURSEMENT_SUBSCRIPTION_KEY=...
-        MTN_SANDBOX_DISBURSEMENT_API_USER_ID=...
-        MTN_SANDBOX_DISBURSEMENT_API_KEY=...
-        MTN_SANDBOX_TEST_MSISDN=...         (default: 0241000001)
-        MTN_SANDBOX_BASE_URL=...            (default: https://sandbox.momodeveloper.mtn.com)
+      Required vars (from root .env):
+        MTN_SANDBOX_SUBSCRIPTION_KEY
+        MTN_SANDBOX_API_USER_ID
+        MTN_SANDBOX_API_KEY
+
+      Optional:
+        MTN_SANDBOX_TEST_MSISDN   (default: 0241000001)
+        MTN_SANDBOX_BASE_URL      (default: https://sandbox.momodeveloper.mtn.com)
       """
     end
 
@@ -33,20 +32,11 @@ defmodule YagyeCore.Payments.Adapters.MTNMomoAdapterSandboxTest do
       "base_url" =>
         System.get_env("MTN_SANDBOX_BASE_URL", "https://sandbox.momodeveloper.mtn.com"),
       "subscription_key" => sub_key,
-      "api_user_id" => System.get_env("MTN_SANDBOX_COLLECTION_API_USER_ID"),
-      "api_key" => System.get_env("MTN_SANDBOX_COLLECTION_API_KEY"),
-      "disbursement_subscription_key" =>
-        System.get_env("MTN_SANDBOX_DISBURSEMENT_SUBSCRIPTION_KEY", sub_key),
-      "disbursement_api_user_id" =>
-        System.get_env(
-          "MTN_SANDBOX_DISBURSEMENT_API_USER_ID",
-          System.get_env("MTN_SANDBOX_COLLECTION_API_USER_ID")
-        ),
-      "disbursement_api_key" =>
-        System.get_env(
-          "MTN_SANDBOX_DISBURSEMENT_API_KEY",
-          System.get_env("MTN_SANDBOX_COLLECTION_API_KEY")
-        ),
+      "api_user_id" => System.get_env("MTN_SANDBOX_API_USER_ID"),
+      "api_key" => System.get_env("MTN_SANDBOX_API_KEY"),
+      "disbursement_subscription_key" => sub_key,
+      "disbursement_api_user_id" => System.get_env("MTN_SANDBOX_API_USER_ID"),
+      "disbursement_api_key" => System.get_env("MTN_SANDBOX_API_KEY"),
       "target_environment" => "sandbox"
     }
 
