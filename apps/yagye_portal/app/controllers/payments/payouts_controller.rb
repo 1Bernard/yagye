@@ -36,6 +36,12 @@ module Payments
       render Payments::Payouts::ShowView.new(payout: payout)
     end
 
+    def statement
+      authorize PortalPayout, :index?
+      payout = decode_id(PortalPayout)
+      render Payments::Payouts::StatementView.new(payout: payout), layout: false
+    end
+
     private
 
     def payout_stats(scope)

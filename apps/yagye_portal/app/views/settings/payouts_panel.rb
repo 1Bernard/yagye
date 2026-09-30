@@ -12,6 +12,32 @@ module Settings
       "airteltigo" => "AirtelTigo Money"
     }.freeze
 
+    GHANA_BANKS = [
+      [ "Select a bank…",                    ""        ],
+      [ "Ghana Commercial Bank (GCB)",       "GCB"     ],
+      [ "Absa Bank Ghana",                   "ABSA"    ],
+      [ "Standard Chartered Ghana",          "SCB"     ],
+      [ "Ecobank Ghana",                     "ECO"     ],
+      [ "First Bank of Nigeria (FBN Ghana)", "FBN"     ],
+      [ "Stanbic Bank Ghana",                "STANBIC" ],
+      [ "Zenith Bank Ghana",                 "ZENITH"  ],
+      [ "CalBank",                           "CAL"     ],
+      [ "Republic Bank Ghana",               "RBG"     ],
+      [ "Agricultural Development Bank",     "ADB"     ],
+      [ "National Investment Bank",          "NIB"     ],
+      [ "Universal Merchant Bank",           "UMB"     ],
+      [ "First Atlantic Bank",               "FAB"     ],
+      [ "OmniBSIC Bank",                     "OMNIBSIC"],
+      [ "Société Générale Ghana",            "SGG"     ],
+      [ "Access Bank Ghana",                 "ACCESS"  ],
+      [ "Consolidated Bank Ghana",           "CBG"     ],
+      [ "ARB Apex Bank",                     "ARB"     ],
+      [ "Bank of Africa Ghana",              "BOA"     ],
+      [ "Prudential Bank",                   "PBL"     ],
+      [ "BSIC Ghana",                        "BSIC"    ],
+      [ "Guaranty Trust Bank Ghana",         "GTB"     ]
+    ].freeze
+
     def initialize(controls: {}, next_value_date: nil, unsettled_amount: 0, currency: "GHS",
                    destinations: [])
       @controls        = controls
@@ -198,10 +224,12 @@ module Settings
           input(type: "hidden", name: "kind",               value: "bank")
           div(class: "space-y-3") do
             div do
-              label(class: "block #{TYPE_CAPTION} mb-1.5") { plain "Bank Code" }
-              input(type: "text", name: "bank_code", placeholder: "e.g. GCB001",
-                    class: "w-full h-9 border border-gray-200 rounded-[9px] px-3 text-[13px] " \
-                           "text-gray-700 bg-white outline-none focus:ring-1 focus:ring-[#{BRAND}]")
+              label(class: "block #{TYPE_CAPTION} mb-1.5") { plain "Bank" }
+              select(name: "bank_code",
+                     class: "w-full h-9 border border-gray-200 rounded-[9px] px-3 text-[13px] " \
+                            "text-gray-700 bg-white outline-none focus:ring-1 focus:ring-[#{BRAND}] cursor-pointer") do
+                GHANA_BANKS.each { |(lbl, val)| option(value: val) { plain lbl } }
+              end
             end
             div do
               label(class: "block #{TYPE_CAPTION} mb-1.5") { plain "Account Number" }

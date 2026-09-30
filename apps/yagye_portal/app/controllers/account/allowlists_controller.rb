@@ -111,5 +111,33 @@ module Account
                                    metadata: { cidr: cidr })
       redirect_to settings_path(tab: "allowlists"), notice: "IP address removed from blocklist."
     end
+
+    def create_email_block
+      entry = PortalEmailBlocklist.new(
+        merchant_code: Current.user.merchant_code,
+        email:         params[:email].to_s.strip.downcase,
+        label:         params[:label].to_s.strip.presence,
+        reason:        params[:reason].presence_in(PortalEmailBlocklist::REASONS),
+        created_by:    Current.user.email
+      )
+      authorize entry, policy_class: PortalEmailBlocklistPolicy
+      if entry.save
+        UserAuditEvents::Record.call(user: current_user, event_type: :email_blocked, request: request,
+                                     metadata: { email: entry.email, reason: entry.reason })
+        redirect_to settings_path(tab: "allowlists"), notice: "Email address added to blocklist."
+      else
+        redirect_to settings_path(tab: "allowlists"), alert: entry.errors.full_messages.to_sentence
+      end
+    end
+
+    def destroy_email_block
+      entry = decode_id(PortalEmailBlocklist)
+      authorize entry, policy_class: PortalEmailBlocklistPolicy
+      email = entry.email
+      entry.soft_delete!
+      UserAuditEvents::Record.call(user: current_user, event_type: :email_unblocked, request: request,
+                                   metadata: { email: email })
+      redirect_to settings_path(tab: "allowlists"), notice: "Email address removed from blocklist."
+    end
   end
 end

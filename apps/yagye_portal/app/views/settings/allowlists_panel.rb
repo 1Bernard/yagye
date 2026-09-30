@@ -20,11 +20,20 @@ module Settings
       "other"      => "Other"
     }.freeze
 
-    def initialize(ip_allowlists: [], msisdn_allowlists: [], msisdn_blocklists: [], ip_blocklists: [])
+    EMAIL_BLOCK_REASON_LABELS = {
+      "fraud"  => "Fraud",
+      "spam"   => "Spam",
+      "abuse"  => "Abuse",
+      "other"  => "Other"
+    }.freeze
+
+    def initialize(ip_allowlists: [], msisdn_allowlists: [], msisdn_blocklists: [], ip_blocklists: [],
+                   email_blocklists: [])
       @ip_allowlists     = ip_allowlists
       @msisdn_allowlists = msisdn_allowlists
       @msisdn_blocklists = msisdn_blocklists
       @ip_blocklists     = ip_blocklists
+      @email_blocklists  = email_blocklists
     end
 
     def view_template
@@ -33,6 +42,7 @@ module Settings
         msisdn_allowlist_card
         ip_blocklist_card
         msisdn_blocklist_card
+        email_blocklist_card
       end
     end
 
@@ -583,6 +593,148 @@ module Settings
           copy_button(entry.msisdn)
           remove_button(settings_remove_msisdn_block_path(entry),
                         "Remove #{entry.msisdn} from blocklist? They will be able to make payments again.")
+        end
+      end
+    end
+
+    # ── Email blocklist ───────────────────────────────────────────────────────
+
+    def email_blocklist_card
+      count = @email_blocklists.size
+      div(class: "bg-white border border-gray-100 rounded-2xl overflow-hidden") do
+        div(class: "px-6 py-5 border-b border-gray-100") do
+          div(class: "flex items-start gap-3") do
+            div(class: "w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 mt-px",
+                style: "background:#{TINT_RED};border:1px solid rgba(220,38,38,0.15)") do
+              span(class: "flex w-[15px] h-[15px]", style: "color:#{RED}") do
+                render UI::Icon.new(:mail, class: "w-full h-full")
+              end
+            end
+            div(class: "flex-1 min-w-0") do
+              div(class: "flex items-center gap-2 mb-[2px]") do
+                p(class: TYPE_TITLE) { plain "Email blocklist" }
+                if count > 0
+                  span(class: "text-[11px] font-semibold px-[9px] py-[2px] rounded-full",
+                       style: "color:#{RED};background:#{TINT_RED}") do
+                    plain "#{count} #{count == 1 ? 'address' : 'addresses'} blocked"
+                  end
+                end
+              end
+              p(class: TYPE_CAPTION) do
+                plain "Block specific email addresses from invoice and payment link interactions."
+              end
+            end
+            render UI::Button.new(variant: :secondary,
+                   data: { action: "click->dialog#open", dialog_target_param: "add-email-block-dialog" }) do
+              render UI::Icon.new(:x, class: ICON_SM)
+              plain "Block email"
+            end
+            add_email_block_dialog
+          end
+        end
+
+        if @email_blocklists.any?
+          div(class: "px-6 py-[11px] border-b flex items-center gap-3",
+              style: "background:rgba(220,38,38,0.04);border-color:rgba(220,38,38,0.12)") do
+            span(class: "flex w-[13px] h-[13px] flex-shrink-0", style: "color:#{RED}") do
+              render UI::Icon.new(:info_circle, class: "w-full h-full")
+            end
+            p(class: "text-[12px]", style: "color:#991b1b") do
+              plain "#{count} #{count == 1 ? 'address' : 'addresses'} blocked."
+            end
+          end
+          div(class: "divide-rows") do
+            @email_blocklists.each { |entry| email_block_entry_row(entry) }
+          end
+        else
+          div(class: "px-6 py-10 flex flex-col items-center text-center") do
+            div(class: "w-10 h-10 rounded-xl flex items-center justify-center mb-3",
+                style: "background:#{TINT_RED}") do
+              span(class: "flex w-[17px] h-[17px]", style: "color:#{RED}") do
+                render UI::Icon.new(:mail, class: "w-full h-full")
+              end
+            end
+            p(class: "#{TYPE_BODY_MD} mb-1") { plain "No emails blocked" }
+            p(class: TYPE_CAPTION) { plain "Block specific email addresses from your merchant interactions." }
+          end
+        end
+      end
+    end
+
+    def email_block_entry_row(entry)
+      reason_label = EMAIL_BLOCK_REASON_LABELS[entry.reason] if entry.reason.present?
+      div(class: "group flex items-center gap-4 px-6 py-[14px] hover:bg-gray-50/50 transition-colors") do
+        div(class: "w-[34px] h-[34px] rounded-[9px] flex items-center justify-center flex-shrink-0",
+            style: "background:#{TINT_RED};border:1px solid rgba(220,38,38,0.15)") do
+          span(class: "flex w-[13px] h-[13px]", style: "color:#{RED}") do
+            render UI::Icon.new(:mail, class: "w-full h-full")
+          end
+        end
+        div(class: "flex-1 min-w-0") do
+          div(class: "flex items-center gap-2 mb-[3px]") do
+            code(class: "#{TYPE_MONO} text-[12.5px]") { plain entry.email }
+            if reason_label
+              span(class: "text-[10px] font-semibold px-[7px] py-[2px] rounded-full flex-shrink-0",
+                   style: "color:#{RED};background:#{TINT_RED}") { plain reason_label }
+            end
+          end
+          p(class: TYPE_CAPTION) do
+            parts = []
+            parts << entry.label if entry.label.present?
+            parts << "by #{entry.created_by.presence || 'you'}"
+            parts << entry.created_at.strftime("%d %b %Y")
+            plain parts.join(" · ")
+          end
+        end
+        div(class: "flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0") do
+          copy_button(entry.email)
+          remove_button(settings_remove_email_block_path(entry),
+                        "Remove #{entry.email} from blocklist?")
+        end
+      end
+    end
+
+    def add_email_block_dialog
+      dialog(id: "add-email-block-dialog",
+             class: "border-0 rounded-2xl p-0 shadow-2xl w-full max-w-[420px] bg-white") do
+        div(class: "px-6 py-[22px] border-b border-gray-100") do
+          div(class: "flex items-center gap-[10px] mb-1") do
+            span(class: "flex w-[16px] h-[16px]", style: "color:#{RED}") do
+              render UI::Icon.new(:mail, class: "w-full h-full")
+            end
+            p(class: TYPE_TITLE) { plain "Block email address" }
+          end
+          p(class: "#{TYPE_CAPTION} mt-[3px]") do
+            plain "This email address will be blocked from invoice and payment link interactions."
+          end
+        end
+        form(action: settings_add_email_block_path, method: "post",
+             class: "px-6 py-[22px] flex flex-col gap-[14px]") do
+          input(type: "hidden", name: "authenticity_token", value: form_authenticity_token)
+          render UI::InputField.new(name: "email", label: "Email address",
+                                    placeholder: "e.g. spammer@example.com", required: true)
+          div do
+            label(class: "block #{TYPE_CAPTION} mb-1.5") { plain "Reason" }
+            select(name: "reason",
+                   class: "w-full h-9 border border-gray-200 rounded-[9px] px-3 text-[13px] " \
+                          "text-gray-700 bg-white outline-none focus:ring-1 focus:ring-[#{RED}]") do
+              option(value: "") { plain "Select a reason…" }
+              EMAIL_BLOCK_REASON_LABELS.each { |key, lbl| option(value: key) { plain lbl } }
+            end
+          end
+          render UI::InputField.new(name: "label", label: "Internal note (optional)",
+                                    placeholder: "e.g. Reported fraud #1234")
+          div(class: "flex gap-[10px] justify-end mt-1") do
+            render UI::Button.new(variant: :secondary,
+                   data: { action: "click->dialog#close", dialog_target_param: "add-email-block-dialog" }) do
+              render UI::Icon.new(:x, class: ICON_SM)
+              plain "Cancel"
+            end
+            render UI::Button.new(variant: :danger, type: "submit") do
+              render UI::Icon.new(:mail, class: ICON_SM)
+              plain "Block email"
+            end
+          end
         end
       end
     end

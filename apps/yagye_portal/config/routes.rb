@@ -92,6 +92,7 @@ Rails.application.routes.draw do
   scope module: "payments" do
     get  "payouts",                          to: "payouts#index",                   as: :payouts
     get  "payouts/filter",                   to: "payouts#filter",                  as: :filter_payouts
+    get  "payouts/:id/statement",            to: "payouts#statement",               as: :payout_statement
     get  "payouts/:id",                     to: "payouts#show",                    as: :payout
     get  "payout-requests",                 to: "payout_requests#index",           as: :payout_requests
     get  "payout-requests/new",             to: "payout_requests#new",             as: :new_payout_request
@@ -189,6 +190,8 @@ Rails.application.routes.draw do
     delete "settings/blocklists/msisdn/:id",      to: "allowlists#destroy_msisdn_block",    as: :settings_remove_msisdn_block
     post   "settings/blocklists/ip",              to: "allowlists#create_ip_block",         as: :settings_add_ip_block
     delete "settings/blocklists/ip/:id",          to: "allowlists#destroy_ip_block",        as: :settings_remove_ip_block
+    post   "settings/blocklists/email",           to: "allowlists#create_email_block",      as: :settings_add_email_block
+    delete "settings/blocklists/email/:id",       to: "allowlists#destroy_email_block",     as: :settings_remove_email_block
 
     patch  "settings/business/branding",          to: "merchant_branding#update",           as: :settings_merchant_branding
     delete "settings/business/branding/logo",     to: "merchant_branding#remove_logo",      as: :settings_remove_merchant_logo

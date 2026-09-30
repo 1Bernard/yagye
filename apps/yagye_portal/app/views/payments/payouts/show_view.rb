@@ -66,7 +66,16 @@ module Payments
               p(class: "#{TYPE_CAPTION} mb-1") { plain "Payout amount" }
               p(class: "#{TYPE_AMOUNT} text-gray-900") { plain @payout.formatted_amount }
             end
-            render UI::StatusBadge.new(status: @payout.state)
+            div(class: "flex items-center gap-2") do
+              render UI::StatusBadge.new(status: @payout.state)
+              a(href: payout_statement_path(@payout), target: "_blank",
+                class: "inline-flex items-center gap-[6px] px-3 py-1.5 rounded-[9px] border border-gray-200 " \
+                       "bg-white text-[12px] font-medium text-gray-600 hover:text-gray-900 hover:bg-gray-50 " \
+                       "transition-colors no-underline") do
+                span(class: "flex w-[12px] h-[12px]") { render UI::Icon.new(:file, class: "w-full h-full") }
+                plain "Statement"
+              end
+            end
           end
           div(class: "grid grid-cols-3 gap-[1px] bg-gray-100 rounded-xl overflow-hidden") do
             meta_cell("Destination",  @payout.destination_type&.humanize || "—")

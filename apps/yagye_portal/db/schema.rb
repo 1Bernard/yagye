@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_09_27_000001) do
+ActiveRecord::Schema[8.1].define(version: 2026_09_30_000001) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pgcrypto"
@@ -162,6 +162,20 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_27_000001) do
     t.index ["merchant_code"], name: "index_portal_disputes_on_merchant_code"
     t.index ["reference"], name: "index_portal_disputes_on_reference", unique: true
     t.index ["status"], name: "index_portal_disputes_on_status"
+  end
+
+  create_table "portal_email_blocklists", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+    t.datetime "created_at", null: false
+    t.text "created_by"
+    t.datetime "deleted_at"
+    t.text "email", null: false
+    t.text "label"
+    t.text "merchant_code", null: false
+    t.text "reason"
+    t.datetime "updated_at", null: false
+    t.index ["deleted_at"], name: "index_portal_email_blocklists_on_deleted_at"
+    t.index ["merchant_code", "email"], name: "idx_portal_email_blocklists_unique_active", unique: true, where: "(deleted_at IS NULL)"
+    t.index ["merchant_code"], name: "index_portal_email_blocklists_on_merchant_code"
   end
 
   create_table "portal_ip_allowlists", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|

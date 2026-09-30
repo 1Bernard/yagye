@@ -10,6 +10,8 @@ class Dispute < ApplicationRecord
   OPEN_STATUSES  = %w[submitted under_review].freeze
   CLOSED_STATUSES = %w[won lost closed].freeze
 
+  has_many_attached :evidence_files
+
   scope :for_merchant, ->(code) { where(merchant_code: code) }
   scope :recent,       -> { order(created_at: :desc) }
   scope :open,         -> { where(status: OPEN_STATUSES) }

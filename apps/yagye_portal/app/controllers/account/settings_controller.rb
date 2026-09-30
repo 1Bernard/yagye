@@ -9,6 +9,7 @@ module Account
       ip_blocklists        = PortalIpBlocklist.kept.for_merchant(current_user.merchant_code).order(:created_at)
       msisdn_allowlists    = PortalMsisdnAllowlist.kept.for_merchant(current_user.merchant_code).order(:created_at)
       msisdn_blocklists    = PortalMsisdnBlocklist.kept.for_merchant(current_user.merchant_code).order(:created_at)
+      email_blocklists     = PortalEmailBlocklist.kept.for_merchant(current_user.merchant_code).order(:created_at)
       kyb_application      = tab == "verification" && current_user.merchant_user? ? PortalMerchantApplication.find_by(merchant_code: current_user.merchant_code) : nil
       branding             = tab == "verification" && current_user.merchant_user? ? PortalMerchantBranding.find_or_initialize_for(current_user.merchant_code) : nil
       audit_events         = current_user.user_audit_events.recent.limit(15)
@@ -19,6 +20,7 @@ module Account
                                      ip_allowlists: ip_allowlists, ip_blocklists: ip_blocklists,
                                      msisdn_allowlists: msisdn_allowlists,
                                      msisdn_blocklists: msisdn_blocklists,
+                                     email_blocklists: email_blocklists,
                                      branding: branding,
                                      kyb_application: kyb_application,
                                      audit_events: audit_events, sso_configs: sso_configs, tier: tier,

@@ -116,9 +116,25 @@ module Disputes
             end
           end
         end
-        div(class: "bg-gray-50 rounded-xl px-4 py-3") do
-          p(class: "text-[13px] text-gray-700 leading-relaxed whitespace-pre-wrap") do
-            plain @dispute.evidence_text.to_s
+        if @dispute.evidence_text.present?
+          div(class: "bg-gray-50 rounded-xl px-4 py-3") do
+            p(class: "text-[13px] text-gray-700 leading-relaxed whitespace-pre-wrap") do
+              plain @dispute.evidence_text.to_s
+            end
+          end
+        end
+        if @dispute.evidence_files.attached?
+          div(class: "flex flex-col gap-2") do
+            p(class: "#{TYPE_CAPTION} font-medium") { plain "Attached files" }
+            @dispute.evidence_files.each do |file|
+              div(class: "flex items-center gap-2 px-3 py-2 bg-gray-50 rounded-lg") do
+                span(class: "flex w-[13px] h-[13px] text-gray-400 flex-shrink-0") do
+                  render UI::Icon.new(:file, class: "w-full h-full")
+                end
+                span(class: "text-[12.5px] text-gray-700 truncate") { plain file.filename.to_s }
+                span(class: TYPE_CAPTION) { plain number_to_human_size(file.byte_size) }
+              end
+            end
           end
         end
       end
@@ -127,16 +143,25 @@ module Disputes
     def evidence_form
       div(class: "px-6 py-5") do
         p(class: "#{TYPE_CAPTION} mb-3") do
-          plain "Provide context that supports your position in this dispute. Include relevant order details, " \
-                "delivery confirmation, or communication with the customer."
+          plain "Provide context that supports your position. Include order details, delivery confirmation, or communication with the customer."
         end
-        form(action: dispute_evidence_path(@dispute), method: "post") do
+        form(action: dispute_evidence_path(@dispute), method: "post",
+             enctype: "multipart/form-data") do
           input(type: "hidden", name: "authenticity_token", value: form_authenticity_token)
           div(class: "space-y-3") do
-            textarea(name: "evidence_text", rows: "5", placeholder: "Describe the transaction and why it should be resolved in your favour...",
+            textarea(name: "evidence_text", rows: "4",
+                     placeholder: "Describe the transaction and why it should be resolved in your favour...",
                      class: "w-full border border-gray-200 rounded-[10px] px-3 py-2.5 text-[13px] " \
                             "text-gray-700 bg-white outline-none focus:ring-1 resize-none " \
                             "focus:ring-[#{BRAND}] leading-relaxed")
+            div(class: "border border-dashed border-gray-200 rounded-[10px] px-4 py-3 flex flex-col gap-1") do
+              p(class: "#{TYPE_CAPTION} font-medium text-gray-700") { plain "Supporting documents (optional)" }
+              p(class: TYPE_CAPTION) { plain "Screenshots, receipts, delivery confirmation — PDF, PNG, JPG up to 10 MB each." }
+              input(type: "file", name: "evidence_files[]", multiple: true, accept: ".pdf,.png,.jpg,.jpeg",
+                    class: "mt-2 text-[12px] text-gray-600 file:mr-3 file:py-1.5 file:px-3 " \
+                           "file:rounded-lg file:border-0 file:text-[12px] file:font-medium " \
+                           "file:bg-gray-100 file:text-gray-700 hover:file:bg-gray-200 cursor-pointer")
+            end
             render UI::Button.new(variant: :primary, type: "submit") { plain "Submit evidence" }
           end
         end

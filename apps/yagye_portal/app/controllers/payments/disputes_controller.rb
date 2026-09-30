@@ -48,14 +48,17 @@ module Payments
         return redirect_to dispute_path(dispute), alert: "Evidence cannot be submitted for this dispute."
       end
 
-      text = params[:evidence_text].to_s.strip
-      if text.blank?
-        return redirect_to dispute_path(dispute), alert: "Evidence text cannot be blank."
+      text  = params[:evidence_text].to_s.strip
+      files = Array(params[:evidence_files]).reject(&:blank?)
+
+      if text.blank? && files.empty?
+        return redirect_to dispute_path(dispute), alert: "Provide evidence text or attach at least one file."
       end
 
       result = CoreApiClient.new.submit_dispute_evidence(dispute.core_dispute_id)
       if result.success?
-        dispute.update!(evidence_text: text, evidence_submitted_at: Time.current)
+        dispute.evidence_files.attach(files) if files.any?
+        dispute.update!(evidence_text: text.presence, evidence_submitted_at: Time.current)
         redirect_to dispute_path(dispute), notice: "Evidence submitted successfully."
       else
         redirect_to dispute_path(dispute), alert: "Could not submit evidence. Please try again."

@@ -167,14 +167,24 @@ module Payments
       dialog(id: "refund-dialog-#{@payment.id}",
              class: "border-0 rounded-2xl p-0 shadow-2xl w-full max-w-[420px] bg-white") do
         div(class: "px-6 py-[22px] border-b border-gray-100") do
-          p(class: TYPE_TITLE) { plain "Confirm refund" }
+          p(class: TYPE_TITLE) { plain "Issue refund" }
           p(class: "#{TYPE_CAPTION} mt-[3px]") do
-            plain "Refund #{@payment.formatted_amount} to the original payment method."
+            plain "Refund up to #{@payment.formatted_amount} to the original payment method."
           end
         end
         form(action: payment_refund_path(@payment), method: "post",
              class: "px-6 py-5 flex flex-col gap-[14px]") do
           input(type: "hidden", name: "authenticity_token", value: form_authenticity_token)
+          div do
+            p(class: "#{TYPE_MICRO} mb-1.5") { plain "Refund amount (#{@payment.currency})" }
+            input(type: "number", name: "amount", value: @payment.amount,
+                  min: 1, max: @payment.amount, step: 1,
+                  class: "w-full h-9 border border-gray-200 rounded-[9px] px-3 text-[13px] " \
+                         "text-gray-700 bg-white outline-none focus:ring-1 focus:ring-[#{BRAND}] tabular-nums")
+            p(class: "#{TYPE_CAPTION} mt-1") do
+              plain "Amount in pesewas (100 = GHS 1.00). Max: #{@payment.amount}."
+            end
+          end
           div do
             p(class: "#{TYPE_MICRO} mb-1.5") { plain "Reason" }
             select(name: "reason", class: "#{SELECT_FIELD} cursor-pointer") do

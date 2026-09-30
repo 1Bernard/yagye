@@ -5,8 +5,9 @@ module Settings
     include UI::Theme
 
     def initialize(tab: "profile", current_user: nil, roles: [], ip_allowlists: [], ip_blocklists: [],
-                   msisdn_allowlists: [], msisdn_blocklists: [], branding: nil, kyb_application: nil,
-                   audit_events: [], sso_configs: [], tier: 1, payout_controls: {}, payout_destinations: [])
+                   msisdn_allowlists: [], msisdn_blocklists: [], email_blocklists: [], branding: nil,
+                   kyb_application: nil, audit_events: [], sso_configs: [], tier: 1,
+                   payout_controls: {}, payout_destinations: [])
       @tab                 = tab
       @current_user        = current_user
       @roles               = roles
@@ -14,6 +15,7 @@ module Settings
       @ip_blocklists       = ip_blocklists
       @msisdn_allowlists   = msisdn_allowlists
       @msisdn_blocklists   = msisdn_blocklists
+      @email_blocklists    = email_blocklists
       @branding            = branding
       @kyb_application     = kyb_application
       @audit_events        = audit_events
@@ -50,7 +52,8 @@ module Settings
                 ip_allowlists:    @ip_allowlists,
                 ip_blocklists:    @ip_blocklists,
                 msisdn_allowlists: @msisdn_allowlists,
-                msisdn_blocklists: @msisdn_blocklists
+                msisdn_blocklists: @msisdn_blocklists,
+                email_blocklists: @email_blocklists
               )
             when "sso"
               render Settings::SsoSection.new(current_user: @current_user, configs: @sso_configs)

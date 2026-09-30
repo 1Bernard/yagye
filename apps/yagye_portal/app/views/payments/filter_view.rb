@@ -20,12 +20,20 @@ module Payments
       [ "Bank Transfer", "bank_transfer",  :bank         ]
     ].freeze
 
-    def initialize(query: nil, status: nil, method: nil, from: nil, to: nil)
-      @query  = query
-      @status = status
-      @method = method
-      @from   = from
-      @to     = to
+    PROVIDERS = [
+      [ "All providers",    ""           ],
+      [ "MTN MoMo",         "mtn_momo"   ],
+      [ "Telecel Cash",     "telecel"    ],
+      [ "AirtelTigo Money", "airteltigo" ]
+    ].freeze
+
+    def initialize(query: nil, status: nil, method: nil, provider: nil, from: nil, to: nil)
+      @query    = query
+      @status   = status
+      @method   = method
+      @provider = provider
+      @from     = from
+      @to       = to
     end
 
     def view_template
@@ -72,6 +80,21 @@ module Payments
                       span(class: "flex w-[11px] h-[11px]") { render UI::Icon.new(icon, class: "w-full h-full") }
                     end
                     span(class: TYPE_BODY_MD) { plain lbl }
+                  end
+                end
+              end
+            end
+
+            # Provider
+            div(class: "px-6 py-5 border-b border-gray-100") do
+              section_label("Provider", :layers, "green")
+              div(class: "flex flex-wrap gap-2 mt-3") do
+                PROVIDERS.each do |(lbl, val)|
+                  label(class: "cursor-pointer") do
+                    input(type: "radio", name: "provider", value: val,
+                          checked: (val == @provider.to_s || (val == "" && @provider.blank?)),
+                          class: "sr-only peer")
+                    span(class: CHIP) { plain lbl }
                   end
                 end
               end
