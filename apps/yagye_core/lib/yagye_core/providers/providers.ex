@@ -102,7 +102,7 @@ defmodule YagyeCore.Providers do
     end
   end
 
-  defp routing_attrs_for(%{method: method, currency: currency, amount: amount}) do
+  defp routing_attrs_for(%{method: method, currency: currency, amount: amount} = payment) do
     %{
       method: method,
       currency: currency,
@@ -111,7 +111,11 @@ defmodule YagyeCore.Providers do
       # amount so a rule can check "amount >= X AND amount <= Y" using two conditions.
       amount: amount,
       amount_min: amount,
-      amount_max: amount
+      amount_max: amount,
+      # network is the mobile money network determined from the customer's MSISDN prefix
+      # (e.g. "MTN", "TELECEL", "AIRTELTIGO"). Present when the customer has entered
+      # their number; nil for non-momo methods or when MSISDN is not yet known.
+      network: get_in(payment.metadata || %{}, ["network"])
     }
   end
 

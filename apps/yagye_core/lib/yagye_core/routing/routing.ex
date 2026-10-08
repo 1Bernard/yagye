@@ -197,14 +197,14 @@ defmodule YagyeCore.Routing do
   # so its rules are deactivated. Only one configuration is active at a time.
   def publish_configuration(%RoutingConfiguration{} = config) do
     Multi.new()
-    |> Multi.run(:compile, fn _repo, _changes ->
-      compile_graph(config)
-    end)
     |> Multi.run(:archive_previous, fn _repo, _changes ->
       archive_previous_published(config)
     end)
     |> Multi.run(:deactivate_previous_rules, fn _repo, _changes ->
       deactivate_compiled_rules_except(config.id)
+    end)
+    |> Multi.run(:compile, fn _repo, _changes ->
+      compile_graph(config)
     end)
     |> Multi.run(:published, fn _repo, %{compile: compiled_summary} ->
       config
@@ -515,8 +515,7 @@ defmodule YagyeCore.Routing do
   defp archive_previous_published(%RoutingConfiguration{id: id, scope: scope, merchant_id: mid}) do
     query =
       from(c in RoutingConfiguration,
-        where: c.state == "published" and c.id != ^id and c.scope == ^scope,
-        where: is_nil(c.merchant_id) == is_nil(^mid)
+        where: c.state == "published" and c.id != ^id and c.scope == ^scope
       )
 
     query =

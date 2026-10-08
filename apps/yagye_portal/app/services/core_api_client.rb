@@ -244,9 +244,37 @@ class CoreApiClient
     put("/internal/merchants/#{merchant_code}/addresses/#{address_type}", attrs)
   end
 
-  # POST /internal/merchants/:code/documents (merchant KYB doc upload)
+  # POST /internal/merchants/:code/documents (merchant KYB doc upload — legacy single-call path)
   def upload_kyb_document(merchant_code, attrs)
     post("/internal/merchants/#{merchant_code}/documents", attrs)
+  end
+
+  # POST /internal/merchants/:code/documents/upload-intent (P21 presigned URL flow — step 1)
+  def request_document_upload_intent(merchant_code, kind:, filename:, content_type:,
+                                     size_bytes:, uploaded_by:, label: nil)
+    post("/internal/merchants/#{merchant_code}/documents/upload-intent", {
+      kind:         kind,
+      filename:     filename,
+      content_type: content_type,
+      size_bytes:   size_bytes,
+      uploaded_by:  uploaded_by,
+      label:        label
+    }.compact)
+  end
+
+  # PATCH /internal/documents/:id/confirm-upload (P21 presigned URL flow — step 3)
+  def confirm_document_upload(document_id, checksum:)
+    patch("/internal/documents/#{document_id}/confirm-upload", { checksum: checksum })
+  end
+
+  # DELETE /internal/documents/:id
+  def delete_kyb_document(merchant_code, document_id)
+    delete("/internal/merchants/#{merchant_code}/documents/#{document_id}", {})
+  end
+
+  # GET /internal/documents/:id/download-url
+  def get_document_download_url(document_id)
+    get("/internal/documents/#{document_id}/download-url")
   end
 
   # POST /internal/merchants/:code/service-agreements
@@ -395,6 +423,17 @@ class CoreApiClient
   # GET /internal/customers/:id
   def get_customer(public_id)
     get("/internal/customers/#{public_id}")
+  end
+
+  # ── Cross-domain activity feed ───────────────────────────────────────────
+
+  # GET /internal/merchants/:code/activity
+  def get_merchant_activity(merchant_code:, before: nil, limit: 50, domains: nil)
+    query = { limit: limit }
+    query[:before]  = before  if before
+    query[:domains] = domains if domains
+    qs = "?#{URI.encode_www_form(query.transform_keys(&:to_s))}"
+    get("/internal/merchants/#{merchant_code}/activity#{qs}")
   end
 
   # ── Settlement batches (P9) ───────────────────────────────────────────────

@@ -594,6 +594,26 @@ dialog.side-panel[open]::backdrop {
 .role-card-check { opacity: 0; transition: opacity 150ms ease; }
 label:has(input[type="radio"]:checked) .role-card-check { opacity: 1; }
 
+/* ── Document upload — animated slide reveal ─────────────────────────────── */
+/* Grid-template-rows trick: outer .doc-slide collapses to 0 height;          */
+/* direct child holds overflow:hidden so content clips cleanly.               */
+/* Toggled by doc_upload_controller.js via element.dataset.open = "".         */
+.doc-slide {
+  display: grid;
+  grid-template-rows: 0fr;
+  transition: grid-template-rows 200ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+.doc-slide[data-open] {
+  grid-template-rows: 1fr;
+}
+.doc-slide > * {
+  overflow: hidden;
+  min-height: 0;
+}
+@media (prefers-reduced-motion: reduce) {
+  .doc-slide { transition: none; }
+}
+
 /* ── KYB banner lazy-load reveal ────────────────────────────────────────── */
 /* The banner is a Turbo Frame loaded asynchronously. Without animation it  */
 /* hard-pops in and shoves content down. Slide-reveal expands height         */

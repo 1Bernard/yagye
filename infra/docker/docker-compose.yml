@@ -107,6 +107,13 @@ services:
       REDIS_URL: redis://redis:6379/0
       PORT: "4000"
       PHX_HOST: localhost
+      # P21 — Floci (local AWS emulator)
+      AWS_ACCESS_KEY_ID: test
+      AWS_SECRET_ACCESS_KEY: test
+      AWS_DEFAULT_REGION: us-east-1
+      AWS_S3_HOST: floci
+      AWS_S3_PORT: "4566"
+      KYB_S3_BUCKET: yagye-kyb-documents
     # Run migrations then start server. YagyeCore.Release.migrate/0 is idempotent.
     command: >
       /bin/sh -c "
@@ -122,6 +129,8 @@ services:
         condition: service_healthy
       rabbitmq:
         condition: service_healthy
+      floci:
+        condition: service_started
     healthcheck:
       test: ["CMD-SHELL", "curl -sf http://localhost:4000/health || exit 1"]
       interval: 10s
@@ -232,6 +241,40 @@ services:
     networks:
       - data
 
+  # P21 — Local AWS emulator: S3 + KMS for KYB documents
+  # All AWS services (S3, KMS, Secrets Manager, etc.) run on a single port 4566.
+  # FLOCI_HOSTNAME must match the Compose service name so that URLs embedded in
+  # responses (e.g. presigned URLs) use the service name, not localhost.
+  floci:
+    image: floci/floci:latest
+    restart: unless-stopped
+    ports:
+      - "4566:4566"
+    environment:
+      FLOCI_HOSTNAME: floci
+      FLOCI_STORAGE_MODE: persistent
+      FLOCI_STORAGE_PERSISTENT_PATH: /app/data
+      AWS_DEFAULT_REGION: us-east-1
+      AWS_ACCESS_KEY_ID: test
+      AWS_SECRET_ACCESS_KEY: test
+    volumes:
+      - floci_data:/app/data
+    networks:
+      - data
+
+  # P21 — Floci web console: browse S3 buckets, KMS keys, and all AWS resources at localhost:4500
+  floci_ui:
+    image: floci/floci-ui:latest
+    restart: unless-stopped
+    ports:
+      - "4500:4500"
+    environment:
+      FLOCI_ENDPOINT: http://floci:4566
+    depends_on:
+      - floci
+    networks:
+      - data
+
   # Karafka consumer — separate process, scales independently from the web tier.
   # Reads events from Redpanda and writes to portal_* read model tables.
   yagye_portal_karafka:
@@ -257,14 +300,12 @@ services:
       - data  # DB writes + Redpanda consumption only
     # NOT on edge or core_mesh — consumers write to DB, they don't call other services
 
-# Services added in later phases:
-#   Floci      — P21 (local AWS emulator; S3 + KMS for KYB documents)
-
 volumes:
   postgres_data:
   redpanda_data:
   rabbitmq_data:
   redis_data:
+  floci_data:
 
 networks:
   data:

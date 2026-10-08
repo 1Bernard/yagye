@@ -72,12 +72,17 @@ module Payments
         events = result.body["data"] || [] if result.success?
       end
 
+      dispute = payment.status == "disputed" && payment.core_payment_id.present? \
+        ? Dispute.for_merchant(current_user.merchant_code).find_by(core_payment_id: payment.core_payment_id)
+        : nil
+
       render Payments::ShowView.new(
         payment:         payment,
         events:          events,
         can_refund:      policy(payment).refund?,
         can_view_pii:    policy(payment).view_customer_pii?,
-        other_payments:  customer_other_payments(payment)
+        other_payments:  customer_other_payments(payment),
+        dispute:         dispute
       )
     end
 
@@ -92,8 +97,13 @@ module Payments
         initiated_by: current_user.user_code
       )
       if result.success?
+        audit(action: "refund.initiated", resource_type: "payment",
+              outcome: "succeeded", resource_code: payment.core_payment_id,
+              metadata: { amount_cents: amount, reason: params[:reason].to_s.strip.presence })
         redirect_to payment_path(payment), notice: "Refund initiated."
       else
+        audit(action: "refund.initiated", resource_type: "payment",
+              outcome: "failed", resource_code: payment.core_payment_id)
         redirect_to payment_path(payment), alert: result.error_message
       end
     end

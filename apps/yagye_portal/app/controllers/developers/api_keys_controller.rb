@@ -51,10 +51,14 @@ module Developers
         created_by:    current_user.user_code
       )
       if result.success?
+        audit(action: "api_key.created", resource_type: "api_key",
+              outcome: "succeeded", resource_code: result.body["id"],
+              metadata: { label: result.body["label"], mode: result.body["mode"] })
         upsert_api_key(result.body)
         flash[:reveal_key] = result.body["key"]
         redirect_to developers_url(tab: "api_keys")
       else
+        audit(action: "api_key.created", resource_type: "api_key", outcome: "failed")
         redirect_to developers_url(tab: "api_keys"), alert: result.error_message
       end
     end
@@ -63,10 +67,14 @@ module Developers
       authorize :developers, :manage_keys?
       result = CoreApiClient.new.revoke_api_key(params[:key_id], revoked_by: current_user.user_code)
       if result.success?
+        audit(action: "api_key.revoked", resource_type: "api_key",
+              outcome: "succeeded", resource_code: params[:key_id])
         PortalApiKey.find_by(key_id: params[:key_id])
                     &.update(revoked_at: Time.current)
         redirect_to developers_path(tab: "api_keys"), notice: "API key revoked."
       else
+        audit(action: "api_key.revoked", resource_type: "api_key",
+              outcome: "failed", resource_code: params[:key_id])
         redirect_to developers_path(tab: "api_keys"), alert: result.error_message
       end
     end

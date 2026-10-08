@@ -4,12 +4,13 @@ module Payments
   class ShowView < ApplicationComponent
     include UI::Theme
 
-    def initialize(payment:, events: [], can_refund: false, can_view_pii: false, other_payments: [])
+    def initialize(payment:, events: [], can_refund: false, can_view_pii: false, other_payments: [], dispute: nil)
       @payment        = payment
       @events         = events
       @can_refund     = can_refund
       @can_view_pii   = can_view_pii
       @other_payments = other_payments
+      @dispute        = dispute
     end
 
     def view_template
@@ -32,6 +33,7 @@ module Payments
 
     def left_column
       div(class: "flex flex-col gap-5") do
+        dispute_banner if @dispute
         amount_card
         details_card
         metadata_card
@@ -42,7 +44,7 @@ module Payments
     def right_column
       div(class: "flex flex-col gap-5") do
         timeline_card
-        actions_card if @can_refund
+        actions_card if @can_refund && @payment.status == "paid"
         customer_payments_card if @other_payments.any?
       end
     end
@@ -146,15 +148,13 @@ module Payments
         c.header("Actions")
         c.body do
           div(class: "flex flex-col gap-2") do
-            if @can_refund && @payment.status == "paid"
-              render UI::Button.new(variant: :danger,
-                     data: { action: "click->dialog#open", dialog_target_param: "refund-dialog-#{@payment.id}" },
-                     style: "width:100%;justify-content:center") do
-                render UI::Icon.new(:refresh, class: ICON_SM)
-                plain "Issue refund"
-              end
-              refund_dialog
+            render UI::Button.new(variant: :danger,
+                   data: { action: "click->dialog#open", dialog_target_param: "refund-dialog-#{@payment.id}" },
+                   style: "width:100%;justify-content:center") do
+              render UI::Icon.new(:refresh, class: ICON_SM)
+              plain "Issue refund"
             end
+            refund_dialog
             p(class: "#{TYPE_CAPTION} text-center mt-1") do
               plain "Refunds are processed within 5–10 business days."
             end
@@ -229,6 +229,25 @@ module Payments
                 end
               end
             end
+          end
+        end
+      end
+    end
+
+    # ── Dispute banner ────────────────────────────────────────────────────────
+
+    def dispute_banner
+      href = @dispute ? dispute_path(@dispute) : disputes_path
+      div(class: "flex items-start gap-3 px-5 py-4 rounded-2xl border",
+          style: "background:#fff8ed;border-color:#f59e0b33") do
+        span(class: "flex-shrink-0 w-5 h-5 mt-px", style: "color:#d97706") do
+          render UI::Icon.new(:flag, class: "w-full h-full")
+        end
+        div(class: "flex-1 min-w-0") do
+          p(class: "text-[13px] font-semibold", style: "color:#92400e") { plain "Dispute open" }
+          p(class: "text-[12px] mt-[2px]", style: "color:#b45309") do
+            plain "A chargeback has been raised against this payment. "
+            a(href: href, class: "font-semibold underline", style: "color:#d97706") { plain "View dispute →" }
           end
         end
       end

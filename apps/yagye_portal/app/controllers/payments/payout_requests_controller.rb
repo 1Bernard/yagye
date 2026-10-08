@@ -38,9 +38,14 @@ module Payments
       )
 
       if req.save
+        audit(action: "payout_request.submitted", resource_type: "payout_request",
+              outcome: "succeeded", resource_code: req.id.to_s,
+              metadata: { amount_cents: req.amount_cents, currency: req.currency })
         redirect_to payouts_path,
                     notice: "Payout request submitted. Our team will review within 1 business day."
       else
+        audit(action: "payout_request.submitted", resource_type: "payout_request",
+              outcome: "failed")
         redirect_to new_payout_request_path,
                     alert:  req.errors.full_messages.first || "Could not submit request."
       end
@@ -61,6 +66,9 @@ module Payments
         reviewed_at:   Time.current,
         reviewer_note: params[:note].to_s.strip.presence
       )
+      audit(action: "payout_request.approved", resource_type: "payout_request",
+            outcome: "succeeded", resource_code: req.id.to_s,
+            metadata: { merchant_code: req.merchant_code, amount_cents: req.amount_cents })
       redirect_to payout_request_path(req), notice: "Request approved."
     end
 
@@ -73,6 +81,10 @@ module Payments
         reviewed_at:   Time.current,
         reviewer_note: params[:note].to_s.strip.presence
       )
+      audit(action: "payout_request.rejected", resource_type: "payout_request",
+            outcome: "succeeded", resource_code: req.id.to_s,
+            reason: params[:note].to_s.strip.presence,
+            metadata: { merchant_code: req.merchant_code })
       redirect_to payout_request_path(req), notice: "Request rejected."
     end
 

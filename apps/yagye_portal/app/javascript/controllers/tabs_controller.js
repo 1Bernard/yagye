@@ -2,11 +2,13 @@ import { Controller } from "@hotwired/stimulus"
 
 // tabs — JS-toggled tab panels. Each panel element needs data-tabs-target="panel"
 // and data-tabs-id="panel-name". Each tab button needs data-tabs-panel-param="panel-name".
+// Optionally set data-tabs-active-value on the controller element to pre-select a tab.
 export default class extends Controller {
   static targets = ["tab", "panel"]
+  static values  = { active: String }
 
   connect() {
-    this._activate(this.tabTargets[0]?.dataset.tabsPanelParam)
+    this._activate(this.activeValue || this.tabTargets[0]?.dataset.tabsPanelParam)
   }
 
   show({ params: { panel } }) {

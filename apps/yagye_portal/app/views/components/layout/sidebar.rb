@@ -51,6 +51,7 @@ module Layout
       {
         label: "ACCOUNT",
         items: [
+          { key: :activity,   icon: :clock,    label: "Activity",       path: :activity_path },
           { key: :developers, icon: :hash,     label: "Developers",     path: :developers_path },
           { key: :settings,   icon: :settings, label: "Settings",       path: :settings_path },
           { key: :settings_pricing, icon: :tag, label: "Pricing & Fees", path: :settings_pricing_path,

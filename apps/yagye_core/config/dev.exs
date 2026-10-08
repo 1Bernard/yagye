@@ -90,3 +90,19 @@ config :brod,
   ]
 
 config :yagye_core, checkout_base_url: "http://localhost:4010"
+
+# ex_aws → Floci (local S3-compatible emulator).
+# Floci's built-in default credentials are "test"/"test" — use them verbatim.
+config :ex_aws,
+  access_key_id: "test",
+  secret_access_key: "test",
+  region: "us-east-1"
+
+config :ex_aws, :s3,
+  scheme: "http://",
+  host: System.get_env("AWS_S3_HOST", "localhost"),
+  port: String.to_integer(System.get_env("AWS_S3_PORT", "4566"))
+
+config :ex_aws, :hackney_opts,
+  follow_redirect: true,
+  recv_timeout: 30_000

@@ -90,6 +90,15 @@ config :opentelemetry,
   traces_exporter: :otlp,
   resource: [service: [name: "yagye_core", version: "0.1.0"]]
 
+# P21 — Document storage (KYB documents in S3 + KMS)
+config :yagye_core, :document_store,
+  bucket: System.get_env("KYB_S3_BUCKET", "yagye-kyb-documents"),
+  upload_expiry_seconds: 900,
+  download_expiry_seconds: 1800,
+  kms_key_arn: nil
+
+config :yagye_core, :aml_provider, YagyeCore.Compliance.AmlProvider.Stub
+
 # Import environment specific config. This must remain at the bottom
 # of this file so it overrides the configuration defined above.
 import_config "#{config_env()}.exs"

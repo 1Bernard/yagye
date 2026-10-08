@@ -29,7 +29,7 @@ module Onboarding
             div(class: "px-6 py-5 space-y-6") do
               section_label("Business Emails")
               div(class: "grid grid-cols-1 sm:grid-cols-2 gap-5") do
-                text_field("general_email",  "General Email",  @contact["general_email"],  type: "email", hint: "Primary contact for correspondence")
+                text_field("general_email",  "General Email",  @contact["general_email"],  type: "email", required: true, hint: "Primary contact for correspondence")
                 text_field("support_email",  "Support Email",  @contact["support_email"],  type: "email")
                 text_field("disputes_email", "Disputes Email", @contact["disputes_email"], type: "email")
               end
@@ -94,9 +94,12 @@ module Onboarding
         p(class: "#{TYPE_HEADING} pt-1 pb-0.5") { plain text }
       end
 
-      def text_field(name, label_text, value, type: "text", hint: nil, placeholder: nil)
+      def text_field(name, label_text, value, type: "text", hint: nil, placeholder: nil, required: false)
         div do
-          label(for: name, class: "block text-[13px] font-medium text-gray-700 mb-1.5") { plain label_text }
+          div(class: "flex items-baseline gap-1 mb-1.5") do
+            label(for: name, class: "block text-[13px] font-medium text-gray-700") { plain label_text }
+            sup(class: "text-red-500 ml-0.5") { "*" } if required
+          end
           input(
             type:        type,
             name:        name,

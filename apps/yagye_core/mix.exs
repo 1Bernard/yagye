@@ -83,7 +83,12 @@ defmodule YagyeCore.MixProject do
       # P17 — distributed rate limiting via Redis
       {:redix, "~> 1.5"},
       {:ex_machina, "~> 2.8.2", only: :test},
-      {:mox, "~> 1.0", only: :test}
+      {:mox, "~> 1.0", only: :test},
+      # P21 — S3 + KMS document storage
+      {:ex_aws, "~> 2.5"},
+      {:ex_aws_s3, "~> 2.5"},
+      {:hackney, "~> 1.20"},
+      {:sweet_xml, "~> 0.7"}
     ]
   end
 

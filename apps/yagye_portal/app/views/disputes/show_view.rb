@@ -15,9 +15,10 @@ module Disputes
       "other"                  => { label: "Other",                        color: "#6b7280", tint: "rgba(107,114,128,0.08)" }
     }.freeze
 
-    def initialize(dispute:, can_submit_evidence: false)
+    def initialize(dispute:, can_submit_evidence: false, payment: nil)
       @dispute             = dispute
       @can_submit_evidence = can_submit_evidence
+      @payment             = payment
     end
 
     def view_template
@@ -78,7 +79,16 @@ module Disputes
         c.header("Original payment", icon: :credit_card)
         c.body(padding: false) do
           render UI::DetailList.new do |list|
-            list.row("Payment reference", @dispute.payment_reference, mono: true)
+            list.row("Payment reference") do
+              if @payment
+                a(href: payment_path(@payment),
+                  class: "#{TYPE_MONO} text-[11.5px] text-[#3D47F5] hover:underline no-underline") do
+                  plain @dispute.payment_reference
+                end
+              else
+                span(class: "#{TYPE_MONO} text-[11.5px]") { plain @dispute.payment_reference }
+              end
+            end
             list.row("Dispute reference", @dispute.reference, mono: true)
             list.row("Customer MSISDN",   @dispute.masked_msisdn)
             list.row("Network deadline",  @dispute.network_deadline.presence || "—")

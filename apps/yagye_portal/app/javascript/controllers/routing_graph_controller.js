@@ -44,36 +44,57 @@ export default class extends Controller {
   }
 
   TEMPLATES = {
-    simple_failover: {
-      name: "Simple failover",
+    // Three independent paths — one explicit ConditionNode per Ghana mobile network.
+    // Each MSISDN prefix maps to exactly one network (024→MTN, 050→Telecel, 026→AirtelTigo),
+    // so each condition is a precise match, never an implicit "else".
+    // If no condition matches (unknown network), no rule fires and the static priority
+    // fallback takes over — safe by default.
+    network_routing: {
+      name: "Network routing",
       nodes: [
-        { id: 1, type: "ProviderNode", x: 340, y: 180, data: { provider_code: "mtn_momo",     label: "MTN MoMo" } },
-        { id: 2, type: "FallbackNode", x: 660, y: 180, data: { provider_code: "telecel_cash", label: "Telecel Cash", max_retries: 3 } }
+        { id: 1, type: "ConditionNode", x:  80, y:  80, data: { field: "network", operator: "eq", value: "MTN" } },
+        { id: 2, type: "ProviderNode",  x: 400, y:  80, data: { provider_code: "mtn_momo",     label: "MTN MoMo" } },
+        { id: 3, type: "ConditionNode", x:  80, y: 260, data: { field: "network", operator: "eq", value: "TELECEL" } },
+        { id: 4, type: "ProviderNode",  x: 400, y: 260, data: { provider_code: "telecel_cash", label: "Telecel Cash" } },
+        { id: 5, type: "ConditionNode", x:  80, y: 440, data: { field: "network", operator: "eq", value: "AIRTELTIGO" } },
+        { id: 6, type: "ProviderNode",  x: 400, y: 440, data: { provider_code: "airteltigo",   label: "AirtelTigo Money" } }
       ],
-      connections: [{ from: 1, fromOutput: 1, to: 2, toInput: 1 }]
+      connections: [
+        { from: 1, fromOutput: 1, to: 2, toInput: 1 },
+        { from: 3, fromOutput: 1, to: 4, toInput: 1 },
+        { from: 5, fromOutput: 1, to: 6, toInput: 1 }
+      ]
     },
-    currency_split: {
-      name: "Currency split",
+    // Percentage traffic split between two providers — for card or bank payments
+    // where either processor can handle the same transaction (e.g. Paystack / Flutterwave).
+    // NOT for mobile money: each MSISDN is locked to one network and cannot be
+    // redirected to a different one. True weighted randomisation requires runtime
+    // support (planned for P20).
+    traffic_split: {
+      name: "Traffic split",
       nodes: [
-        { id: 1, type: "ConditionNode", x: 200, y: 200, data: { field: "currency", operator: "eq", value: "GHS" } },
-        { id: 2, type: "ProviderNode",  x: 520, y:  90, data: { provider_code: "mtn_momo",     label: "MTN MoMo" } },
-        { id: 3, type: "ProviderNode",  x: 520, y: 310, data: { provider_code: "telecel_cash",  label: "Telecel Cash" } }
+        { id: 1, type: "SplitNode",    x: 180, y: 180, data: { pct_a: 70, pct_b: 30, label_a: "Primary", label_b: "Secondary" } },
+        { id: 2, type: "ProviderNode", x: 500, y:  90, data: { provider_code: "", label: "Primary processor" } },
+        { id: 3, type: "ProviderNode", x: 500, y: 280, data: { provider_code: "", label: "Secondary processor" } }
       ],
       connections: [
         { from: 1, fromOutput: 1, to: 2, toInput: 1 },
         { from: 1, fromOutput: 2, to: 3, toInput: 1 }
       ]
     },
-    amount_threshold: {
-      name: "Amount threshold",
+    // Single network condition — the simplest starting point for momo routing.
+    // Only the match output (output_1) is wired; the no-match output is left
+    // unconnected so payments for other networks fall through to the static
+    // priority fallback rather than being misrouted.
+    // Duplicate this pair for each additional network.
+    network_filter: {
+      name: "Network filter",
       nodes: [
-        { id: 1, type: "ConditionNode", x: 200, y: 200, data: { field: "amount", operator: "gt", value: "50000" } },
-        { id: 2, type: "ProviderNode",  x: 520, y:  90, data: { provider_code: "mtn_momo",    label: "MTN MoMo (high value)" } },
-        { id: 3, type: "ProviderNode",  x: 520, y: 310, data: { provider_code: "airteltigo",  label: "AirtelTigo Money (standard)" } }
+        { id: 1, type: "ConditionNode", x: 160, y: 180, data: { field: "network", operator: "eq", value: "MTN" } },
+        { id: 2, type: "ProviderNode",  x: 480, y: 180, data: { provider_code: "mtn_momo", label: "MTN MoMo" } }
       ],
       connections: [
-        { from: 1, fromOutput: 1, to: 2, toInput: 1 },
-        { from: 1, fromOutput: 2, to: 3, toInput: 1 }
+        { from: 1, fromOutput: 1, to: 2, toInput: 1 }
       ]
     }
   }
@@ -325,7 +346,7 @@ export default class extends Controller {
     }
 
     if (type === "ConditionNode") {
-      const fieldOpts = ["currency","amount","country","mcc_code","method","risk_score"]
+      const fieldOpts = ["network","currency","amount","method","country","card_brand","card_funding","risk_score"]
         .map(f => `<option value="${f}" ${f === data.field ? "selected" : ""}>${f}</option>`).join("")
       const opOpts = [
         ["eq","= equals"],["neq","≠ not equals"],

@@ -57,9 +57,14 @@ module Developers
       )
 
       if result.success?
+        audit(action: "routing_rule.created", resource_type: "routing_configuration",
+              outcome: "succeeded", resource_code: result.body["id"],
+              metadata: { name: params[:name] })
         redirect_to edit_developers_routing_rule_path(result.body["id"]),
                     notice: "Configuration saved as draft."
       else
+        audit(action: "routing_rule.created", resource_type: "routing_configuration",
+              outcome: "failed", metadata: { name: params[:name] })
         redirect_to new_developers_routing_rule_path, alert: result.error_message
       end
     end
@@ -75,9 +80,14 @@ module Developers
       )
 
       if result.success?
+        audit(action: "routing_rule.updated", resource_type: "routing_configuration",
+              outcome: "succeeded", resource_code: params[:id],
+              metadata: { name: params[:name] })
         redirect_to edit_developers_routing_rule_path(params[:id]),
                     notice: "Configuration updated."
       else
+        audit(action: "routing_rule.updated", resource_type: "routing_configuration",
+              outcome: "failed", resource_code: params[:id])
         redirect_to edit_developers_routing_rule_path(params[:id]),
                     alert: result.error_message
       end
@@ -88,8 +98,12 @@ module Developers
       result = core.publish_routing_configuration(params[:id])
 
       if result.success?
+        audit(action: "routing_rule.published", resource_type: "routing_configuration",
+              outcome: "succeeded", resource_code: params[:id])
         redirect_to developers_routing_rules_path, notice: "Configuration published and active."
       else
+        audit(action: "routing_rule.published", resource_type: "routing_configuration",
+              outcome: "failed", resource_code: params[:id])
         redirect_to edit_developers_routing_rule_path(params[:id]),
                     alert: result.error_message
       end

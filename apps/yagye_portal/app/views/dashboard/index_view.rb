@@ -471,7 +471,7 @@ module Dashboard
           end
         end
 
-        a(href: "#",
+        a(href: pu[:kind] == :ops ? settlements_path : payouts_path,
           class: "flex items-center gap-1 text-[12px] font-semibold flex-shrink-0 no-underline hover:opacity-70 transition-opacity",
           style: "color:#{BRAND}") do
           plain pu[:kind] == :ops ? "View all" : "View payouts"
@@ -658,9 +658,9 @@ module Dashboard
     def review_items
       [].tap do |list|
         list << { label: "Failed payments",  count: @failed_count,      color: RED,   tint: TINT_RED,   icon: :alert_circle, href: payments_path(status: "failed") } if @failed_count.to_i > 0
-        list << { label: "Open disputes",    count: @disputes_count,    color: RED,   tint: TINT_RED,   icon: :flag,         href: "#" }                              if @disputes_count.to_i > 0
-        list << { label: "Pending payments", count: @pending_count,     color: AMBER, tint: TINT_AMBER, icon: :clock,        href: payments_path(status: "processing") } if @pending_count.to_i > 0
-        list << { label: "KYB under review", count: @kyb_pending_count, color: TEAL,  tint: TINT_TEAL,  icon: :shield,       href: "#" }                              if @kyb_pending_count.to_i > 0
+        list << { label: "Open disputes",    count: @disputes_count,    color: RED,   tint: TINT_RED,   icon: :flag,   href: disputes_path(tab: "open") }    if @disputes_count.to_i > 0
+        list << { label: "Pending payments", count: @pending_count,     color: AMBER, tint: TINT_AMBER, icon: :clock,  href: payments_path(status: "processing") } if @pending_count.to_i > 0
+        list << { label: "KYB under review", count: @kyb_pending_count, color: TEAL,  tint: TINT_TEAL,  icon: :shield, href: kyb_reviews_path }                    if @kyb_pending_count.to_i > 0
       end
     end
 

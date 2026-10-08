@@ -58,17 +58,85 @@ module Onboarding
 
     def upload_document
       authorize :onboarding, :create?
-      result = CoreApiClient.new.upload_kyb_document(
+
+      file = params[:document]
+      unless file.is_a?(ActionDispatch::Http::UploadedFile)
+        return redirect_to verify_step_path("documents"), alert: "Please select a file to upload."
+      end
+
+      if file.size > 10.megabytes
+        return redirect_to verify_step_path("documents"), alert: "File must be under 10 MB."
+      end
+
+      allowed_types = %w[application/pdf image/jpeg image/png image/webp]
+      unless allowed_types.include?(file.content_type)
+        return redirect_to verify_step_path("documents"),
+                           alert: "Unsupported file type. Upload PDF, JPEG, PNG, or WebP."
+      end
+
+      # Step 1: request presigned upload URL from Core
+      intent = CoreApiClient.new.request_document_upload_intent(
         merchant_code,
-        {
-          kind:         params[:kind].presence || "id",
-          label:        params[:label].presence,
-          s3_key:       "kyb/pending/#{merchant_code}/#{params[:kind]}/#{SecureRandom.uuid}",
-          checksum:     "pending",
-          uploaded_by:  "merchant:#{current_user.id}"
-        }.compact
+        kind:         params[:kind].presence || "id",
+        filename:     file.original_filename,
+        content_type: file.content_type,
+        size_bytes:   file.size,
+        uploaded_by:  "merchant:#{current_user.id}",
+        label:        params[:label].presence
       )
-      handle_step_result(result, current_step: "documents", next_step: "agreement")
+
+      unless intent.success?
+        return redirect_to verify_step_path("documents"),
+                           alert: "Could not initiate upload. Please try again."
+      end
+
+      presigned_url = intent.body["presigned_url"]
+      document_id   = intent.body["document_id"]
+
+      # Step 2: read file, compute checksum, upload to S3 via presigned PUT URL
+      file_content = file.read
+      checksum     = Digest::SHA256.hexdigest(file_content)
+
+      begin
+        require "net/http"
+        require "uri"
+
+        uri  = URI.parse(presigned_url)
+        http = Net::HTTP.new(uri.host, uri.port)
+        http.use_ssl       = uri.scheme == "https"
+        http.read_timeout  = 30
+        http.open_timeout  = 10
+
+        req = Net::HTTP::Put.new(uri.request_uri)
+        req["Content-Type"]   = file.content_type
+        req["Content-Length"] = file_content.bytesize.to_s
+        req.body = file_content
+
+        response = http.request(req)
+
+        unless response.is_a?(Net::HTTPSuccess)
+          Rails.logger.error("S3 PUT failed: #{response.code} #{response.message}")
+          return redirect_to verify_step_path("documents"), alert: "Upload failed. Please try again."
+        end
+      rescue => e
+        Rails.logger.error("S3 upload error: #{e.class} — #{e.message}")
+        return redirect_to verify_step_path("documents"), alert: "Upload failed. Please try again."
+      end
+
+      # Step 3: confirm upload with Core
+      result = CoreApiClient.new.confirm_document_upload(document_id, checksum: checksum)
+      handle_step_result(result, current_step: "documents", next_step: "documents")
+    end
+
+    def destroy_document
+      authorize :onboarding, :create?
+      result = CoreApiClient.new.delete_kyb_document(merchant_code, params[:document_id])
+      if result.success?
+        redirect_to verify_step_path("documents"), notice: "Document removed."
+      else
+        redirect_to verify_step_path("documents"),
+                    alert: result.error_message || "Could not remove document."
+      end
     end
 
     def submit_agreement

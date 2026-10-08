@@ -37,7 +37,12 @@ module Payments
       authorize :disputes, :show?
       dispute = decode_id(Dispute)
       can_submit = current_user.merchant_user? && dispute.open? && dispute.evidence_text.blank?
-      render Disputes::ShowView.new(dispute: dispute, can_submit_evidence: can_submit)
+
+      payment = dispute.core_payment_id.present? \
+        ? policy_scope(Payment).find_by(core_payment_id: dispute.core_payment_id)
+        : nil
+
+      render Disputes::ShowView.new(dispute: dispute, can_submit_evidence: can_submit, payment: payment)
     end
 
     def submit_evidence

@@ -41,6 +41,7 @@ module Payments
         div(class: "flex flex-col gap-5") do
           hero_card
           details_card
+          payments_link_card if @c["msisdn"].present?
         end
       end
 
@@ -131,6 +132,35 @@ module Payments
               list.row("Name",          @c["name"] || "—")
               ts = @c["inserted_at"] || @c["created_at"]
               list.row("Created", ts ? Time.parse(ts).strftime("%d %b %Y at %H:%M UTC") : "—")
+            end
+          end
+        end
+      end
+
+      def payments_link_card
+        render UI::Card.new do |card|
+          card.header("Payments")
+          card.body do
+            div(class: "flex items-center justify-between") do
+              div do
+                p(class: TYPE_BODY_MD) do
+                  if @stat && @stat[:payment_count].to_i.positive?
+                    plain "#{@stat[:payment_count]} transaction#{"s" if @stat[:payment_count] != 1} on record"
+                  else
+                    plain "No payments recorded yet"
+                  end
+                end
+                if @stat && @stat[:total_volume].to_i.positive?
+                  p(class: "#{TYPE_CAPTION} mt-[2px]") { plain "Total: #{format_ghs(@stat[:total_volume])}" }
+                end
+              end
+              a(href: payments_path(q: @c["msisdn"]),
+                class: "inline-flex items-center gap-[5px] px-3 h-8 border border-gray-200 rounded-[9px] " \
+                       "text-[12.5px] font-medium text-gray-600 bg-white no-underline hover:border-gray-400 " \
+                       "transition-colors flex-shrink-0") do
+                render UI::Icon.new(:eye, class: "w-3 h-3")
+                plain "View payments"
+              end
             end
           end
         end

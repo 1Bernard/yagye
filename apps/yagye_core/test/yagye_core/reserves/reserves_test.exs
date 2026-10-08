@@ -6,6 +6,7 @@ defmodule YagyeCore.Reserves.ReservesTest do
   alias YagyeCore.Repo
   alias YagyeCore.Reserves
   alias YagyeCore.Reserves.Schemas.ReserveHold
+  alias YagyeCore.Reserves.Workers.ReserveReleaseWorker
 
   setup do
     merchant = Fixtures.approved_merchant_fixture()
@@ -53,6 +54,86 @@ defmodule YagyeCore.Reserves.ReservesTest do
       Reserves.deactivate_policy(reserve)
 
       assert Reserves.reserve_policy_for(merchant.id, "GHS", "simulation") == nil
+    end
+
+    test "returns the newest active policy when multiple exist", %{merchant: merchant} do
+      {:ok, _older} =
+        Reserves.create_policy(merchant.id, %{
+          kind: "fixed",
+          fixed_amount: 500,
+          currency: "GHS",
+          mode: "live"
+        })
+
+      {:ok, newer} =
+        Reserves.create_policy(merchant.id, %{
+          kind: "fixed",
+          fixed_amount: 1_500,
+          currency: "GHS",
+          mode: "live"
+        })
+
+      result = Reserves.reserve_policy_for(merchant.id, "GHS", "live")
+      assert result.id == newer.id
+    end
+  end
+
+  describe "approve_policy/2" do
+    test "approves a policy when approver differs from creator", %{merchant: merchant} do
+      {:ok, policy} =
+        Reserves.create_policy(merchant.id, %{
+          kind: "fixed",
+          fixed_amount: 1_000,
+          currency: "GHS",
+          mode: "live",
+          created_by: "user:alice"
+        })
+
+      assert {:ok, approved} = Reserves.approve_policy(policy, "user:bob")
+      assert approved.approved_by == "user:bob"
+    end
+
+    test "rejects approval when approver is the same as creator (SoD)", %{merchant: merchant} do
+      {:ok, policy} =
+        Reserves.create_policy(merchant.id, %{
+          kind: "fixed",
+          fixed_amount: 1_000,
+          currency: "GHS",
+          mode: "live",
+          created_by: "user:alice"
+        })
+
+      assert {:error, changeset} = Reserves.approve_policy(policy, "user:alice")
+      assert {"must differ from created_by", _} = changeset.errors[:approved_by]
+    end
+  end
+
+  describe "list_reserves/2" do
+    test "returns all policies for a merchant, newest first", %{merchant: merchant} do
+      {:ok, _} =
+        Reserves.create_policy(merchant.id, %{
+          kind: "fixed",
+          fixed_amount: 500,
+          currency: "GHS",
+          mode: "live"
+        })
+
+      {:ok, _} =
+        Reserves.create_policy(merchant.id, %{
+          kind: "fixed",
+          fixed_amount: 1_000,
+          currency: "GHS",
+          mode: "live"
+        })
+
+      assert {:ok, policies} = Reserves.list_reserves(merchant.id)
+      assert length(policies) == 2
+      [newest | _] = policies
+      assert newest.fixed_amount == 1_000
+    end
+
+    test "returns empty list when merchant has no policies", %{merchant: merchant} do
+      assert {:ok, []} = Reserves.list_reserves(merchant.id)
     end
   end
 
@@ -127,6 +208,38 @@ defmodule YagyeCore.Reserves.ReservesTest do
       assert {:error, _} = Reserves.create_hold(payment)
       assert hold1.amount == 1_000
     end
+
+    test "returns {:ok, nil} when policy mode does not match payment mode", %{
+      merchant: merchant,
+      payment: payment
+    } do
+      # payment.mode is "live" (approved merchant grants live mode); "simulation" policy won't match
+      {:ok, _} =
+        Reserves.create_policy(merchant.id, %{
+          kind: "fixed",
+          fixed_amount: 1_000,
+          currency: "GHS",
+          mode: "simulation"
+        })
+
+      assert {:ok, nil} = Reserves.create_hold(payment)
+    end
+
+    test "returns {:ok, nil} when rolling bps produces a zero hold amount", %{merchant: merchant} do
+      # 1 bps of 50 pesewas = div(50, 10_000) = 0
+      tiny_payment = Fixtures.succeeded_payment_fixture(merchant, %{amount: 50, currency: "GHS"})
+
+      {:ok, _} =
+        Reserves.create_policy(merchant.id, %{
+          kind: "rolling",
+          percentage_bps: 1,
+          hold_days: 90,
+          currency: "GHS",
+          mode: "live"
+        })
+
+      assert {:ok, nil} = Reserves.create_hold(tiny_payment)
+    end
   end
 
   describe "draw_hold/2" do
@@ -162,6 +275,32 @@ defmodule YagyeCore.Reserves.ReservesTest do
 
       assert {:error, {:invalid_hold_state, "drawn"}} =
                Reserves.draw_hold(drawn, Uniq.UUID.uuid7())
+    end
+
+    test "posts correct ledger entries: reserve_account zeroed, recovery_account credited", %{
+      merchant: merchant,
+      payment: payment
+    } do
+      {:ok, _} =
+        Reserves.create_policy(merchant.id, %{
+          kind: "fixed",
+          fixed_amount: 3_000,
+          currency: "GHS",
+          mode: "live"
+        })
+
+      {:ok, hold} = Reserves.create_hold(payment)
+      assert {:ok, _} = Reserves.draw_hold(hold, Uniq.UUID.uuid7())
+
+      # After hold creation: reserve_account = -3_000 (credited)
+      # After draw: reserve_account debited 3_000 → 0; recovery_account credited 3_000 → -3_000
+      {:ok, reserve_account} = Ledger.get_account("merchant_reserve:#{merchant.id}:GHS:live")
+      {:ok, reserve_balance} = Ledger.get_balance(reserve_account.id)
+      assert reserve_balance == 0
+
+      {:ok, recovery_account} = Ledger.get_account("reserve_recovery:platform:GHS:live")
+      {:ok, recovery_balance} = Ledger.get_balance(recovery_account.id)
+      assert recovery_balance == -3_000
     end
   end
 
@@ -220,6 +359,74 @@ defmodule YagyeCore.Reserves.ReservesTest do
       })
 
       assert {:ok, 0} = Reserves.release_due_holds()
+    end
+
+    test "posts correct ledger entries: reserve_account zeroed, payable_account restored", %{
+      merchant: merchant,
+      payment: payment
+    } do
+      {:ok, _} =
+        Reserves.create_policy(merchant.id, %{
+          kind: "fixed",
+          fixed_amount: 2_500,
+          currency: "GHS",
+          mode: "live"
+        })
+
+      # create_hold also posts the reserve_hold ledger entry
+      {:ok, hold} = Reserves.create_hold(payment)
+
+      # Force release_at into the past
+      Repo.update_all(
+        from(h in ReserveHold, where: h.id == ^hold.id),
+        set: [release_at: ~U[2026-01-01 00:00:00.000000Z]]
+      )
+
+      assert {:ok, 1} = Reserves.release_due_holds()
+
+      # After hold: reserve = -2_500, payable = +2_500
+      # After release: reserve debited 2_500 → 0; payable credited 2_500 → 0
+      {:ok, reserve_account} = Ledger.get_account("merchant_reserve:#{merchant.id}:GHS:live")
+      {:ok, reserve_balance} = Ledger.get_balance(reserve_account.id)
+      assert reserve_balance == 0
+
+      {:ok, payable_account} = Ledger.get_account("merchant_payable:#{merchant.id}:GHS:live")
+      {:ok, payable_balance} = Ledger.get_balance(payable_account.id)
+      assert payable_balance == 0
+    end
+  end
+
+  describe "ReserveReleaseWorker" do
+    test "returns :ok when no holds are due" do
+      assert :ok = ReserveReleaseWorker.perform(%Oban.Job{args: %{}})
+    end
+
+    test "returns {:ok, released_count} when past-due holds exist", %{
+      merchant: merchant,
+      payment: payment
+    } do
+      {:ok, reserve} =
+        Reserves.create_policy(merchant.id, %{
+          kind: "fixed",
+          fixed_amount: 1_000,
+          currency: "GHS",
+          mode: "live"
+        })
+
+      Repo.insert!(%ReserveHold{
+        merchant_id: merchant.id,
+        reserve_id: reserve.id,
+        payment_id: payment.id,
+        amount: 1_000,
+        currency: "GHS",
+        mode: "live",
+        state: "pending",
+        held_at: ~U[2026-01-01 00:00:00.000000Z],
+        release_at: ~U[2026-01-02 00:00:00.000000Z],
+        inserted_at: ~U[2026-01-01 00:00:00.000000Z]
+      })
+
+      assert {:ok, %{released: 1}} = ReserveReleaseWorker.perform(%Oban.Job{args: %{}})
     end
   end
 end

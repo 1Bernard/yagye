@@ -224,8 +224,9 @@ module KybReviews
     end
 
     def document_row(doc)
-      label    = DOCUMENT_KIND_LABELS[doc["kind"]] || doc["kind"]&.humanize || "Document"
-      scanned  = doc["scanned_at"].present?
+      label        = DOCUMENT_KIND_LABELS[doc["kind"]] || doc["kind"]&.humanize || "Document"
+      scanned      = doc["scanned_at"].present?
+      downloadable = doc["status"].in?(%w[uploaded under_review approved])
 
       div(class: "flex items-center justify-between px-5 py-3") do
         div(class: "flex items-center gap-3") do
@@ -239,14 +240,22 @@ module KybReviews
             end
           end
         end
-        if scanned
-          span(class: "inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium bg-green-50 text-green-700") do
-            render UI::Icon.new(:check_circle, class: "w-3 h-3")
-            plain "Scanned"
+        div(class: "flex items-center gap-2") do
+          if downloadable
+            a(href: kyb_review_document_download_path(@app, doc["id"]),
+              class: "text-[11px] font-medium text-[#3D47F5] hover:underline no-underline",
+              target: "_blank",
+              rel: "noopener noreferrer") { plain "Download" }
           end
-        else
-          span(class: "inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium bg-gray-50 text-gray-500") do
-            plain "Pending scan"
+          if scanned
+            span(class: "inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium bg-green-50 text-green-700") do
+              render UI::Icon.new(:check_circle, class: "w-3 h-3")
+              plain "Scanned"
+            end
+          else
+            span(class: "inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium bg-gray-50 text-gray-500") do
+              plain "Pending scan"
+            end
           end
         end
       end

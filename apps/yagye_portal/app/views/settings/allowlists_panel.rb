@@ -52,13 +52,12 @@ module Settings
 
     def ip_allowlist_card
       count = @ip_allowlists.size
-      div(class: "bg-white border border-gray-100 rounded-2xl overflow-hidden") do
+      div(class: "bg-white border border-gray-100 rounded-2xl overflow-hidden",
+          data: { controller: "inline-edit" }) do
         div(class: "px-6 py-5 border-b border-gray-100") do
           div(class: "flex items-start gap-3") do
             div(class: "w-9 h-9 rounded-xl bg-gray-100 border border-gray-200 flex items-center justify-center flex-shrink-0 mt-px") do
-              span(class: "flex w-[15px] h-[15px] text-gray-400") do
-                render UI::Icon.new(:globe, class: "w-full h-full")
-              end
+              span(class: "flex w-[15px] h-[15px] text-gray-400") { render UI::Icon.new(:globe, class: "w-full h-full") }
             end
             div(class: "flex-1 min-w-0") do
               div(class: "flex items-center gap-2 mb-[2px]") do
@@ -74,11 +73,24 @@ module Settings
               p(class: TYPE_CAPTION) { plain "Restrict portal and API access to specific IP addresses or CIDR ranges." }
             end
             render UI::Button.new(variant: :secondary,
-                   data: { action: "click->dialog#open", dialog_target_param: "add-ip-dialog" }) do
+                   data: { inline_edit_target: "trigger", action: "click->inline-edit#edit" }) do
               render UI::Icon.new(:plus, class: ICON_SM)
               plain "Add IP"
             end
-            add_ip_dialog
+          end
+        end
+
+        div(hidden: true, data: { inline_edit_target: "display" })
+
+        div(hidden: true, data: { inline_edit_target: "form" },
+            class: "px-6 py-5 bg-gray-50/50 border-b border-gray-100") do
+          form(action: settings_add_ip_path, method: "post", class: "flex flex-col gap-4") do
+            input(type: "hidden", name: "authenticity_token", value: form_authenticity_token)
+            div(class: "grid grid-cols-1 sm:grid-cols-2 gap-4") do
+              form_field("cidr",  "IP address or CIDR", placeholder: "e.g. 203.0.113.0/24", required: true)
+              form_field("label", "Label (optional)",   placeholder: "e.g. Office network")
+            end
+            form_footer("Add IP")
           end
         end
 
@@ -86,9 +98,7 @@ module Settings
           ip_empty_state
         else
           ip_active_callout(count)
-          div(class: "divide-rows") do
-            @ip_allowlists.each { |entry| ip_entry_row(entry) }
-          end
+          div(class: "divide-rows") { @ip_allowlists.each { |e| ip_entry_row(e) } }
         end
       end
     end
@@ -106,9 +116,7 @@ module Settings
     def ip_active_callout(count)
       div(class: "px-6 py-[11px] border-b border-amber-100 flex items-center gap-3",
           style: "background:rgba(217,119,6,0.04)") do
-        span(class: "flex w-[13px] h-[13px] text-amber-500 flex-shrink-0") do
-          render UI::Icon.new(:info_circle, class: "w-full h-full")
-        end
+        span(class: "flex w-[13px] h-[13px] text-amber-500 flex-shrink-0") { render UI::Icon.new(:info_circle, class: "w-full h-full") }
         p(class: "text-[12px] text-amber-800") do
           plain "Access is restricted — only the #{count} listed #{count == 1 ? 'address' : 'addresses'} can reach your portal and API."
         end
@@ -119,9 +127,7 @@ module Settings
       badge_label, badge_color, badge_bg = cidr_badge_attrs(entry.cidr)
       div(class: "group flex items-center gap-4 px-6 py-[14px] hover:bg-gray-50/50 transition-colors") do
         div(class: "w-[34px] h-[34px] rounded-[9px] bg-gray-100 border border-gray-200 flex items-center justify-center flex-shrink-0") do
-          span(class: "flex w-[13px] h-[13px] text-gray-400") do
-            render UI::Icon.new(:globe, class: "w-full h-full")
-          end
+          span(class: "flex w-[13px] h-[13px] text-gray-400") { render UI::Icon.new(:globe, class: "w-full h-full") }
         end
         div(class: "flex-1 min-w-0") do
           div(class: "flex items-center gap-2 mb-[3px]") do
@@ -146,36 +152,9 @@ module Settings
 
     def cidr_badge_attrs(cidr)
       prefix = cidr.include?("/") ? cidr.split("/").last.to_i : 32
-      if prefix == 32       then [ "Single IP",        "#16a34a", "#f0fdf4" ]
-      elsif prefix >= 24    then [ "/#{prefix} range",  "#d97706", "#fffbeb" ]
-      else                       [ "/#{prefix} range",  "#dc2626", "#fef2f2" ]
-      end
-    end
-
-    def add_ip_dialog
-      dialog(id: "add-ip-dialog",
-             class: "border-0 rounded-2xl p-0 shadow-2xl w-full max-w-[420px] bg-white") do
-        div(class: "px-6 py-[22px] border-b border-gray-100") do
-          p(class: TYPE_TITLE) { plain "Add IP to allowlist" }
-          p(class: "#{TYPE_CAPTION} mt-[3px]") { plain "Enter a single IP address or a CIDR range (e.g. 203.0.113.0/24)." }
-        end
-        form(action: settings_add_ip_path, method: "post",
-             class: "px-6 py-[22px] flex flex-col gap-[14px]") do
-          input(type: "hidden", name: "authenticity_token", value: form_authenticity_token)
-          render UI::InputField.new(name: "cidr",  label: "IP address or CIDR", placeholder: "e.g. 203.0.113.0/24", required: true)
-          render UI::InputField.new(name: "label", label: "Label (optional)",   placeholder: "e.g. Office network")
-          div(class: "flex gap-[10px] justify-end mt-1") do
-            render UI::Button.new(variant: :secondary,
-                   data: { action: "click->dialog#close", dialog_target_param: "add-ip-dialog" }) do
-              render UI::Icon.new(:x, class: ICON_SM)
-              plain "Cancel"
-            end
-            render UI::Button.new(variant: :primary, type: "submit") do
-              render UI::Icon.new(:plus, class: ICON_SM)
-              plain "Add IP"
-            end
-          end
-        end
+      if prefix == 32    then [ "Single IP",       "#16a34a", "#f0fdf4" ]
+      elsif prefix >= 24 then [ "/#{prefix} range", "#d97706", "#fffbeb" ]
+      else                    [ "/#{prefix} range", "#dc2626", "#fef2f2" ]
       end
     end
 
@@ -183,13 +162,12 @@ module Settings
 
     def msisdn_allowlist_card
       count = @msisdn_allowlists.size
-      div(class: "bg-white border border-gray-100 rounded-2xl overflow-hidden") do
+      div(class: "bg-white border border-gray-100 rounded-2xl overflow-hidden",
+          data: { controller: "inline-edit" }) do
         div(class: "px-6 py-5 border-b border-gray-100") do
           div(class: "flex items-start gap-3") do
             div(class: "w-9 h-9 rounded-xl bg-gray-100 border border-gray-200 flex items-center justify-center flex-shrink-0 mt-px") do
-              span(class: "flex w-[15px] h-[15px] text-gray-400") do
-                render UI::Icon.new(:phone, class: "w-full h-full")
-              end
+              span(class: "flex w-[15px] h-[15px] text-gray-400") { render UI::Icon.new(:phone, class: "w-full h-full") }
             end
             div(class: "flex-1 min-w-0") do
               div(class: "flex items-center gap-2 mb-[2px]") do
@@ -205,11 +183,24 @@ module Settings
               p(class: TYPE_CAPTION) { plain "Restrict which phone numbers can initiate MoMo payments via your integration." }
             end
             render UI::Button.new(variant: :secondary,
-                   data: { action: "click->dialog#open", dialog_target_param: "add-msisdn-dialog" }) do
+                   data: { inline_edit_target: "trigger", action: "click->inline-edit#edit" }) do
               render UI::Icon.new(:plus, class: ICON_SM)
               plain "Add number"
             end
-            add_msisdn_dialog
+          end
+        end
+
+        div(hidden: true, data: { inline_edit_target: "display" })
+
+        div(hidden: true, data: { inline_edit_target: "form" },
+            class: "px-6 py-5 bg-gray-50/50 border-b border-gray-100") do
+          form(action: settings_add_msisdn_path, method: "post", class: "flex flex-col gap-4") do
+            input(type: "hidden", name: "authenticity_token", value: form_authenticity_token)
+            div(class: "grid grid-cols-1 sm:grid-cols-2 gap-4") do
+              form_field("msisdn", "Phone number (MSISDN)", placeholder: "e.g. +233241234567", required: true, type: "tel")
+              form_field("label",  "Label (optional)",      placeholder: "e.g. VIP customer")
+            end
+            form_footer("Add number")
           end
         end
 
@@ -217,9 +208,7 @@ module Settings
           msisdn_empty_state
         else
           msisdn_active_callout(count)
-          div(class: "divide-rows") do
-            @msisdn_allowlists.each { |entry| msisdn_entry_row(entry) }
-          end
+          div(class: "divide-rows") { @msisdn_allowlists.each { |e| msisdn_entry_row(e) } }
         end
       end
     end
@@ -237,9 +226,7 @@ module Settings
     def msisdn_active_callout(count)
       div(class: "px-6 py-[11px] border-b flex items-center gap-3",
           style: "background:rgba(61,71,245,0.04);border-color:rgba(61,71,245,0.12)") do
-        span(class: "flex w-[13px] h-[13px] flex-shrink-0", style: "color:#{BRAND}") do
-          render UI::Icon.new(:info_circle, class: "w-full h-full")
-        end
+        span(class: "flex w-[13px] h-[13px] flex-shrink-0", style: "color:#{BRAND}") { render UI::Icon.new(:info_circle, class: "w-full h-full") }
         p(class: "text-[12px]", style: "color:#3730a3") do
           plain "Payments are restricted — only the #{count} listed #{count == 1 ? 'number' : 'numbers'} can initiate MoMo payments."
         end
@@ -250,9 +237,7 @@ module Settings
       telco = detect_telco(entry.msisdn)
       div(class: "group flex items-center gap-4 px-6 py-[14px] hover:bg-gray-50/50 transition-colors") do
         div(class: "w-[34px] h-[34px] rounded-[9px] bg-gray-100 border border-gray-200 flex items-center justify-center flex-shrink-0") do
-          span(class: "flex w-[13px] h-[13px] text-gray-400") do
-            render UI::Icon.new(:phone, class: "w-full h-full")
-          end
+          span(class: "flex w-[13px] h-[13px] text-gray-400") { render UI::Icon.new(:phone, class: "w-full h-full") }
         end
         div(class: "flex-1 min-w-0") do
           div(class: "flex items-center gap-2 mb-[3px]") do
@@ -288,69 +273,17 @@ module Settings
       end
     end
 
-    # ── Shared helpers ────────────────────────────────────────────────────────
-
-    def copy_button(value)
-      button(type: "button",
-             class: "flex w-7 h-7 rounded-lg items-center justify-center text-gray-300 " \
-                    "hover:text-gray-600 hover:bg-gray-100 transition-colors border-0 bg-transparent cursor-pointer",
-             data: { controller: "clipboard", clipboard_text_value: value,
-                     action: "click->clipboard#copy" }) do
-        span(class: "flex w-[13px] h-[13px]") { render UI::Icon.new(:copy, class: "w-full h-full") }
-      end
-    end
-
-    def remove_button(path, confirm_text)
-      form(action: path, method: "post", data: { turbo_confirm: confirm_text }) do
-        input(type: "hidden", name: "_method",            value: "delete")
-        input(type: "hidden", name: "authenticity_token", value: form_authenticity_token)
-        button(type: "submit",
-               class: "flex w-7 h-7 rounded-lg items-center justify-center text-gray-300 " \
-                      "hover:text-red-500 hover:bg-red-50 transition-colors border-0 bg-transparent cursor-pointer") do
-          span(class: "flex w-[13px] h-[13px]") { render UI::Icon.new(:x, class: "w-full h-full") }
-        end
-      end
-    end
-
-    def add_msisdn_dialog
-      dialog(id: "add-msisdn-dialog",
-             class: "border-0 rounded-2xl p-0 shadow-2xl w-full max-w-[420px] bg-white") do
-        div(class: "px-6 py-[22px] border-b border-gray-100") do
-          p(class: TYPE_TITLE) { plain "Add phone number to allowlist" }
-          p(class: "#{TYPE_CAPTION} mt-[3px]") { plain "Only allowlisted numbers can initiate MoMo payments." }
-        end
-        form(action: settings_add_msisdn_path, method: "post",
-             class: "px-6 py-[22px] flex flex-col gap-[14px]") do
-          input(type: "hidden", name: "authenticity_token", value: form_authenticity_token)
-          render UI::InputField.new(name: "msisdn", label: "Phone number (MSISDN)", placeholder: "e.g. +233241234567", required: true)
-          render UI::InputField.new(name: "label",  label: "Label (optional)",      placeholder: "e.g. VIP customer")
-          div(class: "flex gap-[10px] justify-end mt-1") do
-            render UI::Button.new(variant: :secondary,
-                   data: { action: "click->dialog#close", dialog_target_param: "add-msisdn-dialog" }) do
-              render UI::Icon.new(:x, class: ICON_SM)
-              plain "Cancel"
-            end
-            render UI::Button.new(variant: :primary, type: "submit") do
-              render UI::Icon.new(:plus, class: ICON_SM)
-              plain "Add number"
-            end
-          end
-        end
-      end
-    end
-
     # ── IP blocklist ─────────────────────────────────────────────────────────
 
     def ip_blocklist_card
       count = @ip_blocklists.size
-      div(class: "bg-white border border-gray-100 rounded-2xl overflow-hidden") do
+      div(class: "bg-white border border-gray-100 rounded-2xl overflow-hidden",
+          data: { controller: "inline-edit" }) do
         div(class: "px-6 py-5 border-b border-gray-100") do
           div(class: "flex items-start gap-3") do
             div(class: "w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 mt-px",
                 style: "background:#{TINT_RED};border:1px solid rgba(220,38,38,0.15)") do
-              span(class: "flex w-[15px] h-[15px]", style: "color:#{RED}") do
-                render UI::Icon.new(:shield_off, class: "w-full h-full")
-              end
+              span(class: "flex w-[15px] h-[15px]", style: "color:#{RED}") { render UI::Icon.new(:shield_off, class: "w-full h-full") }
             end
             div(class: "flex-1 min-w-0") do
               div(class: "flex items-center gap-2 mb-[2px]") do
@@ -362,44 +295,47 @@ module Settings
                   end
                 end
               end
-              p(class: TYPE_CAPTION) do
-                plain "Block specific IP addresses or CIDR ranges from accessing your portal and API."
-              end
+              p(class: TYPE_CAPTION) { plain "Block specific IP addresses or CIDR ranges from accessing your portal and API." }
             end
             render UI::Button.new(variant: :secondary,
-                   data: { action: "click->dialog#open", dialog_target_param: "add-ip-block-dialog" }) do
-              render UI::Icon.new(:x, class: ICON_SM)
+                   data: { inline_edit_target: "trigger", action: "click->inline-edit#edit" }) do
+              render UI::Icon.new(:shield_off, class: ICON_SM)
               plain "Block IP"
             end
-            add_ip_block_dialog
+          end
+        end
+
+        div(hidden: true, data: { inline_edit_target: "display" })
+
+        div(hidden: true, data: { inline_edit_target: "form" },
+            class: "px-6 py-5 bg-gray-50/50 border-b border-gray-100") do
+          form(action: settings_add_ip_block_path, method: "post", class: "flex flex-col gap-4") do
+            input(type: "hidden", name: "authenticity_token", value: form_authenticity_token)
+            div(class: "grid grid-cols-1 sm:grid-cols-2 gap-4") do
+              form_field("cidr", "IP address or CIDR", placeholder: "e.g. 203.0.113.0/24", required: true)
+              reason_select("reason", IP_BLOCK_REASON_LABELS)
+            end
+            form_field("label", "Internal note (optional)", placeholder: "e.g. Scraped product data")
+            form_footer("Block IP", danger: true)
           end
         end
 
         if @ip_blocklists.any?
           div(class: "px-6 py-[11px] border-b flex items-center gap-3",
               style: "background:rgba(220,38,38,0.04);border-color:rgba(220,38,38,0.12)") do
-            span(class: "flex w-[13px] h-[13px] flex-shrink-0", style: "color:#{RED}") do
-              render UI::Icon.new(:info_circle, class: "w-full h-full")
-            end
+            span(class: "flex w-[13px] h-[13px] flex-shrink-0", style: "color:#{RED}") { render UI::Icon.new(:info_circle, class: "w-full h-full") }
             p(class: "text-[12px]", style: "color:#991b1b") do
               plain "#{count} #{count == 1 ? 'address' : 'addresses'} blocked — requests from these IPs will be rejected."
             end
           end
-          div(class: "divide-rows") do
-            @ip_blocklists.each { |entry| ip_block_entry_row(entry) }
-          end
+          div(class: "divide-rows") { @ip_blocklists.each { |e| ip_block_entry_row(e) } }
         else
           div(class: "px-6 py-10 flex flex-col items-center text-center") do
-            div(class: "w-10 h-10 rounded-xl flex items-center justify-center mb-3",
-                style: "background:#{TINT_RED}") do
-              span(class: "flex w-[17px] h-[17px]", style: "color:#{RED}") do
-                render UI::Icon.new(:shield_off, class: "w-full h-full")
-              end
+            div(class: "w-10 h-10 rounded-xl flex items-center justify-center mb-3", style: "background:#{TINT_RED}") do
+              span(class: "flex w-[17px] h-[17px]", style: "color:#{RED}") { render UI::Icon.new(:shield_off, class: "w-full h-full") }
             end
             p(class: "#{TYPE_BODY_MD} mb-1") { plain "No IPs blocked" }
-            p(class: TYPE_CAPTION) do
-              plain "Block malicious IP addresses to prevent fraudulent or abusive requests."
-            end
+            p(class: TYPE_CAPTION) { plain "Block malicious IP addresses to prevent fraudulent or abusive requests." }
           end
         end
       end
@@ -411,9 +347,7 @@ module Settings
       div(class: "group flex items-center gap-4 px-6 py-[14px] hover:bg-gray-50/50 transition-colors") do
         div(class: "w-[34px] h-[34px] rounded-[9px] flex items-center justify-center flex-shrink-0",
             style: "background:#{TINT_RED};border:1px solid rgba(220,38,38,0.15)") do
-          span(class: "flex w-[13px] h-[13px]", style: "color:#{RED}") do
-            render UI::Icon.new(:shield_off, class: "w-full h-full")
-          end
+          span(class: "flex w-[13px] h-[13px]", style: "color:#{RED}") { render UI::Icon.new(:shield_off, class: "w-full h-full") }
         end
         div(class: "flex-1 min-w-0") do
           div(class: "flex items-center gap-2 mb-[3px]") do
@@ -441,64 +375,17 @@ module Settings
       end
     end
 
-    def add_ip_block_dialog
-      dialog(id: "add-ip-block-dialog",
-             class: "border-0 rounded-2xl p-0 shadow-2xl w-full max-w-[420px] bg-white") do
-        div(class: "px-6 py-[22px] border-b border-gray-100") do
-          div(class: "flex items-center gap-[10px] mb-1") do
-            span(class: "flex w-[16px] h-[16px]", style: "color:#{RED}") do
-              render UI::Icon.new(:shield_off, class: "w-full h-full")
-            end
-            p(class: TYPE_TITLE) { plain "Block IP address" }
-          end
-          p(class: "#{TYPE_CAPTION} mt-[3px]") do
-            plain "Requests from this IP or CIDR range will be rejected immediately."
-          end
-        end
-        form(action: settings_add_ip_block_path, method: "post",
-             class: "px-6 py-[22px] flex flex-col gap-[14px]") do
-          input(type: "hidden", name: "authenticity_token", value: form_authenticity_token)
-          render UI::InputField.new(name: "cidr", label: "IP address or CIDR",
-                                    placeholder: "e.g. 203.0.113.0/24", required: true)
-          div do
-            label(class: "block #{TYPE_CAPTION} mb-1.5") { plain "Reason" }
-            select(name: "reason",
-                   class: "w-full h-9 border border-gray-200 rounded-[9px] px-3 text-[13px] " \
-                          "text-gray-700 bg-white outline-none focus:ring-1 focus:ring-[#{RED}]") do
-              option(value: "") { plain "Select a reason…" }
-              IP_BLOCK_REASON_LABELS.each { |key, lbl| option(value: key) { plain lbl } }
-            end
-          end
-          render UI::InputField.new(name: "label", label: "Internal note (optional)",
-                                    placeholder: "e.g. Scraped product data")
-          div(class: "flex gap-[10px] justify-end mt-1") do
-            render UI::Button.new(variant: :secondary,
-                   data: { action: "click->dialog#close", dialog_target_param: "add-ip-block-dialog" }) do
-              render UI::Icon.new(:x, class: ICON_SM)
-              plain "Cancel"
-            end
-            render UI::Button.new(variant: :danger, type: "submit") do
-              render UI::Icon.new(:shield_off, class: ICON_SM)
-              plain "Block IP"
-            end
-          end
-        end
-      end
-    end
-
     # ── MSISDN blocklist ──────────────────────────────────────────────────────
 
     def msisdn_blocklist_card
       count = @msisdn_blocklists.size
-      div(class: "bg-white border border-gray-100 rounded-2xl overflow-hidden") do
-        # Header
+      div(class: "bg-white border border-gray-100 rounded-2xl overflow-hidden",
+          data: { controller: "inline-edit" }) do
         div(class: "px-6 py-5 border-b border-gray-100") do
           div(class: "flex items-start gap-3") do
             div(class: "w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 mt-px",
                 style: "background:#{TINT_RED};border:1px solid rgba(220,38,38,0.15)") do
-              span(class: "flex w-[15px] h-[15px]", style: "color:#{RED}") do
-                render UI::Icon.new(:shield_off, class: "w-full h-full")
-              end
+              span(class: "flex w-[15px] h-[15px]", style: "color:#{RED}") { render UI::Icon.new(:shield_off, class: "w-full h-full") }
             end
             div(class: "flex-1 min-w-0") do
               div(class: "flex items-center gap-2 mb-[2px]") do
@@ -510,50 +397,48 @@ module Settings
                   end
                 end
               end
-              p(class: TYPE_CAPTION) do
-                plain "Permanently block specific phone numbers from initiating payments on your integration."
-              end
+              p(class: TYPE_CAPTION) { plain "Permanently block specific phone numbers from initiating payments on your integration." }
             end
             render UI::Button.new(variant: :secondary,
-                   data: { action: "click->dialog#open", dialog_target_param: "add-block-dialog" }) do
-              render UI::Icon.new(:x, class: ICON_SM)
+                   data: { inline_edit_target: "trigger", action: "click->inline-edit#edit" }) do
+              render UI::Icon.new(:shield_off, class: ICON_SM)
               plain "Block number"
             end
-            add_block_dialog
           end
         end
 
-        # Callout when active
+        div(hidden: true, data: { inline_edit_target: "display" })
+
+        div(hidden: true, data: { inline_edit_target: "form" },
+            class: "px-6 py-5 bg-gray-50/50 border-b border-gray-100") do
+          form(action: settings_add_msisdn_block_path, method: "post", class: "flex flex-col gap-4") do
+            input(type: "hidden", name: "authenticity_token", value: form_authenticity_token)
+            div(class: "grid grid-cols-1 sm:grid-cols-2 gap-4") do
+              form_field("msisdn", "Phone number (MSISDN)", placeholder: "e.g. +233241234567", required: true, type: "tel")
+              reason_select("reason", REASON_LABELS)
+            end
+            form_field("label", "Internal note (optional)", placeholder: "e.g. Reported fraud #1234")
+            form_footer("Block number", danger: true)
+          end
+        end
+
         if @msisdn_blocklists.any?
           div(class: "px-6 py-[11px] border-b flex items-center gap-3",
               style: "background:rgba(220,38,38,0.04);border-color:rgba(220,38,38,0.12)") do
-            span(class: "flex w-[13px] h-[13px] flex-shrink-0", style: "color:#{RED}") do
-              render UI::Icon.new(:info_circle, class: "w-full h-full")
-            end
+            span(class: "flex w-[13px] h-[13px] flex-shrink-0", style: "color:#{RED}") { render UI::Icon.new(:info_circle, class: "w-full h-full") }
             p(class: "text-[12px]", style: "color:#991b1b") do
               plain "#{count} #{count == 1 ? 'number' : 'numbers'} blocked — payment attempts from these MSISDNs will be rejected."
             end
           end
-          div(class: "divide-rows") do
-            @msisdn_blocklists.each { |entry| blocklist_entry_row(entry) }
-          end
+          div(class: "divide-rows") { @msisdn_blocklists.each { |e| blocklist_entry_row(e) } }
         else
-          blocklist_empty_state
-        end
-      end
-    end
-
-    def blocklist_empty_state
-      div(class: "px-6 py-10 flex flex-col items-center text-center") do
-        div(class: "w-10 h-10 rounded-xl flex items-center justify-center mb-3",
-            style: "background:#{TINT_RED}") do
-          span(class: "flex w-[17px] h-[17px]", style: "color:#{RED}") do
-            render UI::Icon.new(:shield_off, class: "w-full h-full")
+          div(class: "px-6 py-10 flex flex-col items-center text-center") do
+            div(class: "w-10 h-10 rounded-xl flex items-center justify-center mb-3", style: "background:#{TINT_RED}") do
+              span(class: "flex w-[17px] h-[17px]", style: "color:#{RED}") { render UI::Icon.new(:shield_off, class: "w-full h-full") }
+            end
+            p(class: "#{TYPE_BODY_MD} mb-1") { plain "No numbers blocked" }
+            p(class: TYPE_CAPTION) { plain "Block specific MSISDNs to prevent fraudulent or unwanted payment attempts." }
           end
-        end
-        p(class: "#{TYPE_BODY_MD} mb-1") { plain "No numbers blocked" }
-        p(class: TYPE_CAPTION) do
-          plain "Block specific MSISDNs to prevent fraudulent or unwanted payment attempts."
         end
       end
     end
@@ -564,9 +449,7 @@ module Settings
       div(class: "group flex items-center gap-4 px-6 py-[14px] hover:bg-gray-50/50 transition-colors") do
         div(class: "w-[34px] h-[34px] rounded-[9px] flex items-center justify-center flex-shrink-0",
             style: "background:#{TINT_RED};border:1px solid rgba(220,38,38,0.15)") do
-          span(class: "flex w-[13px] h-[13px]", style: "color:#{RED}") do
-            render UI::Icon.new(:shield_off, class: "w-full h-full")
-          end
+          span(class: "flex w-[13px] h-[13px]", style: "color:#{RED}") { render UI::Icon.new(:shield_off, class: "w-full h-full") }
         end
         div(class: "flex-1 min-w-0") do
           div(class: "flex items-center gap-2 mb-[3px]") do
@@ -601,14 +484,13 @@ module Settings
 
     def email_blocklist_card
       count = @email_blocklists.size
-      div(class: "bg-white border border-gray-100 rounded-2xl overflow-hidden") do
+      div(class: "bg-white border border-gray-100 rounded-2xl overflow-hidden",
+          data: { controller: "inline-edit" }) do
         div(class: "px-6 py-5 border-b border-gray-100") do
           div(class: "flex items-start gap-3") do
             div(class: "w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 mt-px",
                 style: "background:#{TINT_RED};border:1px solid rgba(220,38,38,0.15)") do
-              span(class: "flex w-[15px] h-[15px]", style: "color:#{RED}") do
-                render UI::Icon.new(:mail, class: "w-full h-full")
-              end
+              span(class: "flex w-[15px] h-[15px]", style: "color:#{RED}") { render UI::Icon.new(:mail, class: "w-full h-full") }
             end
             div(class: "flex-1 min-w-0") do
               div(class: "flex items-center gap-2 mb-[2px]") do
@@ -620,39 +502,44 @@ module Settings
                   end
                 end
               end
-              p(class: TYPE_CAPTION) do
-                plain "Block specific email addresses from invoice and payment link interactions."
-              end
+              p(class: TYPE_CAPTION) { plain "Block specific email addresses from invoice and payment link interactions." }
             end
             render UI::Button.new(variant: :secondary,
-                   data: { action: "click->dialog#open", dialog_target_param: "add-email-block-dialog" }) do
-              render UI::Icon.new(:x, class: ICON_SM)
+                   data: { inline_edit_target: "trigger", action: "click->inline-edit#edit" }) do
+              render UI::Icon.new(:mail, class: ICON_SM)
               plain "Block email"
             end
-            add_email_block_dialog
+          end
+        end
+
+        div(hidden: true, data: { inline_edit_target: "display" })
+
+        div(hidden: true, data: { inline_edit_target: "form" },
+            class: "px-6 py-5 bg-gray-50/50 border-b border-gray-100") do
+          form(action: settings_add_email_block_path, method: "post", class: "flex flex-col gap-4") do
+            input(type: "hidden", name: "authenticity_token", value: form_authenticity_token)
+            div(class: "grid grid-cols-1 sm:grid-cols-2 gap-4") do
+              form_field("email", "Email address", placeholder: "e.g. spammer@example.com", required: true, type: "email")
+              reason_select("reason", EMAIL_BLOCK_REASON_LABELS)
+            end
+            form_field("label", "Internal note (optional)", placeholder: "e.g. Reported fraud #1234")
+            form_footer("Block email", danger: true)
           end
         end
 
         if @email_blocklists.any?
           div(class: "px-6 py-[11px] border-b flex items-center gap-3",
               style: "background:rgba(220,38,38,0.04);border-color:rgba(220,38,38,0.12)") do
-            span(class: "flex w-[13px] h-[13px] flex-shrink-0", style: "color:#{RED}") do
-              render UI::Icon.new(:info_circle, class: "w-full h-full")
-            end
+            span(class: "flex w-[13px] h-[13px] flex-shrink-0", style: "color:#{RED}") { render UI::Icon.new(:info_circle, class: "w-full h-full") }
             p(class: "text-[12px]", style: "color:#991b1b") do
               plain "#{count} #{count == 1 ? 'address' : 'addresses'} blocked."
             end
           end
-          div(class: "divide-rows") do
-            @email_blocklists.each { |entry| email_block_entry_row(entry) }
-          end
+          div(class: "divide-rows") { @email_blocklists.each { |e| email_block_entry_row(e) } }
         else
           div(class: "px-6 py-10 flex flex-col items-center text-center") do
-            div(class: "w-10 h-10 rounded-xl flex items-center justify-center mb-3",
-                style: "background:#{TINT_RED}") do
-              span(class: "flex w-[17px] h-[17px]", style: "color:#{RED}") do
-                render UI::Icon.new(:mail, class: "w-full h-full")
-              end
+            div(class: "w-10 h-10 rounded-xl flex items-center justify-center mb-3", style: "background:#{TINT_RED}") do
+              span(class: "flex w-[17px] h-[17px]", style: "color:#{RED}") { render UI::Icon.new(:mail, class: "w-full h-full") }
             end
             p(class: "#{TYPE_BODY_MD} mb-1") { plain "No emails blocked" }
             p(class: TYPE_CAPTION) { plain "Block specific email addresses from your merchant interactions." }
@@ -666,9 +553,7 @@ module Settings
       div(class: "group flex items-center gap-4 px-6 py-[14px] hover:bg-gray-50/50 transition-colors") do
         div(class: "w-[34px] h-[34px] rounded-[9px] flex items-center justify-center flex-shrink-0",
             style: "background:#{TINT_RED};border:1px solid rgba(220,38,38,0.15)") do
-          span(class: "flex w-[13px] h-[13px]", style: "color:#{RED}") do
-            render UI::Icon.new(:mail, class: "w-full h-full")
-          end
+          span(class: "flex w-[13px] h-[13px]", style: "color:#{RED}") { render UI::Icon.new(:mail, class: "w-full h-full") }
         end
         div(class: "flex-1 min-w-0") do
           div(class: "flex items-center gap-2 mb-[3px]") do
@@ -688,98 +573,61 @@ module Settings
         end
         div(class: "flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0") do
           copy_button(entry.email)
-          remove_button(settings_remove_email_block_path(entry),
-                        "Remove #{entry.email} from blocklist?")
+          remove_button(settings_remove_email_block_path(entry), "Remove #{entry.email} from blocklist?")
         end
       end
     end
 
-    def add_email_block_dialog
-      dialog(id: "add-email-block-dialog",
-             class: "border-0 rounded-2xl p-0 shadow-2xl w-full max-w-[420px] bg-white") do
-        div(class: "px-6 py-[22px] border-b border-gray-100") do
-          div(class: "flex items-center gap-[10px] mb-1") do
-            span(class: "flex w-[16px] h-[16px]", style: "color:#{RED}") do
-              render UI::Icon.new(:mail, class: "w-full h-full")
-            end
-            p(class: TYPE_TITLE) { plain "Block email address" }
-          end
-          p(class: "#{TYPE_CAPTION} mt-[3px]") do
-            plain "This email address will be blocked from invoice and payment link interactions."
-          end
-        end
-        form(action: settings_add_email_block_path, method: "post",
-             class: "px-6 py-[22px] flex flex-col gap-[14px]") do
-          input(type: "hidden", name: "authenticity_token", value: form_authenticity_token)
-          render UI::InputField.new(name: "email", label: "Email address",
-                                    placeholder: "e.g. spammer@example.com", required: true)
-          div do
-            label(class: "block #{TYPE_CAPTION} mb-1.5") { plain "Reason" }
-            select(name: "reason",
-                   class: "w-full h-9 border border-gray-200 rounded-[9px] px-3 text-[13px] " \
-                          "text-gray-700 bg-white outline-none focus:ring-1 focus:ring-[#{RED}]") do
-              option(value: "") { plain "Select a reason…" }
-              EMAIL_BLOCK_REASON_LABELS.each { |key, lbl| option(value: key) { plain lbl } }
-            end
-          end
-          render UI::InputField.new(name: "label", label: "Internal note (optional)",
-                                    placeholder: "e.g. Reported fraud #1234")
-          div(class: "flex gap-[10px] justify-end mt-1") do
-            render UI::Button.new(variant: :secondary,
-                   data: { action: "click->dialog#close", dialog_target_param: "add-email-block-dialog" }) do
-              render UI::Icon.new(:x, class: ICON_SM)
-              plain "Cancel"
-            end
-            render UI::Button.new(variant: :danger, type: "submit") do
-              render UI::Icon.new(:mail, class: ICON_SM)
-              plain "Block email"
-            end
-          end
+    # ── Shared helpers ────────────────────────────────────────────────────────
+
+    def form_field(name, label_text, placeholder: nil, required: false, type: "text")
+      div do
+        label(for: name, class: "block text-[13px] font-medium text-gray-700 mb-1.5") { plain label_text }
+        input(type: type, name: name, id: name, placeholder: placeholder,
+              required: required, class: INPUT_FIELD)
+      end
+    end
+
+    def reason_select(name, options_hash)
+      div do
+        label(for: name, class: "block text-[13px] font-medium text-gray-700 mb-1.5") { plain "Reason" }
+        select(name: name, id: name, class: SELECT_FIELD) do
+          option(value: "") { plain "Select a reason…" }
+          options_hash.each { |key, lbl| option(value: key) { plain lbl } }
         end
       end
     end
 
-    def add_block_dialog
-      dialog(id: "add-block-dialog",
-             class: "border-0 rounded-2xl p-0 shadow-2xl w-full max-w-[420px] bg-white") do
-        div(class: "px-6 py-[22px] border-b border-gray-100") do
-          div(class: "flex items-center gap-[10px] mb-1") do
-            span(class: "flex w-[16px] h-[16px]", style: "color:#{RED}") do
-              render UI::Icon.new(:shield_off, class: "w-full h-full")
-            end
-            p(class: TYPE_TITLE) { plain "Block phone number" }
-          end
-          p(class: "#{TYPE_CAPTION} mt-[3px]") do
-            plain "Payment attempts from this MSISDN will be rejected immediately."
-          end
+    def form_footer(submit_label, danger: false)
+      div(class: "flex items-center gap-3 pt-1") do
+        render UI::Button.new(variant: danger ? :danger : :primary, type: "submit") do
+          plain submit_label
         end
-        form(action: settings_add_msisdn_block_path, method: "post",
-             class: "px-6 py-[22px] flex flex-col gap-[14px]") do
-          input(type: "hidden", name: "authenticity_token", value: form_authenticity_token)
-          render UI::InputField.new(name: "msisdn", label: "Phone number (MSISDN)",
-                                    placeholder: "e.g. +233241234567", required: true)
-          div do
-            label(class: "block #{TYPE_CAPTION} mb-1.5") { plain "Reason" }
-            select(name: "reason",
-                   class: "w-full h-9 border border-gray-200 rounded-[9px] px-3 text-[13px] " \
-                          "text-gray-700 bg-white outline-none focus:ring-1 focus:ring-[#{RED}]") do
-              option(value: "") { plain "Select a reason…" }
-              REASON_LABELS.each { |key, lbl| option(value: key) { plain lbl } }
-            end
-          end
-          render UI::InputField.new(name: "label", label: "Internal note (optional)",
-                                    placeholder: "e.g. Reported fraud #1234")
-          div(class: "flex gap-[10px] justify-end mt-1") do
-            render UI::Button.new(variant: :secondary,
-                   data: { action: "click->dialog#close", dialog_target_param: "add-block-dialog" }) do
-              render UI::Icon.new(:x, class: ICON_SM)
-              plain "Cancel"
-            end
-            render UI::Button.new(variant: :danger, type: "submit") do
-              render UI::Icon.new(:x, class: ICON_SM)
-              plain "Block number"
-            end
-          end
+        button(type: "button",
+               class: "text-[13px] font-medium text-gray-400 hover:text-gray-700 transition-colors " \
+                      "bg-transparent border-0 cursor-pointer p-0",
+               data: { action: "click->inline-edit#cancel" }) { plain "Cancel" }
+      end
+    end
+
+    def copy_button(value)
+      button(type: "button",
+             class: "flex w-7 h-7 rounded-lg items-center justify-center text-gray-300 " \
+                    "hover:text-gray-600 hover:bg-gray-100 transition-colors border-0 bg-transparent cursor-pointer",
+             data: { controller: "clipboard", clipboard_text_value: value,
+                     action: "click->clipboard#copy" }) do
+        span(class: "flex w-[13px] h-[13px]") { render UI::Icon.new(:copy, class: "w-full h-full") }
+      end
+    end
+
+    def remove_button(path, confirm_text)
+      form(action: path, method: "post", data: { turbo_confirm: confirm_text }) do
+        input(type: "hidden", name: "_method",            value: "delete")
+        input(type: "hidden", name: "authenticity_token", value: form_authenticity_token)
+        button(type: "submit",
+               class: "flex w-7 h-7 rounded-lg items-center justify-center text-gray-300 " \
+                      "hover:text-red-500 hover:bg-red-50 transition-colors border-0 bg-transparent cursor-pointer") do
+          span(class: "flex w-[13px] h-[13px]") { render UI::Icon.new(:x, class: "w-full h-full") }
         end
       end
     end

@@ -35,4 +35,16 @@ class AuditLog < ApplicationRecord
     Rails.logger.error("AuditLog.record failed: #{e.class} — #{e.message}")
     nil
   end
+
+  def to_activity_event
+    {
+      "domain"        => "account",
+      "event_type"    => action,
+      "resource_type" => resource_type,
+      "resource_id"   => resource_code,
+      "resource_ref"  => resource_code,
+      "occurred_at"   => created_at.iso8601,
+      "metadata"      => { "outcome" => outcome, "reason" => reason }.compact
+    }
+  end
 end

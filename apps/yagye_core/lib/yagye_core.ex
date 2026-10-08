@@ -1,6 +1,7 @@
 defmodule YagyeCore do
   use Boundary,
     exports: [
+      Activity,
       Merchants,
       Merchants.Schemas.Merchant,
       Merchants.Schemas.ApiKey,
@@ -24,6 +25,7 @@ defmodule YagyeCore do
       Providers.Schemas.Provider,
       Providers.Schemas.ProviderCredential,
       Providers.Schemas.MerchantProviderConnection,
+      Shared.DocumentStore,
       Shared.Vault,
       Ledger,
       Ledger.Schemas.Account,

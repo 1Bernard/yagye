@@ -32,6 +32,16 @@ end
   }
 })
 
+# S3 endpoint override — applies in all environments (docker-compose Floci, CI, etc.).
+# When AWS_S3_HOST is set, route ex_aws S3 calls to that host instead of real AWS.
+# Unset in staging/production to use the real endpoint.
+if s3_host = System.get_env("AWS_S3_HOST") do
+  config :ex_aws, :s3,
+    scheme: "http://",
+    host: s3_host,
+    port: String.to_integer(System.get_env("AWS_S3_PORT", "4566"))
+end
+
 if config_env() == :dev do
   System.put_env(
     "CORE_PORTAL_SERVICE_SECRET",
@@ -125,6 +135,19 @@ if config_env() == :prod do
   #       force_ssl: [hsts: true]
   #
   # Check `Plug.SSL` for all available options in `force_ssl`.
+
+  config :ex_aws,
+    access_key_id: [{:system, "AWS_ACCESS_KEY_ID"}],
+    secret_access_key: [{:system, "AWS_SECRET_ACCESS_KEY"}],
+    region: System.get_env("AWS_REGION", "us-east-1")
+
+  kms_key_arn = System.get_env("KYB_KMS_KEY_ARN")
+
+  config :yagye_core, :document_store,
+    bucket: System.get_env("KYB_S3_BUCKET", "yagye-kyb-documents"),
+    upload_expiry_seconds: 900,
+    download_expiry_seconds: 1800,
+    kms_key_arn: kms_key_arn
 
   # In production the native rail is MTN MoMo (direct integration).
   # Dev/test use SimulatorAdapter (set in config.exs / test.exs).

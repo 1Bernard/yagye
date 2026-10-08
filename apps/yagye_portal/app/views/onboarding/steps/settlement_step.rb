@@ -7,10 +7,25 @@ module Onboarding
 
       BRAND = UI::Theme::BRAND
 
-      NETWORKS = [
-        ["MTN Mobile Money",  "mtn"],
-        ["Vodafone Cash",     "vodafone"],
-        ["AirtelTigo Money",  "airteltigo"]
+      GHANA_BANKS = [
+        ["Ghana Commercial Bank (GCB)",  "GCB001"],
+        ["Ecobank Ghana",                "ECO001"],
+        ["Stanbic Bank Ghana",           "STD001"],
+        ["Fidelity Bank Ghana",          "FBL001"],
+        ["Standard Chartered Bank",      "SCB001"],
+        ["Absa Bank Ghana",              "ABS001"],
+        ["CalBank",                      "CAL001"],
+        ["United Bank for Africa (UBA)", "UBA001"],
+        ["Access Bank Ghana",            "ACC001"],
+        ["Zenith Bank Ghana",            "ZEN001"],
+        ["Republic Bank Ghana",          "REP001"],
+        ["Agricultural Development Bank","ADB001"],
+        ["NIB Bank",                     "NIB001"],
+        ["Consolidated Bank Ghana (CBG)","CBG001"],
+        ["First Atlantic Bank",          "FAB001"],
+        ["Prudential Bank",              "PRU001"],
+        ["OmniBSIC Bank",                "OMS001"],
+        ["Societe Generale Ghana",       "SOG001"]
       ].freeze
 
       def initialize(progress:)
@@ -19,11 +34,19 @@ module Onboarding
       end
 
       def view_template
+        has_bank = @settlement["settlement_account_number"].present?
+        has_momo = @settlement["settlement_msisdn"].present?
+        active   = has_bank && !has_momo ? "bank" : "momo"
+
         div do
           step_header
 
-          div(class: "px-6 py-5 space-y-6") do
-            settlement_mode_tabs
+          div(data: { controller: "tabs", tabs_active_value: active }) do
+            div(class: "px-6 pt-5") do
+              tab_header(active)
+            end
+            momo_form(active == "momo")
+            bank_form(active == "bank")
           end
         end
       end
@@ -53,17 +76,6 @@ module Onboarding
         end
       end
 
-      def settlement_mode_tabs
-        has_bank = @settlement["settlement_account_number"].present?
-        active   = has_bank ? "bank" : "momo"
-
-        div(data: { controller: "tabs" }) do
-          tab_header(active)
-          momo_form(active == "momo")
-          bank_form(active == "bank")
-        end
-      end
-
       def tab_header(active)
         div(class: "flex gap-1 p-1 rounded-xl bg-gray-100 mb-4") do
           tab_btn("momo", "Mobile Money", active == "momo")
@@ -78,21 +90,21 @@ module Onboarding
           style: is_active ?
                    "background: white; color: #{BRAND}; box-shadow: 0 1px 2px rgba(0,0,0,0.08)" :
                    "color: #6B7280",
-          data: { action: "click->tabs#switch", tabs_target: "tab", tab_key: key }
+          data: { action: "click->tabs#show", tabs_target: "tab", tabs_panel_param: key }
         ) { plain text }
       end
 
       def momo_form(visible)
         form(
-          action: update_kyb_settlement_path,
-          method: :post,
-          class:  visible ? "" : "hidden",
-          data:   { tabs_target: "panel", tab_key: "momo" }
+          action:  update_kyb_settlement_path,
+          method:  :post,
+          hidden:  !visible,
+          data:    { tabs_target: "panel", tabs_id: "momo" }
         ) do
           input(type: "hidden", name: "_method", value: "patch")
           input(type: "hidden", name: "authenticity_token", value: form_authenticity_token)
 
-          div(class: "space-y-4") do
+          div(class: "px-6 py-5 space-y-4") do
             div do
               label(for: "settlement_msisdn", class: "block text-[13px] font-medium text-gray-700 mb-1.5") do
                 plain "Mobile Money Number"
@@ -117,29 +129,31 @@ module Onboarding
 
       def bank_form(visible)
         form(
-          action: update_kyb_settlement_path,
-          method: :post,
-          class:  visible ? "" : "hidden",
-          data:   { tabs_target: "panel", tab_key: "bank" }
+          action:  update_kyb_settlement_path,
+          method:  :post,
+          hidden:  !visible,
+          data:    { tabs_target: "panel", tabs_id: "bank" }
         ) do
           input(type: "hidden", name: "_method", value: "patch")
           input(type: "hidden", name: "authenticity_token", value: form_authenticity_token)
 
-          div(class: "space-y-4") do
+          div(class: "px-6 py-5 space-y-4") do
             div do
-              label(for: "settlement_bank_code", class: "block text-[13px] font-medium text-gray-700 mb-1.5") { "Bank" }
-              input(
-                type:        "text",
-                name:        "settlement_bank_code",
-                id:          "settlement_bank_code",
-                value:       @settlement["settlement_bank_code"],
-                placeholder: "Bank code (e.g. GCB001)",
-                class:       INPUT_FIELD
-              )
+              label(for: "settlement_bank_code", class: "block text-[13px] font-medium text-gray-700 mb-1.5") do
+                plain "Bank"
+              end
+              select(name: "settlement_bank_code", id: "settlement_bank_code", class: SELECT_FIELD) do
+                option(value: "") { plain "Select your bank…" }
+                GHANA_BANKS.each do |lbl, value|
+                  option(value: value, selected: @settlement["settlement_bank_code"] == value || nil) { plain lbl }
+                end
+              end
             end
 
             div do
-              label(for: "settlement_account_number", class: "block text-[13px] font-medium text-gray-700 mb-1.5") { "Account Number" }
+              label(for: "settlement_account_number", class: "block text-[13px] font-medium text-gray-700 mb-1.5") do
+                plain "Account Number"
+              end
               input(
                 type:        "text",
                 name:        "settlement_account_number",
@@ -151,7 +165,9 @@ module Onboarding
             end
 
             div do
-              label(for: "settlement_account_name", class: "block text-[13px] font-medium text-gray-700 mb-1.5") { "Account Name" }
+              label(for: "settlement_account_name", class: "block text-[13px] font-medium text-gray-700 mb-1.5") do
+                plain "Account Name"
+              end
               input(
                 type:  "text",
                 name:  "settlement_account_name",
@@ -176,7 +192,7 @@ module Onboarding
       end
 
       def step_footer(back_step: nil)
-        div(class: "mt-4 pt-4 border-t border-gray-100 flex items-center justify-between") do
+        div(class: "px-6 py-4 border-t border-gray-100 flex items-center justify-between") do
           if back_step
             a(href: verify_step_path(back_step), class: BTN_SECONDARY) do
               render UI::Icon.new(:arrow_left, class: ICON_SM)

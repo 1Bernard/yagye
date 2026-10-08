@@ -24,6 +24,7 @@ defmodule YagyeCore.Compliance do
   alias YagyeCore.Merchants.Schemas.Merchant
   alias YagyeCore.Outbox
   alias YagyeCore.Repo
+  alias YagyeCore.Shared.DocumentStore
 
   # ── Public API ───────────────────────────────────────────────────────────────
 
@@ -69,6 +70,117 @@ defmodule YagyeCore.Compliance do
       required_for_business_types:
         Map.get(attrs, :required_for_business_types, attrs["required_for_business_types"]) || []
     })
+  end
+
+  @doc """
+  Step 1 of 3: Create a pending document record and return a presigned S3 PUT URL.
+  The caller uploads the file to the URL, then calls `confirm_document_upload/2`.
+  """
+  def request_document_upload(merchant_code, attrs) do
+    %{
+      kind: kind,
+      filename: filename,
+      content_type: content_type,
+      uploaded_by: uploaded_by,
+      label: label,
+      required_for: required_for
+    } =
+      parse_upload_attrs(attrs)
+
+    with {:ok, merchant} <- resolve_merchant(merchant_code),
+         document_id <- Uniq.UUID.uuid7(),
+         {:ok, store} <-
+           DocumentStore.presign_upload(merchant.id, kind, document_id, content_type) do
+      purge_stale_pending_uploads(merchant.id, kind)
+
+      insert_attrs = %{
+        id: document_id,
+        merchant_id: merchant.id,
+        kind: kind,
+        label: label || filename,
+        status: "pending_upload",
+        s3_key: store.s3_key,
+        checksum: nil,
+        uploaded_by: uploaded_by,
+        required_for_business_types: required_for
+      }
+
+      case %KybDocument{} |> KybDocument.changeset(insert_attrs) |> Repo.insert() do
+        {:ok, doc} -> {:ok, Map.merge(store, %{document_id: doc.id, document: doc})}
+        {:error, changeset} -> {:error, changeset}
+      end
+    end
+  end
+
+  defp parse_upload_attrs(attrs) do
+    get = fn key, default -> attrs[key] || attrs[Atom.to_string(key)] || default end
+
+    %{
+      kind: get.(:kind, nil),
+      filename: get.(:filename, "document"),
+      content_type: get.(:content_type, "application/octet-stream"),
+      uploaded_by: get.(:uploaded_by, nil),
+      label: get.(:label, nil),
+      required_for: get.(:required_for_business_types, [])
+    }
+  end
+
+  defp purge_stale_pending_uploads(merchant_id, kind) do
+    # Discard orphaned pending_upload records for this kind (from browser-tab abandonment,
+    # network failures, etc.) so they don't appear in list_documents ahead of real uploads.
+    from(d in KybDocument,
+      where: d.merchant_id == ^merchant_id and d.kind == ^kind and d.status == "pending_upload"
+    )
+    |> Repo.delete_all()
+  end
+
+  @doc "Step 3 of 3: Confirm a document upload by recording its checksum and marking it uploaded."
+  def confirm_document_upload(document_id, checksum) do
+    case Repo.get(KybDocument, document_id) do
+      nil ->
+        {:error, :not_found}
+
+      doc ->
+        doc
+        |> KybDocument.upload_changeset(%{
+          s3_key: doc.s3_key,
+          checksum: checksum,
+          status: "uploaded"
+        })
+        |> Repo.update()
+    end
+  end
+
+  @doc """
+  Deletes a KYB document that belongs to `merchant_id`.
+  Only allowed for documents in `pending_upload` or `uploaded` status —
+  once review has started the record must remain for the audit trail.
+  """
+  def delete_document(merchant_id, document_id) do
+    case Repo.get(KybDocument, document_id) do
+      nil ->
+        {:error, :not_found}
+
+      %KybDocument{merchant_id: ^merchant_id, status: status}
+      when status in ["pending_upload", "uploaded"] ->
+        Repo.delete(%KybDocument{id: document_id})
+        {:ok, :deleted}
+
+      %KybDocument{merchant_id: ^merchant_id} ->
+        {:error, :not_deletable}
+
+      _other ->
+        {:error, :not_found}
+    end
+  end
+
+  @doc "Returns a presigned download URL for a KYB document (30-minute expiry)."
+  def document_download_url(document_id) do
+    case Repo.get(KybDocument, document_id) do
+      nil -> {:error, :not_found}
+      %{s3_key: nil} -> {:error, :not_uploaded}
+      doc -> DocumentStore.presign_download(doc.s3_key)
+    end
   end
 
   def disposition_hit(screening_hit_id, attrs) do

@@ -246,11 +246,11 @@ module Developers
         ) do
           picker_section("Native Rails")
           picker_node("ProviderNode",  :bank,    "#16a34a", "rgba(22,163,74,0.10)",   "Provider",  "Route to a live payment rail")
-          picker_node("FallbackNode",  :refresh, "#6b7280", "rgba(107,114,128,0.10)", "Fallback",  "Retry with next provider on failure")
+          picker_node("FallbackNode",  :refresh, "#6b7280", "rgba(107,114,128,0.10)", "Fallback",  "Retry with same-method provider on failure (cards/bank only — not between mobile networks)")
           div(class: "h-px bg-gray-100 my-[5px] mx-1")
           picker_section("Logic")
           picker_node("ConditionNode", :filter,  "#d97706", "rgba(217,119,6,0.10)",   "Condition", "Branch on a field value")
-          picker_node("SplitNode",     :swap,    "#3D47F5", "rgba(61,71,245,0.10)",   "Split",     "Percentage traffic split")
+          picker_node("SplitNode",     :swap,    "#3D47F5", "rgba(61,71,245,0.10)",   "Split",     "Percentage traffic split (cards/bank only — not mobile money)")
           div(class: "h-px bg-gray-100 my-[5px] mx-1")
           picker_section("Development")
           div(class: "px-2 pb-[5px]") do
@@ -354,9 +354,9 @@ module Developers
         end
 
         div(class: "grid grid-cols-3 gap-[10px] w-full") do
-          template_card("simple_failover",  :refresh, "#6b7280", "Simple failover",    "Primary PSP with retry on failure")
-          template_card("currency_split",   :swap,    "#3D47F5", "Currency split",     "Route by currency — GHS vs. international")
-          template_card("amount_threshold", :filter,  "#d97706", "Amount threshold",   "High-value vs. standard routing")
+          template_card("network_routing", :swap,    "#3D47F5", "Network routing",  "Explicit condition per network — MTN, Telecel, AirtelTigo")
+          template_card("traffic_split",  :swap,    "#6b7280", "Traffic split",    "Percentage split between two providers")
+          template_card("network_filter", :filter,  "#d97706", "Network filter",   "One condition, match-only — duplicate for each network")
         end
       end
     end

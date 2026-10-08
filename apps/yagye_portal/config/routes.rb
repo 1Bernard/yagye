@@ -62,18 +62,22 @@ Rails.application.routes.draw do
 
   # ── Compliance domain (ops — policy-gated) ───────────────────────────────
   scope module: "compliance" do
-    get  "kyb-reviews",               to: "kyb_reviews#index",   as: :kyb_reviews
-    get  "kyb-reviews/filter",        to: "kyb_reviews#filter",  as: :filter_kyb_reviews
-    get  "kyb-reviews/:id",           to: "kyb_reviews#show",    as: :kyb_review
-    post "kyb-reviews/:id/approve",   to: "kyb_reviews#approve", as: :approve_kyb_review
-    post "kyb-reviews/:id/reject",    to: "kyb_reviews#reject",  as: :reject_kyb_review
-    post "kyb-reviews/:id/assign",    to: "kyb_reviews#assign",  as: :assign_kyb_review
-    post "kyb-reviews/:id/add-ubo",   to: "kyb_reviews#add_ubo", as: :add_ubo_kyb_review
+    get  "kyb-reviews",                                            to: "kyb_reviews#index",           as: :kyb_reviews
+    get  "kyb-reviews/filter",                                     to: "kyb_reviews#filter",          as: :filter_kyb_reviews
+    get  "kyb-reviews/:id",                                        to: "kyb_reviews#show",            as: :kyb_review
+    post "kyb-reviews/:id/approve",                                to: "kyb_reviews#approve",         as: :approve_kyb_review
+    post "kyb-reviews/:id/reject",                                 to: "kyb_reviews#reject",          as: :reject_kyb_review
+    post "kyb-reviews/:id/assign",                                 to: "kyb_reviews#assign",          as: :assign_kyb_review
+    post "kyb-reviews/:id/add-ubo",                                to: "kyb_reviews#add_ubo",         as: :add_ubo_kyb_review
+    get  "kyb-reviews/:id/documents/:document_id/download",        to: "kyb_reviews#download_document", as: :kyb_review_document_download
 
     get  "compliance/approvals",          to: "approvals#index",   as: :compliance_approvals
     post "compliance/approvals/:id/approve", to: "approvals#approve", as: :compliance_approve_approval
     post "compliance/approvals/:id/reject",  to: "approvals#reject",  as: :compliance_reject_approval
   end
+
+  # ── Activity feed ────────────────────────────────────────────────────────
+  get "activity", to: "activity#index", as: :activity
 
   # ── Developers domain ────────────────────────────────────────────────────
   scope module: "developers" do
@@ -161,7 +165,8 @@ Rails.application.routes.draw do
     patch "verify/profile",            to: "verify#update_profile",    as: :update_kyb_profile
     patch "verify/contact",            to: "verify#update_contact",    as: :update_kyb_contact
     patch "verify/settlement",         to: "verify#update_settlement", as: :update_kyb_settlement
-    post  "verify/documents",          to: "verify#upload_document",   as: :upload_kyb_document
+    post  "verify/documents",                         to: "verify#upload_document",   as: :upload_kyb_document
+    delete "verify/documents/:document_id",           to: "verify#destroy_document",  as: :delete_kyb_document
     post  "verify/agreement",          to: "verify#submit_agreement",  as: :submit_kyb_agreement
     get   "onboarding/kyb-banner",     to: "verify#banner",            as: :kyb_banner
   end

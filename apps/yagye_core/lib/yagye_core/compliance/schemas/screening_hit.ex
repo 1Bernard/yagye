@@ -47,6 +47,18 @@ defmodule YagyeCore.Compliance.Schemas.ScreeningHit do
     |> validate_required([:status, :disposition_reason, :dispositioned_by, :dispositioned_at])
     |> validate_inclusion(:status, @valid_statuses -- ["open"])
     |> validate_no_sanctions_clearance()
+    |> validate_sod()
+  end
+
+  defp validate_sod(changeset) do
+    raised_by = get_field(changeset, :raised_by)
+    dispositioned_by = get_field(changeset, :dispositioned_by)
+
+    if raised_by != nil and raised_by == dispositioned_by do
+      add_error(changeset, :dispositioned_by, "must differ from raised_by")
+    else
+      changeset
+    end
   end
 
   defp validate_no_sanctions_clearance(changeset) do

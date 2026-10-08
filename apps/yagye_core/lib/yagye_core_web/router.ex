@@ -54,6 +54,7 @@ defmodule YagyeCoreWeb.Router do
   alias YagyeCoreWeb.Controllers.Internal.SettlementBatchesController,
     as: InternalSettlementBatchesController
 
+  alias YagyeCoreWeb.Controllers.Internal.ActivityController, as: InternalActivityController
   alias YagyeCoreWeb.Controllers.Internal.DisputesController, as: InternalDisputesController
   alias YagyeCoreWeb.Controllers.Internal.KybController
   alias YagyeCoreWeb.Controllers.Internal.ReservesController, as: InternalReservesController
@@ -174,6 +175,10 @@ defmodule YagyeCoreWeb.Router do
     put("/merchants/:merchant_code/contacts", KybController, :upsert_contact)
     put("/merchants/:merchant_code/addresses/:address_type", KybController, :upsert_address)
     post("/merchants/:merchant_code/documents", KybController, :upload_document)
+    post("/merchants/:merchant_code/documents/upload-intent", KybController, :upload_intent)
+    patch("/documents/:id/confirm-upload", KybController, :confirm_upload)
+    get("/documents/:id/download-url", KybController, :download_url)
+    delete("/merchants/:merchant_code/documents/:document_id", KybController, :delete_document)
     post("/merchants/:merchant_code/service-agreements", KybController, :accept_agreement)
 
     # Ops-initiated full KYB approval (enforces 25% UBO screening threshold)
@@ -269,6 +274,9 @@ defmodule YagyeCoreWeb.Router do
     # P11 — Customers (portal read-only via service token)
     get("/merchants/:merchant_code/customers", InternalCustomersController, :index)
     get("/customers/:id", InternalCustomersController, :show)
+
+    # Cross-domain activity feed
+    get("/merchants/:merchant_code/activity", InternalActivityController, :index)
 
     # P9 — Settlement Batches (portal read-only via service token)
     get(

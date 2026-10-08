@@ -16,10 +16,15 @@ module Developers
         mode:              current_portal_mode
       )
       if result.success?
+        audit(action: "webhook.created", resource_type: "webhook_endpoint",
+              outcome: "succeeded", resource_code: result.body["id"],
+              metadata: { url: result.body["url"], mode: result.body["mode"] })
         upsert_endpoint(result.body)
         flash[:reveal_webhook_secret] = result.body["signing_secret"]
         redirect_to developers_path(tab: "webhooks"), notice: "Webhook endpoint added."
       else
+        audit(action: "webhook.created", resource_type: "webhook_endpoint", outcome: "failed",
+              metadata: { url: webhook_params[:url] })
         redirect_to developers_path(tab: "webhooks"), alert: result.error_message
       end
     end
@@ -41,6 +46,9 @@ module Developers
         active:            endpoint.active
       )
       if result.success?
+        audit(action: "webhook.updated", resource_type: "webhook_endpoint",
+              outcome: "succeeded", resource_code: params[:endpoint_id],
+              metadata: { url: result.body["url"] })
         endpoint.update!(
           url:               result.body["url"],
           subscribed_events: Array(result.body["subscribed_events"]),
@@ -48,6 +56,8 @@ module Developers
         )
         redirect_to developers_path(tab: "webhooks"), notice: "Webhook endpoint updated."
       else
+        audit(action: "webhook.updated", resource_type: "webhook_endpoint",
+              outcome: "failed", resource_code: params[:endpoint_id])
         redirect_to developers_path(tab: "webhooks"), alert: result.error_message
       end
     end
@@ -66,6 +76,9 @@ module Developers
       )
 
       if result.success?
+        audit(action: "webhook.toggled", resource_type: "webhook_endpoint",
+              outcome: "succeeded", resource_code: params[:endpoint_id],
+              metadata: { active: new_active })
         endpoint.update!(active: new_active, last_applied_at: Time.current)
         msg = new_active ? "Webhook endpoint re-enabled." : "Webhook endpoint disabled."
         redirect_to developers_path(tab: "webhooks"), notice: msg
@@ -88,9 +101,13 @@ module Developers
       # Treat 404 as success — endpoint is already absent from Core, so removing
       # the Portal record is always safe (idempotent delete).
       if result.success? || result.error_code == "not_found"
+        audit(action: "webhook.deleted", resource_type: "webhook_endpoint",
+              outcome: "succeeded", resource_code: params[:endpoint_id])
         PortalWebhookEndpoint.find_by(endpoint_id: params[:endpoint_id])&.soft_delete!
         redirect_to developers_path(tab: "webhooks"), notice: "Webhook endpoint removed."
       else
+        audit(action: "webhook.deleted", resource_type: "webhook_endpoint",
+              outcome: "failed", resource_code: params[:endpoint_id])
         redirect_to developers_path(tab: "webhooks"), alert: result.error_message
       end
     end

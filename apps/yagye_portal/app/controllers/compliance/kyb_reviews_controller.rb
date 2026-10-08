@@ -98,6 +98,16 @@ module Compliance
       redirect_to kyb_reviews_path(tab: "in_review"), notice: "Assigned to #{current_user.full_name}."
     end
 
+    def download_document
+      authorize :kyb_reviews, :show?
+      result = CoreApiClient.new.get_document_download_url(params[:document_id])
+      if result.success?
+        redirect_to result.body["url"], allow_other_host: true
+      else
+        redirect_to kyb_review_path(params[:id]), alert: "Document not available."
+      end
+    end
+
     def add_ubo
       authorize :kyb_reviews, :approve?
       application = decode_id(PortalMerchantApplication)

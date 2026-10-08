@@ -127,7 +127,92 @@ defmodule YagyeCoreWeb.Controllers.Internal.KybController do
     end
   end
 
+  # POST /internal/merchants/:merchant_code/documents/upload-intent
+  def upload_intent(conn, %{"merchant_code" => code} = params) do
+    attrs = %{
+      kind: params["kind"],
+      filename: params["filename"],
+      content_type: params["content_type"] || "application/octet-stream",
+      uploaded_by: params["uploaded_by"],
+      label: params["label"],
+      required_for_business_types: params["required_for_business_types"] || []
+    }
+
+    case Compliance.request_document_upload(code, attrs) do
+      {:ok, result} ->
+        Response.created(conn, %{
+          document_id: result.document_id,
+          presigned_url: result.presigned_url,
+          s3_key: result.s3_key,
+          expires_at: DateTime.to_iso8601(result.expires_at)
+        })
+
+      {:error, :not_found} ->
+        Response.not_found(conn)
+
+      {:error, %Ecto.Changeset{} = cs} ->
+        Response.validation_error(conn, cs)
+
+      {:error, reason} ->
+        Response.unprocessable(conn, "document_store_error", inspect(reason))
+    end
+  end
+
+  # PATCH /internal/documents/:id/confirm-upload
+  def confirm_upload(conn, %{"id" => document_id} = params) do
+    checksum = params["checksum"]
+
+    case Compliance.confirm_document_upload(document_id, checksum) do
+      {:ok, doc} ->
+        Response.ok(conn, %{document: serialize_document(doc)})
+
+      {:error, :not_found} ->
+        Response.not_found(conn)
+
+      {:error, %Ecto.Changeset{} = cs} ->
+        Response.validation_error(conn, cs)
+    end
+  end
+
+  # GET /internal/documents/:id/download-url
+  def download_url(conn, %{"id" => document_id}) do
+    case Compliance.document_download_url(document_id) do
+      {:ok, url} ->
+        expires_in =
+          Application.fetch_env!(:yagye_core, :document_store)[:download_expiry_seconds]
+
+        Response.ok(conn, %{url: url, expires_in_seconds: expires_in})
+
+      {:error, :not_found} ->
+        Response.not_found(conn)
+
+      {:error, :not_uploaded} ->
+        Response.unprocessable(conn, "not_uploaded", "Document has not been uploaded yet")
+    end
+  end
+
   # POST /internal/merchants/:merchant_code/service-agreements
+  # DELETE /internal/merchants/:merchant_code/documents/:document_id
+  def delete_document(conn, %{"merchant_code" => code, "document_id" => document_id}) do
+    with {:merchant, {:ok, merchant}} <- {:merchant, resolve_merchant(code)},
+         {:doc, {:ok, _doc}} <- {:doc, Compliance.delete_document(merchant.id, document_id)} do
+      Response.no_content(conn)
+    else
+      {:merchant, _} ->
+        Response.not_found(conn)
+
+      {:doc, {:error, :not_found}} ->
+        Response.not_found(conn)
+
+      {:doc, {:error, :not_deletable}} ->
+        Response.unprocessable(
+          conn,
+          "not_deletable",
+          "Document cannot be removed after review has started"
+        )
+    end
+  end
+
   def accept_agreement(conn, %{"merchant_code" => code} = params) do
     attrs = %{
       agreement_version: params["agreement_version"],

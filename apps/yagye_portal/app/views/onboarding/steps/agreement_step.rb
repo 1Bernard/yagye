@@ -22,6 +22,7 @@ module Onboarding
         @progress  = progress
         @agreement = progress.latest_agreement
         @merchant  = progress.merchant
+        @contact   = progress.contact || {}
       end
 
       def view_template
@@ -101,8 +102,10 @@ module Onboarding
       end
 
       def agreement_view
-        div(class: "px-6 py-5 space-y-5") do
-          terms_scroll_box
+        div do
+          div(class: "px-6 py-5") do
+            terms_scroll_box
+          end
           signatory_form
         end
       end
@@ -128,7 +131,7 @@ module Onboarding
         form(action: submit_kyb_agreement_path, method: :post) do
           input(type: "hidden", name: "authenticity_token", value: form_authenticity_token)
 
-          div(class: "space-y-4") do
+          div(class: "px-6 pb-5 space-y-4") do
             div do
               p(class: "#{TYPE_BODY_MD} mb-0.5") { plain "Authorised Signatory Details" }
               p(class: TYPE_CAPTION) { plain "The person accepting this agreement on behalf of the business." }
@@ -136,8 +139,10 @@ module Onboarding
 
             div(class: "grid grid-cols-1 sm:grid-cols-2 gap-4") do
               text_field("signatory_name",      "Full Name",     required: true)
-              text_field("signatory_email",     "Email Address", required: true, type: "email")
-              text_field("signatory_phone",     "Phone Number",  type: "tel")
+              text_field("signatory_email",     "Email Address", required: true, type: "email",
+                         value: @contact["general_email"])
+              text_field("signatory_phone",     "Phone Number",  type: "tel",
+                         value: @contact["phone_number"])
               text_field("signatory_job_title", "Job Title / Role")
             end
 
@@ -156,7 +161,7 @@ module Onboarding
             end
           end
 
-          div(class: "mt-5 pt-4 border-t border-gray-100 flex items-center justify-between") do
+          div(class: "px-6 py-4 border-t border-gray-100 flex items-center justify-between") do
             a(href: verify_step_path("documents"), class: BTN_SECONDARY) do
               render UI::Icon.new(:arrow_left, class: ICON_SM)
               plain "Back"
@@ -169,7 +174,7 @@ module Onboarding
         end
       end
 
-      def text_field(name, label_text, required: false, type: "text")
+      def text_field(name, label_text, required: false, type: "text", value: nil)
         div do
           div(class: "flex items-baseline gap-1 mb-1.5") do
             label(for: name, class: "block text-[13px] font-medium text-gray-700") { plain label_text }
@@ -179,6 +184,7 @@ module Onboarding
             type:     type,
             name:     name,
             id:       name,
+            value:    value,
             required: required,
             class:    INPUT_FIELD
           )
