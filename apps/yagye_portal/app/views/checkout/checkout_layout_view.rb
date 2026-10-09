@@ -377,7 +377,7 @@ module Checkout
         class: "flex items-center gap-2 py-[3px]",
         data:  { rail_id: rail["id"], rail_label: rail["label"] }
       ) do
-        span(class: "w-[5px] h-[5px] rounded-full bg-gray-200 flex-shrink-0") {}
+        span(class: "w-[5px] h-[5px] rounded-full bg-gray-200 flex-shrink-0") { }
         span(class: "flex-1 text-[11.5px] font-medium text-gray-500") { plain rail["label"] }
         input(
           type:    "checkbox",
@@ -529,9 +529,9 @@ module Checkout
         class: if expanded
           "rounded-xl overflow-hidden bg-white border-2 border-[#3D47F5] " \
           "shadow-[0_4px_20px_rgba(61,71,245,0.13)]"
-        else
+               else
           "rounded-xl overflow-hidden bg-white border border-gray-200"
-        end,
+               end,
         data: { preview_method: method["id"] }
       ) do
         # Header row
@@ -545,7 +545,7 @@ module Checkout
             # Dot always in DOM; hidden when compact
             div(class: "w-[6px] h-[6px] rounded-full bg-white",
                 hidden: !expanded,
-                data: { preview_tile_radio_dot: "" }) {}
+                data: { preview_tile_radio_dot: "" }) { }
           end
 
           span(

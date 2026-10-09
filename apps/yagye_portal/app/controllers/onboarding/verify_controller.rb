@@ -162,6 +162,21 @@ module Onboarding
       end
     end
 
+    def resubmit
+      authorize :onboarding, :create?
+      result = CoreApiClient.new.resubmit_kyb(
+        merchant_code,
+        resubmitted_by: "merchant:#{current_user.id}"
+      )
+      if result.success?
+        redirect_to verify_step_path("documents"),
+                    notice: "Application resubmitted. You can update your documents before we re-review."
+      else
+        redirect_to verify_step_path("agreement"),
+                    alert: result.error_message || "Could not resubmit. Please try again."
+      end
+    end
+
     # GET /onboarding/kyb-banner — lazy-loaded Turbo Frame from Layout::Shell
     def banner
       skip_authorization

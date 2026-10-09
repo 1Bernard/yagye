@@ -349,6 +349,12 @@ class CoreApiClient
          { reviewed_by: reviewed_by })
   end
 
+  # POST /internal/merchants/:code/kyb-resubmit
+  def resubmit_kyb(merchant_code, resubmitted_by:)
+    post("/internal/merchants/#{merchant_code}/kyb-resubmit",
+         { resubmitted_by: resubmitted_by })
+  end
+
   # GET /internal/merchants/:code/documents
   def list_kyb_documents(merchant_code)
     get("/internal/merchants/#{merchant_code}/documents")

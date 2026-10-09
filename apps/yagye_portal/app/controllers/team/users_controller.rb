@@ -38,9 +38,9 @@ module Team
       authorize User, :index?
       user_ids = if current_user.internal_staff?
                    MerchantMembership.where(merchant_code: params[:merchant_code]).pluck(:user_id)
-                 else
+      else
                    MerchantMembership.where(merchant_code: current_merchant_code).pluck(:user_id)
-                 end
+      end
       events = UserAuditEvent.where(user_id: user_ids)
                              .includes(:user)
                              .recent

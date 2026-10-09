@@ -15,7 +15,7 @@ module Account
       audit_events         = current_user.user_audit_events.recent.limit(15)
       sso_configs          = tab == "sso" ? SsoConfiguration.order(:name) : []
       tier                 = current_user.merchant_tier || 1
-      payout_controls, payout_destinations = tab == "payouts" && current_user.merchant_user? ? load_payouts_data : [{}, []]
+      payout_controls, payout_destinations = tab == "payouts" && current_user.merchant_user? ? load_payouts_data : [ {}, [] ]
       render Settings::IndexView.new(tab: tab, current_user: current_user,
                                      ip_allowlists: ip_allowlists, ip_blocklists: ip_blocklists,
                                      msisdn_allowlists: msisdn_allowlists,
@@ -85,9 +85,9 @@ module Account
       controls        = controls_result.success? ? controls_result.body : {}
       dest_result     = client.list_payout_destinations(current_user.merchant_code)
       destinations    = dest_result.success? ? (dest_result.body["data"] || []) : []
-      [controls, destinations]
+      [ controls, destinations ]
     rescue StandardError
-      [{}, []]
+      [ {}, [] ]
     end
 
     def profile_params

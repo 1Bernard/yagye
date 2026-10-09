@@ -41,6 +41,9 @@ class MerchantApplicationEventsConsumer < ApplicationConsumer
     when "merchant.application.rejected"
       record.status          = "rejected"
       record.rejected_reason = event.rejected_reason
+    when "merchant.application.resubmitted"
+      record.status          = "submitted"
+      record.rejected_reason = nil
     else
       return
     end

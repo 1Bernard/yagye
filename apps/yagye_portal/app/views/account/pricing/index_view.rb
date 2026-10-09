@@ -141,9 +141,9 @@ module Account
                        from_s = amount_min ? format_money(amount_min.to_i, currency: cur) : "0"
                        to_s   = amount_max ? format_money(amount_max.to_i, currency: cur) : "∞"
                        "#{from_s} – #{to_s}"
-                     else
+        else
                        "All amounts"
-                     end
+        end
 
         is_default = r["method"].nil? && r["provider_code"].nil?
         row_cls    = is_default ? "bg-gray-50/60 hover:bg-gray-50 transition-colors" : "hover:bg-gray-50 transition-colors"

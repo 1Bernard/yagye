@@ -269,7 +269,6 @@ module Team
           end
         end
       end
-
     end
   end
 end

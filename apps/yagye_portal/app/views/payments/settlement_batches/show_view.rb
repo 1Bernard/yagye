@@ -114,15 +114,15 @@ module Payments
         batch_state = @b["state"] || "pending"
 
         ordered = case batch_state
-                  when "awaiting_approval"
+        when "awaiting_approval"
                     %w[pending awaiting_approval processing settled]
-                  when "dispatch_rejected"
+        when "dispatch_rejected"
                     %w[pending processing dispatch_rejected]
-                  when "failed"
+        when "failed"
                     %w[pending processing failed]
-                  else
+        else
                     %w[pending processing settled]
-                  end
+        end
 
         current_idx = ordered.index(batch_state) || 0
 
@@ -133,11 +133,11 @@ module Payments
               done  = i <= current_idx
               color = if done && %w[failed dispatch_rejected].include?(s)
                         RED
-                      elsif done
+              elsif done
                         GREEN
-                      else
+              else
                         BORDER
-                      end
+              end
               div(class: "flex gap-3") do
                 div(class: "flex flex-col items-center flex-shrink-0") do
                   div(class: "w-[10px] h-[10px] rounded-full flex-shrink-0 mt-[3px]", style: "background:#{color}")

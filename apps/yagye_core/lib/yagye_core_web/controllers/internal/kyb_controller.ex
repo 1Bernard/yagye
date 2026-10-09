@@ -26,6 +26,8 @@ defmodule YagyeCoreWeb.Controllers.Internal.KybController do
         controls = Settlement.get_settlement_controls(merchant.id)
         agreements = Compliance.list_service_agreements(merchant.id)
 
+        application = Merchants.get_latest_application(merchant.id)
+
         Response.ok(conn, %{
           merchant: serialize_merchant(merchant),
           contact: contact && serialize_contact(contact),
@@ -36,7 +38,8 @@ defmodule YagyeCoreWeb.Controllers.Internal.KybController do
           },
           documents: Enum.map(documents, &serialize_document/1),
           settlement_controls: controls && serialize_controls(controls),
-          service_agreements: Enum.map(agreements, &serialize_agreement/1)
+          service_agreements: Enum.map(agreements, &serialize_agreement/1),
+          application: application && serialize_application(application)
         })
     end
   end
@@ -213,6 +216,14 @@ defmodule YagyeCoreWeb.Controllers.Internal.KybController do
     end
   end
 
+  def resubmit(conn, %{"merchant_code" => code} = params) do
+    resubmitted_by = params["resubmitted_by"] || "merchant"
+
+    with {:ok, _result} <- Merchants.resubmit_application(code, resubmitted_by) do
+      Response.ok(conn, %{object: "merchant", id: code, status: "submitted"})
+    end
+  end
+
   def accept_agreement(conn, %{"merchant_code" => code} = params) do
     attrs = %{
       agreement_version: params["agreement_version"],
@@ -308,6 +319,10 @@ defmodule YagyeCoreWeb.Controllers.Internal.KybController do
       settlement_account_number: c.settlement_account_number,
       settlement_account_name: c.settlement_account_name
     }
+  end
+
+  defp serialize_application(a) do
+    %{status: a.status, rejected_reason: a.rejected_reason}
   end
 
   defp serialize_agreement(a) do

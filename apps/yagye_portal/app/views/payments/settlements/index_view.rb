@@ -172,10 +172,10 @@ module Payments
           t.column("Period") { |s| plain s.period_label }
           t.column("Rail") do |s|
             mode_cls = case s.mode
-                       when "live"       then "text-green-700 bg-green-50"
-                       when "sandbox"    then "text-amber-700 bg-amber-50"
-                       else                   "text-gray-500 bg-gray-100"
-                       end
+            when "live"       then "text-green-700 bg-green-50"
+            when "sandbox"    then "text-amber-700 bg-amber-50"
+            else                   "text-gray-500 bg-gray-100"
+            end
             provider = s.provider_code.to_s
             div do
               span(class: "block text-[12px] font-mono text-gray-700 truncate max-w-[120px]") do

@@ -169,6 +169,7 @@ Rails.application.routes.draw do
     post  "verify/documents",                         to: "verify#upload_document",   as: :upload_kyb_document
     delete "verify/documents/:document_id",           to: "verify#destroy_document",  as: :delete_kyb_document
     post  "verify/agreement",          to: "verify#submit_agreement",  as: :submit_kyb_agreement
+    post  "verify/resubmit",           to: "verify#resubmit",          as: :resubmit_kyb
     get   "onboarding/kyb-banner",     to: "verify#banner",            as: :kyb_banner
   end
 
@@ -186,7 +187,7 @@ Rails.application.routes.draw do
     post   "settings/payout-destinations",              to: "payout_destinations#create",      as: :settings_payout_destinations
     post   "settings/payout-destinations/:id/default", to: "payout_destinations#set_default", as: :settings_payout_destination_default
     delete "settings/payout-destinations/:id",          to: "payout_destinations#destroy",     as: :settings_payout_destination_remove
-    get   "help",                       to: "help#index",               as: :help
+    get "help",                       to: "help#index",               as: :help
 
     post   "settings/allowlists/ip",              to: "allowlists#create_ip",           as: :settings_add_ip
     delete "settings/allowlists/ip/:id",          to: "allowlists#destroy_ip",          as: :settings_remove_ip

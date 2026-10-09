@@ -27,7 +27,7 @@ module Settings
       [ "National Investment Bank",          "NIB"     ],
       [ "Universal Merchant Bank",           "UMB"     ],
       [ "First Atlantic Bank",               "FAB"     ],
-      [ "OmniBSIC Bank",                     "OMNIBSIC"],
+      [ "OmniBSIC Bank",                     "OMNIBSIC" ],
       [ "Société Générale Ghana",            "SGG"     ],
       [ "Access Bank Ghana",                 "ACCESS"  ],
       [ "Consolidated Bank Ghana",           "CBG"     ],
@@ -179,7 +179,7 @@ module Settings
       div(data: { controller: "tabs" }) do
         # Tab switcher
         div(class: "flex gap-1 p-1 rounded-xl bg-gray-100 mb-4") do
-          [["mobile_money", "Mobile Money"], ["bank", "Bank Account"]].each_with_index do |(key, label), i|
+          [ [ "mobile_money", "Mobile Money" ], [ "bank", "Bank Account" ] ].each_with_index do |(key, label), i|
             active = i.zero?
             button(type: "button",
                    class: "flex-1 py-2 px-4 rounded-lg text-[13px] font-medium transition-all",
@@ -251,11 +251,11 @@ module Settings
 
     def verification_badge(state)
       color, bg, label = case state
-                         when "verified"           then [GREEN, TINT_GREEN, "Verified"]
-                         when "micro_deposit_sent" then [AMBER, TINT_AMBER, "Pending verification"]
-                         when "failed"             then [RED,   TINT_RED,   "Verification failed"]
-                         else                           [AMBER, TINT_AMBER, "Unverified"]
-                         end
+      when "verified"           then [ GREEN, TINT_GREEN, "Verified" ]
+      when "micro_deposit_sent" then [ AMBER, TINT_AMBER, "Pending verification" ]
+      when "failed"             then [ RED,   TINT_RED,   "Verification failed" ]
+      else                           [ AMBER, TINT_AMBER, "Unverified" ]
+      end
       span(class: "text-[10px] font-bold px-[6px] py-[2px] rounded-full",
            style: "color:#{color};background:#{bg}") { plain label }
     end

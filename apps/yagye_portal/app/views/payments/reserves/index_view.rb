@@ -196,7 +196,7 @@ module Payments
               div(class: "px-6 py-4 border-t border-gray-100 flex items-center justify-between") do
                 p(class: TYPE_CAPTION) do
                   from = (@page - 1) * PER_PAGE + 1
-                  to   = [from + PER_PAGE - 1, @total].min
+                  to   = [ from + PER_PAGE - 1, @total ].min
                   plain "#{from}–#{to} of #{@total}"
                 end
                 div(class: "flex gap-2") do

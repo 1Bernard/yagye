@@ -128,10 +128,10 @@ module Settings
           # Read-only KYB identity fields
           div(class: "grid grid-cols-2 gap-4") do
             [
-              ["Trading name", @merchant&.trading_name],
-              ["Legal name",   @merchant&.legal_name],
-              ["General email", @merchant&.general_email],
-              ["Support phone", @merchant&.support_phone]
+              [ "Trading name", @merchant&.trading_name ],
+              [ "Legal name",   @merchant&.legal_name ],
+              [ "General email", @merchant&.general_email ],
+              [ "Support phone", @merchant&.support_phone ]
             ].each do |lbl, val|
               div do
                 label(class: "block #{TYPE_CAPTION} mb-1.5") { plain "#{lbl} (from KYB)" }

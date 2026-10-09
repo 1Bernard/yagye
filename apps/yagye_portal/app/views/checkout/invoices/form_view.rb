@@ -35,7 +35,7 @@ module Checkout
       end
 
       def view_template
-        crumbs = [{ label: "Invoices", href: invoices_path }]
+        crumbs = [ { label: "Invoices", href: invoices_path } ]
         crumbs << { label: @invoice["number"], href: invoice_path(@invoice["id"]) } if @editing
         crumbs << { label: @editing ? "Edit" : "New invoice" }
 

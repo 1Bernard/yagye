@@ -8,30 +8,30 @@ module Onboarding
       BRAND = UI::Theme::BRAND
 
       BUSINESS_TYPES = [
-        ["Sole Proprietorship",                  "sole_proprietorship"],
-        ["Partnership",                           "partnership"],
-        ["Limited Liability Company (LLC)",       "llc"],
-        ["Private Limited Company",               "private_limited"],
-        ["Public Limited Company",                "public_limited"],
-        ["Non-Governmental Organisation",         "ngo"]
+        [ "Sole Proprietorship",                  "sole_proprietorship" ],
+        [ "Partnership",                           "partnership" ],
+        [ "Limited Liability Company (LLC)",       "llc" ],
+        [ "Private Limited Company",               "private_limited" ],
+        [ "Public Limited Company",                "public_limited" ],
+        [ "Non-Governmental Organisation",         "ngo" ]
       ].freeze
 
       REGISTRATION_TYPES = [
-        ["Registrar General's Department (RGD)", "rgd"],
-        ["Ghana Revenue Authority (GRA)",         "gra"],
-        ["Other",                                 "other"]
+        [ "Registrar General's Department (RGD)", "rgd" ],
+        [ "Ghana Revenue Authority (GRA)",         "gra" ],
+        [ "Other",                                 "other" ]
       ].freeze
 
       CATEGORIES = [
-        ["E-commerce & Retail",        "ecommerce_retail"],
-        ["Food & Beverage",            "food_beverage"],
-        ["Professional Services",      "professional_services"],
-        ["Education",                  "education"],
-        ["Healthcare",                 "healthcare"],
-        ["Travel & Hospitality",       "travel_hospitality"],
-        ["Entertainment & Media",      "entertainment_media"],
-        ["Non-profit / NGO",           "nonprofit"],
-        ["Other",                      "other"]
+        [ "E-commerce & Retail",        "ecommerce_retail" ],
+        [ "Food & Beverage",            "food_beverage" ],
+        [ "Professional Services",      "professional_services" ],
+        [ "Education",                  "education" ],
+        [ "Healthcare",                 "healthcare" ],
+        [ "Travel & Hospitality",       "travel_hospitality" ],
+        [ "Entertainment & Media",      "entertainment_media" ],
+        [ "Non-profit / NGO",           "nonprofit" ],
+        [ "Other",                      "other" ]
       ].freeze
 
       def initialize(progress:)

@@ -29,15 +29,19 @@ class KybProgress
   def all_complete?   = steps.all?(&:complete)
   def percent         = (completed_count * 100.0 / total_count).round
 
-  def merchant         = @data["merchant"] || {}
-  def contact          = @data["contact"]
-  def addresses        = @data["addresses"] || {}
-  def office_address   = addresses["office"]
+  def merchant           = @data["merchant"] || {}
+  def contact            = @data["contact"]
+  def addresses          = @data["addresses"] || {}
+  def office_address     = addresses["office"]
   def registered_address = addresses["registered"]
-  def documents        = @data["documents"] || []
-  def settlement       = @data["settlement_controls"]
-  def agreements       = @data["service_agreements"] || []
-  def latest_agreement = agreements.first
+  def documents          = @data["documents"] || []
+  def settlement         = @data["settlement_controls"]
+  def agreements         = @data["service_agreements"] || []
+  def latest_agreement   = agreements.first
+  def application        = @data["application"] || {}
+  def rejected?          = application["status"] == "rejected"
+  def rejection_reason   = application["rejected_reason"]
+  def resubmittable?     = rejected?
 
   def step_data_for(key)
     case key

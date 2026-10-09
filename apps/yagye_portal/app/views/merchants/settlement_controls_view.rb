@@ -31,11 +31,11 @@ module Merchants
     private
 
     WEEKDAYS = [
-      ["Monday",    "1"], ["Tuesday", "2"], ["Wednesday", "3"],
-      ["Thursday",  "4"], ["Friday",  "5"]
+      [ "Monday",    "1" ], [ "Tuesday", "2" ], [ "Wednesday", "3" ],
+      [ "Thursday",  "4" ], [ "Friday",  "5" ]
     ].freeze
 
-    MONTH_DAYS = (1..28).map { |d| ["#{d.ordinalize} of the month", d.to_s] }.freeze
+    MONTH_DAYS = (1..28).map { |d| [ "#{d.ordinalize} of the month", d.to_s ] }.freeze
 
     def threshold
       @controls["approval_threshold"]

@@ -187,12 +187,12 @@ module KybReviews
 
     def screening_subject_row(s)
       status_color = case s["screening_status"]
-                     when "clean", "cleared"                        then "text-green-700 bg-green-50"
-                     when "confirmed_match_blocked"                 then "text-red-700 bg-red-50"
-                     when "potential_match", "confirmed_pep"        then "text-amber-700 bg-amber-50"
-                     when "suspended"                               then "text-red-700 bg-red-50"
-                     else "text-gray-500 bg-gray-50"
-                     end
+      when "clean", "cleared"                        then "text-green-700 bg-green-50"
+      when "confirmed_match_blocked"                 then "text-red-700 bg-red-50"
+      when "potential_match", "confirmed_pep"        then "text-amber-700 bg-amber-50"
+      when "suspended"                               then "text-red-700 bg-red-50"
+      else "text-gray-500 bg-gray-50"
+      end
       label = {
         "pending"                  => "Pending",
         "clean"                    => "Clear",

@@ -13,6 +13,7 @@ defmodule YagyeCore.Merchants do
     IssueApiKey,
     RegisterMerchant,
     RejectMerchantApplication,
+    ResubmitMerchantApplication,
     RevokeApiKey,
     StartApplicationReview,
     StartKybReview,
@@ -26,6 +27,7 @@ defmodule YagyeCore.Merchants do
     ApiKeyRevoked,
     ApplicationApproved,
     ApplicationRejected,
+    ApplicationResubmitted,
     ApplicationReviewStarted,
     ApplicationSubmitted,
     KybBasicInfoSubmitted,
@@ -93,6 +95,23 @@ defmodule YagyeCore.Merchants do
       rejected_by: rejected_by,
       reason: reason
     })
+  end
+
+  def resubmit_application(merchant_code, resubmitted_by) do
+    dispatch(%ResubmitMerchantApplication{
+      merchant_id: merchant_code,
+      resubmitted_by: resubmitted_by
+    })
+  end
+
+  def get_latest_application(merchant_id) do
+    Repo.one(
+      from(a in MerchantApplication,
+        where: a.merchant_id == ^merchant_id,
+        order_by: [desc: a.inserted_at],
+        limit: 1
+      )
+    )
   end
 
   def create_merchant(attrs) do
@@ -419,14 +438,19 @@ defmodule YagyeCore.Merchants do
 
   defp dispatch(%RejectMerchantApplication{} = cmd) do
     with {:ok, application} <- fetch_rejectable_application(cmd.application_id) do
-      application
-      |> MerchantApplication.reject_changeset(%{
-        status: "rejected",
-        rejected_reason: cmd.reason
-      })
-      |> Repo.update()
+      Multi.new()
+      |> Multi.update(:application, fn _changes ->
+        MerchantApplication.reject_changeset(application, %{
+          status: "rejected",
+          rejected_reason: cmd.reason
+        })
+      end)
+      |> Multi.run(:merchant_state, fn _repo, _changes ->
+        reset_merchant_onboarding_state(application.merchant_id)
+      end)
+      |> Repo.transaction()
       |> case do
-        {:ok, updated} ->
+        {:ok, %{application: updated}} ->
           event = %ApplicationRejected{
             application_id: updated.id,
             rejected_by: cmd.rejected_by,
@@ -436,8 +460,8 @@ defmodule YagyeCore.Merchants do
 
           {:ok, {updated, event}}
 
-        {:error, changeset} ->
-          {:error, changeset}
+        {:error, _step, reason, _} ->
+          {:error, reason}
       end
     end
   end
@@ -715,6 +739,40 @@ defmodule YagyeCore.Merchants do
     end
   end
 
+  defp dispatch(%ResubmitMerchantApplication{} = cmd) do
+    with {:ok, merchant} <- resolve_merchant(cmd.merchant_id),
+         {:ok, application} <- fetch_rejected_application(merchant.id) do
+      Multi.new()
+      |> Multi.update(:application, MerchantApplication.resubmit_changeset(application))
+      |> Multi.update(:merchant, fn _changes ->
+        Merchant.onboarding_changeset(merchant, %{onboarding_state: "documents_submitted"})
+      end)
+      |> Multi.insert(:outbox, fn %{application: updated} ->
+        Outbox.build_changeset(updated, "merchant.application.resubmitted", %{
+          application_id: updated.id,
+          merchant_id: merchant.id,
+          merchant_code: merchant.public_id,
+          resubmitted_by: cmd.resubmitted_by
+        })
+      end)
+      |> Repo.transaction()
+      |> case do
+        {:ok, %{application: updated}} ->
+          event = %ApplicationResubmitted{
+            application_id: updated.id,
+            merchant_id: merchant.id,
+            resubmitted_by: cmd.resubmitted_by,
+            occurred_at: DateTime.utc_now()
+          }
+
+          {:ok, {updated, event}}
+
+        {:error, _step, reason, _} ->
+          {:error, reason}
+      end
+    end
+  end
+
   # ── Private helpers ──────────────────────────────────────────────────────────
 
   def grant_sandbox_mode(merchant_id) do
@@ -818,5 +876,27 @@ defmodule YagyeCore.Merchants do
       %MerchantApplication{} -> {:error, :invalid_state}
       nil -> {:error, :not_found}
     end
+  end
+
+  defp fetch_rejected_application(merchant_id) do
+    query =
+      from(a in MerchantApplication,
+        where: a.merchant_id == ^merchant_id and a.status == "rejected",
+        order_by: [desc: a.inserted_at],
+        limit: 1
+      )
+
+    case Repo.one(query) do
+      nil -> {:error, :no_rejected_application}
+      application -> {:ok, application}
+    end
+  end
+
+  defp reset_merchant_onboarding_state(nil), do: {:ok, nil}
+
+  defp reset_merchant_onboarding_state(merchant_id) do
+    Repo.get!(Merchant, merchant_id)
+    |> Merchant.onboarding_changeset(%{onboarding_state: "documents_submitted"})
+    |> Repo.update()
   end
 end

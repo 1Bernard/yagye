@@ -81,7 +81,7 @@ module Onboarding
       # ── Section group ───────────────────────────────────────────────────────
 
       def doc_section(title, kinds, required:)
-        present = kinds.filter_map { |k| info = DOCUMENT_KINDS[k]; [k, info] if info }
+        present = kinds.filter_map { |k| info = DOCUMENT_KINDS[k]; [ k, info ] if info }
         return if present.empty?
 
         div do
@@ -181,11 +181,11 @@ module Onboarding
                   span(
                     class: "flex-1 min-w-0 text-[12.5px] font-medium text-gray-900 truncate",
                     data:  { "doc-upload-target": "filename" }
-                  ) {}
+                  ) { }
                   span(
                     class: "text-[11px] text-gray-400 flex-shrink-0 mr-1",
                     data:  { "doc-upload-target": "filesize" }
-                  ) {}
+                  ) { }
                   button(
                     type:  "button",
                     class: "flex-shrink-0 p-1 rounded text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors",
@@ -305,11 +305,11 @@ module Onboarding
                       span(
                         class: "flex-1 min-w-0 text-[12.5px] font-medium text-gray-900 truncate",
                         data:  { "doc-upload-target": "filename" }
-                      ) {}
+                      ) { }
                       span(
                         class: "text-[11px] text-gray-400 flex-shrink-0 mr-1",
                         data:  { "doc-upload-target": "filesize" }
-                      ) {}
+                      ) { }
                       button(
                         type:  "button",
                         class: "flex-shrink-0 p-1 rounded text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors",

@@ -154,7 +154,6 @@ module Layout
             button(type: "submit",
                    style: "font-size:11.5px;font-weight:500;color:#{BRAND};background:none;" \
                           "border:none;cursor:pointer;padding:0;") do
-
               plain "Mark all read"
             end
           end
@@ -170,7 +169,7 @@ module Layout
                  "transition:background 120ms;") do
           div(style: "flex-shrink:0;margin-top:6px;") do
             span(style: "display:block;width:7px;height:7px;border-radius:50%;" \
-                        "background:#{notif.read? ? '#d1d5db' : BRAND};") {}
+                        "background:#{notif.read? ? '#d1d5db' : BRAND};") { }
           end
           div(style: "flex:1;min-width:0;") do
             p(style: "font-size:12.5px;font-weight:600;color:#{INK};margin:0 0 2px;" \

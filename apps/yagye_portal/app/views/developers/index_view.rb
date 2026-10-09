@@ -755,7 +755,7 @@ module Developers
 
         # Endpoint rows
         div do
-          operations.sort_by { |o| [o[:path], o[:verb]] }.each_with_index do |op_data, idx|
+          operations.sort_by { |o| [ o[:path], o[:verb] ] }.each_with_index do |op_data, idx|
             ref_endpoint_row(op_data, last: idx == operations.size - 1)
           end
         end
@@ -1076,6 +1076,5 @@ module Developers
         end
       end
     end
-
   end
 end

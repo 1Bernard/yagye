@@ -23,9 +23,9 @@ module Merchants
       approver_codes = Array(params[:approver_user_codes]).reject(&:blank?)
       frequency      = params[:settlement_frequency].presence_in(%w[daily weekly monthly]) || "daily"
       day            = case frequency
-                       when "weekly"  then params[:settlement_day_weekly].to_i.clamp(1, 5)
-                       when "monthly" then params[:settlement_day_monthly].to_i.clamp(1, 28)
-                       end
+      when "weekly"  then params[:settlement_day_weekly].to_i.clamp(1, 5)
+      when "monthly" then params[:settlement_day_monthly].to_i.clamp(1, 28)
+      end
 
       result = CoreApiClient.new.upsert_settlement_controls(
         @app.merchant_code,

@@ -68,11 +68,11 @@ module Compliance
             note    = action["note"].presence
             amount  = action["amount"]
             badge_class = case type
-                          when "credit", "reversal"  then "bg-green-50 text-green-700"
-                          when "debit", "chargeback" then "bg-red-50 text-red-700"
-                          when "fee"                 then "bg-amber-50 text-amber-700"
-                          else                            "bg-gray-100 text-gray-600"
-                          end
+            when "credit", "reversal"  then "bg-green-50 text-green-700"
+            when "debit", "chargeback" then "bg-red-50 text-red-700"
+            when "fee"                 then "bg-amber-50 text-amber-700"
+            else                            "bg-gray-100 text-gray-600"
+            end
             div(class: "flex flex-col gap-1") do
               div(class: "flex items-center gap-2") do
                 span(class: "#{badge_class} inline-flex items-center rounded px-1.5 py-0.5 text-[10.5px] font-semibold uppercase tracking-wide") do

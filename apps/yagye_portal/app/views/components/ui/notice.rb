@@ -15,7 +15,7 @@ module UI
     SIZES = {
       sm: { padding: "px-3 py-2.5",  badge: "w-6 h-6 rounded-md", icon: "w-[11px] h-[11px]", title: "text-[12px]",   body: "text-[11px]"   },
       md: { padding: "px-4 py-3",    badge: "w-7 h-7 rounded-lg", icon: "w-[13px] h-[13px]", title: "text-[12.5px]", body: "text-[11.5px]" },
-      lg: { padding: "px-5 py-4",    badge: "w-8 h-8 rounded-xl", icon: "w-[15px] h-[15px]", title: "text-[13px]",   body: "text-[12px]"   },
+      lg: { padding: "px-5 py-4",    badge: "w-8 h-8 rounded-xl", icon: "w-[15px] h-[15px]", title: "text-[13px]",   body: "text-[12px]"   }
     }.freeze
 
     def initialize(title:, body: nil, variant: :info, size: :md, icon: nil, dismissable: false, action_label: nil, action_href: nil)

@@ -122,7 +122,7 @@ module Settings
                  SsoConfiguration.active_for_email_domain?(@current_user.email.to_s)
 
       if show_sso
-        groups << { label: "Enterprise", items: [{ key: "sso", label: "Single Sign-On", icon: :building }] }
+        groups << { label: "Enterprise", items: [ { key: "sso", label: "Single Sign-On", icon: :building } ] }
       end
 
       groups

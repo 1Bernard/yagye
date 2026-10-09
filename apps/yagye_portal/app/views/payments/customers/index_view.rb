@@ -95,10 +95,10 @@ module Payments
           t.column("KYC Tier") do |c|
             tier = { "tier_1" => 1, "tier_2" => 2, "tier_3" => 3 }.fetch(c["kyc_tier"], 0)
             css  = case tier
-                   when 2 then "bg-green-50 text-green-700"
-                   when 1 then "bg-amber-50 text-amber-700"
-                   else        "bg-gray-100 text-gray-500"
-                   end
+            when 2 then "bg-green-50 text-green-700"
+            when 1 then "bg-amber-50 text-amber-700"
+            else        "bg-gray-100 text-gray-500"
+            end
             span(class: "inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium #{css}") do
               plain "Tier #{tier}"
             end

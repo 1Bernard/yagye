@@ -24,10 +24,10 @@ class ApiKeyEventsConsumer < ApplicationConsumer
 
     # Core stores mode as "sandbox"/"simulation"/"live"; Portal uses "test"/"live".
     portal_mode = case payload["mode"]
-                  when "sandbox", "simulation" then "test"
-                  when "live"                  then "live"
-                  else payload["mode"].presence || "test"
-                  end
+    when "sandbox", "simulation" then "test"
+    when "live"                  then "live"
+    else payload["mode"].presence || "test"
+    end
 
     attrs = {
       key_id:        key_id,

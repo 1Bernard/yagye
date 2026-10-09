@@ -118,10 +118,10 @@ module Payments
         end
         t.column("Method") do |p|
           mode_cls = case p.mode
-                     when "live"       then "text-green-700 bg-green-50"
-                     when "sandbox"    then "text-amber-700 bg-amber-50"
-                     else                   "text-gray-500 bg-gray-100"
-                     end
+          when "live"       then "text-green-700 bg-green-50"
+          when "sandbox"    then "text-amber-700 bg-amber-50"
+          else                   "text-gray-500 bg-gray-100"
+          end
           div do
             div(class: "flex items-center gap-1.5") do
               if (logo = p.method_logo)

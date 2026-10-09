@@ -77,6 +77,10 @@ defmodule YagyeCore.Merchants.Schemas.MerchantApplication do
     |> validate_required([:rejected_reason])
   end
 
+  def resubmit_changeset(application) do
+    cast(application, %{status: "submitted", rejected_reason: nil}, [:status, :rejected_reason])
+  end
+
   defp validate_sod_actors(changeset) do
     approved_by = get_field(changeset, :approved_by)
     reviewed_by = get_field(changeset, :reviewed_by)

@@ -33,7 +33,7 @@ module Payments
         daily_pct   = stat[:today_volume].to_f / limits[:daily]
         monthly_pct = stat[:mtd_volume].to_f   / limits[:monthly]
 
-        case [daily_pct, monthly_pct].max
+        case [ daily_pct, monthly_pct ].max
         when (1.0..)  then :at_limit
         when (0.8..)  then :near_limit
         else               :ok

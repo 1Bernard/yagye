@@ -10,10 +10,10 @@ module Dashboard
 
     def view_template
       dot_color = case @payment.status
-                  when "paid"   then GREEN
-                  when "failed" then RED
-                  else               AMBER
-                  end
+      when "paid"   then GREEN
+      when "failed" then RED
+      else               AMBER
+      end
 
       div(class: "flex items-center gap-3 px-5 py-[10px] hover:bg-gray-50 transition-colors") do
         span(class: "w-[7px] h-[7px] rounded-full flex-shrink-0 mt-[1px]",

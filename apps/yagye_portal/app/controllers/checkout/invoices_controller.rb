@@ -33,7 +33,7 @@ module Checkout
 
       line_items = parse_line_items(params[:line_items] || [])
       if line_items.empty?
-        return render Checkout::Invoices::FormView.new(errors: ["Add at least one line item."], mode: Current.mode),
+        return render Checkout::Invoices::FormView.new(errors: [ "Add at least one line item." ], mode: Current.mode),
                       status: :unprocessable_entity
       end
 
@@ -76,7 +76,7 @@ module Checkout
         re = core.get_invoice(params[:id])
         return render Checkout::Invoices::FormView.new(
           invoice:  re.success? ? re.body : nil,
-          errors:   ["Add at least one line item."],
+          errors:   [ "Add at least one line item." ],
           mode:     Current.mode,
           logo_url: extract_logo_url(re.success? ? re.body : nil)
         ), status: :unprocessable_entity
@@ -113,7 +113,7 @@ module Checkout
       allowed_methods = Array(params[:allowed_methods]).select do |m|
         %w[mobile_money card bank_transfer].include?(m)
       end
-      allowed_methods = ["mobile_money"] if allowed_methods.empty?
+      allowed_methods = [ "mobile_money" ] if allowed_methods.empty?
 
       payment_config = {
         allowed_methods: allowed_methods,
@@ -163,10 +163,10 @@ module Checkout
         if details.any?
           details.flat_map { |field, msgs| msgs.map { |m| "#{field.to_s.humanize} #{m}" } }
         else
-          [result.error_message]
+          [ result.error_message ]
         end
       else
-        [result.error_message]
+        [ result.error_message ]
       end
     end
 

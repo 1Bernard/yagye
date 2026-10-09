@@ -26,7 +26,7 @@ module Portal
     # but this prevents accidental misconfigurations before they reach Core.
     SoD_PAIRS = [
       %w[compliance_analyst compliance_manager],
-      %w[ops_analyst        ops_manager]
+      %w[ops_analyst ops_manager]
     ].freeze
 
     def self.for_key(key)     = ALL.find { |r| r[:key] == key.to_s }
@@ -36,7 +36,7 @@ module Portal
 
     def self.conflicting_with(key)
       SoD_PAIRS.each_with_object([]) do |pair, acc|
-        acc << (pair - [key.to_s]).first if pair.include?(key.to_s)
+        acc << (pair - [ key.to_s ]).first if pair.include?(key.to_s)
       end.compact
     end
   end

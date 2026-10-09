@@ -13,7 +13,7 @@ module Payments
     PROVIDERS = [
       { key: "mtn_momo",     name: "MTN MoMo",        color: "#FFCC00" },
       { key: "telecel_cash", name: "Telecel Cash",     color: "#E2001A" },
-      { key: "airteltigo",   name: "AirtelTigo Money", color: "#FF6B00" },
+      { key: "airteltigo",   name: "AirtelTigo Money", color: "#FF6B00" }
     ].freeze
 
     TERMINAL = %w[paid failed cancelled indeterminate].freeze

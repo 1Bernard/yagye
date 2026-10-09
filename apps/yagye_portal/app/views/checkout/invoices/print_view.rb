@@ -249,14 +249,14 @@ module Checkout
 
       def state_chip(state)
         cfg = case state
-              when "draft"            then ["#f3f4f6", "#6b7280", "Draft"]
-              when "open"             then ["rgba(61,71,245,0.08)", "#3D47F5", "Open"]
-              when "partially_paid"   then ["rgba(234,179,8,0.10)", "#a16207", "Partial"]
-              when "paid"             then ["rgba(22,163,74,0.10)", "#15803d", "Paid"]
-              when "overdue"          then ["rgba(220,38,38,0.10)", "#b91c1c", "Overdue"]
-              when "void"             then ["#f3f4f6", "#9ca3af", "Void"]
-              else                         ["#f3f4f6", "#6b7280", (state || "unknown").capitalize]
-              end
+        when "draft"            then [ "#f3f4f6", "#6b7280", "Draft" ]
+        when "open"             then [ "rgba(61,71,245,0.08)", "#3D47F5", "Open" ]
+        when "partially_paid"   then [ "rgba(234,179,8,0.10)", "#a16207", "Partial" ]
+        when "paid"             then [ "rgba(22,163,74,0.10)", "#15803d", "Paid" ]
+        when "overdue"          then [ "rgba(220,38,38,0.10)", "#b91c1c", "Overdue" ]
+        when "void"             then [ "#f3f4f6", "#9ca3af", "Void" ]
+        else                         [ "#f3f4f6", "#6b7280", (state || "unknown").capitalize ]
+        end
 
         span(style: "display:inline-block;font-size:10.5px;font-weight:700;letter-spacing:0.06em;" \
                     "text-transform:uppercase;padding:3px 9px;border-radius:999px;" \

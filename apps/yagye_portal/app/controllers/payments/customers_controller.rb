@@ -29,8 +29,8 @@ module Payments
       customer = result.body
       msisdn   = customer["msisdn"]
       query    = Payments::CustomerStatsQuery.new(payment_scope)
-      stat     = msisdn.present? ? query.call(msisdns: [msisdn])[msisdn] : nil
-      network  = msisdn.present? ? query.primary_networks(msisdns: [msisdn])[msisdn] : nil
+      stat     = msisdn.present? ? query.call(msisdns: [ msisdn ])[msisdn] : nil
+      network  = msisdn.present? ? query.primary_networks(msisdns: [ msisdn ])[msisdn] : nil
 
       render Payments::Customers::ShowView.new(customer: customer, stat: stat, network: network)
     end
@@ -46,7 +46,7 @@ module Payments
 
       q = params[:q].to_s.downcase
       customers.select do |c|
-        [c["merchant_customer_ref"], c["id"], c["name"], c["msisdn"], c["email"]]
+        [ c["merchant_customer_ref"], c["id"], c["name"], c["msisdn"], c["email"] ]
           .any? { |v| v.to_s.downcase.include?(q) }
       end
     end

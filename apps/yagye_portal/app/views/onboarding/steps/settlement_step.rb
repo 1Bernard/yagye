@@ -8,24 +8,24 @@ module Onboarding
       BRAND = UI::Theme::BRAND
 
       GHANA_BANKS = [
-        ["Ghana Commercial Bank (GCB)",  "GCB001"],
-        ["Ecobank Ghana",                "ECO001"],
-        ["Stanbic Bank Ghana",           "STD001"],
-        ["Fidelity Bank Ghana",          "FBL001"],
-        ["Standard Chartered Bank",      "SCB001"],
-        ["Absa Bank Ghana",              "ABS001"],
-        ["CalBank",                      "CAL001"],
-        ["United Bank for Africa (UBA)", "UBA001"],
-        ["Access Bank Ghana",            "ACC001"],
-        ["Zenith Bank Ghana",            "ZEN001"],
-        ["Republic Bank Ghana",          "REP001"],
-        ["Agricultural Development Bank","ADB001"],
-        ["NIB Bank",                     "NIB001"],
-        ["Consolidated Bank Ghana (CBG)","CBG001"],
-        ["First Atlantic Bank",          "FAB001"],
-        ["Prudential Bank",              "PRU001"],
-        ["OmniBSIC Bank",                "OMS001"],
-        ["Societe Generale Ghana",       "SOG001"]
+        [ "Ghana Commercial Bank (GCB)",  "GCB001" ],
+        [ "Ecobank Ghana",                "ECO001" ],
+        [ "Stanbic Bank Ghana",           "STD001" ],
+        [ "Fidelity Bank Ghana",          "FBL001" ],
+        [ "Standard Chartered Bank",      "SCB001" ],
+        [ "Absa Bank Ghana",              "ABS001" ],
+        [ "CalBank",                      "CAL001" ],
+        [ "United Bank for Africa (UBA)", "UBA001" ],
+        [ "Access Bank Ghana",            "ACC001" ],
+        [ "Zenith Bank Ghana",            "ZEN001" ],
+        [ "Republic Bank Ghana",          "REP001" ],
+        [ "Agricultural Development Bank", "ADB001" ],
+        [ "NIB Bank",                     "NIB001" ],
+        [ "Consolidated Bank Ghana (CBG)", "CBG001" ],
+        [ "First Atlantic Bank",          "FAB001" ],
+        [ "Prudential Bank",              "PRU001" ],
+        [ "OmniBSIC Bank",                "OMS001" ],
+        [ "Societe Generale Ghana",       "SOG001" ]
       ].freeze
 
       def initialize(progress:)

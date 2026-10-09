@@ -510,10 +510,10 @@ module Checkout
         return unless %w[overdue paid void].include?(state)
 
         cfg = case state
-              when "overdue" then { bg: "bg-red-50 border-red-100",    text: "text-red-700",   msg: "This invoice is overdue." }
-              when "paid"    then { bg: "bg-green-50 border-green-100", text: "text-green-700", msg: "Payment received in full." }
-              when "void"    then { bg: "bg-gray-50 border-gray-200",   text: "text-gray-500",  msg: "This invoice has been voided." }
-              end
+        when "overdue" then { bg: "bg-red-50 border-red-100",    text: "text-red-700",   msg: "This invoice is overdue." }
+        when "paid"    then { bg: "bg-green-50 border-green-100", text: "text-green-700", msg: "Payment received in full." }
+        when "void"    then { bg: "bg-gray-50 border-gray-200",   text: "text-gray-500",  msg: "This invoice has been voided." }
+        end
 
         div(class: "px-10 py-3 border-b #{cfg[:bg]} #{cfg[:text]} text-[12px] font-medium flex items-center justify-between gap-4") do
           plain cfg[:msg]

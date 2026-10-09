@@ -162,12 +162,12 @@ module Checkout
           p(class: "text-[11px] font-bold uppercase tracking-[0.1em] text-gray-400") { plain "Link details" }
           if @link["active"]
             span(class: "flex items-center gap-[4px] text-[10.5px] font-semibold text-green-600") do
-              span(class: "w-[6px] h-[6px] rounded-full bg-green-500 flex-shrink-0") {}
+              span(class: "w-[6px] h-[6px] rounded-full bg-green-500 flex-shrink-0") { }
               plain "Live"
             end
           else
             span(class: "flex items-center gap-[4px] text-[10.5px] font-semibold text-gray-400") do
-              span(class: "w-[6px] h-[6px] rounded-full bg-gray-300 flex-shrink-0") {}
+              span(class: "w-[6px] h-[6px] rounded-full bg-gray-300 flex-shrink-0") { }
               plain "Inactive"
             end
           end
@@ -301,9 +301,9 @@ module Checkout
 
       def collect_info_section
         fields = [
-          ["collect_email", "Email address"],
-          ["collect_phone", "Phone number"],
-          ["collect_name",  "Full name"]
+          [ "collect_email", "Email address" ],
+          [ "collect_phone", "Phone number" ],
+          [ "collect_name",  "Full name" ]
         ]
         active_fields = fields.select { |f, _| @link[f] }
 
@@ -347,7 +347,7 @@ module Checkout
                 end
               end
               if max_uses
-                pct = [(use_count.to_f / max_uses * 100).round, 100].min
+                pct = [ (use_count.to_f / max_uses * 100).round, 100 ].min
                 fill_color = pct >= 90 ? "#ef4444" : pct >= 60 ? "#f59e0b" : "#3D47F5"
                 div(class: "w-full h-1 bg-gray-100 rounded-full overflow-hidden") do
                   div(class: "h-full rounded-full", style: "width:#{pct}%;background:#{fill_color}")

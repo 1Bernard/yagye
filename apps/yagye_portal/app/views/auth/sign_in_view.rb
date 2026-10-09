@@ -23,7 +23,6 @@ module Auth
           sso_domain_check_url_value:    sso_check_path,
           sso_domain_initiate_url_value: sso_initiate_path
         }) do
-
         form action: user_session_path, method: :post, class: "space-y-5" do
           input type: :hidden, name: :authenticity_token, value: @csrf_token
 
@@ -147,7 +146,6 @@ module Auth
         end
 
         render Auth::SsoButton.new(check_url: sso_check_path, initiate_url: sso_initiate_path)
-
         end # sso-domain controller div
       end
     end

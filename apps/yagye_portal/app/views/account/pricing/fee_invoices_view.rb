@@ -59,13 +59,13 @@ module Account
           t.column("Status") do |inv|
             state = inv["state"] || "draft"
             css   = case state
-                    when "collected"   then "bg-green-50 text-green-700"
-                    when "issued",
+            when "collected"   then "bg-green-50 text-green-700"
+            when "issued",
                          "collecting" then "bg-blue-50 text-blue-700"
-                    when "overdue"     then "bg-red-50 text-red-700"
-                    when "written_off" then "bg-gray-100 text-gray-500"
-                    else                    "bg-amber-50 text-amber-700"
-                    end
+            when "overdue"     then "bg-red-50 text-red-700"
+            when "written_off" then "bg-gray-100 text-gray-500"
+            else                    "bg-amber-50 text-amber-700"
+            end
             span(class: "inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium #{css}") do
               plain state.humanize
             end

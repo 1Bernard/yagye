@@ -168,7 +168,6 @@ module Layout
       div(class: "sidebar-tier-card",
           style: "margin:0 10px 6px;border-radius:12px;padding:12px 13px;" \
                  "background:#{cfg[:bg]};border:1px solid #{cfg[:border]};flex-shrink:0") do
-
         # Top row: conic ring + title + badge
         div(style: "display:flex;align-items:center;gap:9px;margin-bottom:9px") do
           # Conic ring — compact version of the settings verification banner ring

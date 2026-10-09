@@ -73,13 +73,13 @@ module Checkout
 
       kind = params[:kind].presence || "fixed_amount"
       if kind == "fixed_amount" && params[:amount].blank?
-        return render Checkout::PaymentLinkFormView.new(errors: ["Amount is required for fixed-amount links"], mode: Current.mode),
+        return render Checkout::PaymentLinkFormView.new(errors: [ "Amount is required for fixed-amount links" ], mode: Current.mode),
                       status: :unprocessable_entity
       end
 
       allowed_methods = Array(params[:allowed_methods]).reject(&:blank?)
       if allowed_methods.empty?
-        return render Checkout::PaymentLinkFormView.new(errors: ["Select at least one accepted payment method"], mode: Current.mode),
+        return render Checkout::PaymentLinkFormView.new(errors: [ "Select at least one accepted payment method" ], mode: Current.mode),
                       status: :unprocessable_entity
       end
 

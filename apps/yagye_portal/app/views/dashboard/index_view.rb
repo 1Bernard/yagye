@@ -196,10 +196,10 @@ module Dashboard
 
     def network_status_cfg(status)
       case status
-      when :healthy   then ["Healthy",   GREEN,     TINT_GREEN]
-      when :degraded  then ["Degraded",  AMBER,     TINT_AMBER]
-      when :disrupted then ["Disrupted", RED,       TINT_RED]
-      else                 ["No data",   "#6B7280",  "#F3F4F6"]
+      when :healthy   then [ "Healthy",   GREEN,     TINT_GREEN ]
+      when :degraded  then [ "Degraded",  AMBER,     TINT_AMBER ]
+      when :disrupted then [ "Disrupted", RED,       TINT_RED ]
+      else                 [ "No data",   "#6B7280",  "#F3F4F6" ]
       end
     end
 
@@ -482,10 +482,10 @@ module Dashboard
 
     def payout_date_chip(date, days_until)
       days_label = case days_until
-                   when 0 then "today"
-                   when 1 then "tomorrow"
-                   else        "in #{days_until} days"
-                   end
+      when 0 then "today"
+      when 1 then "tomorrow"
+      else        "in #{days_until} days"
+      end
 
       div(class: "flex items-center gap-1.5 px-2.5 py-1 bg-gray-50 rounded-lg border border-gray-100 flex-shrink-0") do
         span(class: "text-[12px] font-medium text-gray-700") { plain date.strftime("%a %-d %b") }
@@ -495,11 +495,11 @@ module Dashboard
 
     def payout_state_chip(state)
       color, bg = case state
-                  when "scheduled"               then [BRAND, TINT_BRAND]
-                  when "submitted"               then [GREEN, TINT_GREEN]
-                  when "validating", "reserving" then [AMBER, TINT_AMBER]
-                  else                                ["#6B7280", "#F3F4F6"]
-                  end
+      when "scheduled"               then [ BRAND, TINT_BRAND ]
+      when "submitted"               then [ GREEN, TINT_GREEN ]
+      when "validating", "reserving" then [ AMBER, TINT_AMBER ]
+      else                                [ "#6B7280", "#F3F4F6" ]
+      end
       span(class: "text-[10px] font-bold px-[6px] py-[2px] rounded-full capitalize flex-shrink-0",
            style: "color:#{color};background:#{bg}") { plain state.capitalize }
     end

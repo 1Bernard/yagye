@@ -190,6 +190,8 @@ defmodule YagyeCoreWeb.Router do
       :kyb_start_review
     )
 
+    post("/merchants/:merchant_code/kyb-resubmit", KybController, :resubmit)
+
     # Reconciliation — ops view of breaks per merchant and cross-merchant
     get(
       "/merchants/:merchant_id/reconciliation-breaks",

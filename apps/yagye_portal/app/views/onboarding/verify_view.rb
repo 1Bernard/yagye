@@ -23,9 +23,10 @@ module Onboarding
       render Layout::Shell.new(
         active_nav:      :settings,
         title:           "Business Verification",
-        breadcrumbs:     [{ label: "Settings", href: settings_path }, { label: "Business Verification" }],
+        breadcrumbs:     [ { label: "Settings", href: settings_path }, { label: "Business Verification" } ],
         show_kyb_banner: false
       ) do
+        rejection_banner if @progress.rejected?
         div(class: "flex gap-10 items-start") do
           step_sidebar
           div(class: "flex-1 min-w-0") do
@@ -38,6 +39,30 @@ module Onboarding
     end
 
     private
+
+    # ── Rejection banner ──────────────────────────────────────────────────────
+
+    def rejection_banner
+      reason = @progress.rejection_reason.presence ||
+               "Your application was reviewed and unfortunately did not meet our requirements."
+
+      div(class: "mb-6 rounded-2xl border border-amber-200 bg-amber-50 px-5 py-4 flex gap-4 items-start") do
+        div(class: "mt-0.5 flex-shrink-0 text-amber-500") do
+          render UI::Icon.new(:alert_triangle, class: "w-5 h-5")
+        end
+        div(class: "flex-1 min-w-0") do
+          p(class: "text-sm font-semibold text-amber-900 mb-0.5") { plain "Application Rejected" }
+          p(class: "text-sm text-amber-800 leading-relaxed") { plain reason }
+        end
+        a(
+          href:                resubmit_kyb_path,
+          data_turbo_method:   "post",
+          class:               "flex-shrink-0 inline-flex items-center gap-1.5 rounded-lg bg-amber-600 px-3.5 py-2 text-xs font-semibold text-white hover:bg-amber-700 transition-colors"
+        ) do
+          plain "Update & Resubmit"
+        end
+      end
+    end
 
     # ── Connected step tracker ────────────────────────────────────────────────
 

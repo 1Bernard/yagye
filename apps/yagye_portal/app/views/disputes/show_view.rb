@@ -254,23 +254,23 @@ module Disputes
 
       border_cls, icon_color, title_cls, body_cls, title, body =
         if days < 0
-          ["border-red-200",    RED,   "text-red-800",    "text-red-600",
-           "Deadline passed",   "Response was due #{deadline.strftime("%-d %b %Y")} — #{days.abs} day#{'s' if days.abs != 1} ago"]
+          [ "border-red-200",    RED,   "text-red-800",    "text-red-600",
+           "Deadline passed",   "Response was due #{deadline.strftime("%-d %b %Y")} — #{days.abs} day#{'s' if days.abs != 1} ago" ]
         elsif days == 0
-          ["border-red-200",    RED,   "text-red-800",    "text-red-600",
-           "Respond today",     "Deadline: #{deadline.strftime("%-d %b %Y")}"]
+          [ "border-red-200",    RED,   "text-red-800",    "text-red-600",
+           "Respond today",     "Deadline: #{deadline.strftime("%-d %b %Y")}" ]
         elsif days == 1
-          ["border-red-200",    RED,   "text-red-800",    "text-red-600",
-           "Respond tomorrow",  "Deadline: #{deadline.strftime("%-d %b %Y")}"]
+          [ "border-red-200",    RED,   "text-red-800",    "text-red-600",
+           "Respond tomorrow",  "Deadline: #{deadline.strftime("%-d %b %Y")}" ]
         elsif days <= 2
-          ["border-red-200",    RED,   "text-red-800",    "text-red-600",
-           "#{days} days left", "Deadline: #{deadline.strftime("%-d %b %Y")}"]
+          [ "border-red-200",    RED,   "text-red-800",    "text-red-600",
+           "#{days} days left", "Deadline: #{deadline.strftime("%-d %b %Y")}" ]
         elsif days <= 6
-          ["border-yellow-200", AMBER, "text-amber-800",  "text-amber-600",
-           "#{days} days left", "Deadline: #{deadline.strftime("%-d %b %Y")}"]
+          [ "border-yellow-200", AMBER, "text-amber-800",  "text-amber-600",
+           "#{days} days left", "Deadline: #{deadline.strftime("%-d %b %Y")}" ]
         else
-          ["border-green-200",  GREEN, "text-green-800",  "text-green-600",
-           "#{days} days left", "Deadline: #{deadline.strftime("%-d %b %Y")}"]
+          [ "border-green-200",  GREEN, "text-green-800",  "text-green-600",
+           "#{days} days left", "Deadline: #{deadline.strftime("%-d %b %Y")}" ]
         end
 
       div(class: "bg-white #{border_cls} rounded-2xl px-[18px] py-4 border") do

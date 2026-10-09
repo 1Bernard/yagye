@@ -173,7 +173,7 @@ module Payments
           card.header("KYC Status")
           card.body do
             div(class: "flex flex-col gap-3") do
-              [1, 2, 3].each do |t|
+              [ 1, 2, 3 ].each do |t|
                 done  = tier >= t
                 color = done ? GREEN : SUBTLE_TEXT
                 div(class: "flex items-center gap-3") do
@@ -182,10 +182,10 @@ module Payments
                     p(class: done ? TYPE_BODY_MD : TYPE_CAPTION) { plain "Tier #{t}" }
                     p(class: TYPE_MICRO) do
                       plain case t
-                            when 1 then "Basic — MSISDN collected"
-                            when 2 then "Identity — name + ID verified"
-                            when 3 then "Enhanced — address + liveness"
-                            end
+                      when 1 then "Basic — MSISDN collected"
+                      when 2 then "Identity — name + ID verified"
+                      when 3 then "Enhanced — address + liveness"
+                      end
                     end
                   end
                 end
@@ -200,8 +200,8 @@ module Payments
         limits = velocity_limits_for(@c["kyc_tier"])
         return unless limits
 
-        today_pct  = [(@stat[:today_volume].to_f / limits[:daily]  * 100).round, 100].min
-        month_pct  = [(@stat[:mtd_volume].to_f   / limits[:monthly] * 100).round, 100].min
+        today_pct  = [ (@stat[:today_volume].to_f / limits[:daily]  * 100).round, 100 ].min
+        month_pct  = [ (@stat[:mtd_volume].to_f   / limits[:monthly] * 100).round, 100 ].min
         bar_color  = ->(pct) { pct >= 100 ? "#DC2626" : pct >= 80 ? "#D97706" : "#059669" }
 
         render UI::Card.new do |card|
