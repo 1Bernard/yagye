@@ -309,7 +309,7 @@ module KybReviews
                class: "border border-gray-200 hover:bg-gray-50 text-gray-700 font-semibold rounded-xl " \
                       "text-[13px] px-4 h-9 flex items-center gap-2 w-full justify-center " \
                       "transition-colors cursor-pointer") do
-          render UI::Icon.new(:user_check, class: ICON_SM)
+          render UI::Icon.new(:user, class: ICON_SM)
           plain "Assign to me for review"
         end
       end
