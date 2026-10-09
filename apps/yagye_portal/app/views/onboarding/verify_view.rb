@@ -55,9 +55,9 @@ module Onboarding
           p(class: "text-sm text-amber-800 leading-relaxed") { plain reason }
         end
         a(
-          href:                resubmit_kyb_path,
-          data_turbo_method:   "post",
-          class:               "flex-shrink-0 inline-flex items-center gap-1.5 rounded-lg bg-amber-600 px-3.5 py-2 text-xs font-semibold text-white hover:bg-amber-700 transition-colors"
+          href:  resubmit_kyb_path,
+          data:  { turbo_method: "post" },
+          class: "flex-shrink-0 inline-flex items-center gap-1.5 rounded-lg bg-amber-600 px-3.5 py-2 text-xs font-semibold text-white hover:bg-amber-700 transition-colors"
         ) do
           plain "Update & Resubmit"
         end
