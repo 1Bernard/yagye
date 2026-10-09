@@ -111,7 +111,7 @@ module KybReviews
         c.body(padding: @beneficial_owners.empty?) do
           if @beneficial_owners.empty?
             empty_state(:users, "No beneficial owners on record",
-                        "UBOs are submitted by the merchant via API before KYB approval.")
+                        "Beneficial owners are added by the merchant during onboarding.")
           else
             div(class: "divide-y divide-gray-50") do
               @beneficial_owners.each { |ubo| ubo_row(ubo) }
@@ -157,7 +157,7 @@ module KybReviews
         c.body(padding: no_screening?) do
           if no_screening?
             empty_state(:shield, "No screening subjects enrolled",
-                        "Subjects are enrolled automatically when the merchant submits KYB.")
+                        "Subjects are enrolled automatically once the merchant starts KYB onboarding.")
           else
             subjects  = @screening["subjects"]  || []
             open_hits = @screening["open_hits"] || []
@@ -222,7 +222,7 @@ module KybReviews
         c.body(padding: @documents.empty?) do
           if @documents.empty?
             empty_state(:file, "No documents uploaded",
-                        "Documents are submitted by the merchant via API before KYB approval.")
+                        "The merchant uploads documents through their onboarding portal.")
           else
             div(class: "divide-y divide-gray-50") do
               @documents.each { |doc| document_row(doc) }
