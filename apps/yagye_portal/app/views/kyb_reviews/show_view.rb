@@ -287,6 +287,10 @@ module KybReviews
         c.body do
           div(class: "flex flex-col gap-3") do
             if @app.pending?
+              if @app.status == "submitted"
+                assign_form
+                hr(class: "border-0 border-t border-gray-100 my-1")
+              end
               approve_form
               hr(class: "border-0 border-t border-gray-100 my-1")
               reject_form
@@ -294,6 +298,19 @@ module KybReviews
               decided_state
             end
           end
+        end
+      end
+    end
+
+    def assign_form
+      form(action: assign_kyb_review_path(@app), method: "post") do
+        authenticity_token_field
+        button(type: "submit",
+               class: "border border-gray-200 hover:bg-gray-50 text-gray-700 font-semibold rounded-xl " \
+                      "text-[13px] px-4 h-9 flex items-center gap-2 w-full justify-center " \
+                      "transition-colors cursor-pointer") do
+          render UI::Icon.new(:user_check, class: ICON_SM)
+          plain "Assign to me for review"
         end
       end
     end
@@ -455,6 +472,11 @@ module KybReviews
           end
           if @app.approved_by.present?
             history_row("Approved by", @app.approved_by, "—", GREEN)
+          end
+          if @app.rejected?
+            reason_snippet = @app.rejected_reason.presence&.truncate(60) || "No reason recorded"
+            history_row("Rejected — #{reason_snippet}", "Yagye Staff",
+                        @app.last_applied_at&.strftime("%d %b %Y") || "—", RED)
           end
         end
       end
