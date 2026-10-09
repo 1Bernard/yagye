@@ -6,7 +6,7 @@ class PortalAdjustmentApproval < ApplicationRecord
   STATES = %w[pending approved rejected].freeze
 
   scope :pending_review, -> { where(state: "pending").order(proposed_at: :asc) }
-  scope :decided,        -> { where.not(state: "pending").order(approved_at: :desc, proposed_at: :desc) }
+  scope :decided,        -> { where.not(state: "pending").order(updated_at: :desc) }
 
   def pending?  = state == "pending"
   def approved? = state == "approved"

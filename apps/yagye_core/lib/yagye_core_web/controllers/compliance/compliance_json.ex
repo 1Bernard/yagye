@@ -18,6 +18,8 @@ defmodule YagyeCoreWeb.Controllers.Compliance.ComplianceJSON do
       object: "beneficial_owner",
       merchant_id: o.merchant_id,
       subject_ref: o.subject_ref,
+      subject_name: o.subject_name,
+      subject_dob: o.subject_dob && Date.to_iso8601(o.subject_dob),
       role: o.role,
       ownership_bps: o.ownership_bps,
       inserted_at: o.inserted_at

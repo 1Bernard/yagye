@@ -260,15 +260,19 @@ defmodule YagyeCore.Reconciliation do
   @doc """
   Rejects an adjustment proposal.
   """
-  def reject_adjustment(approval_id, reason) do
+  def reject_adjustment(approval_id, rejected_by, reason) do
     with {:ok, approval} <- fetch_pending_approval(approval_id) do
       Multi.new()
-      |> Multi.update(:approval, AdjustmentApproval.reject_changeset(approval, reason))
+      |> Multi.update(
+        :approval,
+        AdjustmentApproval.reject_changeset(approval, rejected_by, reason)
+      )
       |> Multi.insert(:outbox, fn %{approval: approval} ->
         Outbox.build_changeset(approval, "reconciliation.adjustment.rejected", %{
           approval_id: approval.id,
           break_id: approval.break_id,
           proposed_by: approval.proposed_by,
+          rejected_by: rejected_by,
           rejected_reason: reason
         })
       end)

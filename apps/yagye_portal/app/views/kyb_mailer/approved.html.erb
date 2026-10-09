@@ -1,0 +1,48 @@
+<table width="100%" cellpadding="0" cellspacing="0" style="background-color:#f4f5f7;padding:32px 0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;">
+  <tr>
+    <td align="center">
+      <table width="560" cellpadding="0" cellspacing="0" style="background:#ffffff;border-radius:12px;overflow:hidden;box-shadow:0 1px 4px rgba(0,0,0,0.08);">
+
+        <tr>
+          <td style="background-color:#3D47F5;padding:28px 40px;">
+            <span style="font-size:18px;font-weight:700;color:#ffffff;letter-spacing:-0.3px;">Yagye</span>
+          </td>
+        </tr>
+
+        <tr>
+          <td style="padding:36px 40px 28px;">
+            <h1 style="margin:0 0 8px;font-size:20px;font-weight:700;color:#0f1117;letter-spacing:-0.4px;">
+              Your KYB application has been approved 🎉
+            </h1>
+            <p style="margin:0 0 16px;font-size:14px;color:#374151;line-height:1.6;">
+              Congratulations! The KYB application for <strong><%= @legal_name %></strong> has been reviewed and approved by the Yagye compliance team.
+            </p>
+            <p style="margin:0 0 28px;font-size:14px;color:#374151;line-height:1.6;">
+              Your account is now in simulation mode. Once live mode is activated by your account manager, you will be able to process real transactions.
+            </p>
+
+            <table cellpadding="0" cellspacing="0" style="margin-bottom:24px;">
+              <tr>
+                <td style="border-radius:10px;background-color:#16a34a;">
+                  <a href="<%= ENV.fetch('PORTAL_HOST', 'https://portal.yagye.com') %>"
+                     style="display:inline-block;padding:12px 24px;font-size:14px;font-weight:600;color:#ffffff;text-decoration:none;letter-spacing:-0.1px;">
+                    Go to dashboard
+                  </a>
+                </td>
+              </tr>
+            </table>
+          </td>
+        </tr>
+
+        <tr>
+          <td style="padding:18px 40px;border-top:1px solid #f3f4f6;">
+            <p style="margin:0;font-size:11.5px;color:#9ca3af;line-height:1.6;">
+              You received this because your business submitted a KYB application with Yagye.
+            </p>
+          </td>
+        </tr>
+
+      </table>
+    </td>
+  </tr>
+</table>

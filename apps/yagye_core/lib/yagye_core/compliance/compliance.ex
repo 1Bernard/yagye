@@ -51,11 +51,15 @@ defmodule YagyeCore.Compliance do
   end
 
   def add_beneficial_owner(merchant_id, attrs) do
+    get = fn k -> Map.get(attrs, k, attrs[Atom.to_string(k)]) end
+
     dispatch(%SubmitBeneficialOwner{
       merchant_id: merchant_id,
-      subject_ref: Map.get(attrs, :subject_ref, attrs["subject_ref"]),
-      role: Map.get(attrs, :role, attrs["role"]),
-      ownership_bps: Map.get(attrs, :ownership_bps, attrs["ownership_bps"])
+      subject_ref: get.(:subject_ref),
+      role: get.(:role),
+      ownership_bps: get.(:ownership_bps),
+      subject_name: get.(:subject_name),
+      subject_dob: get.(:subject_dob)
     })
   end
 
@@ -441,7 +445,9 @@ defmodule YagyeCore.Compliance do
         merchant_id: merchant.id,
         subject_ref: cmd.subject_ref,
         role: cmd.role,
-        ownership_bps: cmd.ownership_bps
+        ownership_bps: cmd.ownership_bps,
+        subject_name: cmd.subject_name,
+        subject_dob: cmd.subject_dob
       }
 
       %BeneficialOwner{} |> BeneficialOwner.changeset(attrs) |> Repo.insert()

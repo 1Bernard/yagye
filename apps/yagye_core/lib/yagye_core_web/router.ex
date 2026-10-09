@@ -184,6 +184,12 @@ defmodule YagyeCoreWeb.Router do
     # Ops-initiated full KYB approval (enforces 25% UBO screening threshold)
     post("/merchants/:merchant_code/kyb-approve", InternalMerchantsController, :kyb_approve)
 
+    post(
+      "/merchants/:merchant_code/kyb-start-review",
+      InternalMerchantsController,
+      :kyb_start_review
+    )
+
     # Reconciliation — ops view of breaks per merchant and cross-merchant
     get(
       "/merchants/:merchant_id/reconciliation-breaks",
@@ -197,6 +203,18 @@ defmodule YagyeCoreWeb.Router do
       "/reconciliation-breaks/:id/propose-adjustment",
       InternalReconciliationController,
       :propose_adjustment
+    )
+
+    post(
+      "/adjustment_approvals/:break_id/approve",
+      InternalReconciliationController,
+      :approve_adjustment
+    )
+
+    post(
+      "/adjustment_approvals/:break_id/reject",
+      InternalReconciliationController,
+      :reject_adjustment
     )
 
     get("/reconciliation-breaks", InternalReconciliationController, :list_all_breaks)

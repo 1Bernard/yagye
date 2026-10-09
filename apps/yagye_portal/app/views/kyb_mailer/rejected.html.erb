@@ -1,0 +1,47 @@
+<table width="100%" cellpadding="0" cellspacing="0" style="background-color:#f4f5f7;padding:32px 0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;">
+  <tr>
+    <td align="center">
+      <table width="560" cellpadding="0" cellspacing="0" style="background:#ffffff;border-radius:12px;overflow:hidden;box-shadow:0 1px 4px rgba(0,0,0,0.08);">
+
+        <tr>
+          <td style="background-color:#3D47F5;padding:28px 40px;">
+            <span style="font-size:18px;font-weight:700;color:#ffffff;letter-spacing:-0.3px;">Yagye</span>
+          </td>
+        </tr>
+
+        <tr>
+          <td style="padding:36px 40px 28px;">
+            <h1 style="margin:0 0 8px;font-size:20px;font-weight:700;color:#0f1117;letter-spacing:-0.4px;">
+              KYB application update for <%= @legal_name %>
+            </h1>
+            <p style="margin:0 0 16px;font-size:14px;color:#374151;line-height:1.6;">
+              After careful review, the Yagye compliance team was unable to approve the KYB application for <strong><%= @legal_name %></strong> at this time.
+            </p>
+
+            <table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:24px;background:#fef2f2;border-radius:8px;border:1px solid #fee2e2;">
+              <tr>
+                <td style="padding:14px 18px;">
+                  <p style="margin:0 0 4px;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.08em;color:#ef4444;">Reason for rejection</p>
+                  <p style="margin:0;font-size:13px;color:#374151;"><%= @reason %></p>
+                </td>
+              </tr>
+            </table>
+
+            <p style="margin:0 0 28px;font-size:14px;color:#374151;line-height:1.6;">
+              If you believe this is an error or would like to discuss next steps, please contact our compliance team.
+            </p>
+          </td>
+        </tr>
+
+        <tr>
+          <td style="padding:18px 40px;border-top:1px solid #f3f4f6;">
+            <p style="margin:0;font-size:11.5px;color:#9ca3af;line-height:1.6;">
+              You received this because your business submitted a KYB application with Yagye.
+            </p>
+          </td>
+        </tr>
+
+      </table>
+    </td>
+  </tr>
+</table>

@@ -27,6 +27,14 @@ defmodule YagyeCoreWeb.Controllers.Internal.MerchantsController do
     end
   end
 
+  def kyb_start_review(conn, %{"merchant_code" => merchant_code} = params) do
+    with {:ok, reviewed_by} <- require_actor(params["reviewed_by"]),
+         {:ok, merchant} <- Merchants.get_merchant(merchant_code),
+         {:ok, {_merchant, _event}} <- Merchants.start_review(merchant.id, reviewed_by) do
+      Response.ok(conn, %{object: "merchant", id: merchant.public_id, status: "under_review"})
+    end
+  end
+
   defp require_actor(nil), do: {:error, {:missing_param, "approved_by"}}
   defp require_actor(""), do: {:error, {:missing_param, "approved_by"}}
   defp require_actor(v), do: {:ok, v}

@@ -19,7 +19,9 @@ defmodule YagyeCoreWeb.Controllers.Internal.ComplianceController do
     attrs = %{
       "subject_ref" => params["subject_ref"],
       "role" => params["role"],
-      "ownership_bps" => params["ownership_bps"]
+      "ownership_bps" => params["ownership_bps"],
+      "subject_name" => params["subject_name"],
+      "subject_dob" => params["subject_dob"]
     }
 
     with {:ok, owner} <- Compliance.add_beneficial_owner(merchant_id, attrs) do

@@ -65,29 +65,32 @@ module Compliance
     def approve
       authorize :kyb_reviews, :approve?
       application = decode_id(PortalMerchantApplication)
-      result = Compliance::ApproveApplication.new.call(
-        application_code: application.application_code,
-        approved_by:      current_user.user_code
-      )
+      result = Compliance::ApproveApplication.new(
+        application: application,
+        approved_by: current_user
+      ).call
       if result.success?
+        KybMailer.approved(application).deliver_later if application.submitted_by_email.present?
         redirect_to kyb_review_path(application), notice: "Application approved."
       else
-        redirect_to kyb_review_path(application), alert: result.error_message
+        redirect_to kyb_review_path(application), alert: result.error
       end
     end
 
     def reject
       authorize :kyb_reviews, :approve?
       application = decode_id(PortalMerchantApplication)
-      result = Compliance::RejectApplication.new.call(
-        application_code: application.application_code,
-        rejected_by:      current_user.user_code,
-        reason:           params[:reason].to_s.strip.presence || "No reason provided."
-      )
+      reason = params[:reason].to_s.strip.presence || "No reason provided."
+      result = Compliance::RejectApplication.new(
+        application: application,
+        rejected_by: current_user,
+        reason:      reason
+      ).call
       if result.success?
+        KybMailer.rejected(application, reason: reason).deliver_later if application.submitted_by_email.present?
         redirect_to kyb_review_path(application), notice: "Application rejected."
       else
-        redirect_to kyb_review_path(application), alert: result.error_message
+        redirect_to kyb_review_path(application), alert: result.error
       end
     end
 
@@ -95,6 +98,10 @@ module Compliance
       authorize :kyb_reviews, :approve?
       application = decode_id(PortalMerchantApplication)
       application.update!(reviewed_by: current_user.user_code, status: "under_review")
+      if application.merchant_code.present?
+        CoreApiClient.new.start_review(application.merchant_code,
+                                       reviewed_by: current_user.user_code)
+      end
       redirect_to kyb_reviews_path(tab: "in_review"), notice: "Assigned to #{current_user.full_name}."
     end
 
@@ -120,10 +127,28 @@ module Compliance
         application.merchant_code,
         subject_ref:   subject_ref,
         role:          params[:role].to_s.presence_in(%w[director ubo both]) || "ubo",
-        ownership_bps: params[:ownership_bps].to_i.clamp(0, 10_000)
+        ownership_bps: params[:ownership_bps].to_i.clamp(0, 10_000),
+        subject_name:  params[:subject_name].to_s.strip.presence,
+        subject_dob:   params[:subject_dob].to_s.strip.presence
       )
       if result.success?
         redirect_to kyb_review_path(application), notice: "Beneficial owner added."
+      else
+        redirect_to kyb_review_path(application), alert: result.error_message
+      end
+    end
+
+    def grant_live
+      authorize :kyb_reviews, :approve?
+      application = decode_id(PortalMerchantApplication)
+      unless application.merchant_code.present?
+        return redirect_to kyb_review_path(application), alert: "Merchant not yet registered in Core."
+      end
+      result = CoreApiClient.new.approve_merchant_kyb(application.merchant_code,
+                                                       approved_by: current_user.user_code)
+      if result.success?
+        redirect_to kyb_review_path(application),
+                    notice: "Live mode activated for #{application.legal_name}."
       else
         redirect_to kyb_review_path(application), alert: result.error_message
       end

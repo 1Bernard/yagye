@@ -51,6 +51,22 @@ defmodule YagyeCoreWeb.Controllers.Internal.ReconciliationController do
     end
   end
 
+  def approve_adjustment(conn, %{"break_id" => break_id, "approved_by" => approved_by}) do
+    with {:ok, approval} <- Reconciliation.approve_adjustment(break_id, approved_by) do
+      Response.ok(conn, %{object: "adjustment_approval", id: approval.id, state: "approved"})
+    end
+  end
+
+  def reject_adjustment(conn, %{
+        "break_id" => break_id,
+        "rejected_by" => rejected_by,
+        "rejected_reason" => reason
+      }) do
+    with {:ok, approval} <- Reconciliation.reject_adjustment(break_id, rejected_by, reason) do
+      Response.ok(conn, %{object: "adjustment_approval", id: approval.id, state: "rejected"})
+    end
+  end
+
   # ── Private helpers ───────────────────────────────────────────────────────────
 
   defp resolve_merchant(public_id) do

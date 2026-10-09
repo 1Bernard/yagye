@@ -15,7 +15,7 @@ module Payments
             meta(name: "viewport", content: "width=device-width, initial-scale=1")
             title { plain "Payout Statement — #{@payout.payout_code}" }
             style do
-              raw <<~CSS
+              raw safe(<<~CSS)
                 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
                 body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
                        font-size: 13px; color: #111827; background: #fff; padding: 40px; }

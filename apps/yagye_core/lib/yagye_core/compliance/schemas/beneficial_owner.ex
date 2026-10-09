@@ -9,6 +9,9 @@ defmodule YagyeCore.Compliance.Schemas.BeneficialOwner do
     field :subject_ref, Uniq.UUID
     field :ownership_bps, :integer
     field :role, :string
+    # subject_name/subject_dob stored here until KMS vault is wired at P21.
+    field :subject_name, :string
+    field :subject_dob, :date
 
     timestamps(updated_at: false)
   end
@@ -17,7 +20,14 @@ defmodule YagyeCore.Compliance.Schemas.BeneficialOwner do
 
   def changeset(owner, attrs) do
     owner
-    |> cast(attrs, [:merchant_id, :subject_ref, :ownership_bps, :role])
+    |> cast(attrs, [
+      :merchant_id,
+      :subject_ref,
+      :ownership_bps,
+      :role,
+      :subject_name,
+      :subject_dob
+    ])
     |> validate_required([:merchant_id, :subject_ref, :role])
     |> validate_inclusion(:role, @valid_roles)
     |> validate_number(:ownership_bps, greater_than_or_equal_to: 0, less_than_or_equal_to: 10_000)

@@ -134,7 +134,7 @@ module Team
 
       def sod_script
         script do
-          raw <<~JS
+          raw safe(<<~JS)
             (function() {
               const SOD = #{SoD_PAIRS_JSON};
               const form = document.getElementById("edit-roles-form");

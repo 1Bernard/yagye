@@ -332,12 +332,21 @@ class CoreApiClient
   # subject_ref: UUID (caller generates; will point to PII vault when KMS is wired)
   # role: "director" | "ubo" | "both"
   # ownership_bps: integer 0-10000 (100 bps = 1%)
-  def add_beneficial_owner(merchant_code, subject_ref:, role:, ownership_bps:)
+  def add_beneficial_owner(merchant_code, subject_ref:, role:, ownership_bps:,
+                            subject_name: nil, subject_dob: nil)
     post("/internal/merchants/#{merchant_code}/beneficial-owners", {
       subject_ref: subject_ref,
       role: role,
-      ownership_bps: ownership_bps
-    })
+      ownership_bps: ownership_bps,
+      subject_name: subject_name,
+      subject_dob: subject_dob
+    }.compact)
+  end
+
+  # POST /internal/merchants/:code/kyb-start-review
+  def start_review(merchant_code, reviewed_by:)
+    post("/internal/merchants/#{merchant_code}/kyb-start-review",
+         { reviewed_by: reviewed_by })
   end
 
   # GET /internal/merchants/:code/documents
@@ -502,8 +511,9 @@ class CoreApiClient
   end
 
   # POST /internal/adjustment_approvals/:break_id/reject
-  def reject_adjustment(break_id:, rejected_reason:)
-    post("/internal/adjustment_approvals/#{break_id}/reject", { rejected_reason: rejected_reason })
+  def reject_adjustment(break_id:, rejected_by:, rejected_reason:)
+    post("/internal/adjustment_approvals/#{break_id}/reject",
+         { rejected_by: rejected_by, rejected_reason: rejected_reason })
   end
 
   def openapi_spec

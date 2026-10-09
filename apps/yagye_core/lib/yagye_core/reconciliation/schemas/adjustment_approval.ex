@@ -14,6 +14,8 @@ defmodule YagyeCore.Reconciliation.Schemas.AdjustmentApproval do
     field :proposed_action, :map
     field :approved_by, :string
     field :approved_at, :utc_datetime_usec
+    field :rejected_by, :string
+    field :rejected_at, :utc_datetime_usec
     field :rejected_reason, :string
 
     belongs_to :break, ReconciliationBreak
@@ -39,10 +41,13 @@ defmodule YagyeCore.Reconciliation.Schemas.AdjustmentApproval do
     |> validate_sod()
   end
 
-  def reject_changeset(approval, reason) do
+  def reject_changeset(approval, rejected_by, reason) do
     approval
-    |> cast(%{rejected_reason: reason}, [:rejected_reason])
-    |> validate_required([:rejected_reason])
+    |> cast(
+      %{rejected_by: rejected_by, rejected_at: DateTime.utc_now(), rejected_reason: reason},
+      [:rejected_by, :rejected_at, :rejected_reason]
+    )
+    |> validate_required([:rejected_by, :rejected_reason])
   end
 
   defp put_proposed_at(cs) do

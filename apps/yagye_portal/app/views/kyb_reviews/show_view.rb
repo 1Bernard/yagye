@@ -10,10 +10,14 @@ module KybReviews
     }.freeze
 
     DOCUMENT_KIND_LABELS = {
-      "incorporation"     => "Certificate of Incorporation",
-      "id"                => "Director ID",
-      "proof_of_address"  => "Proof of Address",
-      "bank_confirmation" => "Bank Confirmation"
+      "incorporation"         => "Certificate of Incorporation",
+      "id"                    => "Director ID",
+      "proof_of_address"      => "Proof of Address",
+      "bank_confirmation"     => "Bank Confirmation",
+      "form_a"                => "Form A (Beneficial Owners)",
+      "business_registration" => "Business Registration Certificate",
+      "tax_clearance"         => "Tax Clearance Certificate",
+      "bank_statement"        => "Bank Statement"
     }.freeze
 
     def initialize(application:, beneficial_owners: [], documents: [], screening: nil)
@@ -118,15 +122,20 @@ module KybReviews
     end
 
     def ubo_row(ubo)
-      pct     = ubo["ownership_bps"] ? "#{(ubo["ownership_bps"] / 100.0).round(1)}%" : "—"
-      flagged = ubo["ownership_bps"].to_i >= 2500
+      pct      = ubo["ownership_bps"] ? "#{(ubo["ownership_bps"] / 100.0).round(1)}%" : "—"
+      flagged  = ubo["ownership_bps"].to_i >= 2500
+      name     = ubo["subject_name"].presence || ubo["subject_ref"]&.first(12)&.then { |s| "#{s}…" } || "—"
+      initials = ubo["subject_name"]&.split&.map(&:first)&.join&.upcase&.first(2) || "??"
 
       div(class: "flex items-center justify-between px-5 py-3") do
         div(class: "flex items-center gap-3") do
-          render UI::Avatar.new(ubo["subject_ref"]&.first(2)&.upcase || "??", size: :sm)
+          render UI::Avatar.new(initials, size: :sm)
           div do
-            p(class: TYPE_BODY_MD) { plain ubo["subject_ref"] || "—" }
-            p(class: TYPE_CAPTION) { plain ubo["role"]&.humanize || "—" }
+            p(class: TYPE_BODY_MD) { plain name }
+            p(class: TYPE_CAPTION) do
+              parts = [ ubo["role"]&.humanize, ubo["subject_dob"] ? "DOB #{ubo["subject_dob"]}" : nil ]
+              plain parts.compact.join(" · ").presence || "—"
+            end
           end
         end
         div(class: "flex items-center gap-3") do
@@ -266,6 +275,7 @@ module KybReviews
     def right_column
       div(class: "flex flex-col gap-4") do
         review_actions_card
+        live_mode_card if @app.approved? && @app.merchant_code.present?
         add_ubo_card
         review_history_card
       end
@@ -347,6 +357,23 @@ module KybReviews
             authenticity_token_field
             div(class: "flex flex-col gap-3") do
               div do
+                label(class: "#{TYPE_LABEL} block mb-1.5", for: "ubo_subject_name") { plain "Full name" }
+                input(
+                  type: "text", id: "ubo_subject_name", name: "subject_name",
+                  placeholder: "e.g. Kwame Mensah",
+                  class: INPUT_FIELD,
+                  required: true
+                )
+              end
+              div do
+                label(class: "#{TYPE_LABEL} block mb-1.5", for: "ubo_subject_dob") { plain "Date of birth" }
+                input(
+                  type: "date", id: "ubo_subject_dob", name: "subject_dob",
+                  class: INPUT_FIELD,
+                  required: true
+                )
+              end
+              div do
                 label(class: "#{TYPE_LABEL} block mb-1.5", for: "ubo_role") { plain "Role" }
                 select(name: "role", id: "ubo_role", class: SELECT_FIELD) do
                   option(value: "ubo")      { plain "UBO (beneficial owner)" }
@@ -378,7 +405,7 @@ module KybReviews
             end
           end
           script do
-            raw <<~JS
+            raw safe(<<~JS)
               (function () {
                 var form = document.getElementById('add-ubo-form');
                 var pct  = document.getElementById('ubo_ownership_pct');
@@ -390,6 +417,29 @@ module KybReviews
                 });
               })();
             JS
+          end
+        end
+      end
+    end
+
+    def live_mode_card
+      render UI::Card.new do |c|
+        c.header("Live mode", icon: :zap)
+        c.body do
+          p(class: "#{TYPE_CAPTION} mb-3") do
+            plain "Grant live processing once KYB tier 3+ is confirmed. This enables real transactions."
+          end
+          form(action: grant_live_kyb_review_path(@app), method: "post",
+               data: { turbo_confirm: "Activate live mode for #{@app.legal_name}? " \
+                                      "This enables real transactions." }) do
+            authenticity_token_field
+            button(type: "submit",
+                   class: "bg-[#1d4ed8] hover:opacity-90 text-white font-semibold rounded-xl " \
+                          "text-[13px] px-4 h-9 flex items-center gap-2 w-full justify-center " \
+                          "transition-opacity cursor-pointer") do
+              render UI::Icon.new(:zap, class: ICON_SM)
+              plain "Activate live mode"
+            end
           end
         end
       end

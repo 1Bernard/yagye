@@ -151,8 +151,8 @@ module Compliance
           end
 
           t.column("Decided by") do |r|
-            decided_by = r.approved_by.presence || "—"
-            decided_at = r.approved_at
+            decided_by = r.approved_by.presence || r.rejected_by.presence || "—"
+            decided_at = r.approved_at || r.rejected_at
             div do
               p(class: TYPE_BODY_MD) { plain decided_by }
               p(class: TYPE_CAPTION) { plain decided_at.strftime("%d %b %Y, %H:%M") } if decided_at

@@ -69,6 +69,7 @@ Rails.application.routes.draw do
     post "kyb-reviews/:id/reject",                                 to: "kyb_reviews#reject",          as: :reject_kyb_review
     post "kyb-reviews/:id/assign",                                 to: "kyb_reviews#assign",          as: :assign_kyb_review
     post "kyb-reviews/:id/add-ubo",                                to: "kyb_reviews#add_ubo",         as: :add_ubo_kyb_review
+    post "kyb-reviews/:id/grant-live",                             to: "kyb_reviews#grant_live",       as: :grant_live_kyb_review
     get  "kyb-reviews/:id/documents/:document_id/download",        to: "kyb_reviews#download_document", as: :kyb_review_document_download
 
     get  "compliance/approvals",          to: "approvals#index",   as: :compliance_approvals
