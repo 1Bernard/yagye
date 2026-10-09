@@ -87,9 +87,16 @@ module Onboarding
             end
           end
 
-          p(class: TYPE_BODY) do
-            plain "Your application is now under review. Our compliance team will process it within 1–3 business days " \
-                  "and contact you at #{@agreement["signatory_email"]}."
+          if @progress.rejected?
+            p(class: TYPE_BODY) do
+              plain "Your application was not approved. Review the feedback above, update your documents " \
+                    "if needed, then click \"Update & Resubmit\" to send your application back for review."
+            end
+          else
+            p(class: TYPE_BODY) do
+              plain "Your application is now under review. Our compliance team will process it within 1–3 business days " \
+                    "and contact you at #{@agreement["signatory_email"]}."
+            end
           end
         end
 
