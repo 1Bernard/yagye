@@ -74,7 +74,7 @@ module Team
           end
 
           span(class: "text-[11.5px] font-medium text-gray-400 tabular-nums flex-shrink-0") do
-            plain event.created_at.strftime("%d %b, %H:%M")
+            plain fmt_datetime(event.created_at)
           end
         end
       end

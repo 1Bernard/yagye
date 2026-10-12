@@ -20,6 +20,19 @@ module KybReviews
       "bank_statement"        => "Bank Statement"
     }.freeze
 
+    DOC_REVIEW_ACTIONS = {
+      "uploaded"     => %w[under_review approved rejected],
+      "under_review" => %w[approved rejected],
+      "approved"     => [],
+      "rejected"     => %w[under_review]
+    }.freeze
+
+    DOC_ACTION_LABELS = {
+      "under_review" => "Mark under review",
+      "approved"     => "Approve document",
+      "rejected"     => "Reject document"
+    }.freeze
+
     def initialize(application:, beneficial_owners: [], documents: [], screening: nil)
       @app               = application
       @beneficial_owners = beneficial_owners
@@ -45,21 +58,32 @@ module KybReviews
 
     private
 
+    # ── Layout ────────────────────────────────────────────────────────────────
+
     def left_column
       div(class: "flex flex-col gap-5") do
         applicant_hero
         business_details_card
         ubos_card
-        aml_card
+        open_hits_card if open_hits.any?
         documents_card
+      end
+    end
+
+    def right_column
+      div(class: "flex flex-col gap-4") do
+        review_actions_card
+        live_mode_card if @app.approved? && @app.merchant_code.present?
+        review_history_card
       end
     end
 
     # ── Applicant hero ────────────────────────────────────────────────────────
 
     def applicant_hero
-      div(class: "bg-white border border-gray-100 rounded-2xl px-8 py-7") do
-        div(class: "flex items-start justify-between mb-6") do
+      div(class: "#{SURFACE_CARD} overflow-hidden") do
+        # Header row
+        div(class: "flex items-start justify-between px-8 pt-7 pb-6") do
           div(class: "flex items-center gap-4") do
             render UI::Avatar.new(initials, size: :xl)
             div do
@@ -77,12 +101,61 @@ module KybReviews
             p(class: TYPE_CAPTION) { plain "Submitted #{submitted_label}" }
           end
         end
-        div(class: "grid grid-cols-4 gap-[1px] bg-gray-100 rounded-xl overflow-hidden") do
+
+        # Meta strip
+        div(class: "grid grid-cols-4 gap-[1px] bg-gray-100") do
           meta_cell("Industry",     @app.industry&.humanize || "—")
           meta_cell("Team size",    @app.employee_range || "—")
           meta_cell("Submitted by", @app.submitted_by_email || "—")
           meta_cell("Reviewer",     @app.reviewed_by.presence || "Unassigned")
         end
+
+        # Compliance progress strip
+        div(class: "grid grid-cols-3 gap-[1px] bg-gray-100 border-t border-gray-100") do
+          compliance_pill(
+            icon: docs_complete? ? :check_circle : :alert_circle,
+            color: docs_complete? ? GREEN : AMBER,
+            tint: docs_complete? ? TINT_GREEN : TINT_AMBER,
+            label: "#{docs_uploaded}/#{@documents.size} documents",
+            sub: docs_complete? ? "All uploaded" : "Upload pending"
+          )
+          compliance_pill(
+            icon: ubos_threshold_clear? ? :check_circle : :alert_circle,
+            color: ubos_threshold_clear? ? GREEN : AMBER,
+            tint: ubos_threshold_clear? ? TINT_GREEN : TINT_AMBER,
+            label: "#{@beneficial_owners.size} beneficial #{"owner".pluralize(@beneficial_owners.size)}",
+            sub: ubos_threshold_clear? ? "Threshold met" : "Screening pending"
+          )
+          compliance_pill(
+            icon: screening_clear? ? :check_circle : (open_hits.any? ? :alert_circle : :clock),
+            color: screening_clear? ? GREEN : (open_hits.any? ? RED : AMBER),
+            tint: screening_clear? ? TINT_GREEN : (open_hits.any? ? TINT_RED : TINT_AMBER),
+            label: screening_clear? ? "Screening clear" : "#{open_hits.size} open #{"hit".pluralize(open_hits.size)}",
+            sub: screening_label
+          )
+        end
+      end
+    end
+
+    def compliance_pill(icon:, color:, tint:, label:, sub:)
+      div(class: "flex items-center gap-3 px-5 py-3.5 bg-white") do
+        div(class: "w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0",
+            style: "background:#{tint}") do
+          span(class: "flex w-4 h-4", style: "color:#{color}") do
+            render UI::Icon.new(icon, class: "w-full h-full")
+          end
+        end
+        div do
+          p(class: TYPE_BODY_MD) { plain label }
+          p(class: TYPE_CAPTION) { plain sub }
+        end
+      end
+    end
+
+    def meta_cell(label, value)
+      div(class: "flex flex-col px-5 py-3.5 bg-white") do
+        p(class: TYPE_MICRO) { plain label }
+        p(class: "#{TYPE_BODY_MD} mt-0.5 truncate") { plain value }
       end
     end
 
@@ -92,27 +165,50 @@ module KybReviews
       render UI::Card.new do |c|
         c.header("Business details", icon: :building)
         c.body(padding: false) do
-          detail_row("Legal name",     @app.legal_name)
-          detail_row("Trading name",   @app.trading_name.presence || "—")
-          detail_row("Country",        country_label)
-          detail_row("Industry",       @app.industry&.humanize || "—")
-          detail_row("Employee range", @app.employee_range || "—")
-          detail_row("Merchant code",  @app.merchant_code.presence || "Pending assignment", mono: true)
-          detail_row("Application",    @app.application_code, mono: true)
+          render UI::DetailList.new do |list|
+            list.row("Legal name",     @app.legal_name)
+            list.row("Trading name",   @app.trading_name.presence || "—")
+            list.row("Country",        country_label)
+            list.row("Industry",       @app.industry&.humanize || "—")
+            list.row("Employee range", @app.employee_range || "—")
+            list.row("Merchant code",  @app.merchant_code.presence || "Pending assignment", mono: true)
+            list.row("Application",    @app.application_code, mono: true)
+          end
         end
       end
     end
 
-    # ── Beneficial owners ─────────────────────────────────────────────────────
+    # ── Beneficial owners + screening ─────────────────────────────────────────
 
     def ubos_card
       render UI::Card.new do |c|
-        c.header("Beneficial owners (25%+ threshold)", icon: :users)
+        c.header("Beneficial owners", icon: :users) do
+          div(class: "flex items-center gap-2") do
+            span(class: "inline-flex items-center px-2 py-0.5 rounded-full text-[11px] " \
+                         "font-medium bg-amber-50 text-amber-700") do
+              plain "25%+ threshold"
+            end
+            if @app.merchant_code.present?
+              a(href: add_ubo_modal_kyb_review_path(@app),
+                class: BTN_SECONDARY + " !py-1 !px-2.5 !text-[11.5px]",
+                data: { turbo_frame: "modal-frame" }) do
+                render UI::Icon.new(:plus, class: "w-3 h-3")
+                plain "Add"
+              end
+            end
+          end
+        end
         c.body(padding: @beneficial_owners.empty?) do
           if @beneficial_owners.empty?
             empty_state(:users, "No beneficial owners on record",
                         "Beneficial owners are added by the merchant during onboarding.")
           else
+            # Column headers
+            div(class: "flex items-center px-5 py-2 border-b border-gray-50 bg-gray-50/60") do
+              p(class: "#{TYPE_MICRO} flex-1") { plain "Owner" }
+              p(class: "#{TYPE_MICRO} w-20 text-right") { plain "Stake" }
+              p(class: "#{TYPE_MICRO} w-28 text-right pr-1") { plain "Screening" }
+            end
             div(class: "divide-y divide-gray-50") do
               @beneficial_owners.each { |ubo| ubo_row(ubo) }
             end
@@ -122,94 +218,77 @@ module KybReviews
     end
 
     def ubo_row(ubo)
-      pct      = ubo["ownership_bps"] ? "#{(ubo["ownership_bps"] / 100.0).round(1)}%" : "—"
-      flagged  = ubo["ownership_bps"].to_i >= 2500
-      name     = ubo["subject_name"].presence || ubo["subject_ref"]&.first(12)&.then { |s| "#{s}…" } || "—"
-      initials = ubo["subject_name"]&.split&.map(&:first)&.join&.upcase&.first(2) || "??"
+      pct     = ubo["ownership_bps"] ? "#{(ubo["ownership_bps"] / 100.0).round(1)}%" : "—"
+      flagged = ubo["ownership_bps"].to_i >= 2500
+      name    = ubo["subject_name"].presence ||
+                ubo["subject_ref"]&.first(12)&.then { |s| "#{s}…" } || "—"
+      inits   = ubo["subject_name"]&.split&.map(&:first)&.join&.upcase&.first(2) || "??"
+      subj    = screening_by_subject[ubo["subject_ref"]]
 
-      div(class: "flex items-center justify-between px-5 py-3") do
-        div(class: "flex items-center gap-3") do
-          render UI::Avatar.new(initials, size: :sm)
-          div do
-            p(class: TYPE_BODY_MD) { plain name }
-            p(class: TYPE_CAPTION) do
-              parts = [ ubo["role"]&.humanize, ubo["subject_dob"] ? "DOB #{ubo["subject_dob"]}" : nil ]
-              plain parts.compact.join(" · ").presence || "—"
-            end
+      div(class: "flex items-center gap-3 px-5 py-3.5") do
+        render UI::Avatar.new(inits, size: :sm)
+        div(class: "flex-1 min-w-0") do
+          p(class: TYPE_BODY_MD) { plain name }
+          p(class: TYPE_CAPTION) do
+            parts = [ ubo["role"]&.humanize,
+                      ubo["subject_dob"] ? "DOB #{ubo["subject_dob"]}" : nil ]
+            plain parts.compact.join(" · ").presence || "—"
           end
         end
-        div(class: "flex items-center gap-3") do
-          span(class: "#{TYPE_BODY_MD} tabular-nums") { plain pct }
+        div(class: "w-20 text-right") do
+          p(class: "#{TYPE_BODY_MD} tabular-nums") { plain pct }
           if flagged
-            span(class: "inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium bg-amber-50 text-amber-700") do
-              plain "≥25% — must clear screening"
-            end
+            p(class: "#{TYPE_CAPTION} text-amber-600 mt-0.5") { plain "≥25%" }
           end
+        end
+        div(class: "w-28 flex justify-end") do
+          screening_badge(subj)
         end
       end
     end
 
-    # ── AML / screening ───────────────────────────────────────────────────────
+    def screening_badge(subj)
+      if subj.nil?
+        render UI::Chip.new(label: "Not enrolled", colors: STATUS_NEUTRAL)
+      else
+        render UI::StatusBadge.new(subj["screening_status"].presence || "pending")
+      end
+    end
 
-    def aml_card
+    # ── Open hits (shown only when hits exist) ────────────────────────────────
+
+    def open_hits_card
       render UI::Card.new do |c|
-        c.header("AML & sanctions screening", icon: :shield)
-        c.body(padding: no_screening?) do
-          if no_screening?
-            empty_state(:shield, "No screening subjects enrolled",
-                        "Subjects are enrolled automatically once the merchant starts KYB onboarding.")
-          else
-            subjects  = @screening["subjects"]  || []
-            open_hits = @screening["open_hits"] || []
-            clear     = open_hits.empty?
-
-            div(class: "px-5 py-4 border-b border-gray-50") do
-              if clear
-                div(class: "flex items-center gap-2") do
-                  render UI::Icon.new(:check_circle, class: "w-4 h-4 text-green-500")
-                  p(class: "#{TYPE_BODY_MD} text-green-700") { plain "All subjects clear — no open hits" }
-                end
-              else
-                div(class: "flex items-center gap-2") do
-                  render UI::Icon.new(:alert_circle, class: "w-4 h-4 text-red-500")
-                  p(class: "#{TYPE_BODY_MD} text-red-700") do
-                    plain "#{open_hits.size} open #{"screening hit".pluralize(open_hits.size)} — review required"
-                  end
-                end
-              end
-            end
-
-            subjects.each { |s| screening_subject_row(s) }
+        c.header("Open screening hits", icon: :alert_circle) do
+          span(class: "inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] " \
+                       "font-medium bg-red-50 text-red-700") do
+            plain "#{open_hits.size} open"
+          end
+        end
+        c.body(padding: false) do
+          div(class: "divide-y divide-gray-50") do
+            open_hits.each { |hit| hit_row(hit) }
           end
         end
       end
     end
 
-    def screening_subject_row(s)
-      status_color = case s["screening_status"]
-      when "clean", "cleared"                        then "text-green-700 bg-green-50"
-      when "confirmed_match_blocked"                 then "text-red-700 bg-red-50"
-      when "potential_match", "confirmed_pep"        then "text-amber-700 bg-amber-50"
-      when "suspended"                               then "text-red-700 bg-red-50"
-      else "text-gray-500 bg-gray-50"
-      end
-      label = {
-        "pending"                  => "Pending",
-        "clean"                    => "Clear",
-        "cleared"                  => "Cleared",
-        "potential_match"          => "Potential match",
-        "confirmed_pep"            => "Confirmed PEP",
-        "confirmed_match_blocked"  => "Blocked",
-        "suspended"                => "Suspended"
-      }.fetch(s["screening_status"], s["screening_status"]&.humanize || "—")
-
-      div(class: "flex items-center justify-between px-5 py-3 border-b border-gray-50 last:border-0") do
+    def hit_row(hit)
+      div(class: "flex items-start justify-between px-5 py-3.5") do
         div do
-          p(class: TYPE_BODY_MD) { plain s["subject_type"]&.humanize || "Subject" }
-          p(class: TYPE_CAPTION) { plain s["subject_id"] || "—" }
+          p(class: TYPE_BODY_MD) { plain hit["matched_name"] || "—" }
+          p(class: TYPE_CAPTION) do
+            parts = [
+              hit["list_type"]&.humanize,
+              hit["list_source"],
+              hit["match_score"] ? "#{hit["match_score"]}% match" : nil
+            ].compact
+            plain parts.join(" · ").presence || "—"
+          end
         end
-        span(class: "inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium #{status_color}") do
-          plain label
+        span(class: "inline-flex items-center px-2 py-0.5 rounded-full text-[11px] " \
+                     "font-medium bg-red-50 text-red-700 shrink-0 ml-3") do
+          plain hit["status"]&.humanize || "Open"
         end
       end
     end
@@ -218,12 +297,25 @@ module KybReviews
 
     def documents_card
       render UI::Card.new do |c|
-        c.header("KYB documents", icon: :file)
+        c.header("KYB documents", icon: :file) do
+          if @documents.any?
+            span(class: TYPE_CAPTION) do
+              plain "#{docs_uploaded} of #{@documents.size} uploaded"
+            end
+          end
+        end
         c.body(padding: @documents.empty?) do
           if @documents.empty?
             empty_state(:file, "No documents uploaded",
                         "The merchant uploads documents through their onboarding portal.")
           else
+            # Column headers
+            div(class: "flex items-center px-5 py-2 border-b border-gray-50 bg-gray-50/60") do
+              p(class: "#{TYPE_MICRO} flex-1") { plain "Document" }
+              p(class: "#{TYPE_MICRO} w-28 text-center") { plain "Status" }
+              p(class: "#{TYPE_MICRO} w-20 text-center") { plain "Scan" }
+              p(class: "#{TYPE_MICRO} w-24 text-right") { plain "Actions" }
+            end
             div(class: "divide-y divide-gray-50") do
               @documents.each { |doc| document_row(doc) }
             end
@@ -233,128 +325,174 @@ module KybReviews
     end
 
     def document_row(doc)
-      label        = DOCUMENT_KIND_LABELS[doc["kind"]] || doc["kind"]&.humanize || "Document"
-      scanned      = doc["scanned_at"].present?
-      downloadable = doc["status"].in?(%w[uploaded under_review approved])
+      label   = DOCUMENT_KIND_LABELS[doc["kind"]] || doc["kind"]&.humanize || "Document"
+      scanned = doc["scanned_at"].present?
+      status  = doc["status"] || "pending_upload"
 
-      div(class: "flex items-center justify-between px-5 py-3") do
-        div(class: "flex items-center gap-3") do
-          span(class: "flex w-8 h-8 rounded-lg bg-gray-50 items-center justify-center flex-shrink-0") do
-            render UI::Icon.new(:file, class: "w-4 h-4 text-gray-400")
-          end
-          div do
-            p(class: TYPE_BODY_MD) { plain label }
-            p(class: TYPE_CAPTION) do
-              plain "Uploaded #{doc["inserted_at"] ? Time.parse(doc["inserted_at"]).strftime("%d %b %Y") : "—"}"
-            end
+      div(class: "flex items-center gap-3 px-5 py-3.5") do
+        # File icon
+        div(class: "w-8 h-8 rounded-lg bg-teal-50 flex items-center justify-center flex-shrink-0") do
+          span(class: "flex w-4 h-4 text-teal-600") do
+            render UI::Icon.new(:file, class: "w-full h-full")
           end
         end
-        div(class: "flex items-center gap-2") do
-          if downloadable
-            a(href: kyb_review_document_download_path(@app, doc["id"]),
-              class: "text-[11px] font-medium text-[#3D47F5] hover:underline no-underline",
-              target: "_blank",
-              rel: "noopener noreferrer") { plain "Download" }
+
+        # Name + date
+        div(class: "flex-1 min-w-0") do
+          p(class: TYPE_BODY_MD) { plain label }
+          p(class: TYPE_CAPTION) do
+            plain doc["inserted_at"] ? (fmt_date(Time.parse(doc["inserted_at"])) rescue "—") : "—"
           end
+        end
+
+        # Status pill
+        div(class: "w-28 flex justify-center") do
+          render UI::StatusBadge.new(status)
+        end
+
+        # Scan badge
+        div(class: "w-20 flex justify-center") do
           if scanned
-            span(class: "inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium bg-green-50 text-green-700") do
+            span(class: "inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] " \
+                         "font-medium bg-green-50 text-green-700") do
               render UI::Icon.new(:check_circle, class: "w-3 h-3")
               plain "Scanned"
             end
           else
-            span(class: "inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium bg-gray-50 text-gray-500") do
-              plain "Pending scan"
+            span(class: "inline-flex items-center px-2 py-0.5 rounded-full text-[11px] " \
+                         "font-medium bg-gray-50 text-gray-400") do
+              plain "Pending"
             end
           end
+        end
+
+        # Actions
+        div(class: "w-24 flex items-center justify-end gap-1") do
+          # View (opens new tab)
+          if status.in?(%w[uploaded under_review approved rejected])
+            a(href: kyb_review_document_download_path(@app, doc["id"]),
+              target: "_blank",
+              rel: "noopener noreferrer",
+              class: BTN_SECONDARY + " !py-1 !px-2.5 !text-[11.5px]") do
+              render UI::Icon.new(:external_link, class: "w-3 h-3")
+              plain "View"
+            end
+          end
+
+          # Review actions dropdown
+          doc_action_dropdown(doc)
+        end
+      end
+    end
+
+    def doc_action_dropdown(doc)
+      actions = DOC_REVIEW_ACTIONS.fetch(doc["status"] || "pending_upload", [])
+      return if actions.empty?
+      return unless @app.merchant_code.present?
+
+      doc_id   = doc["id"]
+      doc_stat = doc["status"]
+
+      div(class: "relative inline-block", data: { controller: "dropdown" }) do
+        button(type: "button", class: BTN_ICON,
+               data: { action: "click->dropdown#toggle" }) do
+          render UI::Icon.new(:dots, class: "w-3.5 h-3.5")
+        end
+        div(class: "#{DROPDOWN_MENU} top-full mt-1 right-0 min-w-[180px]",
+            data: { dropdown_target: "menu" }) do
+          actions.each do |action|
+            action_form_item(doc_id, action, doc_stat)
+          end
+        end
+      end
+    end
+
+    def action_form_item(doc_id, action, current_status)
+      label  = DOC_ACTION_LABELS[action] || action.humanize
+      danger = action == "rejected"
+      cls    = danger ? DROPDOWN_ITEM_DANGER : DROPDOWN_ITEM
+
+      if danger
+        a(href: reject_document_modal_kyb_review_path(@app, doc_id),
+          class: cls,
+          data: { turbo_frame: "modal-frame" }) { plain label }
+      else
+        form(action: kyb_review_document_review_path(@app, doc_id), method: "post") do
+          input(type: "hidden", name: "_method", value: "patch")
+          input(type: "hidden", name: "authenticity_token", value: form_authenticity_token)
+          input(type: "hidden", name: "status", value: action)
+          button(type: "submit", class: cls) { plain label }
         end
       end
     end
 
     # ── Right column ──────────────────────────────────────────────────────────
 
-    def right_column
-      div(class: "flex flex-col gap-4") do
-        review_actions_card
-        live_mode_card if @app.approved? && @app.merchant_code.present?
-        add_ubo_card
-        review_history_card
-      end
-    end
-
     def review_actions_card
       render UI::Card.new do |c|
         c.header("Review decision")
         c.body do
-          div(class: "flex flex-col gap-3") do
-            if @app.pending?
+          if @app.pending?
+            div(class: "flex flex-col gap-3") do
+              # Assignment strip (only when still unassigned)
               if @app.status == "submitted"
-                assign_form
-                hr(class: "border-0 border-t border-gray-100 my-1")
+                form(action: assign_kyb_review_path(@app), method: "post") do
+                  authenticity_token_field
+                  button(type: "submit",
+                         class: "border border-gray-200 hover:bg-gray-50 text-gray-700 " \
+                                "font-medium rounded-xl text-[13px] px-4 h-9 flex items-center " \
+                                "gap-2 w-full justify-center transition-colors cursor-pointer") do
+                    render UI::Icon.new(:user, class: ICON_SM)
+                    plain "Assign to me"
+                  end
+                end
+                div(class: "border-t border-gray-100")
               end
-              approve_form
-              hr(class: "border-0 border-t border-gray-100 my-1")
-              reject_form
-            else
-              decided_state
+
+              # Reviewer info strip (when assigned)
+              if @app.reviewed_by.present?
+                div(class: "flex items-center gap-2 px-1") do
+                  div(class: "w-5 h-5 rounded-full bg-violet-50 flex items-center justify-center flex-shrink-0") do
+                    span(class: "flex w-3 h-3 text-violet-500") do
+                      render UI::Icon.new(:user, class: "w-full h-full")
+                    end
+                  end
+                  p(class: TYPE_CAPTION) do
+                    plain "Assigned to "
+                    span(class: "font-medium text-gray-700") { plain @app.reviewed_by }
+                  end
+                end
+                div(class: "border-t border-gray-100")
+              end
+
+              # Primary actions (compliance_manager only)
+              if can?(:approve?, :kyb_reviews)
+                a(href: approve_modal_kyb_review_path(@app),
+                  class: "#{BTN_SUCCESS} w-full justify-center",
+                  data: { turbo_frame: "modal-frame" }) do
+                  render UI::Icon.new(:check_circle, class: ICON_SM)
+                  plain "Approve application"
+                end
+
+                a(href: reject_modal_kyb_review_path(@app),
+                  class: "#{BTN_DANGER} w-full justify-center",
+                  data: { turbo_frame: "modal-frame" }) do
+                  render UI::Icon.new(:alert_circle, class: ICON_SM)
+                  plain "Reject application"
+                end
+              end
             end
+          else
+            decided_state
           end
-        end
-      end
-    end
-
-    def assign_form
-      form(action: assign_kyb_review_path(@app), method: "post") do
-        authenticity_token_field
-        button(type: "submit",
-               class: "border border-gray-200 hover:bg-gray-50 text-gray-700 font-semibold rounded-xl " \
-                      "text-[13px] px-4 h-9 flex items-center gap-2 w-full justify-center " \
-                      "transition-colors cursor-pointer") do
-          render UI::Icon.new(:user, class: ICON_SM)
-          plain "Assign to me for review"
-        end
-      end
-    end
-
-    def approve_form
-      form(action: approve_kyb_review_path(@app), method: "post",
-           data: { turbo_confirm: "Approve this application?" }) do
-        authenticity_token_field
-        button(type: "submit",
-               class: "bg-[#16a34a] hover:opacity-90 text-white font-semibold rounded-xl " \
-                      "text-[13px] px-4 h-9 flex items-center gap-2 w-full justify-center " \
-                      "transition-opacity cursor-pointer") do
-          render UI::Icon.new(:check_circle, class: ICON_SM)
-          plain "Approve application"
-        end
-      end
-    end
-
-    def reject_form
-      form(action: reject_kyb_review_path(@app), method: "post") do
-        authenticity_token_field
-        textarea(name: "reason", rows: 3, placeholder: "Rejection reason (required)…",
-                 required: true, class: "#{TEXTAREA_FIELD} mb-2 text-[12.5px]")
-        button(type: "submit", class: "#{BTN_DANGER} w-full justify-center") do
-          render UI::Icon.new(:alert_circle, class: ICON_SM)
-          plain "Reject application"
         end
       end
     end
 
     def decided_state
-      cfg_bg  = @app.approved? ? "rgba(22,163,74,0.08)" : "rgba(220,38,38,0.08)"
-      cfg_dot = @app.approved? ? GREEN : RED
-      cfg_clr = cfg_dot
-      label   = @app.status.capitalize
-
       div(class: "text-center py-2") do
-        div(class: "inline-flex items-center gap-2 px-4 py-2 rounded-xl",
-            style: "background:#{cfg_bg}") do
-          div(class: "w-2 h-2 rounded-full", style: "background:#{cfg_dot}")
-          p(class: "text-[13px] font-semibold", style: "color:#{cfg_clr}") do
-            plain "#{label} — no further action"
-          end
-        end
+        render UI::StatusBadge.new(@app.approved? ? "approved" : "rejected")
+        p(class: "#{TYPE_CAPTION} mt-2") { plain "No further action required." }
         if @app.rejected? && @app.rejected_reason.present?
           div(class: "mt-3 px-3 py-[10px] bg-gray-50 rounded-xl text-left") do
             p(class: "#{TYPE_MICRO} mb-1") { plain "Rejection reason" }
@@ -364,147 +502,130 @@ module KybReviews
       end
     end
 
-    def add_ubo_card
-      return unless @app.merchant_code.present?
-
-      render UI::Card.new do |c|
-        c.header("Add beneficial owner", icon: :users)
-        c.body do
-          form(action: add_ubo_kyb_review_path(@app), method: "post", id: "add-ubo-form") do
-            authenticity_token_field
-            div(class: "flex flex-col gap-3") do
-              div do
-                label(class: "#{TYPE_LABEL} block mb-1.5", for: "ubo_subject_name") { plain "Full name" }
-                input(
-                  type: "text", id: "ubo_subject_name", name: "subject_name",
-                  placeholder: "e.g. Kwame Mensah",
-                  class: INPUT_FIELD,
-                  required: true
-                )
-              end
-              div do
-                label(class: "#{TYPE_LABEL} block mb-1.5", for: "ubo_subject_dob") { plain "Date of birth" }
-                input(
-                  type: "date", id: "ubo_subject_dob", name: "subject_dob",
-                  class: INPUT_FIELD,
-                  required: true
-                )
-              end
-              div do
-                label(class: "#{TYPE_LABEL} block mb-1.5", for: "ubo_role") { plain "Role" }
-                select(name: "role", id: "ubo_role", class: SELECT_FIELD) do
-                  option(value: "ubo")      { plain "UBO (beneficial owner)" }
-                  option(value: "director") { plain "Director" }
-                  option(value: "both")     { plain "Director + UBO" }
-                end
-              end
-              div do
-                label(class: "#{TYPE_LABEL} block mb-1.5", for: "ubo_ownership_pct") do
-                  plain "Ownership %"
-                end
-                div(class: "relative") do
-                  input(
-                    type: "number", id: "ubo_ownership_pct",
-                    min: "0", max: "100", step: "0.01",
-                    placeholder: "e.g. 25.00",
-                    class: "#{INPUT_FIELD} pr-8",
-                    required: true
-                  )
-                  span(class: "absolute right-3 top-1/2 -translate-y-1/2 " \
-                               "text-gray-400 text-sm pointer-events-none") { plain "%" }
-                end
-                input(type: "hidden", name: "ownership_bps", id: "ubo_ownership_bps")
-              end
-              button(type: "submit", class: "#{BTN_PRIMARY} w-full justify-center") do
-                render UI::Icon.new(:plus, class: ICON_SM)
-                plain "Add beneficial owner"
-              end
-            end
-          end
-          script do
-            raw safe(<<~JS)
-              (function () {
-                var form = document.getElementById('add-ubo-form');
-                var pct  = document.getElementById('ubo_ownership_pct');
-                var bps  = document.getElementById('ubo_ownership_bps');
-                form.addEventListener('submit', function (e) {
-                  var v = parseFloat(pct.value);
-                  if (isNaN(v) || v < 0 || v > 100) { e.preventDefault(); return; }
-                  bps.value = Math.round(v * 100);
-                });
-              })();
-            JS
-          end
-        end
-      end
-    end
-
     def live_mode_card
+      return unless can?(:approve?, :kyb_reviews)
+
       render UI::Card.new do |c|
         c.header("Live mode", icon: :zap)
         c.body do
           p(class: "#{TYPE_CAPTION} mb-3") do
-            plain "Grant live processing once KYB tier 3+ is confirmed. This enables real transactions."
+            plain "Grant live processing once KYB tier 3+ is confirmed."
           end
-          form(action: grant_live_kyb_review_path(@app), method: "post",
-               data: { turbo_confirm: "Activate live mode for #{@app.legal_name}? " \
-                                      "This enables real transactions." }) do
-            authenticity_token_field
-            button(type: "submit",
-                   class: "bg-[#1d4ed8] hover:opacity-90 text-white font-semibold rounded-xl " \
-                          "text-[13px] px-4 h-9 flex items-center gap-2 w-full justify-center " \
-                          "transition-opacity cursor-pointer") do
-              render UI::Icon.new(:zap, class: ICON_SM)
-              plain "Activate live mode"
-            end
+          a(href: grant_live_modal_kyb_review_path(@app),
+            class: "#{BTN_SUCCESS} w-full justify-center",
+            data: { turbo_frame: "modal-frame" }) do
+            render UI::Icon.new(:zap, class: ICON_SM)
+            plain "Activate live mode"
           end
         end
       end
     end
 
     def review_history_card
-      div(class: "bg-white border border-gray-100 rounded-2xl px-[18px] py-[18px]") do
-        p(class: "#{TYPE_MICRO} mb-3.5") { plain "Review history" }
-        div(class: "flex flex-col gap-[10px]") do
-          history_row("Submitted", @app.submitted_by_email || "—", submitted_label, "#d97706")
-          if @app.reviewed_by.present?
-            history_row("Assigned for review", @app.reviewed_by, "—", "#6d28d9")
-          end
-          if @app.approved_by.present?
-            history_row("Approved by", @app.approved_by, "—", GREEN)
-          end
-          if @app.rejected?
-            reason_snippet = @app.rejected_reason.presence&.truncate(60) || "No reason recorded"
-            history_row("Rejected — #{reason_snippet}", "Yagye Staff",
-                        @app.last_applied_at&.strftime("%d %b %Y") || "—", RED)
+      div(class: "#{SURFACE_CARD} px-[18px] pt-[18px] pb-5") do
+        p(class: "#{TYPE_MICRO} mb-4") { plain "Activity timeline" }
+        div(class: "flex flex-col") do
+          history_events.each_with_index do |ev, i|
+            timeline_row(ev, last: i == history_events.size - 1)
           end
         end
       end
     end
 
-    def history_row(action, actor, at, color)
+    def history_events
+      events = []
+      events << { label: "Application submitted",
+                  actor: @app.submitted_by_email || "Merchant",
+                  at:    submitted_label,
+                  color: AMBER }
+      if @app.reviewed_by.present?
+        events << { label: "Assigned for review",
+                    actor: @app.reviewed_by,
+                    at:    "—",
+                    color: PURPLE }
+      end
+      if @app.approved_by.present?
+        events << { label: "Application approved",
+                    actor: @app.approved_by,
+                    at:    fmt_date(@app.last_applied_at),
+                    color: GREEN }
+      end
+      if @app.rejected?
+        snippet = @app.rejected_reason.presence&.truncate(55) || "No reason"
+        events << { label: "Rejected — #{snippet}",
+                    actor: "Yagye Staff",
+                    at:    fmt_date(@app.last_applied_at),
+                    color: RED }
+      end
+      events
+    end
+
+    def timeline_row(ev, last: false)
       div(class: "flex gap-3") do
-        div(class: "w-2 h-2 rounded-full flex-shrink-0 mt-1", style: "background:#{color}")
-        div do
-          p(class: TYPE_BODY_MD) { plain action }
-          p(class: "#{TYPE_CAPTION} mt-px") { plain "#{actor} · #{at}" }
+        # Connector column
+        div(class: "flex flex-col items-center w-4 flex-shrink-0") do
+          div(class: "w-2 h-2 rounded-full mt-1 flex-shrink-0",
+              style: "background:#{ev[:color]}")
+          unless last
+            div(class: "w-px flex-1 mt-1 mb-0", style: "background:#E5E7EB;min-height:20px")
+          end
+        end
+        # Content
+        div(class: "#{"mb-4" unless last}") do
+          p(class: TYPE_BODY_MD) { plain ev[:label] }
+          p(class: "#{TYPE_CAPTION} mt-px") { plain "#{ev[:actor]} · #{ev[:at]}" }
         end
       end
     end
 
     # ── Shared helpers ────────────────────────────────────────────────────────
 
-    def detail_row(label, value, mono: false)
-      div(class: "flex items-center justify-between px-[22px] py-3 border-b border-gray-100 last:border-0") do
-        p(class: TYPE_CAPTION) { plain label }
-        p(class: (mono ? TYPE_MONO : TYPE_BODY_MD)) { plain value.to_s }
+    def screening_by_subject
+      @screening_by_subject ||= begin
+        subjects = @screening&.dig("subjects") || []
+        subjects.index_by { |s| s["subject_id"] }
       end
     end
 
-    def empty_state(icon, title, subtitle, palette: "brand")
+    def open_hits
+      @open_hits ||= @screening&.dig("open_hits") || []
+    end
+
+    def docs_uploaded
+      @documents.count { |d| d["status"].in?(%w[uploaded under_review approved rejected]) }
+    end
+
+    def docs_complete?
+      @documents.any? && docs_uploaded == @documents.size
+    end
+
+    def ubos_threshold_clear?
+      return false if @beneficial_owners.empty?
+      flagged = @beneficial_owners.select { |u| u["ownership_bps"].to_i >= 2500 }
+      flagged.all? do |u|
+        subj = screening_by_subject[u["subject_ref"]]
+        subj && subj["screening_status"].in?(%w[clean cleared])
+      end
+    end
+
+    def screening_clear?
+      open_hits.empty? &&
+        (@screening&.dig("subjects") || []).all? { |s|
+          s["screening_status"].in?(%w[clean cleared])
+        }
+    end
+
+    def screening_label
+      return "No subjects enrolled" if (@screening&.dig("subjects") || []).empty?
+      total  = (@screening&.dig("subjects") || []).size
+      clean  = (@screening&.dig("subjects") || []).count { |s| s["screening_status"].in?(%w[clean cleared]) }
+      "#{clean}/#{total} subjects clear"
+    end
+
+    def empty_state(icon, title, subtitle)
       div(class: "py-10 px-6 flex flex-col items-center justify-center gap-2 text-center") do
-        div(class: "w-10 h-10 rounded-xl icon-#{palette} flex items-center justify-center mb-1") do
-          span(class: "flex w-5 h-5") do
+        div(class: "w-10 h-10 rounded-xl bg-gray-50 flex items-center justify-center mb-1") do
+          span(class: "flex w-5 h-5 text-gray-300") do
             render UI::Icon.new(icon, class: "w-full h-full")
           end
         end
@@ -515,10 +636,6 @@ module KybReviews
 
     def authenticity_token_field
       input(type: "hidden", name: "authenticity_token", value: form_authenticity_token)
-    end
-
-    def no_screening?
-      @screening.nil? || (@screening["subjects"] || []).empty?
     end
 
     def initials
@@ -532,7 +649,7 @@ module KybReviews
     end
 
     def submitted_label
-      @app.last_applied_at&.strftime("%d %b %Y") || "—"
+      fmt_date(@app.last_applied_at)
     end
   end
 end

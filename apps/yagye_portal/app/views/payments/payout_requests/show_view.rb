@@ -68,7 +68,7 @@ module Payments
               list.row("Requested by",  @req.requested_by, mono: true)
               list.row("Amount",        @req.formatted_amount)
               list.row("Status")         { render UI::StatusBadge.new(status: @req.state) }
-              list.row("Submitted",     @req.created_at.strftime("%d %b %Y at %H:%M UTC"))
+              list.row("Submitted",     fmt_datetime_utc(@req.created_at))
             end
           end
         end
@@ -137,7 +137,7 @@ module Payments
             render UI::DetailList.new do |list|
               list.row("Decision") { render UI::StatusBadge.new(status: @req.state) }
               list.row("Reviewed by",  @req.reviewed_by || "—", mono: true)
-              list.row("Reviewed at",  @req.reviewed_at.strftime("%d %b %Y at %H:%M UTC"))
+              list.row("Reviewed at",  fmt_datetime_utc(@req.reviewed_at))
               list.row("Note",         @req.reviewer_note.presence || "—") if @req.reviewer_note.present?
             end
           end

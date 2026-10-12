@@ -5,14 +5,14 @@ module Disputes
     include UI::Theme
 
     REASON_CFG = {
-      "fraud"                  => { label: "Fraudulent transaction",       color: "#dc2626", tint: "rgba(220,38,38,0.08)" },
-      "duplicate"              => { label: "Duplicate charge",             color: "#d97706", tint: "rgba(217,119,6,0.08)" },
-      "not_received"           => { label: "Product not received",         color: "#6d28d9", tint: "rgba(109,40,217,0.08)" },
-      "unrecognised"           => { label: "Unrecognised charge",          color: "#0d9488", tint: "rgba(13,148,136,0.08)" },
-      "unauthorized_transfer"  => { label: "Unauthorized transfer",        color: "#dc2626", tint: "rgba(220,38,38,0.08)" },
-      "network_error"          => { label: "Network / telco error",        color: "#d97706", tint: "rgba(217,119,6,0.08)" },
-      "non_delivery"           => { label: "Goods / service not received", color: "#6d28d9", tint: "rgba(109,40,217,0.08)" },
-      "other"                  => { label: "Other",                        color: "#6b7280", tint: "rgba(107,114,128,0.08)" }
+      "fraud"                 => { label: "Fraudulent transaction",       badge: "badge-red"    },
+      "duplicate"             => { label: "Duplicate charge",             badge: "badge-amber"  },
+      "not_received"          => { label: "Product not received",         badge: "badge-violet" },
+      "unrecognised"          => { label: "Unrecognised charge",          badge: "badge-blue"   },
+      "unauthorized_transfer" => { label: "Unauthorized transfer",        badge: "badge-red"    },
+      "network_error"         => { label: "Network / telco error",        badge: "badge-amber"  },
+      "non_delivery"          => { label: "Goods / service not received", badge: "badge-violet" },
+      "other"                 => { label: "Other",                        badge: "badge-gray"   }
     }.freeze
 
     def initialize(dispute:, can_submit_evidence: false, payment: nil)
@@ -51,7 +51,7 @@ module Disputes
     def hero_card
       reason = REASON_CFG[@dispute.reason] || REASON_CFG["other"]
 
-      div(class: "bg-white border border-gray-100 rounded-2xl px-8 py-7") do
+      div(class: "#{SURFACE_CARD} px-8 py-7") do
         div(class: "flex items-start justify-between mb-5") do
           div do
             p(class: "#{TYPE_CAPTION} mb-1") { plain "Disputed amount" }
@@ -59,11 +59,7 @@ module Disputes
           end
           div(class: "flex flex-col items-end gap-2") do
             render UI::StatusBadge.new(status: @dispute.status)
-            span(class: "inline-flex items-center gap-[6px] px-[10px] py-1 rounded-full text-[11.5px] font-semibold",
-                 style: "background:#{reason[:tint]};color:#{reason[:color]}") do
-              span(class: "w-[5px] h-[5px] rounded-full flex-shrink-0", style: "background:#{reason[:color]}")
-              plain reason[:label]
-            end
+            span(class: "#{reason[:badge]} #{BADGE}") { plain reason[:label] }
           end
         end
         div(class: "grid grid-cols-3 gap-[1px] bg-gray-100 rounded-xl overflow-hidden") do
@@ -122,7 +118,7 @@ module Disputes
           p(class: "text-[12.5px] font-semibold", style: "color:#{GREEN}") { plain "Evidence submitted" }
           if @dispute.evidence_submitted_at
             p(class: TYPE_CAPTION) do
-              plain "· #{@dispute.evidence_submitted_at.strftime("%d %b %Y, %H:%M")}"
+              plain "· #{fmt_datetime(@dispute.evidence_submitted_at)}"
             end
           end
         end
@@ -180,9 +176,8 @@ module Disputes
 
     def no_evidence_placeholder
       div(class: "py-10 px-6 flex flex-col items-center justify-center gap-[10px] text-center") do
-        div(class: "w-11 h-11 rounded-xl flex items-center justify-center mb-1",
-            style: "background:rgba(61,71,245,0.08)") do
-          span(class: "flex w-[22px] h-[22px]", style: "color:#{BRAND}") do
+        div(class: "w-11 h-11 rounded-xl icon-brand flex items-center justify-center mb-1") do
+          span(class: "flex w-[22px] h-[22px]") do
             render UI::Icon.new(:file, class: "w-full h-full")
           end
         end
@@ -226,19 +221,13 @@ module Disputes
     end
 
     def status_card
-      div(class: "bg-white border border-gray-100 rounded-2xl p-5") do
-        p(class: "#{TYPE_MICRO} mb-3") { plain "Dispute status" }
-        div(class: "flex items-center gap-[10px] px-[14px] py-3 rounded-xl",
-            style: "background:#{status_bg}") do
-          div(class: "w-2 h-2 rounded-full flex-shrink-0", style: "background:#{status_dot}")
-          p(class: "text-[13px] font-semibold", style: "color:#{status_color}") do
-            plain @dispute.status.tr("_", " ").split.map(&:capitalize).join(" ")
-          end
-        end
-        if @dispute.opened_at
-          div(class: "mt-[14px] flex flex-col gap-[6px]") do
-            detail_row_inline("Opened",   opened_label)
-            detail_row_inline("Resolved", resolved_label) if @dispute.resolved_at
+      render UI::Card.new do |c|
+        c.header("Dispute status")
+        c.body(padding: false) do
+          render UI::DetailList.new do |list|
+            list.row("Status") { render UI::StatusBadge.new(status: @dispute.status) }
+            list.row("Opened",   opened_label)   if @dispute.opened_at
+            list.row("Resolved", resolved_label) if @dispute.resolved_at
           end
         end
       end
@@ -255,22 +244,22 @@ module Disputes
       border_cls, icon_color, title_cls, body_cls, title, body =
         if days < 0
           [ "border-red-200",    RED,   "text-red-800",    "text-red-600",
-           "Deadline passed",   "Response was due #{deadline.strftime("%-d %b %Y")} — #{days.abs} day#{'s' if days.abs != 1} ago" ]
+           "Deadline passed",   "Response was due #{fmt_date(deadline)} — #{days.abs} day#{'s' if days.abs != 1} ago" ]
         elsif days == 0
           [ "border-red-200",    RED,   "text-red-800",    "text-red-600",
-           "Respond today",     "Deadline: #{deadline.strftime("%-d %b %Y")}" ]
+           "Respond today",     "Deadline: #{fmt_date(deadline)}" ]
         elsif days == 1
           [ "border-red-200",    RED,   "text-red-800",    "text-red-600",
-           "Respond tomorrow",  "Deadline: #{deadline.strftime("%-d %b %Y")}" ]
+           "Respond tomorrow",  "Deadline: #{fmt_date(deadline)}" ]
         elsif days <= 2
           [ "border-red-200",    RED,   "text-red-800",    "text-red-600",
-           "#{days} days left", "Deadline: #{deadline.strftime("%-d %b %Y")}" ]
+           "#{days} days left", "Deadline: #{fmt_date(deadline)}" ]
         elsif days <= 6
           [ "border-yellow-200", AMBER, "text-amber-800",  "text-amber-600",
-           "#{days} days left", "Deadline: #{deadline.strftime("%-d %b %Y")}" ]
+           "#{days} days left", "Deadline: #{fmt_date(deadline)}" ]
         else
           [ "border-green-200",  GREEN, "text-green-800",  "text-green-600",
-           "#{days} days left", "Deadline: #{deadline.strftime("%-d %b %Y")}" ]
+           "#{days} days left", "Deadline: #{fmt_date(deadline)}" ]
         end
 
       div(class: "bg-white #{border_cls} rounded-2xl px-[18px] py-4 border") do
@@ -287,24 +276,20 @@ module Disputes
     def ops_actions_card
       return unless @dispute.open?
 
-      div(class: "bg-white border border-gray-100 rounded-2xl overflow-hidden") do
-        div(class: "px-[18px] py-4 border-b border-gray-100") do
-          p(class: TYPE_TITLE) { plain "Ops actions" }
-        end
-        div(class: "px-[18px] py-4 flex flex-col gap-2") do
-          form(action: resolve_dispute_path(@dispute), method: "post",
-               data: { turbo_confirm: "Mark this dispute as won? The payment will return to succeeded." }) do
-            input(type: "hidden", name: "authenticity_token", value: form_authenticity_token)
-            input(type: "hidden", name: "outcome",            value: "won")
-            render UI::Button.new(variant: :secondary, type: "submit",
-                   style: "width:100%;justify-content:center") { plain "Mark as won" }
-          end
-          form(action: resolve_dispute_path(@dispute), method: "post",
-               data: { turbo_confirm: "Mark this dispute as lost? The payment will transition to chargebacked." }) do
-            input(type: "hidden", name: "authenticity_token", value: form_authenticity_token)
-            input(type: "hidden", name: "outcome",            value: "lost")
-            render UI::Button.new(variant: :danger, type: "submit",
-                   style: "width:100%;justify-content:center") { plain "Mark as lost" }
+      render UI::Card.new do |c|
+        c.header("Ops actions")
+        c.body do
+          div(class: "flex flex-col gap-2") do
+            a(href: resolve_confirm_modal_dispute_path(@dispute, outcome: "won"),
+              class: "#{BTN_SECONDARY} w-full justify-center",
+              data: { turbo_frame: "modal-frame" }) do
+              plain "Mark as won"
+            end
+            a(href: resolve_confirm_modal_dispute_path(@dispute, outcome: "lost"),
+              class: "#{BTN_DANGER} w-full justify-center",
+              data: { turbo_frame: "modal-frame" }) do
+              plain "Mark as lost"
+            end
           end
         end
       end
@@ -319,33 +304,12 @@ module Disputes
       end
     end
 
-    def status_color
-      case @dispute.status
-      when "won"          then "#16a34a"
-      when "lost"         then "#dc2626"
-      when "under_review" then BRAND
-      when "closed"       then MUTED_TEXT
-      else                     "#d97706"
-      end
-    end
-
-    def status_dot  = status_color
-    def status_bg
-      case @dispute.status
-      when "won"          then "rgba(22,163,74,0.08)"
-      when "lost"         then "rgba(220,38,38,0.08)"
-      when "under_review" then "rgba(61,71,245,0.08)"
-      when "closed"       then "rgba(107,114,128,0.08)"
-      else                     "rgba(217,119,6,0.08)"
-      end
-    end
-
     def opened_label
-      @dispute.opened_at ? @dispute.opened_at.strftime("%d %b %Y, %H:%M") : "—"
+      fmt_datetime(@dispute.opened_at)
     end
 
     def resolved_label
-      @dispute.resolved_at ? @dispute.resolved_at.strftime("%d %b %Y") : "Pending"
+      @dispute.resolved_at ? fmt_date(@dispute.resolved_at) : "Pending"
     end
 
     def build_timeline

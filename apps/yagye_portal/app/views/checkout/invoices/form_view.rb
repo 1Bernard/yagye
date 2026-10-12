@@ -400,8 +400,8 @@ module Checkout
                                    : DEMO[:customer])
 
         div(class: "grid grid-cols-4 px-10 py-5 bg-[#f8fafc] border-t border-b border-gray-100") do
-          preview_billing_cell("Issue date", Date.today.strftime("%d %b %Y"), :pvIssued)
-          preview_billing_cell("Due date",   (Date.today + 30).strftime("%d %b %Y"), :pvDue)
+          preview_billing_cell("Issue date", fmt_date(Date.today), :pvIssued)
+          preview_billing_cell("Due date",   fmt_date(Date.today + 30), :pvDue)
           preview_billing_cell("From",       merchant_name)
           preview_billing_cell("Bill to",    bill_to_value, :pvBillTo)
         end
@@ -532,7 +532,7 @@ module Checkout
 
       def preview_footer
         div(class: "border-t border-gray-100 px-10 py-4 flex items-center justify-between") do
-          p(class: "text-[10.5px] text-gray-300") { plain "Generated #{Date.today.strftime("%d %b %Y")}" }
+          p(class: "text-[10.5px] text-gray-300") { plain "Generated #{fmt_date(Date.today)}" }
           p(class: "text-[10.5px] text-gray-300") { plain "Payment powered by Yagye" }
         end
       end

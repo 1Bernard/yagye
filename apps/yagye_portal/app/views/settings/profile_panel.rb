@@ -30,8 +30,8 @@ module Settings
 
     def profile_hero_card
       u         = @current_user
-      joined    = u&.created_at&.strftime("%d %b %Y")      || "—"
-      last_seen = u&.last_sign_in_at&.strftime("%d %b %Y") || "Never"
+      joined    = fmt_date(u&.created_at)
+      last_seen = u&.last_sign_in_at ? fmt_date(u.last_sign_in_at) : "Never"
       sign_ins  = u&.sign_in_count&.to_s                   || "0"
 
       div(class: "bg-white border border-gray-100 rounded-2xl px-7 py-7",
@@ -376,7 +376,7 @@ module Settings
           p(class: TYPE_CAPTION) { plain event.ip_address.present? ? "from #{event.ip_address}" : "—" }
         end
         span(class: "text-[11px] text-gray-400 flex-shrink-0 tabular-nums") do
-          plain event.created_at.strftime("%d %b, %H:%M")
+          plain fmt_datetime(event.created_at)
         end
       end
     end

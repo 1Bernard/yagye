@@ -5,10 +5,12 @@ module Compliance
     class IndexView < ApplicationComponent
       include UI::Theme
 
-      def initialize(pending:, decided:, can_decide: false)
-        @pending    = pending
-        @decided    = decided
-        @can_decide = can_decide
+      def initialize(tab:, records:, pagy:, pending_count:, can_decide: false)
+        @tab           = tab
+        @records       = records
+        @pagy          = pagy
+        @pending_count = pending_count
+        @can_decide    = can_decide
       end
 
       def view_template
@@ -24,31 +26,33 @@ module Compliance
             title:    "Approvals",
             subtitle: "Adjustments proposed by one officer requiring sign-off from a second."
           )
-          div(class: "flex flex-col gap-6") do
-            pending_section
-            decided_section
-          end
+          tab_bar
+          @tab == "decided" ? decided_section : pending_section
         end
       end
 
       private
 
-      # ── Pending section ───────────────────────────────────────────────────────
+      def tab_bar
+        render UI::Tabs.new do |t|
+          t.tab "Pending",
+                href:   compliance_approvals_path(tab: "pending"),
+                active: @tab == "pending",
+                count:  @pending_count > 0 ? @pending_count : nil
+          t.tab "Decided",
+                href:   compliance_approvals_path(tab: "decided"),
+                active: @tab == "decided"
+        end
+      end
+
+      # ── Pending tab ───────────────────────────────────────────────────────────
 
       def pending_section
         render UI::Datatable.new(
-          records:       @pending,
+          records:       @records,
+          pagy:          @pagy,
           empty_message: "No pending approvals. Adjustment proposals from Core appear here."
         ) do |t|
-          t.header do
-            div do
-              p(class: TYPE_TITLE) { plain "Pending approvals" }
-              p(class: "#{TYPE_CAPTION} mt-0.5") do
-                plain "Adjustments proposed by one officer that require sign-off from a second."
-              end
-            end
-          end
-
           t.column("#", class: "text-gray-400 tabular-nums text-right w-8") { |_, i| plain((i + 1).to_s) }
 
           t.column("Break ID") do |r|
@@ -58,7 +62,7 @@ module Compliance
           t.column("Proposed by") do |r|
             div do
               p(class: TYPE_BODY_MD) { plain r.proposed_by }
-              p(class: TYPE_CAPTION) { plain r.proposed_at.strftime("%d %b %Y, %H:%M") }
+              p(class: TYPE_CAPTION) { plain fmt_datetime(r.proposed_at) }
             end
           end
 
@@ -68,16 +72,14 @@ module Compliance
             note    = action["note"].presence
             amount  = action["amount"]
             badge_class = case type
-            when "credit", "reversal"  then "bg-green-50 text-green-700"
-            when "debit", "chargeback" then "bg-red-50 text-red-700"
-            when "fee"                 then "bg-amber-50 text-amber-700"
-            else                            "bg-gray-100 text-gray-600"
+            when "credit", "reversal"  then STATUS_SUCCESS
+            when "debit", "chargeback" then STATUS_FAILED
+            when "fee"                 then STATUS_WARNING
+            else                            STATUS_NEUTRAL
             end
             div(class: "flex flex-col gap-1") do
               div(class: "flex items-center gap-2") do
-                span(class: "#{badge_class} inline-flex items-center rounded px-1.5 py-0.5 text-[10.5px] font-semibold uppercase tracking-wide") do
-                  plain type.humanize
-                end
+                span(class: "#{badge_class} #{BADGE} uppercase tracking-wide") { plain type.humanize }
                 if amount.present?
                   whole, frac = amount.to_i.divmod(100)
                   span(class: "#{TYPE_MONO} text-[12px]") { plain "GHS #{sprintf('%d.%02d', whole, frac)}" }
@@ -96,13 +98,11 @@ module Compliance
 
           if @can_decide
             t.actions do |r|
-              form(action: compliance_approve_approval_path(r), method: "post",
-                   data: { turbo_confirm: "Approve this adjustment? This cannot be undone." }) do
-                input(type: "hidden", name: "authenticity_token", value: form_authenticity_token)
-                button(type: "submit", class: DROPDOWN_ITEM) do
-                  render UI::Icon.new(:check_circle, class: ICON_SM)
-                  plain "Approve"
-                end
+              a(href: approve_modal_compliance_approval_path(r),
+                class: DROPDOWN_ITEM,
+                data: { turbo_frame: "modal-frame" }) do
+                render UI::Icon.new(:check_circle, class: ICON_SM)
+                plain "Approve"
               end
               div(class: DROPDOWN_SEP)
               button(type: "button", class: DROPDOWN_ITEM_DANGER,
@@ -115,22 +115,18 @@ module Compliance
           end
         end
 
-        # Dialogs must be outside the datatable (actions block runs in Datatable context via
-        # instance_exec, so IndexView methods are not in scope there).
-        @pending.each { |r| reject_dialog(r) } if @can_decide
+        # Dialogs must live outside the datatable (instance_exec scope in actions block)
+        @records.each { |r| reject_dialog(r) } if @can_decide
       end
 
-      # ── Decided section ───────────────────────────────────────────────────────
+      # ── Decided tab ───────────────────────────────────────────────────────────
 
       def decided_section
         render UI::Datatable.new(
-          records:       @decided,
+          records:       @records,
+          pagy:          @pagy,
           empty_message: "No decisions yet."
         ) do |t|
-          t.header do
-            p(class: TYPE_TITLE) { plain "Recent decisions" }
-          end
-
           t.column("#", class: "text-gray-400 tabular-nums text-right w-8") { |_, i| plain((i + 1).to_s) }
 
           t.column("Break ID") do |r|
@@ -141,7 +137,9 @@ module Compliance
             div(class: "flex flex-col gap-1") do
               render UI::StatusBadge.new(status: r.state)
               if r.rejected? && r.rejected_reason.present?
-                p(class: "#{TYPE_CAPTION} italic max-w-[200px] leading-tight") { plain r.rejected_reason.truncate(80) }
+                p(class: "#{TYPE_CAPTION} italic max-w-[200px] leading-tight") do
+                  plain r.rejected_reason.truncate(80)
+                end
               end
             end
           end
@@ -155,12 +153,12 @@ module Compliance
             decided_at = r.approved_at || r.rejected_at
             div do
               p(class: TYPE_BODY_MD) { plain decided_by }
-              p(class: TYPE_CAPTION) { plain decided_at.strftime("%d %b %Y, %H:%M") } if decided_at
+              p(class: TYPE_CAPTION) { plain fmt_datetime(decided_at) } if decided_at
             end
           end
 
           t.column("Proposed") do |r|
-            span(class: TYPE_CAPTION) { plain r.proposed_at.strftime("%d %b %Y") }
+            span(class: TYPE_CAPTION) { plain fmt_date(r.proposed_at) }
           end
         end
       end

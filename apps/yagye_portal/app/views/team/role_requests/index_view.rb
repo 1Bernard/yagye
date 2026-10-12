@@ -22,7 +22,10 @@ module Team
             { label: "Role change requests" }
           ]
         ) do
-          page_header
+          render UI::PageHeader.new(
+            title:    "Role change requests",
+            subtitle: "#{@requests.size} pending #{@requests.size == 1 ? 'request' : 'requests'} require a second approver"
+          )
           if @requests.empty?
             empty_state
           else
@@ -35,21 +38,8 @@ module Team
 
       private
 
-      def page_header
-        div(class: "flex items-center justify-between mb-6") do
-          div do
-            h1(class: "text-[20px] font-bold tracking-[-0.02em]", style: "color:var(--ink)") do
-              plain "Role change requests"
-            end
-            p(class: TYPE_CAPTION) do
-              plain "#{@requests.size} pending #{@requests.size == 1 ? 'request' : 'requests'} require a second approver"
-            end
-          end
-        end
-      end
-
       def empty_state
-        div(class: "bg-white border border-gray-100 rounded-2xl px-8 py-14 flex flex-col items-center text-center gap-3") do
+        div(class: "#{SURFACE_CARD} px-8 py-14 flex flex-col items-center text-center gap-3") do
           div(class: "w-12 h-12 rounded-2xl icon-brand flex items-center justify-center mb-1") do
             span(class: "flex w-6 h-6") { render UI::Icon.new(:check_circle, class: "w-full h-full") }
           end
@@ -62,7 +52,7 @@ module Team
         added   = req.added_keys
         removed = req.removed_keys
 
-        div(class: "bg-white border border-gray-100 rounded-2xl overflow-hidden") do
+        div(class: "#{SURFACE_CARD} overflow-hidden") do
           div(class: "px-6 py-5 flex items-start justify-between gap-4") do
             div(class: "flex items-start gap-4 min-w-0 flex-1") do
               render UI::Avatar.new(initials_for(req.target_user), size: :md)
@@ -71,7 +61,7 @@ module Team
                   p(class: "text-[14px] font-bold tracking-[-0.01em]", style: "color:var(--ink)") do
                     plain req.target_user.full_name
                   end
-                  span(class: "badge-amber text-[10.5px] font-semibold px-2 py-[2px] rounded-full") do
+                  span(class: "badge-amber #{BADGE}") do
                     plain "Pending approval"
                   end
                 end
@@ -93,40 +83,29 @@ module Team
       end
 
       def role_diff_pill(key, direction)
-        role   = @roles_by_key[key]
-        label  = role&.name || key.humanize
-        if direction == :add
-          span(class: "inline-flex items-center gap-[5px] text-[11px] font-semibold px-[9px] py-[3px] rounded-full",
-               style: "background:rgba(34,197,94,0.1);color:#16a34a;border:1px solid rgba(34,197,94,0.25)") do
-            span(class: "flex w-[9px] h-[9px]") { render UI::Icon.new(:plus, class: "w-full h-full") }
-            plain label
-          end
-        else
-          span(class: "inline-flex items-center gap-[5px] text-[11px] font-semibold px-[9px] py-[3px] rounded-full",
-               style: "background:rgba(220,38,38,0.06);color:#dc2626;border:1px solid rgba(220,38,38,0.18)") do
-            span(class: "flex w-[9px] h-[9px]") { render UI::Icon.new(:minus, class: "w-full h-full") }
-            plain label
-          end
+        role  = @roles_by_key[key]
+        label = role&.name || key.humanize
+        cls   = direction == :add ? "badge-green" : "badge-red"
+        icon  = direction == :add ? :plus : :minus
+        span(class: "#{cls} inline-flex items-center gap-[5px] #{BADGE}") do
+          span(class: "flex w-[9px] h-[9px]") { render UI::Icon.new(icon, class: "w-full h-full") }
+          plain label
         end
       end
 
       def action_buttons(req)
         div(class: "flex items-center gap-2 flex-shrink-0") do
-          form(action: reject_team_role_request_path(req), method: "post",
-               data: { turbo_confirm: "Reject this role change request for #{req.target_user.full_name}?" }) do
-            input(type: "hidden", name: "authenticity_token", value: form_authenticity_token)
-            render UI::Button.new(variant: :secondary, type: "submit") do
-              render UI::Icon.new(:x, class: ICON_SM)
-              plain "Reject"
-            end
+          a(href: reject_modal_team_role_request_path(req),
+            class: BTN_SECONDARY,
+            data: { turbo_frame: "modal-frame" }) do
+            render UI::Icon.new(:x, class: ICON_SM)
+            plain "Reject"
           end
-          form(action: approve_team_role_request_path(req), method: "post",
-               data: { turbo_confirm: "Approve role change for #{req.target_user.full_name}? Access will update immediately." }) do
-            input(type: "hidden", name: "authenticity_token", value: form_authenticity_token)
-            render UI::Button.new(variant: :primary, type: "submit") do
-              render UI::Icon.new(:check, class: ICON_SM)
-              plain "Approve"
-            end
+          a(href: approve_modal_team_role_request_path(req),
+            class: BTN_PRIMARY,
+            data: { turbo_frame: "modal-frame" }) do
+            render UI::Icon.new(:check, class: ICON_SM)
+            plain "Approve"
           end
         end
       end

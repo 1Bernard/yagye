@@ -77,24 +77,14 @@ module Disputes
             if deadline
               days = (deadline - Date.current).to_i
               if days < 0
-                color, tint, label = "#dc2626", "rgba(220,38,38,0.08)", "Overdue"
+                cls, label = STATUS_FAILED, "Overdue"
               else
                 date_str  = deadline.strftime("%-d %b")
                 countdown = days == 0 ? "today" : days == 1 ? "tomorrow" : "#{days}d left"
                 label     = "#{date_str} · #{countdown}"
-                color, tint = if days <= 2
-                                [ "#dc2626", "rgba(220,38,38,0.08)" ]
-                elsif days <= 6
-                                [ "#d97706", "rgba(217,119,6,0.08)" ]
-                else
-                                [ "#16a34a", "rgba(22,163,74,0.08)" ]
-                end
+                cls       = days <= 2 ? STATUS_FAILED : days <= 6 ? STATUS_WARNING : STATUS_SUCCESS
               end
-              span(class: "inline-flex items-center gap-1.5 text-[11px] font-semibold px-2 py-[3px] rounded-full whitespace-nowrap",
-                   style: "color:#{color};background:#{tint}") do
-                span(class: "w-[5px] h-[5px] rounded-full flex-shrink-0 mt-px", style: "background:#{color}")
-                plain label
-              end
+              span(class: "#{cls} #{BADGE} whitespace-nowrap") { plain label }
             else
               span(class: "text-[11px] text-gray-400") { plain "—" }
             end
@@ -102,7 +92,7 @@ module Disputes
             span(class: "text-[11px] text-gray-400") { plain "—" }
           end
         end
-        t.column("Opened") { |d| plain d.created_at.strftime("%d %b %Y") }
+        t.column("Opened") { |d| plain fmt_date(d.created_at) }
 
         t.actions do |d|
           a(href: dispute_path(d), class: DROPDOWN_ITEM) do

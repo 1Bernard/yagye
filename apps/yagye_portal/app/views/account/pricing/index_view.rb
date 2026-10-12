@@ -35,7 +35,7 @@ module Account
       # ── No plan assigned ──────────────────────────────────────────────────────
 
       def no_plan_state
-        div(class: "bg-white border border-gray-100 rounded-2xl px-8 py-14 flex flex-col items-center text-center gap-3") do
+        div(class: "#{SURFACE_CARD} px-8 py-14 flex flex-col items-center text-center gap-3") do
           div(class: "w-12 h-12 rounded-2xl flex items-center justify-center mb-1",
               style: "background:#{TINT_BRAND}") do
             span(class: "flex w-[22px] h-[22px]", style: "color:#{BRAND}") do
@@ -70,7 +70,7 @@ module Account
         mode_label = mode == "invoiced" ? "Invoiced (billed monthly)" : "Deducted from settlement"
         mode_css   = mode == "invoiced" ? "bg-purple-50 text-purple-700" : "bg-green-50 text-green-700"
 
-        div(class: "bg-white border border-gray-100 rounded-2xl px-8 py-7") do
+        div(class: "#{SURFACE_CARD} px-8 py-7") do
           div(class: "flex items-start justify-between mb-5") do
             div do
               p(class: "#{TYPE_CAPTION} mb-1") { plain "Pricing plan" }
@@ -84,7 +84,7 @@ module Account
           div(class: "grid grid-cols-3 gap-[1px] bg-gray-100 rounded-xl overflow-hidden") do
             meta_cell("Currency",      cur)
             meta_cell("Monthly fee",   monthly.positive? ? format_money(monthly, currency: cur) : "None")
-            meta_cell("Active since",  eff_from ? Date.parse(eff_from.to_s).strftime("%d %b %Y") : "—")
+            meta_cell("Active since",  eff_from ? (fmt_date(Date.parse(eff_from.to_s)) rescue "—") : "—")
           end
         end
       end
@@ -195,7 +195,7 @@ module Account
       end
 
       def invoices_link
-        div(class: "flex items-center justify-between bg-white border border-gray-100 rounded-2xl px-6 py-4") do
+        div(class: "flex items-center justify-between #{SURFACE_CARD} px-6 py-4") do
           div do
             p(class: TYPE_BODY_MD) { plain "Platform fee invoices" }
             p(class: "#{TYPE_CAPTION} mt-0.5") { plain "View your monthly fee invoices and collection history." }

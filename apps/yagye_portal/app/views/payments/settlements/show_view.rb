@@ -5,13 +5,6 @@ module Payments
     class ShowView < ApplicationComponent
       include UI::Theme
 
-      BREAK_SEVERITY_COLORS = {
-        "critical" => "text-red-700 bg-red-50",
-        "high"     => "text-amber-700 bg-amber-50",
-        "medium"   => "text-blue-700 bg-blue-50",
-        "low"      => "text-gray-600 bg-gray-100"
-      }.freeze
-
       def initialize(settlement:, breaks: [], merchant: nil)
         @settlement = settlement
         @breaks     = breaks
@@ -53,7 +46,7 @@ module Payments
       end
 
       def hero_card
-        div(class: "bg-white border border-gray-100 rounded-2xl px-8 py-7") do
+        div(class: "#{SURFACE_CARD} px-8 py-7") do
           div(class: "flex items-start justify-between mb-5") do
             div do
               p(class: "#{TYPE_CAPTION} mb-1") { plain "Settlement period" }
@@ -78,12 +71,12 @@ module Payments
               list.row("Reported net",  @settlement.formatted_reported_net)
               list.row("Variance") do
                 v     = @settlement.variance
-                color = v.nil? ? MUTED_TEXT : (v.negative? ? "#dc2626" : "#16a34a")
+                color = v.nil? ? MUTED_TEXT : (v.negative? ? RED : GREEN)
                 span(class: "text-[13px] font-semibold", style: "color:#{color}") { plain variance_label }
               end
               list.row("Item count",   @settlement.item_count&.to_s || "—")
               list.row("Currency",     @settlement.currency)
-              list.row("Value date",   @settlement.value_date&.strftime("%d %b %Y") || "—")
+              list.row("Value date",   fmt_date(@settlement.value_date))
             end
           end
         end
@@ -125,7 +118,6 @@ module Payments
       end
 
       def break_row(b)
-        severity_cls = BREAK_SEVERITY_COLORS[b["severity"]] || "text-gray-500 bg-gray-100"
         diff     = b["difference"].to_i
         currency = b["currency"] || "GHS"
 
@@ -140,9 +132,7 @@ module Payments
             span(class: "text-[12.5px] font-semibold #{diff < 0 ? 'text-red-600' : 'text-green-600'} tabular-nums") do
               plain format_money_diff(diff, currency: currency)
             end
-            span(class: "inline-flex items-center px-2 py-0.5 rounded-full text-[10.5px] font-semibold #{severity_cls}") do
-              plain (b["severity"] || "—").capitalize
-            end
+            render UI::StatusBadge.new(b["severity"].presence || "low")
           end
         end
       end
@@ -159,7 +149,7 @@ module Payments
       end
 
       def state_step(state, done, last: false)
-        color = done ? "#16a34a" : BORDER
+        color = done ? GREEN : BORDER
         div(class: "flex gap-3") do
           div(class: "flex flex-col items-center flex-shrink-0") do
             div(class: "w-[10px] h-[10px] rounded-full flex-shrink-0 mt-[3px]", style: "background:#{color}")
@@ -180,14 +170,10 @@ module Payments
             end
 
             if can?(:approve_dispatch?, @settlement)
-              form(action: approve_dispatch_settlement_path(@settlement.settlement_code),
-                   method: "post",
-                   class: "mb-3",
-                   data: { turbo_confirm: "Approve this dispatch? The wire will be sent immediately." }) do
-                input(type: "hidden", name: "authenticity_token", value: form_authenticity_token)
-                render UI::Button.new(variant: :primary, type: "submit", class: "w-full") do
-                  plain "Approve dispatch"
-                end
+              a(href: approve_dispatch_confirm_modal_settlement_path(@settlement.settlement_code),
+                class: "#{BTN_SUCCESS} w-full justify-center mb-3",
+                data: { turbo_frame: "modal-frame" }) do
+                plain "Approve dispatch"
               end
             end
 
@@ -258,9 +244,9 @@ module Payments
                 end
               end
               list.row("Dispatch ref",  @settlement.bank_dispatch_ref || "—", mono: true)
-              list.row("Dispatched at", @settlement.bank_dispatched_at&.strftime("%d %b %Y at %H:%M UTC") || "Pending")
+              list.row("Dispatched at", @settlement.bank_dispatched_at ? fmt_datetime_utc(@settlement.bank_dispatched_at) : "Pending")
               list.row("Version",       @settlement.aggregate_version.to_s, mono: true)
-              list.row("Last updated",  @settlement.last_applied_at&.strftime("%d %b %Y at %H:%M UTC") || "—")
+              list.row("Last updated",  fmt_datetime_utc(@settlement.last_applied_at))
             end
           end
         end

@@ -60,7 +60,7 @@ module Payments
       end
 
       def hero_card
-        div(class: "bg-white border border-gray-100 rounded-2xl px-8 py-7") do
+        div(class: "#{SURFACE_CARD} px-8 py-7") do
           div(class: "flex items-start justify-between mb-5") do
             div do
               p(class: "#{TYPE_CAPTION} mb-1") { plain "Payout amount" }
@@ -79,7 +79,7 @@ module Payments
           end
           div(class: "grid grid-cols-3 gap-[1px] bg-gray-100 rounded-xl overflow-hidden") do
             meta_cell("Destination",  @payout.destination_type&.humanize || "—")
-            meta_cell("Scheduled",    @payout.scheduled_for&.strftime("%d %b %Y") || "—")
+            meta_cell("Scheduled",    fmt_date(@payout.scheduled_for))
             meta_cell("Mode",         @payout.mode&.capitalize || "—")
           end
         end
@@ -97,8 +97,8 @@ module Payments
               list.row("Status")         { render UI::StatusBadge.new(status: @payout.state) }
               list.row("Destination",   @payout.destination_type&.humanize || "—")
               list.row("Fingerprint",   @payout.destination_fingerprint || "—", mono: true)
-              list.row("Scheduled for", @payout.scheduled_for&.strftime("%d %b %Y, %H:%M") || "—")
-              list.row("Last updated",  @payout.last_applied_at&.strftime("%d %b %Y at %H:%M UTC") || "—")
+              list.row("Scheduled for", fmt_datetime(@payout.scheduled_for))
+              list.row("Last updated",  fmt_datetime_utc(@payout.last_applied_at))
               list.row("Version",       @payout.aggregate_version.to_s, mono: true)
             end
           end
@@ -117,7 +117,7 @@ module Payments
       end
 
       def state_step(label, done, last: false)
-        color = done ? "#16a34a" : BORDER
+        color = done ? GREEN : BORDER
         div(class: "flex gap-3") do
           div(class: "flex flex-col items-center flex-shrink-0") do
             div(class: "w-[10px] h-[10px] rounded-full flex-shrink-0 mt-[3px]", style: "background:#{color}")

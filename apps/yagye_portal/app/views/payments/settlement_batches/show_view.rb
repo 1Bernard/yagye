@@ -46,10 +46,10 @@ module Payments
         cur     = @b["currency"] || "GHS"
         gross   = @b["gross_amount"].to_i
         state   = @b["state"] || "pending"
-        start_s = @b["period_start"] ? Time.parse(@b["period_start"]).strftime("%d %b %Y") : "—"
-        end_s   = @b["period_end"]   ? Time.parse(@b["period_end"]).strftime("%d %b %Y") : "—"
+        start_s = fmt_date(@b["period_start"] ? Time.parse(@b["period_start"]) : nil)
+        end_s   = fmt_date(@b["period_end"]   ? Time.parse(@b["period_end"])   : nil)
 
-        div(class: "bg-white border border-gray-100 rounded-2xl px-8 py-7") do
+        div(class: "#{SURFACE_CARD} px-8 py-7") do
           div(class: "flex items-start justify-between mb-5") do
             div do
               p(class: "#{TYPE_CAPTION} mb-1") { plain "Gross settlement amount" }
@@ -78,10 +78,10 @@ module Payments
               list.row("Status")    { render UI::StatusBadge.new(status: @b["state"] || "pending") }
 
               ts = @b["inserted_at"]
-              list.row("Created", ts ? Time.parse(ts).strftime("%d %b %Y at %H:%M UTC") : "—")
+              list.row("Created", fmt_datetime_utc(ts ? Time.parse(ts) : nil))
 
               settled = @b["settled_at"]
-              list.row("Settled", settled ? Time.parse(settled).strftime("%d %b %Y at %H:%M UTC") : "—")
+              list.row("Settled", fmt_datetime_utc(settled ? Time.parse(settled) : nil))
             end
           end
         end

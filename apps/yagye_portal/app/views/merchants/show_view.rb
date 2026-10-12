@@ -49,7 +49,7 @@ module Merchants
     # ── Business hero card ────────────────────────────────────────────────────
 
     def business_card
-      div(class: "bg-white border border-gray-100 rounded-2xl px-8 py-7") do
+      div(class: "#{SURFACE_CARD} px-8 py-7") do
         div(class: "flex items-center gap-4 mb-6") do
           render UI::Avatar.new(@app.legal_name&.first(2)&.upcase || "??", size: :lg)
           div do
@@ -62,7 +62,7 @@ module Merchants
           list.row("Merchant code",  @app.merchant_code, mono: true)
           list.row("Country",        @app.country || "—")
           list.row("Submitted by",   @app.submitted_by_email || "—")
-          list.row("Applied",        @app.last_applied_at&.strftime("%d %b %Y") || "—")
+          list.row("Applied",        fmt_date(@app.last_applied_at))
         end
       end
     end
@@ -161,7 +161,7 @@ module Merchants
           div do
             p(class: TYPE_BODY_MD) { plain label }
             p(class: TYPE_CAPTION) do
-              plain "Uploaded #{doc["inserted_at"] ? Time.parse(doc["inserted_at"]).strftime("%d %b %Y") : "—"}"
+              plain "Uploaded #{doc["inserted_at"] ? (fmt_date(Time.parse(doc["inserted_at"])) rescue "—") : "—"}"
             end
           end
         end
@@ -189,7 +189,7 @@ module Merchants
             p(class: TYPE_CAPTION) { plain @app.status_label }
           end
           p(class: TYPE_CAPTION) do
-            plain "Last updated #{@app.last_applied_at&.strftime("%d %b %Y, %H:%M") || "—"}"
+            plain "Last updated #{fmt_datetime(@app.last_applied_at)}"
           end
         end
       end
@@ -284,18 +284,17 @@ module Merchants
     end
 
     def kyb_approve_form(blocked: false)
-      form(action: kyb_approve_merchant_path(@app),
-           method: "post",
-           data: blocked ? {} : { turbo_confirm: "Complete KYB approval? The merchant will be live and can process payments." }) do
-        input(type: "hidden", name: "authenticity_token", value: form_authenticity_token)
-        render UI::Button.new(
-          variant: blocked ? :secondary : :primary,
-          type:    "submit",
-          class:   "w-full justify-center",
-          disabled: blocked
-        ) do
+      if blocked
+        render UI::Button.new(variant: :secondary, class: "w-full justify-center", disabled: true) do
           render UI::Icon.new(:check_circle, class: ICON_SM)
-          plain blocked ? "KYB approval blocked" : "Complete KYB approval"
+          plain "KYB approval blocked"
+        end
+      else
+        a(href: kyb_approve_modal_merchant_path(@app),
+          class: "#{BTN_SUCCESS} w-full justify-center",
+          data: { turbo_frame: "modal-frame" }) do
+          render UI::Icon.new(:check_circle, class: ICON_SM)
+          plain "Complete KYB approval"
         end
       end
     end
@@ -310,54 +309,38 @@ module Merchants
     end
 
     def approve_form
-      form(action: merchant_path(@app), method: "post",
-           data: { turbo_confirm: "Approve this merchant application? This will create a merchant account." }) do
-        input(type: "hidden", name: "_method",            value: "patch")
-        input(type: "hidden", name: "authenticity_token", value: form_authenticity_token)
-        input(type: "hidden", name: "status",             value: "approved")
-        render UI::Button.new(variant: :primary, type: "submit", class: "w-full justify-center") do
-          render UI::Icon.new(:check_circle, class: ICON_SM)
-          plain "Approve application"
-        end
+      a(href: approve_modal_merchant_path(@app),
+        class: "#{BTN_SUCCESS} w-full justify-center",
+        data: { turbo_frame: "modal-frame" }) do
+        render UI::Icon.new(:check_circle, class: ICON_SM)
+        plain "Approve application"
       end
     end
 
     def reject_form
-      form(action: merchant_path(@app), method: "post",
-           data: { turbo_confirm: "Reject this merchant application? This action cannot be undone." }) do
-        input(type: "hidden", name: "_method",            value: "patch")
-        input(type: "hidden", name: "authenticity_token", value: form_authenticity_token)
-        input(type: "hidden", name: "status",             value: "rejected")
-        render UI::Button.new(variant: :danger, type: "submit", class: "w-full justify-center") do
-          render UI::Icon.new(:x, class: ICON_SM)
-          plain "Reject application"
-        end
+      a(href: reject_modal_merchant_path(@app),
+        class: "#{BTN_DANGER} w-full justify-center",
+        data: { turbo_frame: "modal-frame" }) do
+        render UI::Icon.new(:x, class: ICON_SM)
+        plain "Reject application"
       end
     end
 
     def suspend_form
-      form(action: merchant_path(@app), method: "post",
-           data: { turbo_confirm: "Suspend this merchant? They will lose access to process payments." }) do
-        input(type: "hidden", name: "_method",            value: "patch")
-        input(type: "hidden", name: "authenticity_token", value: form_authenticity_token)
-        input(type: "hidden", name: "status",             value: "suspended")
-        render UI::Button.new(variant: :danger, type: "submit", class: "w-full justify-center") do
-          render UI::Icon.new(:archive, class: ICON_SM)
-          plain "Suspend merchant"
-        end
+      a(href: suspend_modal_merchant_path(@app),
+        class: "#{BTN_DANGER} w-full justify-center",
+        data: { turbo_frame: "modal-frame" }) do
+        render UI::Icon.new(:archive, class: ICON_SM)
+        plain "Suspend merchant"
       end
     end
 
     def reactivate_form
-      form(action: merchant_path(@app), method: "post",
-           data: { turbo_confirm: "Reactivate this merchant? They will be able to process payments again." }) do
-        input(type: "hidden", name: "_method",            value: "patch")
-        input(type: "hidden", name: "authenticity_token", value: form_authenticity_token)
-        input(type: "hidden", name: "status",             value: "active")
-        render UI::Button.new(variant: :primary, type: "submit", class: "w-full justify-center") do
-          render UI::Icon.new(:check_circle, class: ICON_SM)
-          plain "Reactivate merchant"
-        end
+      a(href: reactivate_modal_merchant_path(@app),
+        class: "#{BTN_SUCCESS} w-full justify-center",
+        data: { turbo_frame: "modal-frame" }) do
+        render UI::Icon.new(:check_circle, class: ICON_SM)
+        plain "Reactivate merchant"
       end
     end
 

@@ -78,22 +78,16 @@ module Checkout
           end
 
           if @link["active"]
-            span(class: "text-[10.5px] font-semibold px-[8px] py-[2px] rounded-full bg-green-50 text-green-700 border border-green-200/60") do
-              plain "Active"
-            end
+            span(class: "badge-green #{BADGE_XS}") { plain "Active" }
           else
-            span(class: "text-[10.5px] font-semibold px-[8px] py-[2px] rounded-full bg-gray-100 text-gray-500") do
-              plain "Inactive"
-            end
+            span(class: "badge-gray #{BADGE_XS}") { plain "Inactive" }
           end
 
-          span(class: "text-[10.5px] font-semibold px-[8px] py-[2px] rounded-full bg-gray-100 text-gray-500") do
+          span(class: "badge-gray #{BADGE_XS}") do
             plain (@link["mode"] || "simulation").capitalize
           end
 
-          # Mode badge — tells the user they are viewing, not editing
-          span(class: "text-[10.5px] font-semibold px-[8px] py-[2px] rounded-full bg-gray-100 text-gray-500 " \
-                      "flex items-center gap-[4px]") do
+          span(class: "badge-gray #{BADGE_XS} flex items-center gap-[4px]") do
             span(class: "flex w-[10px] h-[10px]") { render UI::Icon.new(:eye, class: "w-full h-full") }
             plain "Overview"
           end
@@ -268,7 +262,7 @@ module Checkout
           detail_row("Currency", "#{@link["currency"]} (#{sym})")
 
           detail_row("Created") do
-            plain @link["inserted_at"] ? (Time.parse(@link["inserted_at"]).strftime("%d %b %Y") rescue "—") : "—"
+            plain @link["inserted_at"] ? (fmt_date(Time.parse(@link["inserted_at"])) rescue "—") : "—"
           end
         end
       end
@@ -360,7 +354,8 @@ module Checkout
 
           if @link["expires_at"]
             detail_row("Expires") do
-              plain Time.parse(@link["expires_at"]).strftime("%d %b %Y at %H:%M") rescue @link["expires_at"]
+              val = fmt_datetime_utc(Time.parse(@link["expires_at"])) rescue @link["expires_at"]
+              plain val
             end
           else
             detail_row("Expires", "No expiry")

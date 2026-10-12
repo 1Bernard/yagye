@@ -93,7 +93,7 @@ module Developers
             end
           end
           div(class: "flex items-center gap-2") do
-            span(class: BADGE_SUCCESS) { plain "Published" }
+            render UI::StatusBadge.new("published")
             render UI::Button.new(variant: :secondary,
                    href: edit_developers_routing_rule_path(config["id"])) do
               render UI::Icon.new(:edit, class: ICON_SM)
@@ -177,7 +177,7 @@ module Developers
         td(class: TABLE_CELL) { state_badge(config["state"]) }
         td(class: TABLE_CELL) do
           ts = config["updated_at"] || config["inserted_at"]
-          plain ts ? Time.parse(ts).strftime("%d %b %Y") : "—"
+          plain ts ? (fmt_date(Time.parse(ts)) rescue "—") : "—"
         end
         td(class: "#{TABLE_CELL} text-right pr-5") do
           render UI::Button.new(variant: :secondary,
@@ -208,12 +208,7 @@ module Developers
     end
 
     def state_badge(state)
-      css, label = case state
-      when "published" then [ BADGE_SUCCESS, "Published" ]
-      when "archived"  then [ BADGE_NEUTRAL, "Archived" ]
-      else                  [ BADGE_WARNING, "Draft" ]
-      end
-      span(class: css) { plain label }
+      render UI::StatusBadge.new(state.presence || "draft")
     end
 
     def format_published_at(ts)

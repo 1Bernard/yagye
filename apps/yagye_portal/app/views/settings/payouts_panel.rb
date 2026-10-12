@@ -160,16 +160,12 @@ module Settings
             end
           end
 
-          form(action: settings_payout_destination_remove_path(dest["id"]), method: "post",
-               data: { turbo_confirm: "Remove this account? This cannot be undone." }) do
-            input(type: "hidden", name: "_method",            value: "delete")
-            input(type: "hidden", name: "authenticity_token", value: form_authenticity_token)
-            button(type: "submit",
-                   class: "flex items-center justify-center w-7 h-7 rounded-[8px] " \
-                          "border border-gray-200 text-gray-400 hover:text-red-500 " \
-                          "hover:border-red-200 bg-white transition-colors cursor-pointer") do
-              span(class: "flex w-[13px] h-[13px]") { render UI::Icon.new(:minus, class: "w-full h-full") }
-            end
+          a(href: remove_modal_settings_payout_destination_path(dest["id"]),
+            class: "flex items-center justify-center w-7 h-7 rounded-[8px] " \
+                   "border border-gray-200 text-gray-400 hover:text-red-500 " \
+                   "hover:border-red-200 bg-white transition-colors no-underline",
+            data: { turbo_frame: "modal-frame" }) do
+            span(class: "flex w-[13px] h-[13px]") { render UI::Icon.new(:minus, class: "w-full h-full") }
           end
         end
       end
@@ -301,7 +297,7 @@ module Settings
             list.row("Next expected") do
               if @next_value_date
                 span(class: "text-[13px] font-semibold text-gray-800") do
-                  plain @next_value_date.strftime("%d %b %Y")
+                  plain fmt_date(@next_value_date)
                 end
               else
                 span(class: TYPE_CAPTION) { plain "No pending settlement" }

@@ -5,13 +5,6 @@ module Payments
     class IndexView < ApplicationComponent
       include UI::Theme
 
-      SEVERITY_COLORS = {
-        "critical" => { dot: "#dc2626", bg: "bg-red-50",    text: "text-red-700"    },
-        "high"     => { dot: "#d97706", bg: "bg-amber-50",  text: "text-amber-700"  },
-        "medium"   => { dot: "#2563eb", bg: "bg-blue-50",   text: "text-blue-700"   },
-        "low"      => { dot: "#6b7280", bg: "bg-gray-100",  text: "text-gray-600"   }
-      }.freeze
-
       CLASSIFICATION_LABELS = {
         "missing_on_right"    => "Missing on PSP",
         "missing_on_left"     => "Missing on ledger",
@@ -22,16 +15,6 @@ module Payments
         "fee_discrepancy"     => "Fee discrepancy",
         "currency_mismatch"   => "Currency mismatch",
         "unknown"             => "Unknown"
-      }.freeze
-
-      STATE_COLORS = {
-        "detected"      => "bg-red-50 text-red-700",
-        "triaged"       => "bg-amber-50 text-amber-700",
-        "assigned"      => "bg-blue-50 text-blue-700",
-        "investigating" => "bg-purple-50 text-purple-700",
-        "resolved"      => "bg-green-50 text-green-700",
-        "escalated"     => "bg-red-100 text-red-800",
-        "written_off"   => "bg-gray-100 text-gray-500"
       }.freeze
 
       def initialize(breaks:, query: nil, state_filter: nil, severity_filter: nil, from: nil, to: nil)
@@ -93,11 +76,7 @@ module Payments
           end
 
           t.column("Severity") do |b|
-            cfg = SEVERITY_COLORS[b["severity"]] || { bg: "bg-gray-100", text: "text-gray-500", dot: "#6b7280" }
-            span(class: "inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[11px] font-semibold #{cfg[:bg]} #{cfg[:text]}") do
-              span(class: "w-1.5 h-1.5 rounded-full flex-shrink-0", style: "background:#{cfg[:dot]}")
-              plain (b["severity"] || "—").capitalize
-            end
+            render UI::StatusBadge.new(b["severity"].presence || "low")
           end
 
           t.column("Difference", class: "text-right tabular-nums") do |b|
@@ -110,26 +89,33 @@ module Payments
           end
 
           t.column("Status") do |b|
-            cls = STATE_COLORS[b["state"]] || "bg-gray-100 text-gray-500"
-            span(class: "inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium #{cls}") do
-              plain (b["state"] || "—").tr("_", " ").capitalize
-            end
+            render UI::StatusBadge.new(b["state"].presence || "detected")
           end
 
           t.column("SLA") do |b|
-            if b["sla_due_at"].present?
-              due     = Time.parse(b["sla_due_at"]) rescue nil
-              overdue = due && b["state"] != "resolved" && due < Time.current
-              color   = overdue ? "text-red-600 font-semibold" : "text-gray-500"
-              label   = overdue ? "Overdue" : (due ? "Due #{due.strftime("%d %b")}" : "—")
-              span(class: "text-[12px] #{color}") { plain label }
+            if b["sla_due_at"].present? && b["state"] != "resolved"
+              due = Time.parse(b["sla_due_at"]) rescue nil
+              if due
+                days = (due.to_date - Date.current).to_i
+                if days < 0
+                  cls, label = STATUS_FAILED, "Overdue"
+                else
+                  date_str  = due.strftime("%-d %b")
+                  countdown = days == 0 ? "today" : days == 1 ? "tomorrow" : "#{days}d left"
+                  label     = "#{date_str} · #{countdown}"
+                  cls       = days <= 2 ? STATUS_FAILED : days <= 6 ? STATUS_WARNING : STATUS_SUCCESS
+                end
+                span(class: "#{cls} #{BADGE} whitespace-nowrap") { plain label }
+              else
+                span(class: "text-[11px] text-gray-400") { plain "—" }
+              end
             else
-              span(class: TYPE_CAPTION) { plain "—" }
+              span(class: "text-[11px] text-gray-400") { plain "—" }
             end
           end
 
           t.column("Detected") do |b|
-            plain b["detected_at"] ? Time.parse(b["detected_at"]).strftime("%d %b %Y") : "—"
+            plain fmt_date(b["detected_at"] ? Time.parse(b["detected_at"]) : nil)
           end
 
           t.actions do |b|

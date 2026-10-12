@@ -422,7 +422,7 @@ module Onboarding
 
       def parse_date(iso_string)
         return nil unless iso_string
-        Date.parse(iso_string).strftime("%-d %b %Y") rescue nil
+        Date.parse(iso_string).strftime("%d %b %Y") rescue nil
       end
 
       # ── Step chrome ─────────────────────────────────────────────────────────

@@ -74,24 +74,18 @@ module Settings
         div(class: "flex-1 min-w-0") do
           p(class: TYPE_BODY_MD) { plain cred.nickname || "Passkey" }
           p(class: TYPE_CAPTION) do
-            added = cred.created_at.strftime("%d %b %Y")
-            last  = cred.last_used_at&.strftime("%d %b %Y, %H:%M") || "Never used"
+            added = fmt_date(cred.created_at)
+            last  = cred.last_used_at ? fmt_datetime(cred.last_used_at) : "Never used"
             plain "Added #{added} · Last used: #{last}"
           end
         end
 
-        form(action: settings_remove_passkey_path(cred), method: "post",
-             data: { turbo_confirm: "Remove this passkey? You won't be able to use it to sign in." }) do
-          input(type: "hidden", name: "_method",            value: "delete")
-          input(type: "hidden", name: "authenticity_token", value: form_authenticity_token)
-          button(
-            type: "submit",
-            class: "flex w-7 h-7 rounded-lg items-center justify-center text-gray-300 " \
-                   "hover:text-red-500 hover:bg-red-50 transition-colors border-0 bg-transparent " \
-                   "cursor-pointer ml-1 opacity-0 group-hover:opacity-100"
-          ) do
-            span(class: "flex w-[14px] h-[14px]") { render UI::Icon.new(:x, class: "w-full h-full") }
-          end
+        a(href: remove_modal_settings_passkey_path(cred),
+          class: "flex w-7 h-7 rounded-lg items-center justify-center text-gray-300 " \
+                 "hover:text-red-500 hover:bg-red-50 transition-colors ml-1 opacity-0 group-hover:opacity-100 " \
+                 "no-underline",
+          data: { turbo_frame: "modal-frame" }) do
+          span(class: "flex w-[14px] h-[14px]") { render UI::Icon.new(:x, class: "w-full h-full") }
         end
       end
     end

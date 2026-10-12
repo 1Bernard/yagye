@@ -161,7 +161,7 @@ module KybReviews
     # ── Grid view ─────────────────────────────────────────────────────────────
 
     def applications_grid_section
-      div(class: "bg-white border border-gray-100 rounded-2xl mb-4") do
+      div(class: "#{SURFACE_CARD} mb-4") do
         div(class: "flex items-center justify-between px-5 py-3.5") do
           toolbar_content
         end
@@ -189,7 +189,7 @@ module KybReviews
       vol_str     = (mtd_units.nil? || mtd_units == 0) ? "GHS 0.00" : format_money(mtd_units)
 
       a(href: kyb_review_path(a),
-        class: "group block bg-white border border-gray-100 rounded-2xl p-5 no-underline #{CARD_HOVER}") do
+        class: "group block #{SURFACE_CARD} p-5 no-underline #{CARD_HOVER}") do
         div(class: "flex items-start justify-between mb-4") do
           render UI::Avatar.new(initials, size: :lg)
           render UI::StatusBadge.new(status: a.status)
@@ -220,7 +220,7 @@ module KybReviews
         end
 
         div(class: "flex items-center justify-between pt-3 border-t border-gray-50") do
-          p(class: TYPE_CAPTION) { plain "Submitted #{a.last_applied_at&.strftime("%d %b %Y") || "—"}" }
+          p(class: TYPE_CAPTION) { plain "Submitted #{fmt_date(a.last_applied_at)}" }
           span(class: "flex w-[13px] h-[13px] text-gray-300 flex-shrink-0 " \
                       "group-hover:text-gray-500 group-hover:translate-x-[2px] transition-all") do
             render UI::Icon.new(:chev_right, class: "w-full h-full")
@@ -255,7 +255,7 @@ module KybReviews
         end
 
         t.column("Submitted") do |a|
-          span(class: TYPE_CAPTION) { plain a.last_applied_at&.strftime("%d %b %Y") || "—" }
+          span(class: TYPE_CAPTION) { plain fmt_date(a.last_applied_at) }
         end
 
         t.column("Reviewer") do |a|

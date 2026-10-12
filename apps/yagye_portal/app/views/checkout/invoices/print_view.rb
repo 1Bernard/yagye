@@ -273,8 +273,8 @@ module Checkout
 
         div(style: "display:grid;grid-template-columns:1fr 1fr 1fr 1fr;" \
                    "gap:0;padding:24px 40px;background:#f8fafc;border-bottom:1px solid #f1f5f9") do
-          strip_cell("Issue date", fmt_date(@inv["issue_date"]))
-          strip_cell("Due date",   fmt_date(@inv["due_date"]))
+          strip_cell("Issue date", fmt_inv_date(@inv["issue_date"]))
+          strip_cell("Due date",   fmt_inv_date(@inv["due_date"]))
           strip_cell("From",       merchant_name)
           strip_cell("Bill to",    @inv["customer_reference"].presence || "—")
         end
@@ -413,7 +413,7 @@ module Checkout
 
       def doc_footer
         div(class: "doc-footer") do
-          span { plain "Generated #{Time.now.strftime("%d %b %Y at %H:%M")}" }
+          span { plain "Generated #{fmt_datetime_utc(Time.now)}" }
           span { plain "Payment powered by Yagye" }
         end
       end
@@ -453,7 +453,7 @@ module Checkout
         "#{currency} #{"%.2f" % (minor_units / 100.0)}"
       end
 
-      def fmt_date(val)
+      def fmt_inv_date(val)
         return "—" unless val.present?
         (Date.parse(val) rescue val).then { |d| d.respond_to?(:strftime) ? d.strftime("%d %b %Y") : d }
       end

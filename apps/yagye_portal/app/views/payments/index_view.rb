@@ -148,7 +148,7 @@ module Payments
         t.column("Status") do |p|
           div(id: "payment-status-#{p.id}") { render UI::StatusBadge.new(status: p.status) }
         end
-        t.column("Date")    { |p| p.created_at.strftime("%d %b %Y, %H:%M") }
+        t.column("Created") { |p| fmt_datetime(p.created_at) }
 
         t.actions do |p|
           a(href: payment_path(p), class: DROPDOWN_ITEM) do

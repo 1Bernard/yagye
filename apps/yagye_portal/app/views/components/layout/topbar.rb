@@ -180,7 +180,7 @@ module Layout
               plain notif.body.truncate(80)
             end
             p(style: "font-size:10.5px;color:#{FAINT_TEXT};margin:4px 0 0;") do
-              plain notif.created_at.strftime("%-d %b, %H:%M")
+              plain fmt_datetime(notif.created_at)
             end
           end
         end

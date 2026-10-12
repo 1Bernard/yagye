@@ -2,11 +2,7 @@
 
 module Invitations
   class AcceptView < ApplicationComponent
-    ICON_INPUT = "w-full rounded-xl border border-gray-200 bg-gray-50 pl-9 pr-3 py-3.5 text-[13.5px] " \
-                 "text-gray-900 placeholder:text-gray-300 " \
-                 "focus:outline-none focus:bg-white focus:border-blue-400 focus:ring-2 focus:ring-blue-500/10 transition-all"
-
-    FIELD_LABEL = "block text-[10px] font-semibold uppercase tracking-[0.12em] text-gray-400 mb-2"
+    include UI::Theme
 
     def initialize(user:, membership:, token:, csrf_token:)
       @user       = user
@@ -26,7 +22,7 @@ module Invitations
           p class: "text-[12.5px] text-blue-700" do
             plain "Invited by "
             strong { plain @membership.invited_by&.full_name || "your team" }
-            plain " · expires #{@membership.invitation_expires_at.strftime('%d %b %Y')}"
+            plain " · expires #{fmt_date(@membership.invitation_expires_at)}"
           end
         end
 
@@ -34,63 +30,44 @@ module Invitations
           input type: :hidden, name: :authenticity_token, value: @csrf_token
           input type: :hidden, name: "_method", value: "patch"
 
-          div do
-            label for: "user_email", class: FIELD_LABEL do
-              plain "Email"
-            end
+          # Email — display only, not editable
+          div(class: "flex flex-col gap-1.5") do
+            label(for: "user_email", class: TEXT_LABEL) { plain "Email" }
             input(
               type:     :email,
               id:       "user_email",
               value:    @user.email,
               disabled: true,
-              class:    "w-full rounded-xl border border-gray-200 bg-gray-100 px-3 py-3.5 " \
-                        "text-[13.5px] text-gray-500 cursor-not-allowed"
+              class:    "w-full rounded-xl border border-gray-200 bg-gray-100 px-3 py-3 " \
+                        "text-sm text-gray-500 cursor-not-allowed"
             )
           end
 
-          div do
-            label for: "user_password", class: FIELD_LABEL do
-              plain "Password"
-            end
-            div class: "relative" do
-              div class: "absolute inset-y-0 left-3 flex items-center pointer-events-none text-gray-500" do
-                render UI::Icon.new(:lock, class: "w-4 h-4")
-              end
-              input(
-                type:         :password,
-                id:           "user_password",
-                name:         "user[password]",
-                autocomplete: "new-password",
-                autofocus:    true,
-                required:     true,
-                placeholder:  "••••••••",
-                class:        ICON_INPUT
-              )
-            end
-            p class: "mt-1 text-[11px] text-gray-400" do
-              plain "At least 12 characters."
-            end
-          end
+          render UI::InputField.new(
+            name:              "user[password]",
+            id:                "user_password",
+            label:             "Password",
+            type:              "password",
+            icon:              :lock,
+            toggle_visibility: true,
+            autocomplete:      "new-password",
+            autofocus:         true,
+            required:          true,
+            placeholder:       "••••••••",
+            hint:              "At least 12 characters."
+          )
 
-          div do
-            label for: "user_password_confirmation", class: FIELD_LABEL do
-              plain "Confirm password"
-            end
-            div class: "relative" do
-              div class: "absolute inset-y-0 left-3 flex items-center pointer-events-none text-gray-500" do
-                render UI::Icon.new(:lock, class: "w-4 h-4")
-              end
-              input(
-                type:         :password,
-                id:           "user_password_confirmation",
-                name:         "user[password_confirmation]",
-                autocomplete: "new-password",
-                required:     true,
-                placeholder:  "••••••••",
-                class:        ICON_INPUT
-              )
-            end
-          end
+          render UI::InputField.new(
+            name:              "user[password_confirmation]",
+            id:                "user_password_confirmation",
+            label:             "Confirm password",
+            type:              "password",
+            icon:              :lock,
+            toggle_visibility: true,
+            autocomplete:      "new-password",
+            required:          true,
+            placeholder:       "••••••••"
+          )
 
           button(
             type:  :submit,

@@ -221,7 +221,7 @@ module Activity
 
     def parse_ts(iso)
       return "—" if iso.blank?
-      Time.parse(iso).strftime("%d %b, %H:%M")
+      Time.parse(iso).strftime("%d %b %Y, %H:%M")
     rescue ArgumentError
       "—"
     end

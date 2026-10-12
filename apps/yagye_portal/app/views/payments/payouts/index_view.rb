@@ -52,7 +52,7 @@ module Payments
 
         paid_label      = "#{cur} #{"%.2f" % (paid_mtd / 100.0)}"
         unsettled_label = unsettled.positive? ? "#{cur} #{"%.2f" % (unsettled / 100.0)}" : "—"
-        next_label      = next_value_date ? next_value_date.strftime("%d %b %Y") : "—"
+        next_label      = next_value_date ? fmt_date(next_value_date) : "—"
 
         render UI::Grid.new(columns: 4) do
           stat_cell("Total paid (MTD)", paid_label,      icon: :trending_up,  color: GREEN,  tint: TINT_GREEN)
@@ -180,7 +180,7 @@ module Payments
       # ── Grid view ─────────────────────────────────────────────────────────────
 
       def payouts_grid_section
-        div(class: "bg-white border border-gray-100 rounded-2xl mb-4") do
+        div(class: "#{SURFACE_CARD} mb-4") do
           div(class: "flex items-center justify-between px-5 py-3.5") do
             toolbar_content
           end
@@ -206,7 +206,7 @@ module Payments
 
       def payout_grid_card(p)
         a(href: payout_path(p),
-          class: "group block bg-white border border-gray-100 rounded-2xl p-5 no-underline #{CARD_HOVER}") do
+          class: "group block #{SURFACE_CARD} p-5 no-underline #{CARD_HOVER}") do
           div(class: "flex items-start justify-between mb-4") do
             div(class: "w-10 h-10 rounded-xl icon-brand flex items-center justify-center flex-shrink-0") do
               span(class: "flex w-5 h-5") { render UI::Icon.new(:trending_up, class: "w-full h-full") }
@@ -222,7 +222,7 @@ module Payments
           div(class: "flex items-center justify-between pt-3 border-t border-gray-50") do
             div do
               p(class: "text-[10.5px] text-gray-400 font-medium uppercase tracking-wide") { plain "Scheduled" }
-              p(class: TYPE_BODY_MD) { plain p.scheduled_for&.strftime("%d %b %Y") || "—" }
+              p(class: TYPE_BODY_MD) { plain fmt_date(p.scheduled_for) }
             end
             span(class: "flex w-[13px] h-[13px] text-gray-300 flex-shrink-0 " \
                         "group-hover:text-gray-500 group-hover:translate-x-[2px] transition-all") do
@@ -248,8 +248,8 @@ module Payments
           t.column("Amount", class: "text-right tabular-nums font-medium") { |p| plain p.formatted_amount }
           t.column("Destination") { |p| plain p.destination_type&.humanize || "—" }
           t.column("Status")       { |p| render UI::StatusBadge.new(status: p.state) }
-          t.column("Scheduled")   { |p| plain p.scheduled_for&.strftime("%d %b %Y") || "—" }
-          t.column("Updated")     { |p| plain p.last_applied_at&.strftime("%d %b %Y, %H:%M") || "—" }
+          t.column("Scheduled")   { |p| plain fmt_date(p.scheduled_for) }
+          t.column("Updated")     { |p| plain fmt_datetime(p.last_applied_at) }
 
           t.actions do |p|
             a(href: payout_path(p), class: DROPDOWN_ITEM) do

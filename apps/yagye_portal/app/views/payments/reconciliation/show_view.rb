@@ -5,23 +5,6 @@ module Payments
     class ShowView < ApplicationComponent
       include UI::Theme
 
-      SEVERITY_COLORS = {
-        "critical" => { dot: "#dc2626", bg: "bg-red-50",    text: "text-red-700"    },
-        "high"     => { dot: "#d97706", bg: "bg-amber-50",  text: "text-amber-700"  },
-        "medium"   => { dot: "#2563eb", bg: "bg-blue-50",   text: "text-blue-700"   },
-        "low"      => { dot: "#6b7280", bg: "bg-gray-100",  text: "text-gray-600"   }
-      }.freeze
-
-      STATE_COLORS = {
-        "detected"      => "bg-red-50 text-red-700",
-        "triaged"       => "bg-amber-50 text-amber-700",
-        "assigned"      => "bg-blue-50 text-blue-700",
-        "investigating" => "bg-purple-50 text-purple-700",
-        "resolved"      => "bg-green-50 text-green-700",
-        "escalated"     => "bg-red-100 text-red-800",
-        "written_off"   => "bg-gray-100 text-gray-500"
-      }.freeze
-
       CLASSIFICATION_LABELS = {
         "missing_on_right"   => "Missing on PSP",
         "missing_on_left"    => "Missing on ledger",
@@ -34,14 +17,6 @@ module Payments
         "unknown"            => "Unknown"
       }.freeze
 
-      RESOLUTION_CODES = [
-        [ "Adjusted — ledger corrected",        "adjusted"           ],
-        [ "Duplicate removed",                  "duplicate_removed"  ],
-        [ "Timing — now matched",               "timing_resolved"    ],
-        [ "Written off — below threshold",      "written_off"        ],
-        [ "External correction by PSP",         "psp_corrected"      ]
-      ].freeze
-
       def initialize(recon_break:)
         @break = recon_break
       end
@@ -51,8 +26,6 @@ module Payments
         short_id      = break_id.first(20)
         severity      = @break["severity"]
         state         = @break["state"]
-        sev_cfg       = SEVERITY_COLORS[severity] || { bg: "bg-gray-100", text: "text-gray-500", dot: "#6b7280" }
-        state_cls     = STATE_COLORS[state] || "bg-gray-100 text-gray-500"
         terminal      = %w[resolved written_off].include?(state)
 
         render Layout::Shell.new(
@@ -65,13 +38,8 @@ module Payments
         ) do
           render UI::PageHeader.new(title: "Break #{short_id}") do
             div(class: "flex items-center gap-2") do
-              span(class: "inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11.5px] font-semibold #{sev_cfg[:bg]} #{sev_cfg[:text]}") do
-                span(class: "w-1.5 h-1.5 rounded-full flex-shrink-0", style: "background:#{sev_cfg[:dot]}")
-                plain (severity || "—").capitalize
-              end
-              span(class: "inline-flex items-center px-2.5 py-1 rounded-full text-[11.5px] font-medium #{state_cls}") do
-                plain (state || "—").tr("_", " ").capitalize
-              end
+              render UI::StatusBadge.new(severity.presence || "low")
+              render UI::StatusBadge.new(state.presence || "detected")
             end
           end
 
@@ -113,11 +81,11 @@ module Payments
       end
 
       def amounts_card
-        currency = @break["currency"] || "GHS"
-        expected = @break["expected_amount"].to_i
-        actual   = @break["actual_amount"].to_i
-        diff     = @break["difference"].to_i
-        diff_color = diff < 0 ? "#dc2626" : "#16a34a"
+        currency   = @break["currency"] || "GHS"
+        expected   = @break["expected_amount"].to_i
+        actual     = @break["actual_amount"].to_i
+        diff       = @break["difference"].to_i
+        diff_color = diff < 0 ? RED : GREEN
 
         render UI::Card.new do |c|
           c.header("Amounts")
@@ -176,15 +144,20 @@ module Payments
           c.header("SLA")
           c.body(padding: false) do
             render UI::DetailList.new do |list|
-              list.row("Severity", (severity || "—").capitalize)
+              list.row("Severity") { render UI::StatusBadge.new(severity.presence || "low") }
               list.row("SLA window") do
                 if sla_due_at
                   due = Time.parse(sla_due_at) rescue nil
                   if due
                     overdue = state != "resolved" && due < Time.current
-                    color   = overdue ? "#dc2626" : MUTED_TEXT
-                    label   = overdue ? "Overdue (due #{due.strftime("%d %b %Y %H:%M")} UTC)" : "Due #{due.strftime("%d %b %Y %H:%M")} UTC"
-                    span(class: "text-[13px] font-medium", style: "color:#{color}") { plain label }
+                    div(class: "flex flex-col gap-1") do
+                      if overdue
+                        render UI::StatusBadge.new("overdue")
+                      end
+                      span(class: TYPE_CAPTION) do
+                        plain "Due #{fmt_datetime_utc(due)}"
+                      end
+                    end
                   else
                     span(class: TYPE_CAPTION) { plain "—" }
                   end
@@ -201,53 +174,14 @@ module Payments
         render UI::Card.new do |c|
           c.header("Propose adjustment")
           c.body do
-            p(class: "#{TYPE_CAPTION} mb-5") do
-              plain "Submit an adjustment for dual-control review. A second ops user must approve before the ledger entry is posted."
+            p(class: "#{TYPE_CAPTION} mb-4") do
+              plain "Submit an adjustment for dual-control review. A second approver must confirm before the ledger entry is posted."
             end
-
-            form(action: reconciliation_propose_adjustment_path(break_id), method: "post") do
-              input(type: "hidden", name: "authenticity_token", value: form_authenticity_token)
-
-              div(class: "flex flex-col gap-3") do
-                div do
-                  label(class: "block #{TYPE_CAPTION} mb-1") { plain "Adjustment amount (minor units)" }
-                  input(type: "number", name: "amount", min: "1", required: true,
-                        placeholder: "e.g. 100 = GHS 1.00",
-                        class: "w-full h-9 border border-gray-200 rounded-[9px] px-3 text-[13px] text-gray-700 bg-white outline-none focus:ring-1 focus:ring-[#{BRAND}]")
-                end
-
-                div do
-                  label(class: "block #{TYPE_CAPTION} mb-1") { plain "Direction" }
-                  select(name: "direction",
-                         class: "w-full h-9 border border-gray-200 rounded-[9px] px-3 text-[13px] text-gray-700 bg-white outline-none cursor-pointer") do
-                    option(value: "credit_merchant")  { plain "Credit merchant" }
-                    option(value: "debit_merchant")   { plain "Debit merchant"  }
-                    option(value: "credit_yagye")     { plain "Credit Yagye"    }
-                  end
-                end
-
-                div do
-                  label(class: "block #{TYPE_CAPTION} mb-1") { plain "Resolution code" }
-                  select(name: "resolution_code",
-                         class: "w-full h-9 border border-gray-200 rounded-[9px] px-3 text-[13px] text-gray-700 bg-white outline-none cursor-pointer") do
-                    RESOLUTION_CODES.each do |(label, value)|
-                      option(value: value) { plain label }
-                    end
-                  end
-                end
-
-                div do
-                  label(class: "block #{TYPE_CAPTION} mb-1") { plain "Note (optional)" }
-                  textarea(name: "resolution_note", rows: "3",
-                           placeholder: "Describe the reason for this adjustment…",
-                           class: "w-full border border-gray-200 rounded-[9px] px-3 py-2 text-[13px] text-gray-700 bg-white outline-none focus:ring-1 focus:ring-[#{BRAND}] resize-none")
-                end
-
-                render UI::Button.new(variant: :primary, type: "submit") do
-                  render UI::Icon.new(:check, class: "w-[13px] h-[13px]")
-                  plain "Submit for approval"
-                end
-              end
+            a(href: reconciliation_propose_adjustment_modal_path(break_id),
+              class: "#{BTN_PRIMARY} w-full justify-center",
+              data: { turbo_frame: "modal-frame" }) do
+              render UI::Icon.new(:edit, class: ICON_SM)
+              plain "Propose adjustment"
             end
           end
         end
@@ -268,7 +202,7 @@ module Payments
 
       def format_dt(iso)
         return nil if iso.blank?
-        Time.parse(iso).strftime("%d %b %Y %H:%M UTC")
+        fmt_datetime_utc(Time.parse(iso))
       rescue
         iso
       end

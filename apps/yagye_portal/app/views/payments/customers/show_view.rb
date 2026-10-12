@@ -59,7 +59,7 @@ module Payments
         logo  = Payment::PROVIDER_LOGOS[@network.to_s]
         segs  = customer_segments(@stat)
 
-        div(class: "bg-white border border-gray-100 rounded-2xl px-8 py-7") do
+        div(class: "#{SURFACE_CARD} px-8 py-7") do
           div(class: "flex items-start justify-between mb-5") do
             div do
               p(class: "#{TYPE_CAPTION} mb-1") { plain "Merchant reference" }
@@ -112,7 +112,7 @@ module Payments
               div do
                 p(class: TYPE_CAPTION) { plain "Last payment" }
                 p(class: "text-[15px] font-bold text-gray-900 mt-0.5") do
-                  plain @stat[:last_payment_at] ? @stat[:last_payment_at].strftime("%d %b %Y") : "—"
+                  plain fmt_date(@stat[:last_payment_at])
                 end
               end
             end
@@ -131,7 +131,7 @@ module Payments
               list.row("Email",         @c["email"] || "—")
               list.row("Name",          @c["name"] || "—")
               ts = @c["inserted_at"] || @c["created_at"]
-              list.row("Created", ts ? Time.parse(ts).strftime("%d %b %Y at %H:%M UTC") : "—")
+              list.row("Created", fmt_datetime_utc(ts ? Time.parse(ts) : nil))
             end
           end
         end
@@ -202,7 +202,7 @@ module Payments
 
         today_pct  = [ (@stat[:today_volume].to_f / limits[:daily]  * 100).round, 100 ].min
         month_pct  = [ (@stat[:mtd_volume].to_f   / limits[:monthly] * 100).round, 100 ].min
-        bar_color  = ->(pct) { pct >= 100 ? "#DC2626" : pct >= 80 ? "#D97706" : "#059669" }
+        bar_color  = ->(pct) { pct >= 100 ? RED : pct >= 80 ? AMBER : GREEN }
 
         render UI::Card.new do |card|
           card.header("Velocity (BoG limits)")

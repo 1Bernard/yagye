@@ -99,7 +99,7 @@ module Checkout
               date    = Date.parse(due) rescue nil
               overdue = date && inv["state"] != "paid" && date < Date.today
               cls     = overdue ? "text-red-600 font-semibold" : TYPE_CAPTION
-              span(class: cls) { plain date&.strftime("%d %b %Y") || due }
+              span(class: cls) { plain date ? fmt_date(date) : due }
             else
               span(class: TYPE_CAPTION) { plain "—" }
             end

@@ -113,7 +113,7 @@ module Payments
       end
 
       def ops_kpi_card(icon:, color:, tint:, label:, value:, sub: nil)
-        div(class: "bg-white border border-gray-100 rounded-2xl p-[22px]") do
+        div(class: "#{SURFACE_CARD} p-[22px]") do
           div(class: "flex items-start mb-[14px]") do
             div(class: "w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0",
                 style: "background:#{tint}") do
@@ -187,7 +187,7 @@ module Payments
             end
           end
           t.column("Status")     { |s| render UI::StatusBadge.new(status: s.state) }
-          t.column("Value date") { |s| plain s.value_date&.strftime("%d %b %Y") || "—" }
+          t.column("Value date") { |s| plain fmt_date(s.value_date) }
 
           t.actions do |s|
             a(href: settlement_path(s), class: DROPDOWN_ITEM) do

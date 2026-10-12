@@ -179,8 +179,8 @@ module Team
               span(class: TYPE_CAPTION) { plain "No role" }
             else
               roles.first(2).each do |r|
-                badge = r.scope == "internal" ? "badge-blue" : "badge-gray"
-                span(class: "#{badge} text-[10.5px] font-semibold px-2 py-[2px] rounded-full") { plain r.name }
+                badge = r.scope == "internal" ? STATUS_INFO : STATUS_NEUTRAL
+                span(class: "#{badge} #{BADGE}") { plain r.name }
               end
               if roles.size > 2
                 span(class: "text-[10.5px] text-gray-400 font-medium") { plain "+#{roles.size - 2}" }
@@ -189,7 +189,7 @@ module Team
           end
 
           div(class: "flex items-center justify-between mt-4 pt-3 border-t border-gray-50") do
-            p(class: TYPE_CAPTION) { plain "Joined #{u.created_at.strftime('%d %b %Y')}" }
+            p(class: TYPE_CAPTION) { plain "Joined #{fmt_date(u.created_at)}" }
             span(class: "flex w-[13px] h-[13px] text-gray-300 flex-shrink-0 " \
                         "group-hover:text-gray-500 group-hover:translate-x-[2px] transition-all") do
               render UI::Icon.new(:chev_right, class: "w-full h-full")
@@ -225,8 +225,8 @@ module Team
             else
               div(class: "flex flex-wrap gap-1") do
                 roles.first(2).each do |r|
-                  badge = r.scope == "internal" ? "badge-blue" : "badge-gray"
-                  span(class: "#{badge} text-[11px] font-semibold px-2 py-[2px] rounded-full") { plain r.name }
+                  badge = r.scope == "internal" ? STATUS_INFO : STATUS_NEUTRAL
+                  span(class: "#{badge} #{BADGE}") { plain r.name }
                 end
                 span(class: "text-[11px] text-gray-400") { plain "+#{roles.size - 2}" } if roles.size > 2
               end
@@ -235,19 +235,19 @@ module Team
 
           t.column("Type") do |u|
             if u.kind == "internal_staff"
-              span(class: "badge-blue text-[11px] font-semibold px-[9px] py-[2px] rounded-full") { plain "Staff" }
+              span(class: "#{STATUS_INFO} #{BADGE}") { plain "Staff" }
             else
-              span(class: "badge-gray text-[11px] font-semibold px-[9px] py-[2px] rounded-full") { plain "Merchant" }
+              span(class: "#{STATUS_NEUTRAL} #{BADGE}") { plain "Merchant" }
             end
           end
 
           t.column("Last active") do |u|
             ts = u.last_sign_in_at
-            span(class: TYPE_CAPTION) { plain(ts ? ts.strftime("%d %b %Y") : "Never") }
+            span(class: TYPE_CAPTION) { plain(ts ? fmt_date(ts) : "Never") }
           end
 
           t.column("Joined") do |u|
-            span(class: TYPE_CAPTION) { plain u.created_at.strftime("%d %b %Y") }
+            span(class: TYPE_CAPTION) { plain fmt_date(u.created_at) }
           end
 
           t.actions do |u|
@@ -257,13 +257,11 @@ module Team
             end
             if can_invite
               div(class: DROPDOWN_SEP)
-              form(action: suspend_team_user_path(u), method: "post",
-                   data: { turbo_confirm: "Suspend #{u.full_name}? They will lose portal access immediately." }) do
-                input(type: "hidden", name: "authenticity_token", value: form_authenticity_token)
-                button(type: "submit", class: DROPDOWN_ITEM_DANGER) do
-                  render UI::Icon.new(:archive, class: ICON_SM)
-                  plain "Suspend"
-                end
+              a(href: suspend_modal_team_user_path(u),
+                class: DROPDOWN_ITEM_DANGER,
+                data: { turbo_frame: "modal-frame" }) do
+                render UI::Icon.new(:archive, class: ICON_SM)
+                plain "Suspend"
               end
             end
           end

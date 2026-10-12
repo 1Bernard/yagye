@@ -144,7 +144,7 @@ module Payments
             s      = stats[msisdn]
             ts     = s&.dig(:last_payment_at)
             if ts
-              span(class: "text-[12.5px] text-gray-700") { plain ts.strftime("%d %b %Y") }
+              span(class: "text-[12.5px] text-gray-700") { plain fmt_date(ts) }
             else
               span(class: "text-gray-400 text-[12px]") { plain "—" }
             end

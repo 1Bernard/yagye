@@ -53,13 +53,11 @@ module Team
               description: "Immediately revokes access. The user cannot sign in until reinstated.",
               icon:        :archive
             ) do
-              form(action: suspend_team_user_path(@user), method: "post",
-                   data: { turbo_confirm: "Suspend #{@user.full_name}? They will lose access immediately." }) do
-                input(type: "hidden", name: "authenticity_token", value: form_authenticity_token)
-                render UI::Button.new(variant: :danger, type: "submit") do
-                  render UI::Icon.new(:archive, class: ICON_SM)
-                  plain "Suspend user"
-                end
+              a(href: suspend_modal_team_user_path(@user),
+                class: "#{BTN_DANGER} inline-flex",
+                data: { turbo_frame: "modal-frame" }) do
+                render UI::Icon.new(:archive, class: ICON_SM)
+                plain "Suspend user"
               end
             end
           end
@@ -94,24 +92,24 @@ module Team
             p(class: "#{TYPE_CAPTION} mb-3") { plain u.email }
             div(class: "flex items-center gap-[6px] flex-wrap") do
               if u.internal_staff?
-                span(class: "badge-blue text-[11px] font-semibold px-[9px] py-[3px] rounded-full") { plain "Yagye Staff" }
+                span(class: "badge-blue #{BADGE}") { plain "Yagye Staff" }
               else
-                span(class: "badge-gray text-[11px] font-semibold px-[9px] py-[3px] rounded-full") { plain "Merchant" }
+                span(class: "badge-gray #{BADGE}") { plain "Merchant" }
               end
               if suspended
-                span(class: "badge-amber text-[11px] font-semibold px-[9px] py-[3px] rounded-full") { plain "Suspended" }
+                span(class: "badge-amber #{BADGE}") { plain "Suspended" }
               else
-                span(class: "badge-green text-[11px] font-semibold px-[9px] py-[3px] rounded-full") { plain "Active" }
+                span(class: "badge-green #{BADGE}") { plain "Active" }
               end
               if totp_on
-                span(class: "badge-green text-[11px] font-semibold px-[9px] py-[3px] rounded-full") { plain "2FA on" }
+                span(class: "badge-green #{BADGE}") { plain "2FA on" }
               end
             end
           end
 
           div(class: "border-t border-gray-100") do
-            render UI::DetailRow.new(icon: :calendar,     label: "Joined",       value: u.created_at.strftime("%d %b %Y"))
-            render UI::DetailRow.new(icon: :clock,        label: "Last sign-in", value: u.last_sign_in_at&.strftime("%d %b %Y") || "Never")
+            render UI::DetailRow.new(icon: :calendar,     label: "Joined",       value: fmt_date(u.created_at))
+            render UI::DetailRow.new(icon: :clock,        label: "Last sign-in", value: u.last_sign_in_at ? fmt_date(u.last_sign_in_at) : "Never")
             render UI::DetailRow.new(icon: :check_circle, label: "Sign-ins",     value: u.sign_in_count.to_s)
             render UI::DetailRow.new(icon: :shield,       label: "Two-factor",   value: totp_on ? "Enabled" : "Not set")
           end
@@ -157,7 +155,7 @@ module Team
 
         div(class: "flex items-center justify-between px-[14px] py-3 bg-gray-100 rounded-xl border border-gray-100") do
           div(class: "flex items-center gap-[10px]") do
-            span(class: "#{badge} text-[11px] font-semibold px-[9px] py-[2px] rounded-2xl") { plain r.scope.capitalize }
+            span(class: "#{badge} #{BADGE}") { plain r.scope.capitalize }
             p(class: TYPE_BODY_MD) { plain r.name }
           end
           p(class: TYPE_CAPTION) { plain "#{r.permissions.size} permissions" }
@@ -239,7 +237,7 @@ module Team
             p(class: TYPE_CAPTION) { plain event.ip_address.present? ? "from #{event.ip_address}" : "—" }
           end
           span(class: "text-[11px] text-gray-400 flex-shrink-0 tabular-nums") do
-            plain event.created_at.strftime("%d %b, %H:%M")
+            plain fmt_datetime(event.created_at)
           end
         end
       end

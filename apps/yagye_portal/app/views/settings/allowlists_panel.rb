@@ -139,13 +139,13 @@ module Settings
             parts = []
             parts << entry.label if entry.label.present?
             parts << "by #{entry.created_by.presence || 'you'}"
-            parts << entry.created_at.strftime("%d %b %Y")
+            parts << fmt_date(entry.created_at)
             plain parts.join(" · ")
           end
         end
         div(class: "flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0") do
           copy_button(entry.cidr)
-          remove_button(settings_remove_ip_path(entry), "Remove #{entry.cidr} from allowlist?")
+          remove_button(remove_modal_settings_ip_path(entry))
         end
       end
     end
@@ -252,13 +252,13 @@ module Settings
             parts = []
             parts << entry.label if entry.label.present?
             parts << "by #{entry.created_by.presence || 'you'}"
-            parts << entry.created_at.strftime("%d %b %Y")
+            parts << fmt_date(entry.created_at)
             plain parts.join(" · ")
           end
         end
         div(class: "flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0") do
           copy_button(entry.msisdn)
-          remove_button(settings_remove_msisdn_path(entry), "Remove #{entry.msisdn} from allowlist?")
+          remove_button(remove_modal_settings_msisdn_path(entry))
         end
       end
     end
@@ -363,14 +363,13 @@ module Settings
             parts = []
             parts << entry.label if entry.label.present?
             parts << "by #{entry.created_by.presence || 'you'}"
-            parts << entry.created_at.strftime("%d %b %Y")
+            parts << fmt_date(entry.created_at)
             plain parts.join(" · ")
           end
         end
         div(class: "flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0") do
           copy_button(entry.cidr)
-          remove_button(settings_remove_ip_block_path(entry),
-                        "Remove #{entry.cidr} from blocklist? Requests from this IP will be allowed again.")
+          remove_button(remove_modal_settings_ip_block_path(entry))
         end
       end
     end
@@ -468,14 +467,13 @@ module Settings
             parts = []
             parts << entry.label if entry.label.present?
             parts << "by #{entry.created_by.presence || 'you'}"
-            parts << entry.created_at.strftime("%d %b %Y")
+            parts << fmt_date(entry.created_at)
             plain parts.join(" · ")
           end
         end
         div(class: "flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0") do
           copy_button(entry.msisdn)
-          remove_button(settings_remove_msisdn_block_path(entry),
-                        "Remove #{entry.msisdn} from blocklist? They will be able to make payments again.")
+          remove_button(remove_modal_settings_msisdn_block_path(entry))
         end
       end
     end
@@ -567,13 +565,13 @@ module Settings
             parts = []
             parts << entry.label if entry.label.present?
             parts << "by #{entry.created_by.presence || 'you'}"
-            parts << entry.created_at.strftime("%d %b %Y")
+            parts << fmt_date(entry.created_at)
             plain parts.join(" · ")
           end
         end
         div(class: "flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0") do
           copy_button(entry.email)
-          remove_button(settings_remove_email_block_path(entry), "Remove #{entry.email} from blocklist?")
+          remove_button(remove_modal_settings_email_block_path(entry))
         end
       end
     end
@@ -620,15 +618,12 @@ module Settings
       end
     end
 
-    def remove_button(path, confirm_text)
-      form(action: path, method: "post", data: { turbo_confirm: confirm_text }) do
-        input(type: "hidden", name: "_method",            value: "delete")
-        input(type: "hidden", name: "authenticity_token", value: form_authenticity_token)
-        button(type: "submit",
-               class: "flex w-7 h-7 rounded-lg items-center justify-center text-gray-300 " \
-                      "hover:text-red-500 hover:bg-red-50 transition-colors border-0 bg-transparent cursor-pointer") do
-          span(class: "flex w-[13px] h-[13px]") { render UI::Icon.new(:x, class: "w-full h-full") }
-        end
+    def remove_button(modal_path)
+      a(href: modal_path,
+        class: "flex w-7 h-7 rounded-lg items-center justify-center text-gray-300 " \
+               "hover:text-red-500 hover:bg-red-50 transition-colors no-underline",
+        data: { turbo_frame: "modal-frame" }) do
+        span(class: "flex w-[13px] h-[13px]") { render UI::Icon.new(:x, class: "w-full h-full") }
       end
     end
   end

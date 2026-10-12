@@ -111,10 +111,14 @@ class ApplicationComponent < Phlex::HTML
       end
       div(class: last ? "" : "pb-4") do
         p(class: UI::Theme::TYPE_BODY_MD) { plain label }
-        p(class: UI::Theme::TYPE_CAPTION) { plain timestamp&.strftime("%d %b %Y, %H:%M") || "—" }
+        p(class: UI::Theme::TYPE_CAPTION) { plain fmt_datetime(timestamp) }
       end
     end
   end
+
+  def fmt_datetime(ts) = ts&.strftime("%d %b %Y, %H:%M") || "—"
+  def fmt_datetime_utc(ts) = ts&.strftime("%d %b %Y at %H:%M UTC") || "—"
+  def fmt_date(ts) = ts&.strftime("%d %b %Y") || "—"
 
   def format_money(minor_units, currency: "GHS")
     n = minor_units.to_f / 100

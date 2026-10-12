@@ -73,12 +73,12 @@ module Account
 
           t.column("Due") do |inv|
             due = inv["due_at"]
-            plain(due ? Time.parse(due).strftime("%d %b %Y") : "—")
+            plain(due ? fmt_date(Time.parse(due)) : "—")
           end
 
           t.column("Collected") do |inv|
             col = inv["collected_at"]
-            plain(col ? Time.parse(col).strftime("%d %b %Y") : "—")
+            plain(col ? fmt_date(Time.parse(col)) : "—")
           end
         end
       end

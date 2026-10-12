@@ -53,7 +53,7 @@ module Payments
                 p(class: "doc-title") { plain "Payout Statement" }
               end
               div(class: "meta") do
-                plain "Generated #{Time.current.strftime("%d %b %Y at %H:%M UTC")}"
+                plain "Generated #{fmt_datetime_utc(Time.current)}"
                 br
                 plain "Payout code: #{@payout.payout_code}"
               end
@@ -63,7 +63,7 @@ module Payments
               stat_cell("Amount",       @payout.formatted_amount)
               stat_cell("Status",       @payout.state.humanize)
               stat_cell("Destination",  @payout.destination_type&.humanize || "—")
-              stat_cell("Scheduled",    @payout.scheduled_for&.strftime("%d %b %Y") || "—")
+              stat_cell("Scheduled",    fmt_date(@payout.scheduled_for))
               stat_cell("Merchant",     @payout.merchant_code || "—")
               stat_cell("Currency",     @payout.currency)
             end
@@ -84,8 +84,8 @@ module Payments
                 detail_row("Mode",                @payout.mode&.capitalize || "—")
                 detail_row("Destination type",    @payout.destination_type&.humanize || "—")
                 detail_row("Destination",         @payout.destination_fingerprint || "—", mono: true)
-                detail_row("Scheduled for",       @payout.scheduled_for&.strftime("%d %b %Y, %H:%M UTC") || "—")
-                detail_row("Last updated",        @payout.last_applied_at&.strftime("%d %b %Y, %H:%M UTC") || "—")
+                detail_row("Scheduled for",       fmt_datetime_utc(@payout.scheduled_for))
+                detail_row("Last updated",        fmt_datetime_utc(@payout.last_applied_at))
                 detail_row("Failure code",        @payout.failure_code || "—",            mono: true) if @payout.failure_code.present?
               end
             end

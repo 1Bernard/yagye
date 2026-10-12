@@ -75,12 +75,11 @@ module Checkout
 
           toolbar_state_badge(state)
 
-          span(class: "text-[10.5px] font-semibold px-[8px] py-[2px] rounded-full bg-gray-100 text-gray-500") do
+          span(class: "badge-gray #{BADGE_XS}") do
             plain (@inv["mode"] || "simulation").capitalize
           end
 
-          span(class: "text-[10.5px] font-semibold px-[8px] py-[2px] rounded-full bg-gray-100 text-gray-500 " \
-                      "flex items-center gap-[4px]") do
+          span(class: "badge-gray #{BADGE_XS} flex items-center gap-[4px]") do
             span(class: "flex w-[10px] h-[10px]") { render UI::Icon.new(:eye, class: "w-full h-full") }
             plain "Overview"
           end
@@ -223,12 +222,12 @@ module Checkout
           p(class: "text-[10px] font-bold uppercase tracking-[0.12em] text-gray-400 mb-1") { plain "Details" }
           detail_row("Number",    @inv["number"] || "—",         mono: true)
           detail_row("Currency",  @inv["currency"] || "—")
-          detail_row("Issue date", fmt_date(@inv["issue_date"]))
-          detail_row("Due date",  fmt_date(@inv["due_date"]))
-          detail_row("Sent",      fmt_datetime(@inv["sent_at"]))      if @inv["sent_at"].present?
-          detail_row("Paid at",   fmt_datetime(@inv["paid_at"]))      if @inv["paid_at"].present?
-          detail_row("Voided at", fmt_datetime(@inv["voided_at"]))    if @inv["voided_at"].present?
-          detail_row("Created",   fmt_datetime(@inv["inserted_at"]))
+          detail_row("Issue date", fmt_inv_date(@inv["issue_date"]))
+          detail_row("Due date",  fmt_inv_date(@inv["due_date"]))
+          detail_row("Sent",      fmt_inv_datetime(@inv["sent_at"]))      if @inv["sent_at"].present?
+          detail_row("Paid at",   fmt_inv_datetime(@inv["paid_at"]))      if @inv["paid_at"].present?
+          detail_row("Voided at", fmt_inv_datetime(@inv["voided_at"]))    if @inv["voided_at"].present?
+          detail_row("Created",   fmt_inv_datetime(@inv["inserted_at"]))
         end
       end
 
@@ -530,8 +529,8 @@ module Checkout
       def billing_strip_section
         merchant_name = current_user.active_membership&.merchant_name.to_s.presence || "Your business"
         div(class: "grid grid-cols-4 px-10 py-5 bg-[#f8fafc] border-t border-b border-gray-100") do
-          billing_cell("Issue date", fmt_date(@inv["issue_date"]))
-          billing_cell("Due date",   fmt_date(@inv["due_date"]))
+          billing_cell("Issue date", fmt_inv_date(@inv["issue_date"]))
+          billing_cell("Due date",   fmt_inv_date(@inv["due_date"]))
           billing_cell("From",       merchant_name)
           billing_cell("Bill to",    @inv["customer_reference"].presence || "—")
         end
@@ -546,7 +545,7 @@ module Checkout
 
       def invoice_doc_footer
         div(class: "border-t border-gray-100 px-10 py-4 flex items-center justify-between") do
-          p(class: "text-[10.5px] text-gray-300") { plain "Generated #{Time.now.strftime("%d %b %Y")}" }
+          p(class: "text-[10.5px] text-gray-300") { plain "Generated #{fmt_date(Time.now)}" }
           p(class: "text-[10.5px] text-gray-300") { plain "Payment powered by Yagye" }
         end
       end
@@ -664,14 +663,14 @@ module Checkout
         @inv["invoice_view_url"] || @inv["payment_link_checkout_url"]
       end
 
-      def fmt_date(val)
+      def fmt_inv_date(val)
         return "—" unless val.present?
         (Date.parse(val) rescue val).then { |d| d.respond_to?(:strftime) ? d.strftime("%d %b %Y") : d }
       end
 
-      def fmt_datetime(val)
+      def fmt_inv_datetime(val)
         return "—" unless val.present?
-        (Time.parse(val) rescue val).then { |t| t.respond_to?(:strftime) ? t.strftime("%d %b %Y at %H:%M") : t }
+        (Time.parse(val) rescue val).then { |t| t.respond_to?(:strftime) ? t.strftime("%d %b %Y at %H:%M UTC") : t }
       end
     end
   end

@@ -132,7 +132,7 @@ module Checkout
 
           t.column("Created") do |s|
             span(class: TYPE_CAPTION) do
-              plain s["inserted_at"] ? Time.parse(s["inserted_at"]).strftime("%d %b, %H:%M") : "—"
+              plain fmt_datetime(s["inserted_at"] ? Time.parse(s["inserted_at"]) : nil)
             end
           end
 

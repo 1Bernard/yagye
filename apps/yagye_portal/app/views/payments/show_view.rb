@@ -52,7 +52,7 @@ module Payments
     # ── Amount / hero card ────────────────────────────────────────────────────
 
     def amount_card
-      div(class: "bg-white border border-gray-100 rounded-2xl px-8 py-7") do
+      div(class: "#{SURFACE_CARD} px-8 py-7") do
         div(class: "flex items-start justify-between mb-5") do
           div do
             p(class: "#{TYPE_CAPTION} mb-1") { plain "Transaction amount" }
@@ -72,7 +72,7 @@ module Payments
         div(class: "grid grid-cols-3 gap-[1px] bg-gray-100 rounded-xl overflow-hidden") do
           meta_cell("Reference") { copyable_mono(@payment.reference) }
           meta_cell("Provider") { network_logo_label(@payment) }
-          meta_cell("Date",      @payment.created_at.strftime("%d %b %Y, %H:%M"))
+          meta_cell("Date",      fmt_datetime(@payment.created_at))
         end
       end
     end
@@ -88,7 +88,7 @@ module Payments
             list.row("Core payment ID") { copyable_mono(@payment.core_payment_id) }
             list.row("Payment method") { network_logo_label(@payment) }
             list.row("Status")         { render UI::StatusBadge.new(@payment.status) }
-            list.row("Created",        @payment.created_at.strftime("%d %b %Y at %H:%M UTC"))
+            list.row("Created",        fmt_datetime_utc(@payment.created_at))
             list.row("Settled",        settled_label)
             list.row("Merchant") { copyable_mono(@payment.merchant_code) }
             if @payment.fulfilment_type.present?
@@ -221,7 +221,7 @@ module Payments
                 class: "flex items-center justify-between px-5 py-[11px] hover:bg-gray-50 transition-colors no-underline #{last ? '' : 'border-b border-gray-50'}") do
                 div(class: "flex-1 min-w-0") do
                   span(class: "block #{TYPE_MONO} text-[11.5px] truncate") { plain p.reference.presence || p.core_payment_id&.first(12) || "—" }
-                  span(class: "block #{TYPE_CAPTION} mt-px") { plain p.created_at.strftime("%-d %b %Y") }
+                  span(class: "block #{TYPE_CAPTION} mt-px") { plain fmt_date(p.created_at) }
                 end
                 div(class: "flex items-center gap-2 flex-shrink-0") do
                   span(class: "text-[13px] font-semibold text-gray-900 tabular-nums") { plain p.formatted_amount }
@@ -238,16 +238,15 @@ module Payments
 
     def dispute_banner
       href = @dispute ? dispute_path(@dispute) : disputes_path
-      div(class: "flex items-start gap-3 px-5 py-4 rounded-2xl border",
-          style: "background:#fff8ed;border-color:#f59e0b33") do
-        span(class: "flex-shrink-0 w-5 h-5 mt-px", style: "color:#d97706") do
+      div(class: "flex items-start gap-3 px-5 py-4 rounded-2xl border bg-amber-50 border-amber-200") do
+        span(class: "flex-shrink-0 w-5 h-5 mt-px text-amber-600") do
           render UI::Icon.new(:flag, class: "w-full h-full")
         end
         div(class: "flex-1 min-w-0") do
-          p(class: "text-[13px] font-semibold", style: "color:#92400e") { plain "Dispute open" }
-          p(class: "text-[12px] mt-[2px]", style: "color:#b45309") do
+          p(class: "text-[13px] font-semibold text-amber-900") { plain "Dispute open" }
+          p(class: "text-[12px] mt-[2px] text-amber-700") do
             plain "A chargeback has been raised against this payment. "
-            a(href: href, class: "font-semibold underline", style: "color:#d97706") { plain "View dispute →" }
+            a(href: href, class: "font-semibold underline text-amber-600") { plain "View dispute →" }
           end
         end
       end
@@ -281,7 +280,7 @@ module Payments
       ts        = occurred ? Time.parse(occurred).strftime("%d %b %Y, %H:%M:%S UTC") : "—"
 
       div(class: "flex items-start gap-3 px-5 py-[11px] #{last ? '' : 'border-b border-gray-50'}") do
-        div(class: "w-2 h-2 rounded-full flex-shrink-0 mt-[5px]", style: "background:#6366f1")
+        div(class: "w-2 h-2 rounded-full flex-shrink-0 mt-[5px]", style: "background:#{BRAND}")
         div(class: "flex-1 min-w-0") do
           p(class: TYPE_BODY_MD) { plain name }
           p(class: "#{TYPE_MONO} text-[11px] text-gray-400 mt-0.5") { plain ts }
@@ -295,11 +294,11 @@ module Payments
     end
 
     def timeline_events
-      events = [ [ "Payment initiated", @payment.created_at, "#6366f1" ] ]
-      events << [ "Processing",         @payment.updated_at, "#f59e0b" ] if @payment.status.in?(%w[processing paid failed])
-      events << [ "Payment settled",    @payment.paid_at,    "#16a34a" ] if @payment.paid_at.present?
-      events << [ "Payment failed",     @payment.updated_at, "#dc2626" ] if @payment.status == "failed"
-      events << [ "Refunded",           @payment.updated_at, "#f59e0b" ] if @payment.status == "refunded"
+      events = [ [ "Payment initiated", @payment.created_at, BRAND ] ]
+      events << [ "Processing",         @payment.updated_at, AMBER ] if @payment.status.in?(%w[processing paid failed])
+      events << [ "Payment settled",    @payment.paid_at,    GREEN ] if @payment.paid_at.present?
+      events << [ "Payment failed",     @payment.updated_at, RED   ] if @payment.status == "failed"
+      events << [ "Refunded",           @payment.updated_at, AMBER ] if @payment.status == "refunded"
       events
     end
 
@@ -319,7 +318,7 @@ module Payments
     end
 
     def settled_label
-      @payment.paid_at ? @payment.paid_at.strftime("%d %b %Y, %H:%M") : "—"
+      fmt_datetime(@payment.paid_at)
     end
   end
 end

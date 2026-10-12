@@ -45,10 +45,7 @@ module Developers
     def summary_card
       div(class: "bg-gray-50 border border-gray-100 rounded-2xl px-5 py-[18px]") do
         div(class: "flex items-center gap-[10px] mb-3") do
-          div(class: "w-[10px] h-[10px] rounded-full flex-shrink-0",
-              style: "background:#{@delivery.state_color}")
-          span(class: "text-[12.5px] font-semibold",
-               style: "color:#{@delivery.state_color}") { plain @delivery.state.capitalize }
+          render UI::StatusBadge.new(@delivery.state)
           span(class: "#{TYPE_CAPTION} ml-auto") { plain "Attempt #{@delivery.attempt}" }
         end
 
@@ -61,7 +58,7 @@ module Developers
     end
 
     def request_card
-      div(class: "bg-white border border-gray-100 rounded-2xl overflow-hidden") do
+      div(class: "#{SURFACE_CARD} overflow-hidden") do
         code_card_header("Request")
         div do
           code_section("Headers", @delivery.formatted_headers)
@@ -72,7 +69,7 @@ module Developers
     end
 
     def response_card
-      div(class: "bg-white border border-gray-100 rounded-2xl overflow-hidden") do
+      div(class: "#{SURFACE_CARD} overflow-hidden") do
         code_card_header("Response")
         code_section("Body", @delivery.response_body.presence || "(empty response)")
       end
@@ -107,11 +104,8 @@ module Developers
     def status_pill
       return span(class: TYPE_CAPTION) { plain "—" } unless @delivery.response_status
 
-      color = @delivery.success? ? "#16a34a" : "#dc2626"
-      bg    = @delivery.success? ? "#f0fdf4" : "#fef2f2"
-
-      span(class: "text-[12px] font-semibold px-[9px] py-[2px] rounded-full",
-           style: "color:#{color};background:#{bg}") { plain @delivery.response_status.to_s }
+      cls = @delivery.success? ? "badge-green" : "badge-red"
+      span(class: "#{cls} #{BADGE}") { plain @delivery.response_status.to_s }
     end
   end
 end

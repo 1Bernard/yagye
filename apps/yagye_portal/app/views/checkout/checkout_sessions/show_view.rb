@@ -63,7 +63,7 @@ module Checkout
         total    = @s["total_amount"].to_i
         shipping = @s["shipping_amount"].to_i
 
-        div(class: "bg-white border border-gray-100 rounded-2xl px-8 py-7") do
+        div(class: "#{SURFACE_CARD} px-8 py-7") do
           div(class: "flex items-start justify-between mb-5") do
             div do
               p(class: "#{TYPE_CAPTION} mb-1") { plain "Session total" }
@@ -80,8 +80,8 @@ module Checkout
           end
           div(class: "grid grid-cols-3 gap-[1px] bg-gray-100 rounded-xl overflow-hidden") do
             meta_cell("Mode",     @s["mode"]&.capitalize || "—")
-            meta_cell("Created",  @s["inserted_at"] ? Time.parse(@s["inserted_at"]).strftime("%d %b %Y") : "—")
-            meta_cell("Expires",  @s["expires_at"]  ? Time.parse(@s["expires_at"]).strftime("%d %b %Y") : "No expiry")
+            meta_cell("Created",  fmt_date(@s["inserted_at"] ? Time.parse(@s["inserted_at"]) : nil))
+            meta_cell("Expires",  @s["expires_at"] ? fmt_date(Time.parse(@s["expires_at"])) : "No expiry")
           end
         end
       end
@@ -196,9 +196,9 @@ module Checkout
               list.row("Currency",       @s["currency"] || "—")
               list.row("Reference",      @s["merchant_reference"].presence || "—", mono: true)
               list.row("Payment link")   { payment_link_ref }
-              list.row("Completed at")   { plain @s["completed_at"] ? Time.parse(@s["completed_at"]).strftime("%d %b %Y at %H:%M UTC") : "—" }
-              list.row("Expires at")     { plain @s["expires_at"] ? Time.parse(@s["expires_at"]).strftime("%d %b %Y at %H:%M UTC") : "No expiry" }
-              list.row("Created")        { plain @s["inserted_at"] ? Time.parse(@s["inserted_at"]).strftime("%d %b %Y at %H:%M UTC") : "—" }
+              list.row("Completed at")   { plain fmt_datetime_utc(@s["completed_at"] ? Time.parse(@s["completed_at"]) : nil) }
+              list.row("Expires at")     { plain @s["expires_at"] ? fmt_datetime_utc(Time.parse(@s["expires_at"])) : "No expiry" }
+              list.row("Created")        { plain fmt_datetime_utc(@s["inserted_at"] ? Time.parse(@s["inserted_at"]) : nil) }
             end
           end
         end

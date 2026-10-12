@@ -52,7 +52,7 @@ module Payments
       # ── No policy state ───────────────────────────────────────────────────────
 
       def no_policy_state
-        div(class: "bg-white border border-gray-100 rounded-2xl px-8 py-16 flex flex-col items-center text-center gap-4") do
+        div(class: "#{SURFACE_CARD} px-8 py-16 flex flex-col items-center text-center gap-4") do
           div(class: "w-12 h-12 rounded-2xl flex items-center justify-center mb-2",
               style: "background:#{TINT_AMBER}") do
             span(class: "flex w-[22px] h-[22px]", style: "color:#{AMBER}") do
@@ -108,7 +108,7 @@ module Payments
       end
 
       def stat_cell(label, value, sub:, icon:, color:, tint:)
-        div(class: "bg-white border border-gray-100 rounded-2xl px-5 py-5 flex items-start gap-4") do
+        div(class: "#{SURFACE_CARD} px-5 py-5 flex items-start gap-4") do
           div(class: "w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0",
               style: "background:#{tint}") do
             span(class: "flex w-[18px] h-[18px]", style: "color:#{color}") do
@@ -129,7 +129,7 @@ module Payments
         p = @policy
         kind_label = p["kind"] == "rolling" ? "Rolling percentage" : p["kind"] == "fixed" ? "Fixed amount" : "Ad hoc"
 
-        div(class: "bg-white border border-gray-100 rounded-2xl overflow-hidden") do
+        div(class: "#{SURFACE_CARD} overflow-hidden") do
           div(class: "px-6 py-5 border-b border-gray-100 flex items-center justify-between") do
             div do
               p(class: TYPE_TITLE) { plain "Reserve policy" }
@@ -164,7 +164,7 @@ module Payments
       # ── Holds table ───────────────────────────────────────────────────────────
 
       def holds_table
-        div(class: "bg-white border border-gray-100 rounded-2xl overflow-hidden") do
+        div(class: "#{SURFACE_CARD} overflow-hidden") do
           div(class: "px-6 py-5 border-b border-gray-100 flex items-center justify-between") do
             p(class: TYPE_TITLE) { plain "Reserve holds" }
             p(class: "#{TYPE_CAPTION} mt-[3px]") { plain "Individual amounts withheld, one per payment." }
@@ -253,7 +253,7 @@ module Payments
 
       def format_date(iso)
         return "—" if iso.nil?
-        Time.parse(iso).strftime("%-d %b %Y") rescue "—"
+        fmt_date(Time.parse(iso)) rescue "—"
       end
 
       def short_id(id)

@@ -107,7 +107,7 @@ module Payments
       end
 
       def summary_card(icon:, color:, tint:, label:, value:, sub: nil)
-        div(class: "bg-white border border-gray-100 rounded-2xl p-5") do
+        div(class: "#{SURFACE_CARD} p-5") do
           div(class: "flex items-center gap-3 mb-3") do
             div(class: "w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0",
                 style: "background:#{tint}") do
@@ -141,7 +141,7 @@ module Payments
 
           t.column("Period") do |b|
             ps = b["period_start"] ? Time.parse(b["period_start"]).strftime("%d %b") : "—"
-            pe = b["period_end"]   ? Time.parse(b["period_end"]).strftime("%d %b %Y") : "—"
+            pe = b["period_end"]   ? fmt_date(Time.parse(b["period_end"])) : "—"
             plain "#{ps} – #{pe}"
           end
 
@@ -159,24 +159,12 @@ module Payments
           end
 
           t.column("Recon") do |b|
-            if b["reconciliation_run_id"].present?
-              span(class: "inline-flex items-center gap-[5px] px-[8px] py-[3px] rounded-full text-[11px] font-semibold",
-                   style: "background:rgba(22,163,74,0.08);color:#16a34a") do
-                span(class: "w-[5px] h-[5px] rounded-full bg-current flex-shrink-0")
-                plain "Reconciled"
-              end
-            else
-              span(class: "inline-flex items-center gap-[5px] px-[8px] py-[3px] rounded-full text-[11px] font-semibold",
-                   style: "background:rgba(107,114,128,0.08);color:#6b7280") do
-                span(class: "w-[5px] h-[5px] rounded-full bg-current flex-shrink-0")
-                plain "Pending"
-              end
-            end
+            render UI::StatusBadge.new(b["reconciliation_run_id"].present? ? "reconciled" : "pending")
           end
 
           t.column("Settled") do |b|
             ts = b["settled_at"]
-            plain(ts ? Time.parse(ts).strftime("%d %b %Y") : "—")
+            plain(fmt_date(ts ? Time.parse(ts) : nil))
           end
 
           t.actions do |b|
