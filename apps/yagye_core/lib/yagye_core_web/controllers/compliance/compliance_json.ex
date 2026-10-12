@@ -40,8 +40,11 @@ defmodule YagyeCoreWeb.Controllers.Compliance.ComplianceJSON do
       object: "kyb_document",
       merchant_id: d.merchant_id,
       kind: d.kind,
+      status: d.status,
+      label: d.label,
       checksum: d.checksum,
       scanned_at: d.scanned_at,
+      uploaded_by: d.uploaded_by,
       inserted_at: d.inserted_at
     }
   end

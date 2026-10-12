@@ -101,7 +101,14 @@ config :ex_aws,
 config :ex_aws, :s3,
   scheme: "http://",
   host: System.get_env("AWS_S3_HOST", "localhost"),
-  port: String.to_integer(System.get_env("AWS_S3_PORT", "4566"))
+  port: String.to_integer(System.get_env("AWS_S3_PORT", "4566")),
+  path_style_bucket: true
+
+# Floci also emulates Secrets Manager on the same port.
+config :ex_aws, :secretsmanager,
+  scheme: "http://",
+  host: System.get_env("AWS_SM_HOST", "localhost"),
+  port: String.to_integer(System.get_env("AWS_SM_PORT", "4566"))
 
 config :ex_aws, :hackney_opts,
   follow_redirect: true,

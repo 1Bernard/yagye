@@ -163,6 +163,12 @@ defmodule YagyeCoreWeb.Router do
 
     get("/merchants/:merchant_id/documents", InternalComplianceController, :list_documents)
 
+    patch(
+      "/merchants/:merchant_id/documents/:document_id/review",
+      InternalComplianceController,
+      :review_document
+    )
+
     get(
       "/merchants/:merchant_id/screening-status",
       InternalComplianceController,

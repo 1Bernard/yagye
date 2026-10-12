@@ -35,6 +35,15 @@ defmodule YagyeCoreWeb.Controllers.Internal.ComplianceController do
     end
   end
 
+  def review_document(conn, %{"document_id" => document_id} = params) do
+    reviewer_code = params["reviewer_code"] || "ops"
+    attrs = Map.take(params, ["status", "reviewer_notes"])
+
+    with {:ok, doc} <- Compliance.review_kyb_document(document_id, reviewer_code, attrs) do
+      Response.ok(conn, ComplianceJSON.document_data(doc))
+    end
+  end
+
   def screening_status(conn, %{"merchant_id" => merchant_id}) do
     with {:ok, status} <- Compliance.screening_status(merchant_id) do
       Response.ok(conn, ComplianceJSON.screening_status_data(status))

@@ -39,7 +39,17 @@ if s3_host = System.get_env("AWS_S3_HOST") do
   config :ex_aws, :s3,
     scheme: "http://",
     host: s3_host,
-    port: String.to_integer(System.get_env("AWS_S3_PORT", "4566"))
+    port: String.to_integer(System.get_env("AWS_S3_PORT", "4566")),
+    path_style_bucket: true
+end
+
+# Secrets Manager endpoint override — same pattern as S3 above.
+# In docker-compose, AWS_SM_HOST=floci routes to Floci. Unset for real AWS.
+if sm_host = System.get_env("AWS_SM_HOST") do
+  config :ex_aws, :secretsmanager,
+    scheme: "http://",
+    host: sm_host,
+    port: String.to_integer(System.get_env("AWS_SM_PORT", "4566"))
 end
 
 if config_env() == :dev do

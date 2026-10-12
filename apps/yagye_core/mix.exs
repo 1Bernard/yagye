@@ -84,9 +84,10 @@ defmodule YagyeCore.MixProject do
       {:redix, "~> 1.5"},
       {:ex_machina, "~> 2.8.2", only: :test},
       {:mox, "~> 1.0", only: :test},
-      # P21 — S3 + KMS document storage
+      # P21 — S3 + KMS document storage; Secrets Manager for PSP credentials
       {:ex_aws, "~> 2.5"},
       {:ex_aws_s3, "~> 2.5"},
+      {:ex_aws_secretsmanager, "~> 2.0"},
       {:hackney, "~> 1.20"},
       {:sweet_xml, "~> 0.7"}
     ]
@@ -101,7 +102,13 @@ defmodule YagyeCore.MixProject do
   defp aliases do
     [
       setup: ["deps.get", "ecto.setup"],
-      "ecto.setup": ["ecto.create", "ecto.migrate", "run priv/repo/seeds.exs"],
+      "ecto.setup": [
+        "ecto.create",
+        "ecto.migrate",
+        "yagye.s3.setup",
+        "yagye.secrets.setup",
+        "run priv/repo/seeds.exs"
+      ],
       "ecto.reset": ["ecto.drop", "ecto.setup"],
       test: ["ecto.create --quiet", "ecto.migrate --quiet", "test"],
       precommit: [

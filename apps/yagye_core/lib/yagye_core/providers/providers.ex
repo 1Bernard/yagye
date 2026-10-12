@@ -8,7 +8,7 @@ defmodule YagyeCore.Providers do
   alias YagyeCore.Providers.Schemas.{MerchantProviderConnection, Provider, ProviderCredential}
   alias YagyeCore.Repo
   alias YagyeCore.Routing
-  alias YagyeCore.Shared.Vault
+  alias YagyeCore.Shared.{SecretsManager, Vault}
 
   @simulator_code "simulator"
 
@@ -231,6 +231,14 @@ defmodule YagyeCore.Providers do
     case credential do
       nil -> {:error, :no_credential}
       cred -> decrypt_credential(cred)
+    end
+  end
+
+  defp decrypt_credential(%ProviderCredential{secret_name: name, base_url: base_url})
+       when is_binary(name) do
+    case SecretsManager.get_secret(name) do
+      {:ok, map} -> {:ok, Map.put(map, "base_url", base_url)}
+      {:error, reason} -> {:error, {:secrets_manager, reason}}
     end
   end
 

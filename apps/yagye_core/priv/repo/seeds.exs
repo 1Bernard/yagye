@@ -225,24 +225,17 @@ mtn_provider =
       p
   end
 
-# Sandbox credential (mode: "sandbox") — used by sandbox-mode payments.
-# Replace placeholder values with real momodeveloper.mtn.com credentials.
+# Sandbox credential (mode: "sandbox") — stored in Secrets Manager, not encrypted in DB.
+# The DB row holds only a pointer (secret_name); yagye.secrets.setup populates the secret.
 # NOTE: "simulation" mode is exclusively for the simulator app.
 # "sandbox" = MTN sandbox API; "live" = MTN production API (set at go-live).
-mtn_sandbox_creds = %{
-  "subscription_key" => System.get_env("MTN_SANDBOX_SUBSCRIPTION_KEY", "REPLACE_ME"),
-  "api_user_id" => System.get_env("MTN_SANDBOX_API_USER_ID", "REPLACE_ME"),
-  "api_key" => System.get_env("MTN_SANDBOX_API_KEY", "REPLACE_ME"),
-  "target_environment" => "sandbox"
-}
+mtn_sandbox_secret_name = "yagye/dev/providers/mtn_momo_gh/sandbox"
 
 case Repo.get_by(ProviderCredential, provider_id: mtn_provider.id, mode: "sandbox") do
   %ProviderCredential{} = c ->
     IO.puts("MTN sandbox credential: already exists (#{c.id})")
 
   nil ->
-    payload = Vault.encrypt_map(mtn_sandbox_creds)
-
     {:ok, c} =
       %ProviderCredential{}
       |> ProviderCredential.changeset(%{
@@ -250,12 +243,12 @@ case Repo.get_by(ProviderCredential, provider_id: mtn_provider.id, mode: "sandbo
         merchant_id: nil,
         mode: "sandbox",
         base_url: "https://sandbox.momodeveloper.mtn.com",
-        encrypted_payload: payload,
+        secret_name: mtn_sandbox_secret_name,
         active: true
       })
       |> Repo.insert()
 
-    IO.puts("MTN sandbox credential: created (#{c.id})")
+    IO.puts("MTN sandbox credential: created (#{c.id}) → SM: #{mtn_sandbox_secret_name}")
 end
 
 # ── 6c. Platform routing rules — native rail (MTN MoMo) ───────────────────────
