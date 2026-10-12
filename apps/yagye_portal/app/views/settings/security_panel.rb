@@ -4,9 +4,11 @@ module Settings
   class SecurityPanel < ApplicationComponent
     include UI::Theme
 
-    def initialize(current_user:, audit_events: [])
-      @current_user = current_user
-      @audit_events = audit_events
+    def initialize(current_user:, audit_events: [], password_error: nil, password_error_field: nil)
+      @current_user         = current_user
+      @audit_events         = audit_events
+      @password_error       = password_error
+      @password_error_field = password_error_field
     end
 
     def view_template
@@ -80,17 +82,21 @@ module Settings
           p(class: "text-[10.5px] font-semibold text-gray-400 uppercase tracking-widest mb-4") { plain "Password" }
 
           # ── Display state ────────────────────────────────────────────────
-          div(class: "flex items-center gap-4", data: { inline_edit_target: "display" }) do
+          div(class: "flex items-center gap-4",
+              hidden: @password_error.present?,
+              data: { inline_edit_target: "display" }) do
             div(class: "flex-1") do
               div(class: "flex items-center gap-3 mb-1") do
-                span(class: "text-[20px] leading-none tracking-[0.1em] text-gray-300") { plain "●" * 12 }
+                div(class: "flex items-center gap-[4px]") do
+                  10.times { span(class: "inline-block w-[6px] h-[6px] rounded-full bg-gray-300 flex-shrink-0") }
+                end
                 span(class: "badge-green inline-flex items-center gap-[5px] text-[11px] font-semibold px-[9px] py-[3px] rounded-full flex-shrink-0") do
                   span(class: "w-[5px] h-[5px] rounded-full bg-green-600 flex-shrink-0")
                   plain "Very secure"
                 end
               end
               p(class: TYPE_CAPTION) do
-                plain "Last updated #{@current_user&.updated_at&.strftime('%d %B %Y') || '—'}"
+                plain "Last updated #{fmt_date(@current_user&.updated_at)}"
               end
             end
             div(data: { inline_edit_target: "trigger" }) do
@@ -102,20 +108,30 @@ module Settings
             end
           end
 
-          # ── Edit state (hidden) ──────────────────────────────────────────
-          div(hidden: true, data: { inline_edit_target: "form" }) do
+          # ── Edit state (hidden unless there's a password error) ──────────
+          div(hidden: @password_error.blank?, data: { inline_edit_target: "form" }) do
             form(action: settings_password_path, method: "post",
-                 class: "flex flex-col gap-3 pt-1") do
+                 class: "flex flex-col gap-3 pt-1",
+                 data: { controller: "password-strength",
+                         action: "input->password-strength#check" }) do
               input(type: "hidden", name: "_method",            value: "patch")
               input(type: "hidden", name: "authenticity_token", value: form_authenticity_token)
               render UI::InputField.new(name: "current_password", label: "Current password",
-                                        type: "password", autocomplete: "current-password")
+                                        type: "password", autocomplete: "current-password",
+                                        toggle_visibility: true,
+                                        error: (@password_error if @password_error_field == :current))
               render UI::InputField.new(name: "password", label: "New password",
-                                        type: "password", autocomplete: "new-password")
+                                        type: "password", autocomplete: "new-password",
+                                        toggle_visibility: true,
+                                        data: { password_strength_target: "password" })
+              password_checklist
               render UI::InputField.new(name: "password_confirmation", label: "Confirm new password",
-                                        type: "password", autocomplete: "new-password")
+                                        type: "password", autocomplete: "new-password",
+                                        toggle_visibility: true,
+                                        error: (@password_error if @password_error_field == :confirmation))
               div(class: "flex items-center gap-3 pt-1") do
-                render UI::Button.new(variant: :primary, type: "submit") do
+                render UI::Button.new(variant: :primary, type: "submit", disabled: true,
+                                      data: { password_strength_target: "submit" }) do
                   render UI::Icon.new(:shield, class: ICON_SM)
                   plain "Update password"
                 end
@@ -141,6 +157,27 @@ module Settings
           end
           disable_totp_dialog if totp_on
         end
+      end
+    end
+
+    def password_checklist
+      div(class: "flex flex-col gap-[7px] px-[2px]") do
+        rule_item("minLength", "At least 12 characters")
+        rule_item("uppercase", "One uppercase letter")
+        rule_item("number",    "One number")
+        rule_item("special",   "One special character")
+      end
+    end
+
+    def rule_item(key, label)
+      div(class: "flex items-center gap-[7px] text-gray-400 transition-colors duration-150",
+          data: { password_strength_target: "rule", rule: key }) do
+        span(class: "block w-[13px] h-[13px] rounded-full border-[1.5px] border-current flex-shrink-0",
+             data: { role: "unmet" })
+        span(hidden: true, class: "flex-shrink-0", data: { role: "met" }) do
+          render UI::Icon.new(:check_circle, class: "w-[13px] h-[13px]")
+        end
+        span(class: "text-[12px]") { plain label }
       end
     end
 
@@ -241,13 +278,13 @@ module Settings
 
         if sign_ins.empty?
           session_row(label: "Current browser",
-                      sub: "This device · #{Time.current.strftime('%d %b %Y')}",
+                      sub: "This device · #{fmt_date(Time.current)}",
                       current: true)
         else
           sign_ins.first(5).each_with_index do |evt, i|
             session_row(
               label:   evt.user_agent.to_s.split("/").first.presence || "Browser",
-              sub:     "#{evt.ip_address.presence || 'Unknown location'} · #{evt.created_at.strftime('%d %b %Y, %H:%M')}",
+              sub:     "#{evt.ip_address.presence || 'Unknown location'} · #{fmt_datetime(evt.created_at)}",
               current: i == 0,
               ago:     i.positive? ? evt.created_at.strftime("%d %b, %H:%M") : nil
             )

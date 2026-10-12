@@ -7,22 +7,25 @@ module Settings
     def initialize(tab: "profile", current_user: nil, roles: [], ip_allowlists: [], ip_blocklists: [],
                    msisdn_allowlists: [], msisdn_blocklists: [], email_blocklists: [], branding: nil,
                    kyb_application: nil, audit_events: [], sso_configs: [], tier: 1,
-                   payout_controls: {}, payout_destinations: [])
-      @tab                 = tab
-      @current_user        = current_user
-      @roles               = roles
-      @ip_allowlists       = ip_allowlists
-      @ip_blocklists       = ip_blocklists
-      @msisdn_allowlists   = msisdn_allowlists
-      @msisdn_blocklists   = msisdn_blocklists
-      @email_blocklists    = email_blocklists
-      @branding            = branding
-      @kyb_application     = kyb_application
-      @audit_events        = audit_events
-      @sso_configs         = sso_configs
-      @tier                = tier
-      @payout_controls     = payout_controls
-      @payout_destinations = payout_destinations
+                   payout_controls: {}, payout_destinations: [],
+                   password_error: nil, password_error_field: nil)
+      @tab                  = tab
+      @current_user         = current_user
+      @roles                = roles
+      @ip_allowlists        = ip_allowlists
+      @ip_blocklists        = ip_blocklists
+      @msisdn_allowlists    = msisdn_allowlists
+      @msisdn_blocklists    = msisdn_blocklists
+      @email_blocklists     = email_blocklists
+      @branding             = branding
+      @kyb_application      = kyb_application
+      @audit_events         = audit_events
+      @sso_configs          = sso_configs
+      @tier                 = tier
+      @payout_controls      = payout_controls
+      @payout_destinations  = payout_destinations
+      @password_error       = password_error
+      @password_error_field = password_error_field
     end
 
     def view_template
@@ -44,7 +47,8 @@ module Settings
                 audit_events: @audit_events
               )
             when "security"
-              render Settings::SecurityPanel.new(current_user: @current_user, audit_events: @audit_events)
+              render Settings::SecurityPanel.new(current_user: @current_user, audit_events: @audit_events,
+                                                 password_error: @password_error, password_error_field: @password_error_field)
             when "notifications"
               render Settings::NotificationsPanel.new(current_user: @current_user)
             when "allowlists"

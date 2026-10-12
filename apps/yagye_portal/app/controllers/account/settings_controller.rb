@@ -66,10 +66,10 @@ module Account
     def update_password
       authorize :settings, :update?
       unless current_user.valid_password?(params[:current_password])
-        return redirect_to settings_path(tab: "security"), alert: "Current password is incorrect."
+        return render_password_error("Current password is incorrect.", :current)
       end
       if params[:password] != params[:password_confirmation]
-        return redirect_to settings_path(tab: "security"), alert: "New passwords do not match."
+        return render_password_error("Passwords do not match.", :confirmation)
       end
       current_user.update!(password: params[:password])
       bypass_sign_in(current_user)
@@ -88,6 +88,16 @@ module Account
       [ controls, destinations ]
     rescue StandardError
       [ {}, [] ]
+    end
+
+    def render_password_error(message, field)
+      render Settings::IndexView.new(
+        tab:                  "security",
+        current_user:         current_user,
+        audit_events:         current_user.user_audit_events.recent.limit(15),
+        password_error:       message,
+        password_error_field: field
+      ), status: :unprocessable_entity
     end
 
     def profile_params
