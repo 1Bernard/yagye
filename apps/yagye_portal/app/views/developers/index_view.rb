@@ -135,20 +135,17 @@ module Developers
               end
             end
           end
-          t.column("Created")    { |k| span(class: TYPE_CAPTION) { plain k.created_at.strftime("%d %b %Y") } }
-          t.column("Last used")  { |k| span(class: TYPE_CAPTION) { plain(k.last_used_at&.strftime("%d %b %Y") || "Never") } }
+          t.column("Created")    { |k| span(class: TYPE_CAPTION) { plain fmt_date(k.created_at) } }
+          t.column("Last used")  { |k| span(class: TYPE_CAPTION) { plain(k.last_used_at ? fmt_date(k.last_used_at) : "Never") } }
           t.column("Status")     { |k| render UI::StatusBadge.new(status: k.active ? "active" : "revoked") }
 
           t.actions do |k|
             if k.active?
-              form(action: developers_key_path(k.key_id), method: "post",
-                   data: { turbo_confirm: "Revoke this API key? This cannot be undone." }) do
-                input(type: "hidden", name: "_method",            value: "delete")
-                input(type: "hidden", name: "authenticity_token", value: form_authenticity_token)
-                button(type: "submit", class: DROPDOWN_ITEM_DANGER) do
-                  render UI::Icon.new(:x, class: ICON_SM)
-                  plain "Revoke"
-                end
+              a(href: revoke_modal_developers_key_path(k.key_id),
+                class: DROPDOWN_ITEM_DANGER,
+                data: { turbo_frame: "modal-frame" }) do
+                render UI::Icon.new(:x, class: ICON_SM)
+                plain "Revoke"
               end
             end
           end
@@ -188,7 +185,7 @@ module Developers
           }'
       CURL
 
-      div(class: "mt-5 bg-white border border-gray-100 rounded-2xl overflow-hidden") do
+      div(class: "mt-5 #{SURFACE_CARD} overflow-hidden") do
         div(class: "flex items-center justify-between px-6 py-5 border-b border-gray-100") do
           div do
             p(class: TYPE_TITLE) { plain "Quick start" }
@@ -273,7 +270,7 @@ module Developers
 
       div(class: "flex flex-col gap-5") do
         # Header callout
-        div(class: "bg-white border border-gray-100 rounded-2xl px-6 py-5") do
+        div(class: "#{SURFACE_CARD} px-6 py-5") do
           div(class: "flex items-start gap-4") do
             div(class: "w-10 h-10 rounded-xl icon-brand flex items-center justify-center flex-shrink-0") do
               span(class: "flex w-[18px] h-[18px]") { render UI::Icon.new(:external_link, class: "w-full h-full") }
@@ -638,7 +635,7 @@ module Developers
     end
 
     def qs_step(number, title, icon_name, color_cls, &block)
-      div(class: "bg-white border border-gray-100 rounded-2xl overflow-hidden") do
+      div(class: "#{SURFACE_CARD} overflow-hidden") do
         div(class: "flex items-center gap-3 px-6 py-4 border-b border-gray-100") do
           div(class: "w-8 h-8 rounded-xl #{color_cls} flex items-center justify-center flex-shrink-0") do
             span(class: "flex w-[14px] h-[14px]") { render UI::Icon.new(icon_name, class: "w-full h-full") }
@@ -685,7 +682,7 @@ module Developers
 
     def reference_panel
       if @openapi_spec.empty?
-        div(class: "bg-white border border-gray-100 rounded-2xl px-6 py-16 text-center") do
+        div(class: "#{SURFACE_CARD} px-6 py-16 text-center") do
           span(class: "flex w-8 h-8 text-gray-300 mx-auto mb-3") do
             render UI::Icon.new(:alert_circle, class: "w-full h-full")
           end
@@ -713,8 +710,7 @@ module Developers
 
       div(class: "flex flex-col gap-5") do
         # Header
-        div(class: "bg-white border border-gray-100 rounded-2xl px-6 py-5 " \
-                   "flex items-center justify-between gap-4") do
+        div(class: "#{SURFACE_CARD} px-6 py-5 flex items-center justify-between gap-4") do
           div do
             p(class: "text-[14px] font-semibold text-gray-900 mb-0.5") do
               plain "Yagye API "
@@ -741,7 +737,7 @@ module Developers
     end
 
     def ref_section(tag, icon_name, operations)
-      div(class: "bg-white border border-gray-100 rounded-2xl overflow-hidden") do
+      div(class: "#{SURFACE_CARD} overflow-hidden") do
         # Section header
         div(class: "flex items-center gap-3 px-6 py-4 border-b border-gray-100 bg-gray-50/40") do
           div(class: "w-7 h-7 rounded-lg icon-brand flex items-center justify-center flex-shrink-0") do
@@ -860,7 +856,7 @@ module Developers
           variant:     :caution,
           title:       "Test mode",
           body:        "Test keys are for development only. No real money moves. " \
-                       "Switch to Live mode using the toggle in the sidebar to access live keys.",
+                       "Live keys become available once your account is approved for live payments.",
           dismissable: true
         )
       end
@@ -955,7 +951,7 @@ module Developers
               end
             end
           end
-          t.column("Created") { |wh| span(class: TYPE_CAPTION) { plain wh.created_at.strftime("%d %b %Y") } }
+          t.column("Created") { |wh| span(class: TYPE_CAPTION) { plain fmt_date(wh.created_at) } }
 
           t.actions do |wh|
             a(href: edit_developers_webhook_path(wh.endpoint_id),
@@ -971,26 +967,30 @@ module Developers
                 plain "Send test"
               end
             end
-            toggle_label  = wh.active ? "Disable" : "Re-enable"
-            toggle_icon   = wh.active ? :x : :check
-            toggle_confirm = wh.active ? "Disable this webhook endpoint? No events will be delivered until you re-enable it." : nil
-            form(action: toggle_developers_webhook_path(wh.endpoint_id), method: "post",
-                 **(toggle_confirm ? { data: { turbo_confirm: toggle_confirm } } : {})) do
-              input(type: "hidden", name: "_method",            value: "patch")
-              input(type: "hidden", name: "authenticity_token", value: form_authenticity_token)
-              button(type: "submit", class: DROPDOWN_ITEM) do
+            toggle_label = wh.active ? "Disable" : "Re-enable"
+            toggle_icon  = wh.active ? :x : :check
+            if wh.active
+              a(href: disable_modal_developers_webhook_path(wh.endpoint_id),
+                class: DROPDOWN_ITEM,
+                data: { turbo_frame: "modal-frame" }) do
                 render UI::Icon.new(toggle_icon, class: ICON_SM)
                 plain toggle_label
               end
-            end
-            form(action: developers_webhook_path(wh.endpoint_id), method: "post",
-                 data: { turbo_confirm: "Remove this webhook endpoint? This cannot be undone." }) do
-              input(type: "hidden", name: "_method",            value: "delete")
-              input(type: "hidden", name: "authenticity_token", value: form_authenticity_token)
-              button(type: "submit", class: DROPDOWN_ITEM_DANGER) do
-                render UI::Icon.new(:x, class: ICON_SM)
-                plain "Remove"
+            else
+              form(action: toggle_developers_webhook_path(wh.endpoint_id), method: "post") do
+                input(type: "hidden", name: "_method",            value: "patch")
+                input(type: "hidden", name: "authenticity_token", value: form_authenticity_token)
+                button(type: "submit", class: DROPDOWN_ITEM) do
+                  render UI::Icon.new(toggle_icon, class: ICON_SM)
+                  plain toggle_label
+                end
               end
+            end
+            a(href: remove_modal_developers_webhook_path(wh.endpoint_id),
+              class: DROPDOWN_ITEM_DANGER,
+              data: { turbo_frame: "modal-frame" }) do
+              render UI::Icon.new(:x, class: ICON_SM)
+              plain "Remove"
             end
           end
         end
@@ -1055,7 +1055,7 @@ module Developers
         end
         t.column("Duration") { |d| span(class: TYPE_CAPTION) { plain d.formatted_duration } }
         t.column("Attempt")  { |d| span(class: TYPE_CAPTION) { plain d.attempt.to_s } }
-        t.column("Sent")     { |d| span(class: TYPE_CAPTION) { plain d.last_applied_at.strftime("%d %b, %H:%M") } }
+        t.column("Sent")     { |d| span(class: TYPE_CAPTION) { plain fmt_datetime(d.last_applied_at) } }
 
         t.actions do |d|
           a(href: developers_delivery_path(d),

@@ -5,9 +5,9 @@ module Settings
     include UI::Theme
 
     TIERS = [
-      { n: 1, label: "Basic",     limit: "GHS 1,000 / day",  short: "GHS 1,000/day" },
-      { n: 2, label: "In Review", limit: "GHS 10,000 / day", short: "GHS 10,000/day" },
-      { n: 3, label: "Verified",  limit: "No daily limit",   short: "Unlimited" }
+      { n: 1, label: "Test mode",  limit: "Simulation only — no live payments",    short: "Test only" },
+      { n: 2, label: "In review",  limit: "Live payments pending approval",         short: "Pending" },
+      { n: 3, label: "Live",       limit: "Full access — live payments enabled",    short: "Live" }
     ].freeze
 
     DOCS_TIER1 = [
@@ -292,20 +292,20 @@ module Settings
         { accent: "#16a34a", bg: "rgba(22,163,74,0.07)", border: "rgba(22,163,74,0.25)",
           icon_bg: "rgba(22,163,74,0.08)", icon_border: "rgba(22,163,74,0.20)",
           badge_bg: "rgba(22,163,74,0.10)",
-          title: "Account fully verified",
-          subtitle: "No transaction limits — live payments are fully enabled." }
+          title: "Live — account fully verified",
+          subtitle: "Your KYB is approved. Live payments are fully enabled." }
       when 2
         { accent: BRAND, bg: "rgba(61,71,245,0.06)", border: "rgba(61,71,245,0.18)",
           icon_bg: "rgba(61,71,245,0.08)", icon_border: "rgba(61,71,245,0.20)",
           badge_bg: "rgba(61,71,245,0.08)",
-          title: "Account verification in progress",
-          subtitle: "Yagye's compliance team is reviewing your documents." }
+          title: "KYB under review",
+          subtitle: "Our compliance team is reviewing your documents — usually 1–3 business days. Live payments will be enabled once approved." }
       else
         { accent: "#d97706", bg: "rgba(217,119,6,0.07)", border: "rgba(217,119,6,0.25)",
           icon_bg: "rgba(217,119,6,0.08)", icon_border: "rgba(217,119,6,0.20)",
           badge_bg: "rgba(217,119,6,0.08)",
-          title: "Verification required",
-          subtitle: "Submit your identity documents to unlock higher transaction limits." }
+          title: "Test mode — KYB required to go live",
+          subtitle: "You can test your integration with the simulator. Complete KYB to accept real payments." }
       end
     end
   end
