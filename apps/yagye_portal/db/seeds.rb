@@ -172,6 +172,23 @@ if Rails.env.development? || Rails.env.test?
 
   puts "Dev compliance: compliance@yagye.com / Yagye2026! (compliance_manager)"
 
+  # Ops analyst — second team manager for testing the maker/checker role change flow.
+  # admin@yagye.com creates role change requests; ops@yagye.com approves them.
+  ops = User.find_or_create_by!(email: "ops@yagye.com") do |u|
+    u.password               = "Yagye2026!"
+    u.first_name             = "Yagye"
+    u.last_name              = "Ops"
+    u.kind                   = "internal_staff"
+    u.otp_required_for_login = false
+  end
+
+  UserRole.find_or_create_by!(user_id: ops.id, role_key: "ops_analyst") do |ur|
+    ur.granted_by = admin
+    ur.granted_at = now
+  end
+
+  puts "Dev ops: ops@yagye.com / Yagye2026! (ops_analyst)"
+
   # Merchant owner — used to preview the Developers, Payments, Team pages
   DEMO_MERCHANT_CODE = "MCH_DEMO_001"
   DEMO_MERCHANT_NAME = "Kofi Builds Ltd"
