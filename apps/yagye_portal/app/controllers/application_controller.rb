@@ -65,8 +65,14 @@ class ApplicationController < ActionController::Base
   end
 
   def user_not_authorized
-    flash[:alert] = t("pundit.not_authorized")
-    redirect_back_or_to root_path, status: :see_other
+    if request.headers["Turbo-Frame"].present?
+      render "shared/not_authorized_frame",
+             layout: false, status: :forbidden,
+             locals: { frame_id: request.headers["Turbo-Frame"] }
+    else
+      flash[:alert] = t("pundit.not_authorized")
+      redirect_back_or_to root_path, status: :see_other
+    end
   end
 
   # CSRF token mismatch — most likely the session expired (Devise timeoutable

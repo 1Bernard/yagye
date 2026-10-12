@@ -94,18 +94,24 @@ module Team
       end
 
       def action_buttons(req)
-        div(class: "flex items-center gap-2 flex-shrink-0") do
-          a(href: reject_modal_team_role_request_path(req),
-            class: BTN_SECONDARY,
-            data: { turbo_frame: "modal-frame" }) do
-            render UI::Icon.new(:x, class: ICON_SM)
-            plain "Reject"
+        if req.requested_by_id == current_user.id
+          div(class: "flex items-center gap-2 flex-shrink-0") do
+            span(class: "text-[11.5px] text-gray-400 italic") { plain "Awaiting another approver" }
           end
-          a(href: approve_modal_team_role_request_path(req),
-            class: BTN_PRIMARY,
-            data: { turbo_frame: "modal-frame" }) do
-            render UI::Icon.new(:check, class: ICON_SM)
-            plain "Approve"
+        else
+          div(class: "flex items-center gap-2 flex-shrink-0") do
+            a(href: reject_modal_team_role_request_path(req),
+              class: BTN_SECONDARY,
+              data: { turbo_frame: "modal-frame" }) do
+              render UI::Icon.new(:x, class: ICON_SM)
+              plain "Reject"
+            end
+            a(href: approve_modal_team_role_request_path(req),
+              class: BTN_PRIMARY,
+              data: { turbo_frame: "modal-frame" }) do
+              render UI::Icon.new(:check, class: ICON_SM)
+              plain "Approve"
+            end
           end
         end
       end
