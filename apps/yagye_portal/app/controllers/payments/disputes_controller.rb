@@ -85,6 +85,25 @@ module Payments
       end
     end
 
+    def resolve_confirm_modal
+      authorize :disputes, :resolve?
+      @dispute = decode_id(Dispute)
+      outcome = params[:outcome].presence_in(%w[won lost])
+      return head(:not_found) unless outcome
+
+      won = outcome == "won"
+      render UI::ConfirmModal.new(
+        title:         won ? "Mark dispute as won" : "Mark dispute as lost",
+        body:          won ? "The payment will return to succeeded and the dispute will be closed." \
+                           : "The payment will transition to chargebacked and the dispute will be closed.",
+        confirm_path:  resolve_dispute_path(@dispute),
+        confirm_label: won ? "Mark as won" : "Mark as lost",
+        danger:        !won,
+        success:       won,
+        hidden_fields: { outcome: outcome }
+      )
+    end
+
     private
 
     def dispute_stats(scope)

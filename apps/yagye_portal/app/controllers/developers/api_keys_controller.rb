@@ -63,6 +63,19 @@ module Developers
       end
     end
 
+    def revoke_modal
+      authorize :developers, :manage_keys?
+      key = PortalApiKey.find_by!(key_id: params[:key_id])
+      render UI::ConfirmModal.new(
+        title:          "Revoke API key",
+        body:           "\"#{key.label}\" will be permanently revoked. Any integrations using this key will stop working immediately.",
+        confirm_path:   developers_key_path(key.key_id),
+        confirm_method: "delete",
+        confirm_label:  "Revoke key",
+        danger:         true
+      )
+    end
+
     def destroy
       authorize :developers, :manage_keys?
       result = CoreApiClient.new.revoke_api_key(params[:key_id], revoked_by: current_user.user_code)

@@ -154,6 +154,24 @@ if Rails.env.development? || Rails.env.test?
 
   puts "Dev admin: admin@yagye.com / Yagye2026! (ops_manager)"
 
+  # Compliance manager — separate user to preserve SoD in development.
+  # KYB approvals require reviewed_by ≠ approved_by at the core record level;
+  # giving a single user both roles would bypass that boundary in testing.
+  compliance = User.find_or_create_by!(email: "compliance@yagye.com") do |u|
+    u.password               = "Yagye2026!"
+    u.first_name             = "Yagye"
+    u.last_name              = "Compliance"
+    u.kind                   = "internal_staff"
+    u.otp_required_for_login = false
+  end
+
+  UserRole.find_or_create_by!(user_id: compliance.id, role_key: "compliance_manager") do |ur|
+    ur.granted_by = admin
+    ur.granted_at = now
+  end
+
+  puts "Dev compliance: compliance@yagye.com / Yagye2026! (compliance_manager)"
+
   # Merchant owner — used to preview the Developers, Payments, Team pages
   DEMO_MERCHANT_CODE = "MCH_DEMO_001"
   DEMO_MERCHANT_NAME = "Kofi Builds Ltd"
@@ -324,15 +342,15 @@ if Rails.env.development? || Rails.env.test?
     puts "\nSeeding demo payments for dashboard charts..."
 
     # Ghana MSISDN prefixes by telco — must match provider
-    momo_providers = [["mtn_momo", 60], ["telecel_cash", 25], ["airteltigo", 15]]
+    momo_providers = [ [ "mtn_momo", 60 ], [ "telecel_cash", 25 ], [ "airteltigo", 15 ] ]
     momo_prefixes  = {
       "mtn_momo"     => %w[024 054 055 059],
       "airteltigo"   => %w[026 027 056 057],
       "telecel_cash" => %w[020 025 050]
     }
-    amounts  = [1000, 2500, 2500, 5000, 5000, 10000, 10000, 25000, 50000, 100000]
+    amounts  = [ 1000, 2500, 2500, 5000, 5000, 10000, 10000, 25000, 50000, 100000 ]
     # method weights: 75% mobile_money, 18% card, 7% bank_transfer
-    methods  = [["mobile_money", 75], ["card", 18], ["bank_transfer", 7]]
+    methods  = [ [ "mobile_money", 75 ], [ "card", 18 ], [ "bank_transfer", 7 ] ]
 
     seeded = 0
     90.downto(1) do |days_ago|
@@ -356,13 +374,13 @@ if Rails.env.development? || Rails.env.test?
 
         s = rand(100)
         status, paid_offset = if s < 82
-          ["paid", rand(30..600)]
+          [ "paid", rand(30..600) ]
         elsif s < 92
-          ["failed", nil]
+          [ "failed", nil ]
         elsif s < 97
-          ["indeterminate", nil]
+          [ "indeterminate", nil ]
         else
-          ["processing", nil]
+          [ "processing", nil ]
         end
 
         created = ts.beginning_of_day + rand(21600..79200)

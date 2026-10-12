@@ -32,6 +32,18 @@ module Account
       end
     end
 
+    def remove_modal
+      skip_authorization
+      render UI::ConfirmModal.new(
+        title:          "Remove payout account",
+        body:           "This payout account will be permanently removed. This cannot be undone.",
+        confirm_path:   settings_payout_destination_remove_path(params[:id]),
+        confirm_method: "delete",
+        confirm_label:  "Remove account",
+        danger:         true
+      )
+    end
+
     def destroy
       skip_authorization
       result = CoreApiClient.new.deactivate_payout_destination(

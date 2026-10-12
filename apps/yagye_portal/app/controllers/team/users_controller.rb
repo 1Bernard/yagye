@@ -94,6 +94,18 @@ module Team
       end
     end
 
+    def suspend_modal
+      user = decode_id(User)
+      authorize user, :suspend?
+      render UI::ConfirmModal.new(
+        title:         "Suspend #{user.full_name}",
+        body:          "#{user.full_name} will immediately lose portal access and cannot sign in until reinstated.",
+        confirm_path:  suspend_team_user_path(user),
+        confirm_label: "Suspend user",
+        danger:        true
+      )
+    end
+
     def suspend
       user = decode_id(User)
       authorize user, :suspend?

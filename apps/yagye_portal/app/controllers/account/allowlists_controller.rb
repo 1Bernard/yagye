@@ -139,5 +139,70 @@ module Account
                                    metadata: { email: email })
       redirect_to settings_path(tab: "allowlists"), notice: "Email address removed from blocklist."
     end
+
+    def remove_ip_modal
+      entry = decode_id(PortalIpAllowlist)
+      authorize entry, policy_class: PortalIpAllowlistPolicy
+      render UI::ConfirmModal.new(
+        title:          "Remove IP from allowlist",
+        body:           "#{entry.cidr} will be removed from the IP allowlist.",
+        confirm_path:   settings_remove_ip_path(entry),
+        confirm_method: "delete",
+        confirm_label:  "Remove",
+        danger:         true
+      )
+    end
+
+    def remove_msisdn_modal
+      entry = decode_id(PortalMsisdnAllowlist)
+      authorize entry, policy_class: PortalMsisdnAllowlistPolicy
+      render UI::ConfirmModal.new(
+        title:          "Remove MSISDN from allowlist",
+        body:           "#{entry.msisdn} will be removed from the MSISDN allowlist.",
+        confirm_path:   settings_remove_msisdn_path(entry),
+        confirm_method: "delete",
+        confirm_label:  "Remove",
+        danger:         true
+      )
+    end
+
+    def remove_msisdn_block_modal
+      entry = decode_id(PortalMsisdnBlocklist)
+      authorize entry, policy_class: PortalMsisdnBlocklistPolicy
+      render UI::ConfirmModal.new(
+        title:          "Remove MSISDN from blocklist",
+        body:           "#{entry.msisdn} will be removed from the MSISDN blocklist.",
+        confirm_path:   settings_remove_msisdn_block_path(entry),
+        confirm_method: "delete",
+        confirm_label:  "Remove",
+        danger:         true
+      )
+    end
+
+    def remove_ip_block_modal
+      entry = decode_id(PortalIpBlocklist)
+      authorize entry, policy_class: PortalIpBlocklistPolicy
+      render UI::ConfirmModal.new(
+        title:          "Remove IP from blocklist",
+        body:           "#{entry.cidr} will be removed from the IP blocklist.",
+        confirm_path:   settings_remove_ip_block_path(entry),
+        confirm_method: "delete",
+        confirm_label:  "Remove",
+        danger:         true
+      )
+    end
+
+    def remove_email_block_modal
+      entry = decode_id(PortalEmailBlocklist)
+      authorize entry, policy_class: PortalEmailBlocklistPolicy
+      render UI::ConfirmModal.new(
+        title:          "Remove email from blocklist",
+        body:           "#{entry.email} will be removed from the email blocklist.",
+        confirm_path:   settings_remove_email_block_path(entry),
+        confirm_method: "delete",
+        confirm_label:  "Remove",
+        danger:         true
+      )
+    end
   end
 end

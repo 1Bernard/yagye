@@ -4,11 +4,37 @@ module Compliance
   class ApprovalsController < ApplicationController
     def index
       authorize PortalAdjustmentApproval, :index?, policy_class: PortalAdjustmentApprovalPolicy
-      scoped    = PortalAdjustmentApprovalPolicy::Scope.new(current_user, PortalAdjustmentApproval.all).resolve
-      pending   = scoped.pending_review
-      decided   = scoped.decided.limit(50)
-      can_decide = PortalAdjustmentApprovalPolicy.new(current_user, nil).approve?
-      render Compliance::Approvals::IndexView.new(pending: pending, decided: decided, can_decide: can_decide)
+      scoped        = PortalAdjustmentApprovalPolicy::Scope.new(current_user, PortalAdjustmentApproval.all).resolve
+      tab           = params[:tab].presence_in(%w[pending decided]) || "pending"
+      can_decide    = PortalAdjustmentApprovalPolicy.new(current_user, nil).approve?
+      pending_count = scoped.pending_review.count
+
+      pagy, records = if tab == "decided"
+        pagy(scoped.decided, limit: 25)
+      else
+        pagy(scoped.pending_review, limit: 25)
+      end
+
+      render Compliance::Approvals::IndexView.new(
+        tab:           tab,
+        records:       records,
+        pagy:          pagy,
+        pending_count: pending_count,
+        can_decide:    can_decide
+      )
+    end
+
+    def approve_modal
+      record = decode_id(PortalAdjustmentApproval)
+      authorize record, :approve?, policy_class: PortalAdjustmentApprovalPolicy
+      render UI::ConfirmModal.new(
+        title:        "Approve adjustment",
+        body:         "This adjustment will proceed to the ledger. A second approver has already signed off.",
+        warning_note: "This action cannot be undone.",
+        confirm_path: compliance_approve_approval_path(record),
+        confirm_label: "Approve adjustment",
+        success:      true
+      )
     end
 
     def approve

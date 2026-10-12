@@ -365,6 +365,13 @@ class CoreApiClient
     get("/internal/merchants/#{merchant_code}/screening-status")
   end
 
+  # PATCH /internal/merchants/:code/documents/:doc_id/review
+  def review_kyb_document(merchant_code, document_id, status:, reviewer_code:, reviewer_notes: nil)
+    patch("/internal/merchants/#{merchant_code}/documents/#{document_id}/review",
+          { status: status, reviewer_code: reviewer_code,
+            reviewer_notes: reviewer_notes }.compact)
+  end
+
   # ── Settlement dispatch approvals (SoD enforced in Core) ─────────────────
 
   # POST /internal/settlement-batches/:batch_id/approve-dispatch

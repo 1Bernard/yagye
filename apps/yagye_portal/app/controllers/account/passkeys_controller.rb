@@ -36,6 +36,19 @@ module Account
       render json: { error: e.message }, status: :unprocessable_entity
     end
 
+    def remove_modal
+      authorize :settings, :update?
+      cred = current_user.passkey_credentials.find(params[:id])
+      render UI::ConfirmModal.new(
+        title:          "Remove passkey",
+        body:           "\"#{cred.nickname || "Passkey"}\" will be removed. You won't be able to use it to sign in.",
+        confirm_path:   settings_remove_passkey_path(cred),
+        confirm_method: "delete",
+        confirm_label:  "Remove passkey",
+        danger:         true
+      )
+    end
+
     # DELETE /settings/passkeys/:id
     def destroy
       authorize :settings, :update?

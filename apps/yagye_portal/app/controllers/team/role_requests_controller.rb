@@ -13,6 +13,30 @@ module Team
       render Team::RoleRequests::IndexView.new(requests: requests, roles_by_key: roles_by_key)
     end
 
+    def approve_modal
+      req = RoleAssignmentRequest.find(params[:id])
+      authorize req, :approve?
+      render UI::ConfirmModal.new(
+        title:         "Approve role change",
+        body:          "#{req.target_user.full_name}'s access permissions will update immediately.",
+        confirm_path:  approve_team_role_request_path(req),
+        confirm_label: "Approve change",
+        success:       true
+      )
+    end
+
+    def reject_modal
+      req = RoleAssignmentRequest.find(params[:id])
+      authorize req, :reject?
+      render UI::ConfirmModal.new(
+        title:         "Reject role change",
+        body:          "The role change request for #{req.target_user.full_name} will be declined.",
+        confirm_path:  reject_team_role_request_path(req),
+        confirm_label: "Reject request",
+        danger:        true
+      )
+    end
+
     def approve
       req = RoleAssignmentRequest.find(params[:id])
       authorize req, :approve?

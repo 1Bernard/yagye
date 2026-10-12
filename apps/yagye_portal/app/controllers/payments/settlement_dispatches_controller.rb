@@ -39,6 +39,18 @@ module Payments
       end
     end
 
+    def approve_confirm_modal
+      authorize @settlement, :approve_dispatch?
+      render UI::ConfirmModal.new(
+        title:         "Approve dispatch",
+        body:          "The wire will be sent immediately and cannot be recalled.",
+        warning_note:  "Only approve if you have verified the settlement batch amount and beneficiary details.",
+        confirm_path:  approve_dispatch_settlement_path(@settlement.settlement_code),
+        confirm_label: "Approve dispatch",
+        success:       true
+      )
+    end
+
     private
 
     def set_settlement

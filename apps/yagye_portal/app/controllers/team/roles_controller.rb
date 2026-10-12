@@ -56,6 +56,19 @@ module Team
       end
     end
 
+    def delete_modal
+      role = Role.find(params[:key])
+      authorize role, :destroy?
+      render UI::ConfirmModal.new(
+        title:          "Delete role",
+        body:           "\"#{role.name}\" will be permanently removed. Users with this role will need to be reassigned.",
+        confirm_path:   team_role_path(role.key),
+        confirm_method: "delete",
+        confirm_label:  "Delete role",
+        danger:         true
+      )
+    end
+
     def destroy
       role = Role.find(params[:key])
       authorize role

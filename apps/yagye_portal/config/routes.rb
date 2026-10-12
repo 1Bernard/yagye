@@ -39,6 +39,7 @@ Rails.application.routes.draw do
     get   "disputes/:id",              to: "disputes#show",            as: :dispute
     post  "disputes/:id/evidence",    to: "disputes#submit_evidence", as: :dispute_evidence
     post  "disputes/:id/resolve",     to: "disputes#resolve",         as: :resolve_dispute
+    get   "disputes/:id/resolve/:outcome/confirm-modal", to: "disputes#resolve_confirm_modal", as: :resolve_confirm_modal_dispute
 
     get "customers",        to: "customers#index", as: :customers
     get "customers/:id",    to: "customers#show",  as: :customer
@@ -56,6 +57,11 @@ Rails.application.routes.draw do
     get   "merchants/:id",                         to: "merchants#show",               as: :merchant
     patch "merchants/:id",                         to: "merchants#update"
     post  "merchants/:id/kyb-approve",             to: "merchants#kyb_approve",        as: :kyb_approve_merchant
+    get   "merchants/:id/kyb-approve-modal",       to: "merchants#kyb_approve_modal",  as: :kyb_approve_modal_merchant
+    get   "merchants/:id/approve-modal",           to: "merchants#approve_modal",      as: :approve_modal_merchant
+    get   "merchants/:id/reject-modal",            to: "merchants#reject_modal",       as: :reject_modal_merchant
+    get   "merchants/:id/suspend-modal",           to: "merchants#suspend_modal",      as: :suspend_modal_merchant
+    get   "merchants/:id/reactivate-modal",        to: "merchants#reactivate_modal",   as: :reactivate_modal_merchant
     get   "merchants/:id/settlement-controls",     to: "settlement_controls#show",     as: :merchant_settlement_controls
     patch "merchants/:id/settlement-controls",     to: "settlement_controls#update"
   end
@@ -70,11 +76,18 @@ Rails.application.routes.draw do
     post "kyb-reviews/:id/assign",                                 to: "kyb_reviews#assign",          as: :assign_kyb_review
     post "kyb-reviews/:id/add-ubo",                                to: "kyb_reviews#add_ubo",         as: :add_ubo_kyb_review
     post "kyb-reviews/:id/grant-live",                             to: "kyb_reviews#grant_live",       as: :grant_live_kyb_review
-    get  "kyb-reviews/:id/documents/:document_id/download",        to: "kyb_reviews#download_document", as: :kyb_review_document_download
+    get   "kyb-reviews/:id/grant-live-modal",                      to: "kyb_reviews#grant_live_modal",  as: :grant_live_modal_kyb_review
+    get   "kyb-reviews/:id/approve-modal",                         to: "kyb_reviews#approve_modal",     as: :approve_modal_kyb_review
+    get   "kyb-reviews/:id/reject-modal",                          to: "kyb_reviews#reject_modal",      as: :reject_modal_kyb_review
+    get   "kyb-reviews/:id/add-ubo-modal",                         to: "kyb_reviews#add_ubo_modal",     as: :add_ubo_modal_kyb_review
+    get   "kyb-reviews/:id/documents/:document_id/download",       to: "kyb_reviews#download_document", as: :kyb_review_document_download
+    patch "kyb-reviews/:id/documents/:document_id/review",         to: "kyb_reviews#review_document",   as: :kyb_review_document_review
+    get   "kyb-reviews/:id/documents/:document_id/reject-modal",  to: "kyb_reviews#reject_document_modal", as: :reject_document_modal_kyb_review
 
     get  "compliance/approvals",          to: "approvals#index",   as: :compliance_approvals
     post "compliance/approvals/:id/approve", to: "approvals#approve", as: :compliance_approve_approval
     post "compliance/approvals/:id/reject",  to: "approvals#reject",  as: :compliance_reject_approval
+    get  "compliance/approvals/:id/approve-modal", to: "approvals#approve_modal", as: :approve_modal_compliance_approval
   end
 
   # ── Activity feed ────────────────────────────────────────────────────────
@@ -105,15 +118,17 @@ Rails.application.routes.draw do
     get  "payout-requests/:id",             to: "payout_requests#show",            as: :payout_request
     post "payout-requests/:id/approve",     to: "payout_requests#approve",         as: :approve_payout_request
     post "payout-requests/:id/reject",      to: "payout_requests#reject",          as: :reject_payout_request
-    get  "reconciliation",                                  to: "reconciliation#index",              as: :reconciliation
-    get  "reconciliation/filter",                           to: "reconciliation#filter",             as: :filter_reconciliation
-    get  "reconciliation/:id",                             to: "reconciliation#show",               as: :reconciliation_break
-    post "reconciliation/:id/propose-adjustment",          to: "reconciliation#propose_adjustment", as: :reconciliation_propose_adjustment
+    get  "reconciliation",                                      to: "reconciliation#index",                      as: :reconciliation
+    get  "reconciliation/filter",                               to: "reconciliation#filter",                     as: :filter_reconciliation
+    get  "reconciliation/:id",                                  to: "reconciliation#show",                       as: :reconciliation_break
+    get  "reconciliation/:id/propose-adjustment/modal",         to: "reconciliation#propose_adjustment_modal",   as: :reconciliation_propose_adjustment_modal
+    post "reconciliation/:id/propose-adjustment",               to: "reconciliation#propose_adjustment",         as: :reconciliation_propose_adjustment
     get  "settlements",                            to: "settlements#index",             as: :settlements
     get  "settlements/filter",                     to: "settlements#filter",            as: :filter_settlements
     get  "settlements/:id",                        to: "settlements#show",              as: :settlement
-    post "settlements/:id/approve-dispatch",       to: "settlement_dispatches#approve", as: :approve_dispatch_settlement
-    post "settlements/:id/reject-dispatch",        to: "settlement_dispatches#reject",  as: :reject_dispatch_settlement
+    post "settlements/:id/approve-dispatch",                    to: "settlement_dispatches#approve",              as: :approve_dispatch_settlement
+    get  "settlements/:id/approve-dispatch/confirm-modal",   to: "settlement_dispatches#approve_confirm_modal", as: :approve_dispatch_confirm_modal_settlement
+    post "settlements/:id/reject-dispatch",                  to: "settlement_dispatches#reject",               as: :reject_dispatch_settlement
   end
 
   scope module: "payments" do
@@ -127,12 +142,15 @@ Rails.application.routes.draw do
     post  "developers/routing-rules/:id/publish",        to: "routing_rules#publish", as: :publish_developers_routing_rule
     post   "developers/keys",                    to: "api_keys#create",   as: :developers_keys
     delete "developers/keys/:key_id",            to: "api_keys#destroy",  as: :developers_key
+    get    "developers/keys/:key_id/revoke-modal", to: "api_keys#revoke_modal", as: :revoke_modal_developers_key
     post   "developers/webhooks",                to: "webhooks#create",   as: :developers_webhooks
     patch  "developers/webhooks/:endpoint_id",        to: "webhooks#update",  as: :developers_webhook
     delete "developers/webhooks/:endpoint_id",        to: "webhooks#destroy"
     post   "developers/webhooks/:endpoint_id/test",   to: "webhooks#test",    as: :test_developers_webhook
     post   "developers/deliveries/:id/retry",         to: "webhook_deliveries#retry",         as: :retry_developers_delivery
     patch  "developers/webhooks/:endpoint_id/toggle", to: "webhooks#toggle_active",            as: :toggle_developers_webhook
+    get    "developers/webhooks/:endpoint_id/disable-modal", to: "webhooks#disable_modal", as: :disable_modal_developers_webhook
+    get    "developers/webhooks/:endpoint_id/remove-modal",  to: "webhooks#remove_modal",  as: :remove_modal_developers_webhook
   end
 
   # ── Team domain ──────────────────────────────────────────────────────────
@@ -146,17 +164,21 @@ Rails.application.routes.draw do
     get  "team/users/:id/edit-roles",   to: "users#edit_roles", as: :edit_roles_team_user
     post "team/users",                  to: "users#create",     as: :team_invite_user
     post "team/users/:id/suspend",      to: "users#suspend",     as: :suspend_team_user
+    get  "team/users/:id/suspend-modal", to: "users#suspend_modal", as: :suspend_modal_team_user
     post "team/users/:id/roles",        to: "users#assign_role", as: :assign_team_user_role
     put  "team/users/:id/roles",        to: "users#set_roles",   as: :set_team_user_roles
     get  "team/role-requests",              to: "role_requests#index",   as: :team_role_requests
     post "team/role-requests/:id/approve", to: "role_requests#approve", as: :approve_team_role_request
+    get  "team/role-requests/:id/approve-modal", to: "role_requests#approve_modal", as: :approve_modal_team_role_request
     post "team/role-requests/:id/reject",  to: "role_requests#reject",  as: :reject_team_role_request
+    get  "team/role-requests/:id/reject-modal",  to: "role_requests#reject_modal",  as: :reject_modal_team_role_request
     get    "team/roles",          to: "roles#index",   as: :team_roles
     get    "team/roles/new",      to: "roles#new",     as: :new_team_role
     post   "team/roles",          to: "roles#create"
     get    "team/roles/:key/edit", to: "roles#edit",   as: :edit_team_role
-    patch  "team/roles/:key",     to: "roles#update",  as: :team_role
-    delete "team/roles/:key",     to: "roles#destroy"
+    patch  "team/roles/:key",            to: "roles#update",       as: :team_role
+    delete "team/roles/:key",            to: "roles#destroy"
+    get    "team/roles/:key/delete-modal", to: "roles#delete_modal", as: :delete_modal_team_role
   end
 
   # ── Onboarding / KYB self-serve (merchant users only) ───────────────────
@@ -186,22 +208,29 @@ Rails.application.routes.draw do
     # Payout destinations management (dedicated page, merchant-only)
     post   "settings/payout-destinations",              to: "payout_destinations#create",      as: :settings_payout_destinations
     post   "settings/payout-destinations/:id/default", to: "payout_destinations#set_default", as: :settings_payout_destination_default
-    delete "settings/payout-destinations/:id",          to: "payout_destinations#destroy",     as: :settings_payout_destination_remove
+    delete "settings/payout-destinations/:id",           to: "payout_destinations#destroy",      as: :settings_payout_destination_remove
+    get    "settings/payout-destinations/:id/remove-modal", to: "payout_destinations#remove_modal", as: :remove_modal_settings_payout_destination
     get "help",                       to: "help#index",               as: :help
 
     post   "settings/allowlists/ip",              to: "allowlists#create_ip",           as: :settings_add_ip
-    delete "settings/allowlists/ip/:id",          to: "allowlists#destroy_ip",          as: :settings_remove_ip
+    delete "settings/allowlists/ip/:id",              to: "allowlists#destroy_ip",               as: :settings_remove_ip
+    get    "settings/allowlists/ip/:id/remove-modal", to: "allowlists#remove_ip_modal",          as: :remove_modal_settings_ip
     post   "settings/allowlists/msisdn",          to: "allowlists#create_msisdn",       as: :settings_add_msisdn
-    delete "settings/allowlists/msisdn/:id",      to: "allowlists#destroy_msisdn",      as: :settings_remove_msisdn
+    delete "settings/allowlists/msisdn/:id",          to: "allowlists#destroy_msisdn",          as: :settings_remove_msisdn
+    get    "settings/allowlists/msisdn/:id/remove-modal", to: "allowlists#remove_msisdn_modal",  as: :remove_modal_settings_msisdn
     post   "settings/blocklists/msisdn",          to: "allowlists#create_msisdn_block",     as: :settings_add_msisdn_block
-    delete "settings/blocklists/msisdn/:id",      to: "allowlists#destroy_msisdn_block",    as: :settings_remove_msisdn_block
+    delete "settings/blocklists/msisdn/:id",          to: "allowlists#destroy_msisdn_block",    as: :settings_remove_msisdn_block
+    get    "settings/blocklists/msisdn/:id/remove-modal", to: "allowlists#remove_msisdn_block_modal", as: :remove_modal_settings_msisdn_block
     post   "settings/blocklists/ip",              to: "allowlists#create_ip_block",         as: :settings_add_ip_block
-    delete "settings/blocklists/ip/:id",          to: "allowlists#destroy_ip_block",        as: :settings_remove_ip_block
+    delete "settings/blocklists/ip/:id",              to: "allowlists#destroy_ip_block",        as: :settings_remove_ip_block
+    get    "settings/blocklists/ip/:id/remove-modal", to: "allowlists#remove_ip_block_modal",   as: :remove_modal_settings_ip_block
     post   "settings/blocklists/email",           to: "allowlists#create_email_block",      as: :settings_add_email_block
-    delete "settings/blocklists/email/:id",       to: "allowlists#destroy_email_block",     as: :settings_remove_email_block
+    delete "settings/blocklists/email/:id",           to: "allowlists#destroy_email_block",     as: :settings_remove_email_block
+    get    "settings/blocklists/email/:id/remove-modal", to: "allowlists#remove_email_block_modal", as: :remove_modal_settings_email_block
 
     patch  "settings/business/branding",          to: "merchant_branding#update",           as: :settings_merchant_branding
-    delete "settings/business/branding/logo",     to: "merchant_branding#remove_logo",      as: :settings_remove_merchant_logo
+    delete "settings/business/branding/logo",         to: "merchant_branding#remove_logo",       as: :settings_remove_merchant_logo
+    get    "settings/business/branding/logo/remove-modal", to: "merchant_branding#remove_logo_modal", as: :remove_logo_modal_settings
 
     get    "settings/totp/new",              to: "totp#new",           as: :settings_totp_new
     post   "settings/totp",                  to: "totp#create",        as: :settings_totp
@@ -210,7 +239,8 @@ Rails.application.routes.draw do
 
     post   "settings/passkeys/register-challenge", to: "passkeys#register_challenge", as: :settings_passkey_register_challenge
     post   "settings/passkeys",                    to: "passkeys#create",             as: :settings_passkeys
-    delete "settings/passkeys/:id",                to: "passkeys#destroy",            as: :settings_remove_passkey
+    delete "settings/passkeys/:id",                    to: "passkeys#destroy",              as: :settings_remove_passkey
+    get    "settings/passkeys/:id/remove-modal",       to: "passkeys#remove_modal",          as: :remove_modal_settings_passkey
   end
 
   devise_scope :user do

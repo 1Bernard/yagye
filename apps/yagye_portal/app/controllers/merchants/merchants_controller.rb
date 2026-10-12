@@ -108,6 +108,75 @@ module Merchants
       end
     end
 
+    def kyb_approve_modal
+      authorize :merchants, :kyb_approve?
+      application = decode_id(PortalMerchantApplication)
+      render UI::ConfirmModal.new(
+        title:         "Complete KYB approval",
+        body:          "#{application.legal_name} will go live and can process real payments immediately.",
+        warning_note:  "Ensure all KYB documents and beneficial owner checks are complete before approving.",
+        confirm_path:  kyb_approve_merchant_path(application),
+        confirm_label: "Complete KYB approval",
+        success:       true
+      )
+    end
+
+    def approve_modal
+      authorize :merchants, :update?
+      application = decode_id(PortalMerchantApplication)
+      render UI::ConfirmModal.new(
+        title:          "Approve application",
+        body:           "A merchant account will be created for #{application.legal_name}.",
+        confirm_path:   merchant_path(application),
+        confirm_method: "patch",
+        confirm_label:  "Approve application",
+        success:        true,
+        hidden_fields:  { status: "approved" }
+      )
+    end
+
+    def reject_modal
+      authorize :merchants, :update?
+      application = decode_id(PortalMerchantApplication)
+      render UI::ConfirmModal.new(
+        title:          "Reject application",
+        body:           "Reject the application for #{application.legal_name}? This action cannot be undone.",
+        confirm_path:   merchant_path(application),
+        confirm_method: "patch",
+        confirm_label:  "Reject application",
+        danger:         true,
+        hidden_fields:  { status: "rejected" }
+      )
+    end
+
+    def suspend_modal
+      authorize :merchants, :update?
+      application = decode_id(PortalMerchantApplication)
+      render UI::ConfirmModal.new(
+        title:          "Suspend merchant",
+        body:           "#{application.legal_name} will immediately lose access to process payments.",
+        confirm_path:   merchant_path(application),
+        confirm_method: "patch",
+        confirm_label:  "Suspend merchant",
+        danger:         true,
+        hidden_fields:  { status: "suspended" }
+      )
+    end
+
+    def reactivate_modal
+      authorize :merchants, :update?
+      application = decode_id(PortalMerchantApplication)
+      render UI::ConfirmModal.new(
+        title:          "Reactivate merchant",
+        body:           "#{application.legal_name} will be able to process payments again.",
+        confirm_path:   merchant_path(application),
+        confirm_method: "patch",
+        confirm_label:  "Reactivate merchant",
+        success:        true,
+        hidden_fields:  { status: "active" }
+      )
+    end
+
     private
 
     def filters

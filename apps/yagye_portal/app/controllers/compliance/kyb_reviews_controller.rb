@@ -115,6 +115,52 @@ module Compliance
       end
     end
 
+    def approve_modal
+      authorize :kyb_reviews, :approve?
+      application = decode_id(PortalMerchantApplication)
+      render KybReviews::ApproveModalView.new(application: application)
+    end
+
+    def reject_modal
+      authorize :kyb_reviews, :show?
+      application = decode_id(PortalMerchantApplication)
+      render KybReviews::RejectModalView.new(application: application)
+    end
+
+    def add_ubo_modal
+      authorize :kyb_reviews, :show?
+      application = decode_id(PortalMerchantApplication)
+      render KybReviews::AddUboModalView.new(application: application)
+    end
+
+    def grant_live_modal
+      authorize :kyb_reviews, :approve?
+      application = decode_id(PortalMerchantApplication)
+      render UI::ConfirmModal.new(
+        title:        "Activate live mode",
+        body:         "#{application.legal_name} will be able to process real transactions immediately.",
+        warning_note: "Only activate after KYB tier 3+ has been confirmed and all compliance checks are cleared.",
+        confirm_path: grant_live_kyb_review_path(application),
+        confirm_label: "Activate live mode",
+        success:      true
+      )
+    end
+
+    def reject_document_modal
+      authorize :kyb_reviews, :approve?
+      application = decode_id(PortalMerchantApplication)
+      doc_id      = params[:document_id]
+      render UI::ConfirmModal.new(
+        title:          "Reject document",
+        body:           "This document will be marked as rejected. The merchant will need to re-upload.",
+        confirm_path:   kyb_review_document_review_path(application, doc_id),
+        confirm_method: "patch",
+        confirm_label:  "Reject document",
+        danger:         true,
+        hidden_fields:  { status: "rejected" }
+      )
+    end
+
     def add_ubo
       authorize :kyb_reviews, :approve?
       application = decode_id(PortalMerchantApplication)
@@ -122,17 +168,41 @@ module Compliance
         return redirect_to kyb_review_path(application), alert: "Merchant not yet registered in Core."
       end
 
-      subject_ref = SecureRandom.uuid
+      ownership_bps = (params[:ownership_pct].to_f * 100).round.clamp(0, 10_000)
+      subject_ref   = SecureRandom.uuid
       result = CoreApiClient.new.add_beneficial_owner(
         application.merchant_code,
         subject_ref:   subject_ref,
         role:          params[:role].to_s.presence_in(%w[director ubo both]) || "ubo",
-        ownership_bps: params[:ownership_bps].to_i.clamp(0, 10_000),
+        ownership_bps: ownership_bps,
         subject_name:  params[:subject_name].to_s.strip.presence,
         subject_dob:   params[:subject_dob].to_s.strip.presence
       )
       if result.success?
         redirect_to kyb_review_path(application), notice: "Beneficial owner added."
+      else
+        redirect_to kyb_review_path(application), alert: result.error_message
+      end
+    end
+
+    def review_document
+      authorize :kyb_reviews, :approve?
+      application = decode_id(PortalMerchantApplication)
+      status = params[:status].to_s.presence_in(%w[under_review approved rejected])
+      unless status
+        return redirect_to kyb_review_path(application), alert: "Invalid review status."
+      end
+      result = CoreApiClient.new.review_kyb_document(
+        application.merchant_code,
+        params[:document_id],
+        status:         status,
+        reviewer_code:  current_user.user_code,
+        reviewer_notes: params[:reviewer_notes].presence
+      )
+      if result.success?
+        label = { "under_review" => "marked for review", "approved" => "approved",
+                  "rejected" => "rejected" }.fetch(status, status)
+        redirect_to kyb_review_path(application), notice: "Document #{label}."
       else
         redirect_to kyb_review_path(application), alert: result.error_message
       end

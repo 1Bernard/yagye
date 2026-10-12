@@ -92,6 +92,32 @@ module Developers
       end
     end
 
+    def disable_modal
+      authorize :developers, :manage_webhooks?
+      wh = PortalWebhookEndpoint.kept.find_by!(endpoint_id: params[:endpoint_id])
+      render UI::ConfirmModal.new(
+        title:          "Disable webhook endpoint",
+        body:           "No events will be delivered to this endpoint until you re-enable it.",
+        confirm_path:   toggle_developers_webhook_path(wh.endpoint_id),
+        confirm_method: "patch",
+        confirm_label:  "Disable endpoint",
+        danger:         true
+      )
+    end
+
+    def remove_modal
+      authorize :developers, :manage_webhooks?
+      wh = PortalWebhookEndpoint.kept.find_by!(endpoint_id: params[:endpoint_id])
+      render UI::ConfirmModal.new(
+        title:          "Remove webhook endpoint",
+        body:           "This endpoint and all its delivery history will be permanently removed.",
+        confirm_path:   developers_webhook_path(wh.endpoint_id),
+        confirm_method: "delete",
+        confirm_label:  "Remove endpoint",
+        danger:         true
+      )
+    end
+
     def destroy
       authorize :developers, :manage_webhooks?
       result = CoreApiClient.new.remove_webhook_endpoint(

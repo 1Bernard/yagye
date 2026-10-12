@@ -19,6 +19,19 @@ module Account
       end
     end
 
+    def remove_logo_modal
+      branding = PortalMerchantBranding.find_or_initialize_for(current_user.merchant_code)
+      authorize branding, :update?, policy_class: PortalMerchantBrandingPolicy
+      render UI::ConfirmModal.new(
+        title:          "Remove logo",
+        body:           "Your merchant logo will be removed. You can upload a new one at any time.",
+        confirm_path:   settings_remove_merchant_logo_path,
+        confirm_method: "delete",
+        confirm_label:  "Remove logo",
+        danger:         true
+      )
+    end
+
     def remove_logo
       branding = PortalMerchantBranding.find_or_initialize_for(current_user.merchant_code)
       authorize branding, :update?, policy_class: PortalMerchantBrandingPolicy

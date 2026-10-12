@@ -184,7 +184,7 @@ module Onboarding
 
       result   = CoreApiClient.new.get_kyb_status(merchant_code)
       progress = KybProgress.new(result.success? ? result.body : {})
-      return head(:no_content) if progress.all_complete?
+      return head(:no_content) if progress.all_complete? && !progress.rejected?
 
       render Shared::KybBanner.new(progress: progress)
     end

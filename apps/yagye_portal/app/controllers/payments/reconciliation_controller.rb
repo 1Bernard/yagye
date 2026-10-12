@@ -38,6 +38,16 @@ module Payments
       end
     end
 
+    def propose_adjustment_modal
+      authorize :reconciliation, :propose_adjustment?
+      result = CoreApiClient.new.get_reconciliation_break(params[:id])
+      if result.success?
+        render Payments::Reconciliation::ProposeAdjustmentModalView.new(recon_break: result.body)
+      else
+        head :not_found
+      end
+    end
+
     def propose_adjustment
       authorize :reconciliation, :propose_adjustment?
       result = CoreApiClient.new.propose_reconciliation_adjustment(
