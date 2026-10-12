@@ -23,7 +23,7 @@ module Team
       roles           = user.user_roles.includes(:role).where(revoked_at: nil).order(:created_at)
       scope           = user.internal_staff? ? "internal" : "merchant"
       available_roles = Role.where(scope: scope).order(:name)
-      audit_events    = UserAuditEvent.where(user: user).recent.limit(15)
+      audit_events    = UserAuditEvent.where(user: user).recent.limit(9)
       pending_request = RoleAssignmentRequest.pending.find_by(target_user: user)
       render Team::Users::ShowView.new(
         user: user, roles: roles,
@@ -124,7 +124,7 @@ module Team
         redirect_to team_user_path(user), alert: "You cannot modify your own roles."
         return
       end
-      requested = Array(params[:role_keys]).reject(&:blank?)
+      requested = [ params[:role_key] ].compact.reject(&:blank?)
       current   = user.user_roles.active.pluck(:role_key)
       result = Team::RequestRoleChange.new(
         target_user:    user,

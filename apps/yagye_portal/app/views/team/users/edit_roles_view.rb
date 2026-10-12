@@ -11,7 +11,7 @@ module Team
       def initialize(user:, available_roles:, current_keys:)
         @user            = user
         @available_roles = available_roles
-        @current_keys    = current_keys
+        @current_key     = Array(current_keys).first
       end
 
       def view_template
@@ -32,8 +32,6 @@ module Team
                   @available_roles.each { |role| role_card(role) }
                 end
                 no_role_warning
-                sod_conflict_warning
-                sod_script
               end
             end
           end
@@ -43,21 +41,16 @@ module Team
 
       private
 
-      SoD_PAIRS_JSON = Portal::RoleMetadata::SoD_PAIRS.to_json.freeze
-
       def role_style
         style do
           plain <<~CSS
             .role-opt { transition: border-color 0.12s, background 0.12s; }
             .role-opt:has(input:checked) { border-color: rgba(61,71,245,0.5); background: rgba(61,71,245,0.04); }
             .role-opt:has(input:checked) .role-chk-box { background: #3D47F5; border-color: #3D47F5; }
-            .role-opt:has(input:checked) .role-chk-icon { display: flex; }
-            .role-chk-icon { display: none; }
+            .role-opt:has(input:checked) .role-chk-dot { display: block; }
+            .role-chk-dot { display: none; }
             .no-role-warn { display: none; }
-            #edit-roles-form:not(:has(input[type=checkbox]:checked)) .no-role-warn { display: flex; }
-            .sod-conflict-warn { display: none; }
-            .sod-conflict-warn.visible { display: flex; }
-            .role-opt.sod-blocked { border-color: rgba(220,38,38,0.4) !important; background: rgba(220,38,38,0.04) !important; }
+            #edit-roles-form:not(:has(input[type=radio]:checked)) .no-role-warn { display: flex; }
           CSS
         end
       end
@@ -104,6 +97,11 @@ module Team
               plain "Cancel"
             end
           end
+          p(class: "text-[11px] text-gray-400 mt-3") do
+            plain "To revoke access entirely, use "
+            a(href: "#", class: "underline text-gray-500", data: { action: "click->drawer#close" }) { plain "Suspend user" }
+            plain " from the profile page."
+          end
         end
       end
 
@@ -116,50 +114,6 @@ module Team
           body:        "Role changes are not applied immediately. A member with team management access must approve this request before any permissions change.",
           dismissable: true
         )
-      end
-
-      def sod_conflict_warning
-        div(class: "sod-conflict-warn items-center gap-3 rounded-xl px-4 py-3 mt-2",
-            id: "sod-conflict-warn",
-            style: "background:rgba(220,38,38,0.05);border:1px solid rgba(220,38,38,0.18)") do
-          span(class: "flex w-[14px] h-[14px] flex-shrink-0 text-red-500") do
-            render UI::Icon.new(:alert_circle, class: "w-full h-full")
-          end
-          p(class: "text-[12px] font-medium", style: "color:var(--ink)") do
-            plain "Separation of duties conflict — the selected roles cannot be held by the same person."
-          end
-        end
-      end
-
-      def sod_script
-        script do
-          raw safe(<<~JS)
-            (function() {
-              const SOD = #{SoD_PAIRS_JSON};
-              const form = document.getElementById("edit-roles-form");
-              const warn = document.getElementById("sod-conflict-warn");
-              if (!form || !warn) return;
-              function check() {
-                const checked = Array.from(form.querySelectorAll("input[type=checkbox]:checked")).map(i => i.value);
-                let conflict = false;
-                SOD.forEach(([a, b]) => {
-                  const blocked = checked.includes(a) && checked.includes(b);
-                  [a, b].forEach(key => {
-                    const opt = form.querySelector(`[data-role-key="${key}"]`);
-                    if (opt) opt.classList.toggle("sod-blocked", blocked && checked.includes(key));
-                  });
-                  if (blocked) conflict = true;
-                });
-                warn.classList.toggle("visible", conflict);
-                const submit = form.closest("[data-controller]")?.querySelector("[form='edit-roles-form'][type='submit']") ||
-                               document.querySelector("[form='edit-roles-form'][type='submit']");
-                if (submit) submit.disabled = conflict;
-              }
-              form.addEventListener("change", check);
-              check();
-            })();
-          JS
-        end
       end
 
       def no_role_warning
@@ -178,19 +132,17 @@ module Team
 
       def role_card(role)
         meta       = ROLE_META[role.key] || { icon: :key, palette: "brand" }
-        checked    = @current_keys.include?(role.key)
+        checked    = @current_key == role.key
         perm_count = role.permissions.size
 
         label(class: "role-opt flex items-center gap-3 px-4 py-[13px] rounded-xl border border-gray-200 cursor-pointer",
               data: { role_key: role.key }) do
-          input(type: "checkbox", name: "role_keys[]", value: role.key,
+          input(type: "radio", name: "role_key", value: role.key,
                 checked: checked, class: "sr-only")
 
-          div(class: "role-chk-box flex-shrink-0 w-[18px] h-[18px] rounded-[5px] border-2 border-gray-300 " \
+          div(class: "role-chk-box flex-shrink-0 w-[18px] h-[18px] rounded-full border-2 border-gray-300 " \
                      "flex items-center justify-center transition-colors") do
-            span(class: "role-chk-icon w-[10px] h-[10px] text-white") do
-              render UI::Icon.new(:check, class: "w-full h-full")
-            end
+            div(class: "role-chk-dot w-[8px] h-[8px] rounded-full bg-white flex-shrink-0")
           end
 
           div(class: "w-8 h-8 rounded-[10px] flex items-center justify-center flex-shrink-0 icon-#{meta[:palette]}") do
