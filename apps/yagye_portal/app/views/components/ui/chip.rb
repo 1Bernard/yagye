@@ -11,7 +11,7 @@ module UI
     end
 
     def view_template
-      span(class: "inline-flex items-center px-2.5 py-0.5 rounded-full text-[11px] font-medium #{@colors}") do
+      span(class: "inline-flex items-center w-fit px-2.5 py-0.5 rounded-full text-[11px] font-medium #{@colors}") do
         plain @label
       end
     end

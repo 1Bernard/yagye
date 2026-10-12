@@ -58,16 +58,9 @@ module Settings
             end
 
             if @branding&.logo&.attached?
-              form(action: settings_remove_merchant_logo_path, method: "post",
-                   data: { turbo_confirm: "Remove your logo?" }) do
-                input(type: "hidden", name: "_method",            value: "delete")
-                input(type: "hidden", name: "authenticity_token", value: form_authenticity_token)
-                button(type: "submit",
-                       class: "text-[12.5px] font-medium text-red-500 hover:text-red-700 " \
-                              "bg-transparent border-0 p-0 cursor-pointer transition-colors text-left") do
-                  plain "Remove logo"
-                end
-              end
+              a(href: remove_logo_modal_settings_path,
+                class: "text-[12.5px] font-medium text-red-500 hover:text-red-700 transition-colors",
+                data: { turbo_frame: "modal-frame" }) { plain "Remove logo" }
             end
 
             p(class: TYPE_CAPTION) do

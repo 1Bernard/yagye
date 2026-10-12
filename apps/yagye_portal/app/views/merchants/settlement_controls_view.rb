@@ -63,96 +63,81 @@ module Merchants
     end
 
     def controls_card
-      div(class: "bg-white border border-gray-100 rounded-2xl overflow-hidden") do
-        div(class: "px-6 py-5 border-b border-gray-100") do
-          p(class: TYPE_TITLE) { plain "Settlement Controls" }
-          p(class: "#{TYPE_CAPTION} mt-[3px]") do
+      render UI::Card.new do |c|
+        c.header("Settlement Controls") do
+          p(class: TYPE_CAPTION) do
             plain "Configure approval rules for #{@app.legal_name || @app.merchant_code}."
           end
         end
+        c.body(padding: false) do
+          form(action: merchant_settlement_controls_path(@app), method: "post",
+               data: { turbo: false }) do
+            input(type: "hidden", name: "_method",            value: "patch")
+            input(type: "hidden", name: "authenticity_token", value: form_authenticity_token)
 
-        form(action: merchant_settlement_controls_path(@app), method: "post",
-             data: { turbo: false }) do
-          input(type: "hidden", name: "_method",            value: "patch")
-          input(type: "hidden", name: "authenticity_token", value: form_authenticity_token)
-
-          threshold_section
-          approvers_section
-          save_footer
+            threshold_section
+            approvers_section
+            save_footer
+          end
         end
       end
     end
 
     def schedule_card
-      div(class: "bg-white border border-gray-100 rounded-2xl overflow-hidden") do
-        div(class: "px-6 py-5 border-b border-gray-100") do
-          p(class: TYPE_TITLE) { plain "Payout Schedule" }
-          p(class: "#{TYPE_CAPTION} mt-[3px]") do
+      render UI::Card.new do |c|
+        c.header("Payout Schedule") do
+          p(class: TYPE_CAPTION) do
             plain "When settled funds are released to #{@app.legal_name || @app.merchant_code}'s bank account."
           end
         end
+        c.body(padding: false) do
+          form(action: merchant_settlement_controls_path(@app), method: "post",
+               data: { turbo: false, controller: "schedule-picker" }) do
+            input(type: "hidden", name: "_method",            value: "patch")
+            input(type: "hidden", name: "authenticity_token", value: form_authenticity_token)
 
-        form(action: merchant_settlement_controls_path(@app), method: "post",
-             data: { turbo: false, controller: "schedule-picker" }) do
-          input(type: "hidden", name: "_method",            value: "patch")
-          input(type: "hidden", name: "authenticity_token", value: form_authenticity_token)
-
-          div(class: "px-6 py-5 border-b border-gray-100") do
-            div(class: "flex flex-col gap-4 max-w-sm") do
-              # Frequency
-              div do
-                label(class: "block text-[10.5px] font-semibold text-gray-400 uppercase tracking-widest mb-2") do
-                  plain "Release frequency"
-                end
-                select(
-                  name:  "settlement_frequency",
-                  class: "w-full h-9 border border-gray-200 rounded-xl px-3 text-[13px] font-medium text-gray-800 bg-white outline-none cursor-pointer",
-                  data:  { action: "change->schedule-picker#toggle", schedule_picker_target: "frequency" }
-                ) do
-                  option(value: "daily",   selected: frequency == "daily")   { plain "Daily — every business day" }
-                  option(value: "weekly",  selected: frequency == "weekly")  { plain "Weekly — pick a day" }
-                  option(value: "monthly", selected: frequency == "monthly") { plain "Monthly — pick a date" }
-                end
-              end
-
-              # Weekly day picker
-              div(data: { schedule_picker_target: "weekday" },
-                  style: frequency == "weekly" ? "" : "display:none") do
-                label(class: "block text-[10.5px] font-semibold text-gray-400 uppercase tracking-widest mb-2") do
-                  plain "Day of week"
-                end
-                select(
-                  name:  "settlement_day_weekly",
-                  class: "w-full h-9 border border-gray-200 rounded-xl px-3 text-[13px] font-medium text-gray-800 bg-white outline-none cursor-pointer"
-                ) do
-                  WEEKDAYS.each do |(day_name, val)|
-                    option(value: val, selected: frequency == "weekly" && settlement_day == val) { plain day_name }
+            div(class: "px-6 py-5 border-b border-gray-100") do
+              div(class: "flex flex-col gap-4 max-w-sm") do
+                div do
+                  label(class: "#{TEXT_LABEL} mb-1.5 block") { plain "Release frequency" }
+                  select(
+                    name:  "settlement_frequency",
+                    class: SELECT_FIELD,
+                    data:  { action: "change->schedule-picker#toggle", schedule_picker_target: "frequency" }
+                  ) do
+                    option(value: "daily",   selected: frequency == "daily")   { plain "Daily — every business day" }
+                    option(value: "weekly",  selected: frequency == "weekly")  { plain "Weekly — pick a day" }
+                    option(value: "monthly", selected: frequency == "monthly") { plain "Monthly — pick a date" }
                   end
                 end
-              end
 
-              # Monthly day picker
-              div(data: { schedule_picker_target: "monthday" },
-                  style: frequency == "monthly" ? "" : "display:none") do
-                label(class: "block text-[10.5px] font-semibold text-gray-400 uppercase tracking-widest mb-2") do
-                  plain "Day of month"
+                div(data: { schedule_picker_target: "weekday" },
+                    style: frequency == "weekly" ? "" : "display:none") do
+                  label(class: "#{TEXT_LABEL} mb-1.5 block") { plain "Day of week" }
+                  select(name: "settlement_day_weekly", class: SELECT_FIELD) do
+                    WEEKDAYS.each do |(day_name, val)|
+                      option(value: val, selected: frequency == "weekly" && settlement_day == val) { plain day_name }
+                    end
+                  end
                 end
-                select(
-                  name:  "settlement_day_monthly",
-                  class: "w-full h-9 border border-gray-200 rounded-xl px-3 text-[13px] font-medium text-gray-800 bg-white outline-none cursor-pointer"
-                ) do
-                  MONTH_DAYS.each do |(day_label, val)|
-                    option(value: val, selected: frequency == "monthly" && settlement_day == val) { plain day_label }
+
+                div(data: { schedule_picker_target: "monthday" },
+                    style: frequency == "monthly" ? "" : "display:none") do
+                  label(class: "#{TEXT_LABEL} mb-1.5 block") { plain "Day of month" }
+                  select(name: "settlement_day_monthly", class: SELECT_FIELD) do
+                    MONTH_DAYS.each do |(day_label, val)|
+                      option(value: val, selected: frequency == "monthly" && settlement_day == val) { plain day_label }
+                    end
                   end
                 end
               end
             end
-          end
 
-          div(class: "px-6 py-4 flex justify-end") do
-            render UI::Button.new(variant: :primary, type: "submit") do
-              render UI::Icon.new(:check, class: ICON_SM)
-              plain "Save schedule"
+            div(class: "px-6 py-4 flex justify-end") do
+              render UI::Button.new(variant: :primary, type: "submit") do
+                render UI::Icon.new(:check, class: ICON_SM)
+                plain "Save schedule"
+              end
             end
           end
         end
@@ -161,9 +146,7 @@ module Merchants
 
     def threshold_section
       div(class: "px-6 py-5 border-b border-gray-100") do
-        p(class: "text-[10.5px] font-semibold text-gray-400 uppercase tracking-widest mb-3") do
-          plain "Approval threshold (GHS)"
-        end
+        p(class: "#{TEXT_LABEL} mb-3") { plain "Approval threshold (GHS)" }
         div(class: "relative max-w-xs") do
           span(class: "absolute left-3 top-1/2 -translate-y-1/2 text-[13px] font-medium text-gray-400") do
             plain "GHS"
@@ -187,9 +170,7 @@ module Merchants
 
     def approvers_section
       div(class: "px-6 py-5 border-b border-gray-100") do
-        p(class: "text-[10.5px] font-semibold text-gray-400 uppercase tracking-widest mb-1") do
-          plain "Approvers"
-        end
+        p(class: "#{TEXT_LABEL} mb-1") { plain "Approvers" }
         p(class: "#{TYPE_CAPTION} mb-4") do
           plain "Select Yagye team members who can approve settlement dispatch for this merchant."
         end

@@ -88,8 +88,7 @@ module Team
       def drawer_footer
         div(class: "sticky bottom-0 bg-white border-t border-gray-100 px-6 py-4") do
           div(class: "flex items-center gap-3 mb-3") do
-            span(class: "inline-flex items-center gap-[5px] text-[10.5px] font-semibold px-[8px] py-[3px] rounded-full",
-                 style: "background:rgba(61,71,245,0.08);color:#3D47F5;border:1px solid rgba(61,71,245,0.22)") do
+            span(class: "badge-blue inline-flex items-center gap-[5px] #{BADGE}") do
               span(class: "flex w-[9px] h-[9px]") { render UI::Icon.new(:shield, class: "w-full h-full") }
               plain "Maker / Checker required"
             end

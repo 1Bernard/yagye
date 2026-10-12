@@ -232,7 +232,7 @@ module Team
           # Section heading
           div(class: "flex items-center justify-between px-6 py-4 border-b border-gray-100") do
             p(class: "text-[13px] font-semibold", style: "color:var(--ink)") { plain "Permissions" }
-            span(class: "badge-gray text-[11px] font-semibold px-[10px] py-[3px] rounded-full",
+            span(class: "badge-gray #{BADGE}",
                  **(@locked ? {} : { data: { role_scope_target: "permCount" } })) do
               plain "#{total} available"
             end
@@ -265,7 +265,7 @@ module Team
               end
             end
             p(class: "flex-1 text-[12px] font-semibold", style: "color:var(--ink)") { plain label_str }
-            span(class: "badge-gray text-[10px] font-semibold px-[7px] py-[2px] rounded-full") do
+            span(class: "badge-gray #{BADGE_XS}") do
               plain "#{perms.size}"
             end
           end

@@ -99,7 +99,7 @@ module Team
               end
               p(class: "text-[14px] font-semibold text-gray-900") { plain title }
             end
-            span(class: "#{badge_cls} text-[10.5px] font-semibold px-[10px] py-[3px] rounded-full") do
+            span(class: "#{badge_cls} #{BADGE}") do
               plain "#{roles.size} role#{roles.size == 1 ? '' : 's'}"
             end
           end
@@ -130,7 +130,7 @@ module Team
             div(class: "flex items-center gap-[7px] mb-[3px]") do
               p(class: "text-[13px] font-semibold text-gray-900") { plain role.name }
               if role.system_role?
-                span(class: "badge-blue text-[9.5px] font-bold px-[7px] py-[2px] rounded-full leading-tight") do
+                span(class: "badge-blue #{BADGE_XS}") do
                   plain "System"
                 end
               end
@@ -153,14 +153,11 @@ module Team
                 plain "Edit"
               end
               if deletable
-                form(action: team_role_path(role.key), method: "post",
-                     data: { turbo_confirm: "Delete \"#{role.name}\"? This cannot be undone." }) do
-                  input(type: "hidden", name: "_method",            value: "delete")
-                  input(type: "hidden", name: "authenticity_token", value: form_authenticity_token)
-                  render UI::Button.new(variant: :danger, type: "submit") do
-                    render UI::Icon.new(:x, class: ICON_SM)
-                    plain "Delete"
-                  end
+                a(href: delete_modal_team_role_path(role.key),
+                  class: "#{BTN_DANGER} inline-flex",
+                  data: { turbo_frame: "modal-frame" }) do
+                  render UI::Icon.new(:x, class: ICON_SM)
+                  plain "Delete"
                 end
               end
             end

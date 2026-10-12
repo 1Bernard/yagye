@@ -107,6 +107,9 @@ module UI
     BTN_PRIMARY   = "bg-[#3D47F5] hover:opacity-90 text-white font-medium rounded-[8px] " \
                     "text-[12.5px] px-3 py-[5px] transition-opacity inline-flex items-center gap-[5px] " \
                     "disabled:opacity-50 disabled:cursor-not-allowed border-0 cursor-pointer"
+    BTN_SUCCESS   = "bg-green-600 hover:opacity-90 text-white font-medium rounded-[8px] " \
+                    "text-[12.5px] px-3 py-[5px] transition-opacity inline-flex items-center gap-[5px] " \
+                    "disabled:opacity-50 disabled:cursor-not-allowed border-0 cursor-pointer"
     BTN_SECONDARY = "bg-white hover:border-gray-300 text-gray-700 border border-gray-200 " \
                     "font-medium rounded-[8px] text-[12.5px] px-3 py-[5px] transition-colors " \
                     "inline-flex items-center gap-[5px] cursor-pointer"
@@ -287,8 +290,6 @@ module UI
     ERROR_ITEM   = "text-xs text-red-600 space-y-0.5 list-disc list-inside"
 
     # ── Status semantic colours ────────────────────────────────────────────
-    # Direct Tailwind pairs — same formula as SOURCE_COLORS in checkout session tables.
-    # badge-* CSS class names are kept separately for BADGE_* button-style badges.
     STATUS_SUCCESS = "bg-green-50 text-green-700"
     STATUS_FAILED  = "bg-red-50 text-red-600"
     STATUS_PENDING = "bg-violet-50 text-violet-700"
@@ -300,6 +301,11 @@ module UI
     PRIORITY_HIGH   = "badge-red"
     PRIORITY_MEDIUM = "badge-blue"
     PRIORITY_LOW    = "badge-violet"
+
+    # ── badge-* sizing standard ────────────────────────────────────────────
+    # Pair with a badge-* CSS class: `"badge-green #{BADGE}"`.
+    BADGE    = "inline-flex items-center w-fit text-[11px] font-medium px-2.5 py-0.5 rounded-full"
+    BADGE_XS = "inline-flex items-center w-fit text-[9.5px] font-bold px-[6px] py-[2px] rounded-full leading-tight"
 
     # ── Status dispatch ────────────────────────────────────────────────────
     STATUS_MAP = {
@@ -313,14 +319,17 @@ module UI
       "clean"              => STATUS_SUCCESS,
       "won"                => STATUS_SUCCESS,
       "collected"          => STATUS_SUCCESS,
+      "reconciled"         => STATUS_SUCCESS,
       # ── Red: terminal failure / urgent ───────────────────────────────────
-      "failed"             => STATUS_FAILED,
-      "rejected"           => STATUS_FAILED,
-      "expired"            => STATUS_FAILED,
-      "blocked"            => STATUS_FAILED,
-      "lost"               => STATUS_FAILED,
-      "true_match_blocked" => STATUS_FAILED,
-      "overdue"            => STATUS_FAILED,  # past due date = urgent, not just warning
+      "failed"                  => STATUS_FAILED,
+      "rejected"                => STATUS_FAILED,
+      "rejected_by_psp"         => STATUS_FAILED,
+      "expired"                 => STATUS_FAILED,
+      "blocked"                 => STATUS_FAILED,
+      "lost"                    => STATUS_FAILED,
+      "true_match_blocked"      => STATUS_FAILED,
+      "confirmed_match_blocked" => STATUS_FAILED,
+      "overdue"                 => STATUS_FAILED,  # past due date = urgent, not just warning
       # ── Violet: in-flight / under review ────────────────────────────────
       "processing"         => STATUS_PENDING,
       "pending"            => STATUS_PENDING,
@@ -330,6 +339,8 @@ module UI
       "confirmed_pep"      => STATUS_PENDING,
       "potential_match"    => STATUS_PENDING,
       # ── Amber: warnings / partial states / needs attention ───────────────
+      "submitted"          => STATUS_WARNING,  # application awaiting initial review
+      "uploaded"           => STATUS_WARNING,  # document uploaded, awaiting review
       "disputed"           => STATUS_WARNING,
       "refunded"           => STATUS_WARNING,
       "partially_refunded" => STATUS_WARNING,
@@ -338,14 +349,32 @@ module UI
       "partially_paid"     => STATUS_WARNING,
       "indeterminate"      => STATUS_WARNING,  # ambiguous payment outcome — show amber, not gray
       "requires_action"    => STATUS_WARNING,
-      # ── Blue: open / awaiting action ────────────────────────────────────
+      # ── Blue: open / informational ──────────────────────────────────────
       "open"               => STATUS_INFO,
+      "assigned"           => STATUS_INFO,   # break assigned to someone
+      "medium"             => STATUS_INFO,   # medium severity
+      # ── Reconciliation break states ──────────────────────────────────────
+      "detected"           => STATUS_FAILED,
+      "escalated"          => STATUS_FAILED,
+      "triaged"            => STATUS_WARNING,
+      "investigating"      => STATUS_PENDING,
+      "resolved"           => STATUS_SUCCESS,
+      "written_off"        => STATUS_NEUTRAL,
+      # ── Severity levels ──────────────────────────────────────────────────
+      "critical"           => STATUS_FAILED,
+      "high"               => STATUS_WARNING,
+      "low"                => STATUS_NEUTRAL,
+      # ── Routing configuration lifecycle ──────────────────────────────────
+      "published"          => STATUS_SUCCESS,
+      "archived"           => STATUS_NEUTRAL,
       # ── Gray: neutral / terminal non-events ──────────────────────────────
+      "pending_upload"     => STATUS_NEUTRAL,  # document slot not yet filled
       "draft"              => STATUS_NEUTRAL,
       "void"               => STATUS_NEUTRAL,
       "uncollectible"      => STATUS_NEUTRAL,
       "cancelled"          => STATUS_NEUTRAL,
-      "returned"           => STATUS_NEUTRAL
+      "returned"           => STATUS_NEUTRAL,
+      "closed"             => STATUS_NEUTRAL
     }.freeze
 
     def self.status_classes(status)
