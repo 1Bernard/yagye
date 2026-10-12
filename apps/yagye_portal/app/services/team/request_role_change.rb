@@ -9,6 +9,7 @@ module Team
     def initialize(target_user:, requested_by:, requested_keys:, current_keys:)
       @target_user    = target_user
       @requested_by   = requested_by
+      @actor          = requested_by
       @requested_keys = Array(requested_keys).map(&:to_s).sort
       @current_keys   = Array(current_keys).map(&:to_s).sort
     end

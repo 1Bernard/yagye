@@ -70,6 +70,16 @@ FactoryBot.define do
     end
   end
 
+  # ── Role assignment requests ──────────────────────────────────────────────
+
+  factory :role_assignment_request do
+    association :target_user,  factory: :merchant_user
+    association :requested_by, factory: :internal_staff_user
+    current_role_keys   { [ "merchant_finance" ] }
+    requested_role_keys { [ "merchant_owner" ] }
+    status              { "pending" }
+  end
+
   # ── Payments ──────────────────────────────────────────────────────────────
 
   factory :payment do
