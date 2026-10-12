@@ -182,12 +182,12 @@ if Rails.env.development? || Rails.env.test?
     u.otp_required_for_login = false
   end
 
-  UserRole.find_or_create_by!(user_id: ops.id, role_key: "ops_analyst") do |ur|
+  UserRole.find_or_create_by!(user_id: ops.id, role_key: "ops_manager") do |ur|
     ur.granted_by = admin
     ur.granted_at = now
   end
 
-  puts "Dev ops: ops@yagye.com / Yagye2026! (ops_analyst)"
+  puts "Dev ops: ops@yagye.com / Yagye2026! (ops_manager)"
 
   # Merchant owner — used to preview the Developers, Payments, Team pages
   DEMO_MERCHANT_CODE = "MCH_DEMO_001"
