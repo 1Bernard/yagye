@@ -22,6 +22,7 @@ module Notifications
         notif = create_notification(user)
         broadcast_to_topbar(user, notif)
         deliver_email(user, notif) if email_enabled?(user)
+        deliver_sms(user, notif)   if sms_enabled?(user)
       end
     rescue StandardError => e
       Rails.logger.error("[Notifications::DeliveryService] #{e.class}: #{e.message}")
@@ -76,8 +77,20 @@ module Notifications
       Rails.logger.warn("[Notifications] email failed for user #{user.id}: #{e.message}")
     end
 
+    def deliver_sms(user, notif)
+      return unless user.phone_number.present?
+      content = "#{notif.title}: #{notif.body}".truncate(160)
+      SmsNotifier.notify(to: user.phone_number, content: content, tag: @event_type)
+    rescue StandardError => e
+      Rails.logger.warn("[Notifications] SMS failed for user #{user.id}: #{e.message}")
+    end
+
     def email_enabled?(user)
       user.notification_pref("channels", "email")
+    end
+
+    def sms_enabled?(user)
+      user.phone_number.present? && user.notification_pref("channels", "sms")
     end
   end
 end

@@ -5,8 +5,10 @@ module Team
     class IndexView < ApplicationComponent
       include UI::Theme
 
-      ROLE_META = (Portal::RoleMetadata::MERCHANT + Portal::RoleMetadata::INTERNAL)
-                    .index_by { |r| r[:key] }.freeze
+      ROLE_META      = (Portal::RoleMetadata::MERCHANT + Portal::RoleMetadata::INTERNAL)
+                         .index_by { |r| r[:key] }.freeze
+      SLA_WARNING_H  = 24
+      SLA_BREACH_H   = 48
 
       def initialize(requests:, roles_by_key:)
         @requests     = requests
@@ -24,11 +26,12 @@ module Team
         ) do
           render UI::PageHeader.new(
             title:    "Role change requests",
-            subtitle: "#{@requests.size} pending #{@requests.size == 1 ? 'request' : 'requests'} require a second approver"
+            subtitle: "#{@requests.size} pending #{@requests.size == 1 ? 'request' : 'requests'} · oldest first"
           )
           if @requests.empty?
             empty_state
           else
+            backlog_banner
             div(class: "flex flex-col gap-3") do
               @requests.each { |req| request_card(req) }
             end
@@ -37,6 +40,69 @@ module Team
       end
 
       private
+
+      # ── SLA helpers ─────────────────────────────────────────────────────────
+
+      def age_hours(time)
+        (Time.current - time) / 3600.0
+      end
+
+      def age_category(time)
+        h = age_hours(time)
+        return :breach  if h >= SLA_BREACH_H
+        return :warning if h >= SLA_WARNING_H
+        :ok
+      end
+
+      def time_ago(time)
+        diff = Time.current - time
+        case diff
+        when 0..59      then "just now"
+        when 60..3599   then "#{(diff / 60).to_i}m ago"
+        when 3600..86399 then "#{(diff / 3600).to_i}h ago"
+        else
+          days  = (diff / 86400).to_i
+          hours = ((diff % 86400) / 3600).to_i
+          hours > 0 ? "#{days}d #{hours}h ago" : "#{days}d ago"
+        end
+      end
+
+      # ── Backlog banner ───────────────────────────────────────────────────────
+
+      def backlog_banner
+        breach_count  = @requests.count { |r| age_category(r.created_at) == :breach }
+        warning_count = @requests.count { |r| age_category(r.created_at) == :warning }
+
+        if breach_count > 0
+          oldest = @requests.min_by(&:created_at)
+          n      = breach_count
+          msg    = "#{n} #{n == 1 ? 'request has' : 'requests have'} been pending over 48 hours — " \
+                   "SLA breach. Oldest: #{time_ago(oldest.created_at)}."
+          alert_banner(:breach, msg)
+        elsif warning_count > 0
+          n   = warning_count
+          msg = "#{n} #{n == 1 ? 'request is' : 'requests are'} approaching the 48-hour SLA limit."
+          alert_banner(:warning, msg)
+        end
+      end
+
+      def alert_banner(level, msg)
+        bg, border, icon_cls, text_cls, icon =
+          if level == :breach
+            [ "bg-red-50", "border-red-200", "text-red-500", "text-red-800", :alert_circle ]
+          else
+            [ "bg-amber-50", "border-amber-200", "text-amber-500", "text-amber-800", :clock ]
+          end
+
+        div(class: "mb-4 flex items-center gap-3 px-4 py-3 #{bg} border #{border} rounded-xl") do
+          span(class: "flex-shrink-0 w-4 h-4 #{icon_cls}") do
+            render UI::Icon.new(icon, class: "w-full h-full")
+          end
+          p(class: "text-[13px] #{text_cls}") { plain msg }
+        end
+      end
+
+      # ── Cards ────────────────────────────────────────────────────────────────
 
       def empty_state
         div(class: "#{SURFACE_CARD} px-8 py-14 flex flex-col items-center text-center gap-3") do
@@ -51,6 +117,7 @@ module Team
       def request_card(req)
         added   = req.added_keys
         removed = req.removed_keys
+        cat     = age_category(req.created_at)
 
         div(class: "#{SURFACE_CARD} overflow-hidden") do
           div(class: "px-6 py-5 flex items-start justify-between gap-4") do
@@ -61,13 +128,12 @@ module Team
                   p(class: "text-[14px] font-bold tracking-[-0.01em]", style: "color:var(--ink)") do
                     plain req.target_user.full_name
                   end
-                  span(class: "badge-amber #{BADGE}") do
-                    plain "Pending approval"
+                  span(class: "badge-amber #{BADGE}") { plain "Pending approval" }
+                  if cat == :breach
+                    span(class: "badge-red #{BADGE}") { plain "SLA breach" }
                   end
                 end
-                p(class: TYPE_CAPTION) do
-                  plain "Requested by #{req.requested_by.full_name} · #{time_ago(req.created_at)}"
-                end
+                age_row(req, cat)
                 div(class: "flex flex-wrap gap-[6px] mt-3") do
                   added.each   { |k| role_diff_pill(k, :add) }
                   removed.each { |k| role_diff_pill(k, :remove) }
@@ -79,6 +145,19 @@ module Team
             end
             action_buttons(req)
           end
+        end
+      end
+
+      def age_row(req, cat)
+        time_cls = case cat
+                   when :breach  then "text-red-600 font-medium"
+                   when :warning then "text-amber-600 font-medium"
+                   else               ""
+                   end
+
+        p(class: TYPE_CAPTION) do
+          plain "Requested by #{req.requested_by.full_name} · "
+          span(class: time_cls) { plain time_ago(req.created_at) }
         end
       end
 
@@ -118,16 +197,6 @@ module Team
 
       def initials_for(user)
         user.full_name.split.map { |w| w[0] }.first(2).join.upcase
-      end
-
-      def time_ago(time)
-        diff = Time.current - time
-        case diff
-        when 0..59      then "just now"
-        when 60..3599   then "#{(diff / 60).to_i}m ago"
-        when 3600..86399 then "#{(diff / 3600).to_i}h ago"
-        else                 time.strftime("%d %b")
-        end
       end
     end
   end

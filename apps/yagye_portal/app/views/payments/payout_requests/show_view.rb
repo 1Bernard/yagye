@@ -119,7 +119,7 @@ module Payments
                                       data: { action: "click->copy-note#copy",
                                               copy_note_source_param: "review_note",
                                               copy_note_target_param: "reject_note" }) do
-                  render UI::Icon.new(:x_circle, class: ICON_SM)
+                  render UI::Icon.new(:alert_circle, class: ICON_SM)
                   plain "Reject"
                 end
               end

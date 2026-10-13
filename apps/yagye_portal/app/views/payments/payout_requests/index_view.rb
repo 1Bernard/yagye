@@ -28,7 +28,7 @@ module Payments
         render UI::Grid.new(columns: 3) do
           stat_cell("Pending Review", @stats[:pending].to_s,  icon: :clock,        color: AMBER, tint: TINT_AMBER)
           stat_cell("Approved",       @stats[:approved].to_s, icon: :check_circle, color: GREEN, tint: TINT_GREEN)
-          stat_cell("Rejected",       @stats[:rejected].to_s, icon: :x_circle,     color: RED,   tint: TINT_RED)
+          stat_cell("Rejected",       @stats[:rejected].to_s, icon: :alert_circle,     color: RED,   tint: TINT_RED)
         end
       end
 

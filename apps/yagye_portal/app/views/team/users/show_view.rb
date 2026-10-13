@@ -205,6 +205,9 @@ module Team
       # ── Activity card ─────────────────────────────────────────────────────────
 
       def activity_card
+        visible  = @audit_events.first(8)
+        has_more = @audit_events.size > 8
+
         render UI::Card.new do |c|
           c.header("Recent activity")
           c.body(padding: false) do
@@ -218,7 +221,16 @@ module Team
               end
             else
               div(class: "divide-rows") do
-                @audit_events.each { |event| activity_row(event) }
+                visible.each { |event| activity_row(event) }
+              end
+              if has_more
+                div(class: "border-t border-gray-100") do
+                  a(href: team_activity_log_path,
+                    class: "flex items-center justify-center gap-[6px] px-5 py-3 text-[12px] font-medium text-gray-400 hover:text-gray-700 no-underline transition-colors") do
+                    plain "View full activity log"
+                    span(class: "flex w-[12px] h-[12px]") { render UI::Icon.new(:chev_right, class: "w-full h-full") }
+                  end
+                end
               end
             end
           end

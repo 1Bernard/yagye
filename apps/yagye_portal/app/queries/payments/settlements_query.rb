@@ -14,6 +14,12 @@ module Payments
 
     def call(filters = {})
       scoped = @relation
+      # Translate portal binary mode → Core 3-value enum stored in portal_settlements.mode.
+      # Ops (Current.mode = nil) sees all modes.
+      if Current.mode
+        modes = Current.mode == "live" ? %w[live] : %w[simulation sandbox]
+        scoped = scoped.where(portal_settlements: { mode: modes })
+      end
       scoped = scoped.where(portal_settlements: { state: filters[:state] }) if filters[:state].present?
       scoped = scoped.where("portal_settlements.value_date >= ?", filters[:from]) if filters[:from].present?
       scoped = scoped.where("portal_settlements.value_date <= ?", filters[:to])   if filters[:to].present?

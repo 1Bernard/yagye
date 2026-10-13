@@ -7,7 +7,8 @@ module Team
       requests = policy_scope(RoleAssignmentRequest)
                    .pending
                    .includes(:target_user, :requested_by)
-                   .recent
+                   .order(created_at: :asc)
+                   .limit(100)
       role_keys = requests.flat_map { |r| r.current_role_keys + r.requested_role_keys }.uniq
       roles_by_key = Role.where(key: role_keys).index_by(&:key)
       render Team::RoleRequests::IndexView.new(requests: requests, roles_by_key: roles_by_key)

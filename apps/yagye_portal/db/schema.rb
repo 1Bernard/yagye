@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_10_08_120000) do
+ActiveRecord::Schema[8.1].define(version: 2026_10_13_174407) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pgcrypto"
@@ -247,6 +247,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_08_120000) do
     t.text "merchant_code", null: false
     t.text "onboarding_state", default: "not_started", null: false
     t.text "risk_rating"
+    t.boolean "sandbox_enabled", default: false, null: false
     t.text "status", default: "registered", null: false
     t.text "trading_name", default: "", null: false
   end
@@ -502,6 +503,9 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_08_120000) do
     t.datetime "current_sign_in_at"
     t.string "current_sign_in_ip"
     t.string "email", default: "", null: false
+    t.integer "email_otp_attempts", default: 0, null: false
+    t.string "email_otp_digest"
+    t.datetime "email_otp_expires_at"
     t.string "encrypted_password", default: "", null: false
     t.integer "failed_attempts", default: 0, null: false
     t.string "first_name"
@@ -515,6 +519,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_08_120000) do
     t.text "otp_recovery_codes"
     t.boolean "otp_required_for_login", default: false, null: false
     t.string "otp_secret"
+    t.string "phone_number", comment: "E.164 format, e.g. +233201234567. Optional; SMS notifications sent only when present."
     t.datetime "remember_created_at"
     t.datetime "reset_password_sent_at"
     t.string "reset_password_token"
@@ -524,6 +529,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_08_120000) do
     t.datetime "updated_at", null: false
     t.text "user_code"
     t.index ["email"], name: "index_users_on_email", unique: true
+    t.index ["phone_number"], name: "index_users_on_phone_number", unique: true, where: "(phone_number IS NOT NULL)"
     t.index ["reset_password_token"], name: "index_users_on_reset_password_token", unique: true
     t.index ["unlock_token"], name: "index_users_on_unlock_token", unique: true
     t.index ["user_code"], name: "index_users_on_user_code", unique: true

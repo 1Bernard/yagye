@@ -54,6 +54,8 @@ PERMISSION_DEFS = [
   # team
   { key: "team.view",                 resource: "team",            action: "view",              description: "View team member list and their roles." },
   { key: "team.manage",               resource: "team",            action: "manage",            description: "Invite new members, update roles, and remove members." },
+  # reserves (Yagye ops only)
+  { key: "reserves.manage",           resource: "reserves",         action: "manage",            description: "Create and approve reserve policies for merchants." },
   # platform finance (Yagye ops only)
   { key: "platform_finance.view",     resource: "platform_finance", action: "view",              description: "View Yagye P&L dashboard, provider costs, and fee invoices." }
 ].freeze
@@ -111,6 +113,7 @@ GRANT_MATRIX = {
     settlements.view settlements.approve_dispatch
     merchants.view merchants.approve merchants.suspend merchants.impersonate
     kyb.view
+    reserves.manage
     team.view team.manage
     platform_finance.view
   ],
@@ -408,7 +411,7 @@ if Rails.env.development? || Rails.env.test?
         Payment.find_or_create_by!(reference: ref) do |p|
           p.core_payment_id = SecureRandom.uuid
           p.merchant_code   = DEMO_MERCHANT_CODE
-          p.mode            = "simulation"
+          p.mode            = "test"
           p.payment_method  = payment_method
           p.provider        = provider
           p.amount          = amount
