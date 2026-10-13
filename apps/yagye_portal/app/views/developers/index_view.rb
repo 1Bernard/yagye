@@ -58,7 +58,6 @@ module Developers
         title:      "Developers",
         breadcrumbs: [ { label: "Developers" } ]
       ) do
-        test_mode_notice unless Current.mode == "live"
         reveal_webhook_secret_banner if @reveal_webhook_secret
         tab_bar
         case @tab
@@ -96,7 +95,24 @@ module Developers
           t.header do
             div(class: "flex items-center justify-between w-full") do
               div do
-                p(class: TYPE_TITLE) { plain "#{live ? 'Live' : 'Test'} API keys" }
+                div(class: "flex items-center gap-2 mb-[3px]") do
+                  p(class: TYPE_TITLE) { plain "#{live ? 'Live' : 'Test'} API keys" }
+                  unless live
+                    if sandbox_enabled?
+                      span(class: "inline-flex items-center gap-1 px-2 py-[3px] rounded-full " \
+                                  "bg-indigo-50 border border-indigo-200 text-[10px] font-semibold text-indigo-700") do
+                        span(class: "w-[5px] h-[5px] rounded-full bg-indigo-500 flex-shrink-0 inline-block")
+                        plain "PSP Sandbox"
+                      end
+                    else
+                      span(class: "inline-flex items-center gap-1 px-2 py-[3px] rounded-full " \
+                                  "bg-gray-100 border border-gray-200 text-[10px] font-semibold text-gray-500") do
+                        span(class: "w-[5px] h-[5px] rounded-full bg-gray-400 flex-shrink-0 inline-block")
+                        plain "Simulation"
+                      end
+                    end
+                  end
+                end
                 p(class: "#{TYPE_CAPTION} mt-0.5") do
                   plain "Full keys are shown "
                   span(class: "font-semibold text-gray-600") { plain "once" }
@@ -269,6 +285,8 @@ module Developers
       key_color   = first_key ? "text-[#7ee787]" : "text-[#f2cc60]"
 
       div(class: "flex flex-col gap-5") do
+        test_mode_notice unless Current.mode == "live"
+
         # Header callout
         div(class: "#{SURFACE_CARD} px-6 py-5") do
           div(class: "flex items-start gap-4") do
@@ -850,15 +868,158 @@ module Developers
       end
     end
 
+    def sandbox_enabled?
+      return @sandbox_enabled if defined?(@sandbox_enabled)
+      merchant       = PortalMerchant.find_for(Current.user.merchant_code) if Current.user&.merchant_user?
+      @sandbox_enabled = merchant&.sandbox_enabled? || false
+    end
+
     def test_mode_notice
-      div(class: "mb-5") do
-        render UI::Notice.new(
-          variant:     :caution,
-          title:       "Test mode",
-          body:        "Test keys are for development only. No real money moves. " \
-                       "Live keys become available once your account is approved for live payments.",
-          dismissable: true
-        )
+      sandbox = sandbox_enabled?
+
+      div(class: "mb-5 #{SURFACE_CARD} overflow-hidden") do
+        # ── header ──────────────────────────────────────────────────────────
+        div(class: "flex items-center justify-between px-5 py-[13px] border-b border-gray-100") do
+          div(class: "flex items-center gap-2") do
+            span(class: "flex w-[13px] h-[13px] text-gray-400 flex-shrink-0") do
+              render UI::Icon.new(:layers, class: "w-full h-full")
+            end
+            p(class: "text-[12.5px] font-bold text-gray-800") { plain "Test environment" }
+          end
+          if sandbox
+            span(class: "inline-flex items-center gap-1.5 px-2.5 py-[4px] rounded-full " \
+                        "bg-indigo-50 border border-indigo-200 text-[11px] font-semibold text-indigo-700") do
+              span(class: "w-[6px] h-[6px] rounded-full bg-indigo-500 flex-shrink-0 inline-block")
+              plain "PSP Sandbox active"
+            end
+          else
+            span(class: "inline-flex items-center gap-1.5 px-2.5 py-[4px] rounded-full " \
+                        "bg-gray-100 border border-gray-200 text-[11px] font-semibold text-gray-500") do
+              span(class: "w-[6px] h-[6px] rounded-full bg-gray-400 flex-shrink-0 inline-block")
+              plain "Yagye Simulation"
+            end
+          end
+        end
+
+        # ── body ─────────────────────────────────────────────────────────────
+        div(class: "px-5 py-4") do
+          sandbox ? sandbox_mode_body : simulation_mode_body
+        end
+      end
+    end
+
+    def simulation_mode_body
+      div(class: "flex flex-col gap-4") do
+        # explanation
+        div(class: "flex items-start gap-2.5") do
+          span(class: "flex w-[13px] h-[13px] text-gray-400 flex-shrink-0 mt-[1px]") do
+            render UI::Icon.new(:settings, class: "w-full h-full")
+          end
+          div do
+            p(class: "text-[12.5px] font-semibold text-gray-800 leading-snug") { plain "Yagye Simulation" }
+            p(class: "text-[11.5px] text-gray-500 mt-[2px] leading-[1.5]") do
+              plain "All transactions are handled by Yagye's internal simulator — no external network calls, " \
+                    "instant synthetic responses."
+            end
+          end
+        end
+
+        # test MSISDNs
+        div(class: "rounded-xl border border-gray-100 overflow-hidden") do
+          div(class: "px-4 py-2.5 bg-gray-50 border-b border-gray-100") do
+            p(class: "text-[10.5px] font-bold text-gray-500 uppercase tracking-wide") { plain "Test MSISDNs (Mobile Money)" }
+          end
+          div do
+            sim_msisdn_row("024 100 0001", "MTN MoMo",    "success",            last: false)
+            sim_msisdn_row("024 100 0002", "MTN MoMo",    "insufficient_funds", last: false)
+            sim_msisdn_row("050 100 0001", "Telecel",     "success",            last: false)
+            sim_msisdn_row("057 100 0001", "AirtelTigo",  "success",            last: true)
+          end
+        end
+
+        # sandbox unlock note
+        div(class: "flex items-start gap-2 px-3 py-2.5 rounded-xl border border-amber-100 bg-amber-50") do
+          span(class: "flex w-[12px] h-[12px] text-amber-500 flex-shrink-0 mt-[1px]") do
+            render UI::Icon.new(:lock, class: "w-full h-full")
+          end
+          p(class: "text-[11.5px] text-amber-700 leading-[1.5]") do
+            plain "PSP Sandbox access (real MTN MoMo & Stripe test environments) is enabled by the Yagye team " \
+                  "once your business profile is approved."
+          end
+        end
+      end
+    end
+
+    def sim_msisdn_row(msisdn, provider, outcome, last:)
+      outcome_style = case outcome
+                      when "success"            then ["text-green-700",  "bg-green-50",  "border-green-100",  "Success"]
+                      when "insufficient_funds" then ["text-amber-700",  "bg-amber-50",  "border-amber-100",  "Insufficient funds"]
+                      when "failed"             then ["text-red-700",    "bg-red-50",    "border-red-100",    "Failed"]
+                      else                           ["text-gray-600",   "bg-gray-100",  "border-gray-200",   outcome.humanize]
+                      end
+      border_cls = last ? "" : "border-b border-gray-100"
+
+      div(class: "flex items-center justify-between px-4 py-[9px] #{border_cls}") do
+        div(class: "flex items-center gap-2.5") do
+          code(class: "text-[12px] font-mono font-semibold text-gray-800") { plain msisdn }
+          span(class: "text-[11px] text-gray-400") { plain provider }
+        end
+        span(class: "inline-flex items-center px-2 py-[2px] rounded-full text-[10.5px] font-semibold " \
+                    "#{outcome_style[0]} #{outcome_style[1]} border #{outcome_style[2]}") do
+          plain outcome_style[3]
+        end
+      end
+    end
+
+    def sandbox_mode_body
+      div(class: "flex flex-col gap-4") do
+        # explanation
+        div(class: "flex items-start gap-2.5") do
+          span(class: "flex w-[13px] h-[13px] text-indigo-400 flex-shrink-0 mt-[1px]") do
+            render UI::Icon.new(:globe, class: "w-full h-full")
+          end
+          div do
+            p(class: "text-[12.5px] font-semibold text-gray-800 leading-snug") { plain "PSP Sandbox" }
+            p(class: "text-[11.5px] text-gray-500 mt-[2px] leading-[1.5]") do
+              plain "Transactions marked "
+              code(class: "text-[11px] font-mono bg-gray-100 px-[4px] py-[1px] rounded") { plain "mode: test" }
+              plain " now route to real provider test environments. No real money moves — but external systems are contacted."
+            end
+          end
+        end
+
+        # active providers
+        div(class: "rounded-xl border border-gray-100 overflow-hidden") do
+          div(class: "px-4 py-2.5 bg-gray-50 border-b border-gray-100") do
+            p(class: "text-[10.5px] font-bold text-gray-500 uppercase tracking-wide") { plain "Active sandbox providers" }
+          end
+          sandbox_provider_row("MTN MoMo sandbox",  "Ghana",       "#ffcc00", last: false)
+          sandbox_provider_row("Stripe test mode",  "Card / Int.", "#635bff", last: true)
+        end
+
+        # simulator override note
+        div(class: "flex items-start gap-2 px-3 py-2.5 rounded-xl border border-gray-100 bg-gray-50") do
+          span(class: "flex w-[12px] h-[12px] text-gray-400 flex-shrink-0 mt-[1px]") do
+            render UI::Icon.new(:settings, class: "w-full h-full")
+          end
+          p(class: "text-[11.5px] text-gray-500 leading-[1.5]") do
+            plain "To force a synthetic response without a real network call, set "
+            code(class: "text-[11px] font-mono bg-white border border-gray-200 px-[4px] py-[1px] rounded") { plain "simulator: true" }
+            plain " on any transaction payload."
+          end
+        end
+      end
+    end
+
+    def sandbox_provider_row(name, region, dot_color, last:)
+      border_cls = last ? "" : "border-b border-gray-100"
+      div(class: "flex items-center gap-3 px-4 py-[9px] #{border_cls}") do
+        span(class: "w-2 h-2 rounded-full flex-shrink-0 inline-block",
+             style: "background: #{dot_color}")
+        p(class: "flex-1 text-[12px] font-medium text-gray-800") { plain name }
+        span(class: "text-[11px] text-gray-400") { plain region }
+        span(class: "inline-flex items-center px-2 py-[2px] rounded-full text-[10.5px] font-semibold " \
+                    "text-green-700 bg-green-50 border border-green-100") { plain "Active" }
       end
     end
 
