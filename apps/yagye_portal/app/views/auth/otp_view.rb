@@ -30,11 +30,11 @@ module Auth
       return @user_email unless domain
       masked = if local.length <= 2
                  local
-               elsif local.length == 3
+      elsif local.length == 3
                  "#{local[0]}*#{local[-1]}"
-               else
-                 "#{local[0]}#{"*" * [local.length - 2, 4].min}#{local[-1]}"
-               end
+      else
+                 "#{local[0]}#{"*" * [ local.length - 2, 4 ].min}#{local[-1]}"
+      end
       "#{masked}@#{domain}"
     end
 

@@ -150,10 +150,10 @@ module Team
 
       def age_row(req, cat)
         time_cls = case cat
-                   when :breach  then "text-red-600 font-medium"
-                   when :warning then "text-amber-600 font-medium"
-                   else               ""
-                   end
+        when :breach  then "text-red-600 font-medium"
+        when :warning then "text-amber-600 font-medium"
+        else               ""
+        end
 
         p(class: TYPE_CAPTION) do
           plain "Requested by #{req.requested_by.full_name} · "

@@ -87,7 +87,7 @@ Rails.application.routes.draw do
     post "kyb-reviews/:id/assign",                                 to: "kyb_reviews#assign",          as: :assign_kyb_review
     post "kyb-reviews/:id/add-ubo",                                to: "kyb_reviews#add_ubo",         as: :add_ubo_kyb_review
     post "kyb-reviews/:id/grant-live",                             to: "kyb_reviews#grant_live",          as: :grant_live_kyb_review
-    get   "kyb-reviews/:id/grant-live-modal",                      to: "kyb_reviews#grant_live_modal",    as: :grant_live_modal_kyb_review
+    get "kyb-reviews/:id/grant-live-modal",                      to: "kyb_reviews#grant_live_modal",    as: :grant_live_modal_kyb_review
     post "kyb-reviews/:id/grant-sandbox",                          to: "kyb_reviews#grant_sandbox",       as: :grant_sandbox_kyb_review
     get   "kyb-reviews/:id/grant-sandbox-modal",                   to: "kyb_reviews#grant_sandbox_modal", as: :grant_sandbox_modal_kyb_review
     get   "kyb-reviews/:id/approve-modal",                         to: "kyb_reviews#approve_modal",     as: :approve_modal_kyb_review

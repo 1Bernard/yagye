@@ -31,9 +31,9 @@ class Users::SessionsController < Devise::SessionsController
     via_email = session[:otp_via_email]
     result    = if via_email
                   user.verify_email_otp!(submitted_otp)
-                else
+    else
                   user.validate_and_consume_otp!(submitted_otp)
-                end
+    end
 
     if result == :locked
       UserAuditEvents::Record.call(user: user, event_type: :email_otp_locked, request: request)

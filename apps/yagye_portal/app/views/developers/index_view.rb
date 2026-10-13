@@ -952,11 +952,11 @@ module Developers
 
     def sim_msisdn_row(msisdn, provider, outcome, last:)
       outcome_style = case outcome
-                      when "success"            then ["text-green-700",  "bg-green-50",  "border-green-100",  "Success"]
-                      when "insufficient_funds" then ["text-amber-700",  "bg-amber-50",  "border-amber-100",  "Insufficient funds"]
-                      when "failed"             then ["text-red-700",    "bg-red-50",    "border-red-100",    "Failed"]
-                      else                           ["text-gray-600",   "bg-gray-100",  "border-gray-200",   outcome.humanize]
-                      end
+      when "success"            then [ "text-green-700",  "bg-green-50",  "border-green-100",  "Success" ]
+      when "insufficient_funds" then [ "text-amber-700",  "bg-amber-50",  "border-amber-100",  "Insufficient funds" ]
+      when "failed"             then [ "text-red-700",    "bg-red-50",    "border-red-100",    "Failed" ]
+      else                           [ "text-gray-600",   "bg-gray-100",  "border-gray-200",   outcome.humanize ]
+      end
       border_cls = last ? "" : "border-b border-gray-100"
 
       div(class: "flex items-center justify-between px-4 py-[9px] #{border_cls}") do
