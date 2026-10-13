@@ -35,22 +35,30 @@ module Merchants
       documents         = []
       screening         = nil
 
+      reserve_policy = nil
+
       if (mc = application.merchant_code).present?
         client = CoreApiClient.new
-        ubos_r     = client.list_beneficial_owners(mc)
-        docs_r     = client.list_kyb_documents(mc)
+        ubos_r      = client.list_beneficial_owners(mc)
+        docs_r      = client.list_kyb_documents(mc)
         screening_r = client.merchant_screening_status(mc)
+        reserves_r  = client.list_merchant_reserves(mc)
 
-        beneficial_owners = ubos_r.success?     ? (ubos_r.body["data"]     || []) : []
-        documents         = docs_r.success?     ? (docs_r.body["data"]     || []) : []
-        screening         = screening_r.success? ? screening_r.body              : nil
+        beneficial_owners = ubos_r.success?     ? (ubos_r.body["data"] || []) : []
+        documents         = docs_r.success?     ? (docs_r.body["data"] || []) : []
+        screening         = screening_r.success? ? screening_r.body            : nil
+        reserve_policy    = reserves_r.success?  ? reserves_r.body["policy"]   : nil
       end
+
+      application.reviewed_by = resolve_user_display(application.reviewed_by)
+      application.approved_by = resolve_user_display(application.approved_by)
 
       render Merchants::ShowView.new(
         application:       application,
         beneficial_owners: beneficial_owners,
         documents:         documents,
-        screening:         screening
+        screening:         screening,
+        reserve_policy:    reserve_policy
       )
     end
 
@@ -178,6 +186,11 @@ module Merchants
     end
 
     private
+
+    def resolve_user_display(user_code)
+      return nil if user_code.blank?
+      User.find_by(user_code: user_code)&.full_name || user_code
+    end
 
     def filters
       params.permit(:status, :q, :country, :from, :to).to_h.symbolize_keys
