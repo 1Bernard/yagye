@@ -1,3 +1,7 @@
+# frozen_string_literal: true
+
+require "bcrypt"
+
 class User < ApplicationRecord
   devise :database_authenticatable,
          :two_factor_authenticatable,
@@ -30,7 +34,14 @@ class User < ApplicationRecord
 
   NOTIFICATION_EVENT_KEYS   = %w[payment_success payment_failed dispute_opened dispute_resolved
                                   kyb_status new_team_member api_key_created login_new_device].freeze
-  NOTIFICATION_CHANNEL_KEYS = %w[email in_app].freeze
+  NOTIFICATION_CHANNEL_KEYS = %w[email in_app sms].freeze
+
+  PHONE_E164_REGEX = /\A\+[1-9]\d{6,14}\z/
+
+  validates :phone_number,
+            format:      { with: PHONE_E164_REGEX, message: "must be in E.164 format (e.g. +233201234567)" },
+            uniqueness:  { allow_blank: true },
+            allow_blank: true
 
   def notification_pref(scope, key)
     prefs = notification_preferences
@@ -80,6 +91,47 @@ class User < ApplicationRecord
 
   def merchant_user?
     kind == "merchant_user"
+  end
+
+  EMAIL_OTP_EXPIRY   = 10.minutes
+  MAX_OTP_ATTEMPTS   = 5
+
+  def generate_email_otp!
+    code = SecureRandom.random_number(10**6).to_s.rjust(6, "0")
+    update!(
+      email_otp_digest:     BCrypt::Password.create(code),
+      email_otp_expires_at: EMAIL_OTP_EXPIRY.from_now,
+      email_otp_attempts:   0
+    )
+    code
+  end
+
+  # Returns true on success, :locked when brute-force limit hit, false on bad/expired code.
+  def verify_email_otp!(code)
+    return false if email_otp_digest.blank?
+    return false if email_otp_expires_at.blank? || Time.current > email_otp_expires_at
+
+    if email_otp_attempts >= MAX_OTP_ATTEMPTS
+      update!(email_otp_digest: nil, email_otp_expires_at: nil, email_otp_attempts: 0)
+      return :locked
+    end
+
+    if BCrypt::Password.new(email_otp_digest) == code
+      update!(email_otp_digest: nil, email_otp_expires_at: nil, email_otp_attempts: 0)
+      true
+    else
+      increment!(:email_otp_attempts)
+      if email_otp_attempts >= MAX_OTP_ATTEMPTS
+        update!(email_otp_digest: nil, email_otp_expires_at: nil)
+        :locked
+      else
+        false
+      end
+    end
+  end
+
+  def email_otp_recently_sent?
+    email_otp_expires_at.present? && email_otp_expires_at > (EMAIL_OTP_EXPIRY - 1.minute).from_now
   end
 
   # Dynamic permission check.

@@ -13,16 +13,16 @@ en:
     help: "Help & Support"
 
   tier:
-    label: "Account Tier"
-    tier_1: "Tier 1 — Basic"
-    tier_2: "Tier 2 — In Review"
-    tier_3: "Tier 3 — Verified"
-    upgrade_cta: "Verify identity to unlock higher limits"
+    label: "Account status"
+    tier_1: "Test mode"
+    tier_2: "In review"
+    tier_3: "Live — Verified"
+    upgrade_cta: "Complete KYB to go live"
     limits:
-      tier_1: "Up to GHS 1,000/day"
-      tier_2: "Up to GHS 10,000/day"
-      tier_3: "No daily limit"
-    locked_action: "This action requires %{tier}. Complete verification to continue."
+      tier_1: "Simulation only — no live payments"
+      tier_2: "Live payments pending KYB approval"
+      tier_3: "Full access — live payments enabled"
+    locked_action: "This action requires %{tier}. Complete KYB verification to continue."
 
   topbar:
     search_placeholder: "Search... ⌘K"

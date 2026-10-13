@@ -7,6 +7,7 @@ class UserAuditEvent < ApplicationRecord
     signed_in signed_out
     password_changed
     totp_enabled totp_disabled
+    email_otp_sent email_otp_verified email_otp_failed email_otp_locked
     profile_updated
     api_key_created api_key_revoked
     webhook_added webhook_removed
@@ -22,12 +23,16 @@ class UserAuditEvent < ApplicationRecord
   scope :recent, -> { order(created_at: :desc) }
 
   LABELS = {
-    "signed_in"         => "Signed in",
-    "signed_out"        => "Signed out",
-    "password_changed"  => "Password changed",
-    "totp_enabled"      => "2FA enabled",
-    "totp_disabled"     => "2FA disabled",
-    "profile_updated"   => "Profile updated",
+    "signed_in"          => "Signed in",
+    "signed_out"         => "Signed out",
+    "password_changed"   => "Password changed",
+    "totp_enabled"       => "2FA enabled",
+    "totp_disabled"      => "2FA disabled",
+    "email_otp_sent"     => "Email code sent",
+    "email_otp_verified" => "Signed in via email code",
+    "email_otp_failed"   => "Email code failed",
+    "email_otp_locked"   => "Email code locked (too many attempts)",
+    "profile_updated"    => "Profile updated",
     "api_key_created"   => "API key created",
     "api_key_revoked"   => "API key revoked",
     "webhook_added"     => "Webhook added",
@@ -44,12 +49,16 @@ class UserAuditEvent < ApplicationRecord
   }.freeze
 
   ICONS = {
-    "signed_in"         => :check_circle,
-    "signed_out"        => :logout,
-    "password_changed"  => :lock,
-    "totp_enabled"      => :shield,
-    "totp_disabled"     => :shield,
-    "profile_updated"   => :edit,
+    "signed_in"          => :check_circle,
+    "signed_out"         => :logout,
+    "password_changed"   => :lock,
+    "totp_enabled"       => :shield,
+    "totp_disabled"      => :shield,
+    "email_otp_sent"     => :mail,
+    "email_otp_verified" => :check_circle,
+    "email_otp_failed"   => :x,
+    "email_otp_locked"   => :shield_off,
+    "profile_updated"    => :edit,
     "api_key_created"   => :key,
     "api_key_revoked"   => :key,
     "webhook_added"     => :link,

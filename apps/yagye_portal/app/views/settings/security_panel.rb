@@ -13,7 +13,7 @@ module Settings
 
     def view_template
       totp_on = @current_user&.otp_required_for_login
-      score   = totp_on ? 85 : 50
+      score   = totp_on ? 100 : 50
       div(class: "flex flex-col gap-5") do
         security_health_card(score, totp_on)
         authentication_card(totp_on)
@@ -90,7 +90,7 @@ module Settings
                 div(class: "flex items-center gap-[4px]") do
                   10.times { span(class: "inline-block w-[6px] h-[6px] rounded-full bg-gray-300 flex-shrink-0") }
                 end
-                span(class: "badge-green inline-flex items-center gap-[5px] text-[11px] font-semibold px-[9px] py-[3px] rounded-full flex-shrink-0") do
+                span(class: "#{BADGE} #{STATUS_SUCCESS} inline-flex items-center gap-[5px] flex-shrink-0") do
                   span(class: "w-[5px] h-[5px] rounded-full bg-green-600 flex-shrink-0")
                   plain "Very secure"
                 end
@@ -152,8 +152,7 @@ module Settings
             totp_method_row(totp_on)
             auth_method_row("SMS / phone number", :phone,
                             desc: "Receive a one-time code via text message", coming_soon: true)
-            auth_method_row("Email one-time code", :mail,
-                            desc: "Receive a code to your email address", coming_soon: true)
+            email_otp_row(totp_on)
           end
           disable_totp_dialog if totp_on
         end
@@ -207,6 +206,22 @@ module Settings
       end
     end
 
+    def email_otp_row(totp_on)
+      # When TOTP is off, email OTP is the only second factor — lock it on.
+      # When TOTP is on, the user can choose to disable the email backup.
+      checked  = true
+      locked   = !totp_on
+
+      auth_method_row(
+        "Email one-time code", :mail,
+        desc:    totp_on ? "Used as a fallback if you don't have your authenticator app." \
+                         : "A code will be sent to your email each time you sign in.",
+        checked: checked,
+        disabled: locked,
+        title:    locked ? "Enable an authenticator app before disabling email codes." : nil
+      )
+    end
+
     def auth_method_row(label, icon, desc: nil, checked: false, coming_soon: false, toggle_href: nil, **toggle_attrs)
       div(class: "flex items-center gap-3 #{coming_soon ? 'opacity-50' : ''}") do
         div(class: "w-8 h-8 rounded-xl bg-gray-100 border border-gray-200 flex items-center justify-center flex-shrink-0") do
@@ -218,7 +233,7 @@ module Settings
           div(class: "flex items-center gap-2") do
             span(class: TYPE_BODY_MD) { plain label }
             if coming_soon
-              span(class: "badge-gray text-[10px] font-semibold px-[7px] py-[2px] rounded-full") { plain "Coming soon" }
+              span(class: "#{BADGE} #{STATUS_NEUTRAL}") { plain "Coming soon" }
             end
           end
           p(class: TYPE_CAPTION) { plain desc } if desc
@@ -305,7 +320,7 @@ module Settings
           p(class: TYPE_CAPTION) { plain sub }
         end
         if current
-          span(class: "badge-green text-[11px] font-semibold px-[10px] py-[3px] rounded-full flex-shrink-0") { plain "Current session" }
+          span(class: "#{BADGE} #{STATUS_SUCCESS} flex-shrink-0") { plain "Current session" }
         else
           span(class: "#{TYPE_CAPTION} flex-shrink-0") { plain ago }
         end

@@ -19,8 +19,14 @@ module Settings
     TIMELINE = [
       { label: "Application submitted", sub: "KYB documents received by Yagye",          icon: :check_circle },
       { label: "Compliance review",     sub: "Our team is reviewing — usually 1–3 days", icon: :clock        },
-      { label: "Limits unlocked",       sub: "No daily limit — all payment types enabled", icon: :unlock     }
+      { label: "Live mode enabled",     sub: "Real payments fully enabled on your account", icon: :check_circle }
     ].freeze
+
+    VELOCITY_LIMITS = {
+      "low"    => { single: "GHS 50,000",  daily: "GHS 500,000",  monthly: "GHS 5,000,000"  },
+      "medium" => { single: "GHS 10,000",  daily: "GHS 100,000",  monthly: "GHS 1,000,000"  },
+      "high"   => { single: "GHS 2,000",   daily: "GHS 20,000",   monthly: "GHS 200,000"    }
+    }.freeze
 
     def initialize(tier:, branding: nil, merchant: nil, kyb_application: nil)
       @tier            = tier
@@ -37,6 +43,7 @@ module Settings
           status_banner
         end
         progress_card
+        limits_card   if @tier == 3
         timeline_card if @tier == 2
         docs_card     if @tier == 1
         contact_row
@@ -101,7 +108,7 @@ module Settings
           div(class: "w-[44px] h-[44px] rounded-full flex-shrink-0 flex items-center justify-center",
               style: "background:rgba(220,38,38,0.10);border:1.5px solid rgba(220,38,38,0.30)") do
             span(class: "flex w-[18px] h-[18px]", style: "color:#dc2626") do
-              render UI::Icon.new(:x_circle, class: "w-full h-full")
+              render UI::Icon.new(:alert_circle, class: "w-full h-full")
             end
           end
 
@@ -138,7 +145,7 @@ module Settings
       div(class: "bg-white border border-gray-100 rounded-2xl overflow-hidden") do
         div(class: "px-6 py-5 border-b border-gray-100") do
           p(class: TYPE_TITLE) { plain "Tier progression" }
-          p(class: "#{TYPE_CAPTION} mt-[3px]") { plain "Completing each tier unlocks higher transaction limits." }
+          p(class: "#{TYPE_CAPTION} mt-[3px]") { plain "Complete each tier to unlock live payment processing." }
         end
 
         TIERS.each do |t|
@@ -181,6 +188,53 @@ module Settings
             end
           end
         end
+      end
+    end
+
+    # ── Account limits card (Tier 3 / live) ──────────────────────────────────
+
+    def limits_card
+      rating = @merchant&.risk_rating.presence || "medium"
+      lim    = VELOCITY_LIMITS.fetch(rating, VELOCITY_LIMITS["medium"])
+      rating_label = rating.capitalize
+
+      div(class: "bg-white border border-gray-100 rounded-2xl overflow-hidden") do
+        div(class: "px-6 py-5 border-b border-gray-100 flex items-center justify-between") do
+          div do
+            p(class: TYPE_TITLE) { plain "Account limits" }
+            p(class: "#{TYPE_CAPTION} mt-[3px]") do
+              plain "Live mode only — test transactions are unlimited."
+            end
+          end
+          span(class: "inline-flex items-center gap-[5px] px-[9px] py-[4px] rounded-full " \
+                       "text-[11px] font-semibold bg-gray-100 text-gray-500") do
+            render UI::Icon.new(:shield, class: "w-[10px] h-[10px]")
+            plain "#{rating_label} risk"
+          end
+        end
+
+        div(class: "grid grid-cols-3 divide-x divide-gray-100") do
+          limit_stat("Single transaction", lim[:single])
+          limit_stat("Daily volume",       lim[:daily])
+          limit_stat("Monthly volume",     lim[:monthly])
+        end
+
+        div(class: "px-6 py-3 bg-gray-50 border-t border-gray-100") do
+          p(class: "text-[11.5px] text-gray-400 leading-relaxed") do
+            plain "Limits are set based on your risk rating and apply to live payments only. "
+            plain "Contact "
+            a(href: "mailto:compliance@yagye.com",
+              style: "color:#{BRAND};font-weight:500;text-decoration:none") { plain "compliance@yagye.com" }
+            plain " to discuss a limit review after 6 months of good standing."
+          end
+        end
+      end
+    end
+
+    def limit_stat(label, value)
+      div(class: "px-5 py-4 flex flex-col gap-[3px]") do
+        p(class: "text-[10.5px] font-semibold text-gray-400 uppercase tracking-widest") { plain label }
+        p(class: "text-[15px] font-bold text-gray-900 tabular-nums mt-[2px]") { plain value }
       end
     end
 

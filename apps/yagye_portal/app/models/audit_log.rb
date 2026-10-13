@@ -44,6 +44,8 @@ class AuditLog < ApplicationRecord
       "resource_id"   => resource_code,
       "resource_ref"  => resource_code,
       "occurred_at"   => created_at.iso8601,
+      "actor_name"    => user&.full_name,
+      "actor_code"    => user_code,
       "metadata"      => { "outcome" => outcome, "reason" => reason }.compact
     }
   end

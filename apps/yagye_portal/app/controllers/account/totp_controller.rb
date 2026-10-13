@@ -58,7 +58,7 @@ module Account
     def recovery_codes
       authorize :settings, :update?
 
-      codes = session.delete(:totp_recovery_codes)
+      codes = session.delete(:totp_recovery_codes) || session.delete(:totp_just_enrolled_codes)
       unless codes.present?
         return redirect_to settings_path(tab: "security")
       end

@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>New sign-in to your Yagye account</title>
+</head>
+<body style="margin:0;padding:0;background:#f4f4f5;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="background:#f4f4f5;padding:40px 20px;">
+    <tr>
+      <td align="center">
+        <table width="100%" style="max-width:480px;background:#ffffff;border-radius:16px;overflow:hidden;box-shadow:0 1px 4px rgba(0,0,0,0.08);">
+          <tr>
+            <td style="background:#3D47F5;padding:28px 32px;">
+              <p style="margin:0;font-size:20px;font-weight:700;color:#ffffff;letter-spacing:-0.3px;">Yagye</p>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding:32px;">
+              <p style="margin:0 0 8px;font-size:18px;font-weight:700;color:#111827;">New sign-in detected</p>
+              <p style="margin:0 0 24px;font-size:14px;color:#6b7280;line-height:1.6;">
+                Hi <%= @user_name %>, we noticed a new sign-in to your Yagye account using an email verification code.
+              </p>
+
+              <table width="100%" style="background:#f9fafb;border:1px solid #e5e7eb;border-radius:10px;padding:16px;margin-bottom:24px;">
+                <tr>
+                  <td style="padding:6px 0;">
+                    <span style="font-size:12px;font-weight:600;color:#6b7280;text-transform:uppercase;letter-spacing:0.06em;">Time</span><br>
+                    <span style="font-size:14px;font-weight:500;color:#111827;"><%= @time %></span>
+                  </td>
+                </tr>
+                <tr>
+                  <td style="padding:6px 0;">
+                    <span style="font-size:12px;font-weight:600;color:#6b7280;text-transform:uppercase;letter-spacing:0.06em;">IP address</span><br>
+                    <span style="font-size:14px;font-weight:500;color:#111827;"><%= @ip %></span>
+                  </td>
+                </tr>
+              </table>
+
+              <p style="margin:0 0 16px;font-size:14px;color:#374151;line-height:1.6;">
+                If this was you, no action is needed. For stronger security, consider setting up an authenticator app — it's faster and more secure than email codes.
+              </p>
+              <p style="margin:0 0 24px;font-size:14px;color:#374151;line-height:1.6;background:#fef9c3;border:1px solid #fde047;border-radius:8px;padding:12px 16px;">
+                <strong>Not you?</strong> Change your password immediately and contact support at <a href="mailto:support@yagye.com" style="color:#3D47F5;text-decoration:none;">support@yagye.com</a>.
+              </p>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding:16px 32px;border-top:1px solid #f3f4f6;">
+              <p style="margin:0;font-size:12px;color:#9ca3af;text-align:center;">
+                This is an automated security notification from Yagye. Do not reply to this email.
+              </p>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>

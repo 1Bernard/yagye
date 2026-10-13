@@ -13,16 +13,16 @@ fr:
     help: "Aide & Support"
 
   tier:
-    label: "Niveau de compte"
-    tier_1: "Niveau 1 — Basique"
-    tier_2: "Niveau 2 — En révision"
-    tier_3: "Niveau 3 — Vérifié"
-    upgrade_cta: "Vérifiez votre identité pour débloquer des limites plus élevées"
+    label: "Statut du compte"
+    tier_1: "Mode test"
+    tier_2: "En révision"
+    tier_3: "En production — Vérifié"
+    upgrade_cta: "Compléter la vérification KYB pour être en production"
     limits:
-      tier_1: "Jusqu'à GHS 1 000/jour"
-      tier_2: "Jusqu'à GHS 10 000/jour"
-      tier_3: "Aucune limite journalière"
-    locked_action: "Cette action nécessite %{tier}. Complétez la vérification pour continuer."
+      tier_1: "Simulation uniquement — aucun paiement réel"
+      tier_2: "Paiements réels en attente d'approbation KYB"
+      tier_3: "Accès complet — paiements réels activés"
+    locked_action: "Cette action nécessite %{tier}. Complétez la vérification KYB pour continuer."
 
   topbar:
     search_placeholder: "Rechercher... ⌘K"
