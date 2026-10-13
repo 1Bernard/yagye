@@ -1,0 +1,85 @@
+<table width="100%" cellpadding="0" cellspacing="0" style="background-color:#f4f5f7;padding:32px 0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;">
+  <tr>
+    <td align="center">
+      <table width="560" cellpadding="0" cellspacing="0" style="background:#ffffff;border-radius:12px;overflow:hidden;box-shadow:0 1px 4px rgba(0,0,0,0.08);">
+
+        <tr>
+          <td style="background-color:#3D47F5;padding:28px 40px;">
+            <span style="font-size:18px;font-weight:700;color:#ffffff;letter-spacing:-0.3px;">Yagye</span>
+          </td>
+        </tr>
+
+        <tr>
+          <td style="padding:36px 40px 28px;">
+            <h1 style="margin:0 0 8px;font-size:20px;font-weight:700;color:#0f1117;letter-spacing:-0.4px;">
+              Sandbox access is now active
+            </h1>
+            <p style="margin:0 0 20px;font-size:14px;color:#374151;line-height:1.6;">
+              The Yagye team has enabled sandbox access for <strong><%= @legal_name %></strong>. Your developers can now route test transactions through real provider sandbox environments.
+            </p>
+
+            <!-- What changed -->
+            <table width="100%" cellpadding="0" cellspacing="0" style="background:#f8f9ff;border:1px solid #e0e3fd;border-radius:10px;margin-bottom:24px;">
+              <tr>
+                <td style="padding:20px 24px;">
+                  <p style="margin:0 0 14px;font-size:12px;font-weight:700;color:#6366f1;text-transform:uppercase;letter-spacing:0.08em;">What changed</p>
+                  <table width="100%" cellpadding="0" cellspacing="0">
+                    <tr>
+                      <td style="padding:6px 0;vertical-align:top;width:16px;">
+                        <span style="color:#6366f1;font-size:14px;">→</span>
+                      </td>
+                      <td style="padding:6px 0 6px 10px;">
+                        <p style="margin:0;font-size:13.5px;color:#1f2937;line-height:1.5;">
+                          <strong>Before:</strong> All test transactions hit the Yagye simulator — fast, synthetic, no real network calls.
+                        </p>
+                      </td>
+                    </tr>
+                    <tr>
+                      <td style="padding:6px 0;vertical-align:top;width:16px;">
+                        <span style="color:#16a34a;font-size:14px;">→</span>
+                      </td>
+                      <td style="padding:6px 0 6px 10px;">
+                        <p style="margin:0;font-size:13.5px;color:#1f2937;line-height:1.5;">
+                          <strong>Now:</strong> Test transactions route to real PSP sandbox environments — MTN MoMo sandbox, Stripe test mode, and others your integration targets.
+                        </p>
+                      </td>
+                    </tr>
+                  </table>
+                </td>
+              </tr>
+            </table>
+
+            <!-- How to test -->
+            <p style="margin:0 0 10px;font-size:13px;font-weight:600;color:#111827;">How to test</p>
+            <p style="margin:0 0 8px;font-size:13.5px;color:#374151;line-height:1.6;">
+              Your test API keys (<code style="background:#f3f4f6;padding:1px 5px;border-radius:4px;font-size:12px;">sk_test_...</code>) are generated from your developer dashboard — no new credentials are needed. If you haven't created one yet, open the dashboard and go to API Keys. Transactions marked <code style="background:#f3f4f6;padding:1px 5px;border-radius:4px;font-size:12px;">mode: test</code> now reach the real sandbox network instead of the simulator. Use the MSISDNs and card numbers from the relevant provider's sandbox documentation.
+            </p>
+            <p style="margin:0 0 28px;font-size:13.5px;color:#374151;line-height:1.6;">
+              To run a quick simulation test without a real network call, set <code style="background:#f3f4f6;padding:1px 5px;border-radius:4px;font-size:12px;">simulator: true</code> on the transaction payload.
+            </p>
+
+            <table cellpadding="0" cellspacing="0" style="margin-bottom:24px;">
+              <tr>
+                <td style="border-radius:10px;background-color:#3D47F5;">
+                  <a href="<%= ENV.fetch('PORTAL_HOST', 'https://portal.yagye.com') %>/developers"
+                     style="display:inline-block;padding:12px 24px;font-size:14px;font-weight:600;color:#ffffff;text-decoration:none;letter-spacing:-0.1px;">
+                    Open developer dashboard
+                  </a>
+                </td>
+              </tr>
+            </table>
+          </td>
+        </tr>
+
+        <tr>
+          <td style="padding:18px 40px;border-top:1px solid #f3f4f6;">
+            <p style="margin:0;font-size:11.5px;color:#9ca3af;line-height:1.6;">
+              You received this because you are the account owner for <%= @legal_name %> on Yagye.
+            </p>
+          </td>
+        </tr>
+
+      </table>
+    </td>
+  </tr>
+</table>

@@ -1,0 +1,20 @@
+Sandbox access is now active — <%= @legal_name %>
+
+The Yagye team has enabled sandbox access for <%= @legal_name %>. Your developers can now route test transactions through real provider sandbox environments.
+
+WHAT CHANGED
+------------
+Before: All test transactions hit the Yagye simulator — fast, synthetic, no real network calls.
+Now:    Test transactions route to real PSP sandboxes — MTN MoMo sandbox, Stripe test mode, and others your integration targets.
+
+HOW TO TEST
+-----------
+Your test API keys (sk_test_...) are generated from your developer dashboard — no new credentials are needed. If you haven't created one yet, open the dashboard and go to API Keys. Transactions marked mode: test now reach the real sandbox network instead of the simulator. Use the MSISDNs and card numbers from the relevant provider's sandbox documentation.
+
+To force a simulation test without a real network call, set simulator: true on the transaction payload.
+
+Open your developer dashboard:
+<%= ENV.fetch('PORTAL_HOST', 'https://portal.yagye.com') %>/developers
+
+---
+You received this because you are the account owner for <%= @legal_name %> on Yagye.

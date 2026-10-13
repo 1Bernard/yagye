@@ -73,6 +73,7 @@ module KybReviews
     def right_column
       div(class: "flex flex-col gap-4") do
         review_actions_card
+        sandbox_access_card if @app.merchant_code.present?
         live_mode_card if @app.approved? && @app.merchant_code.present?
         review_history_card
       end
@@ -104,10 +105,10 @@ module KybReviews
 
         # Meta strip
         div(class: "grid grid-cols-4 gap-[1px] bg-gray-100") do
-          meta_cell("Industry",     @app.industry&.humanize || "—")
-          meta_cell("Team size",    @app.employee_range || "—")
-          meta_cell("Submitted by", @app.submitted_by_email || "—")
-          meta_cell("Reviewer",     @app.reviewed_by.presence || "Unassigned")
+          meta_cell("Industry",      @app.industry&.humanize || "—")
+          meta_cell("Merchant code", @app.merchant_code.presence || "Pending", mono: true)
+          meta_cell("Submitted by",  @app.submitted_by_email || "—")
+          meta_cell("Reviewer",      @app.reviewed_by.presence || "Unassigned")
         end
 
         # Compliance progress strip
@@ -152,10 +153,10 @@ module KybReviews
       end
     end
 
-    def meta_cell(label, value)
+    def meta_cell(label, value, mono: false)
       div(class: "flex flex-col px-5 py-3.5 bg-white") do
         p(class: TYPE_MICRO) { plain label }
-        p(class: "#{TYPE_BODY_MD} mt-0.5 truncate") { plain value }
+        p(class: "#{mono ? TYPE_MONO : TYPE_BODY_MD} mt-0.5 truncate text-gray-700") { plain value }
       end
     end
 
@@ -502,20 +503,105 @@ module KybReviews
       end
     end
 
+    def sandbox_access_card
+      return unless can?(:grant_sandbox?, :kyb_reviews)
+
+      merchant        = PortalMerchant.find_for(@app.merchant_code)
+      already_sandbox = merchant&.sandbox_enabled?
+
+      render UI::Card.new do |c|
+        c.header("Sandbox access", icon: :layers)
+        c.body do
+          if already_sandbox
+            div(class: "flex items-center gap-2 px-3 py-2 bg-indigo-50 border border-indigo-200 " \
+                        "rounded-xl mb-3") do
+              span(class: "flex w-4 h-4 text-indigo-500 flex-shrink-0") do
+                render UI::Icon.new(:check_circle, class: "w-full h-full")
+              end
+              p(class: "text-[12.5px] font-semibold text-indigo-800") { plain "PSP sandbox active" }
+            end
+            p(class: TYPE_CAPTION) do
+              plain "Test transactions now route to real provider sandboxes (MTN MoMo, Stripe, etc.) " \
+                    "instead of the Yagye simulator."
+            end
+            if @app.submitted_by_email.present?
+              p(class: "#{TYPE_CAPTION} mt-2") do
+                plain "Notification sent to "
+                span(class: "font-medium text-gray-600") { plain @app.submitted_by_email }
+              end
+            end
+          else
+            sandbox_mode_explainer
+            a(href: grant_sandbox_modal_kyb_review_path(@app),
+              class: "#{BTN_PRIMARY} w-full justify-center mt-3",
+              data: { turbo_frame: "modal-frame" }) do
+              render UI::Icon.new(:layers, class: ICON_SM)
+              plain "Enable sandbox"
+            end
+            p(class: "#{TYPE_CAPTION} text-center mt-2") do
+              plain "Notifies #{@app.submitted_by_email.presence || "the account owner"} by email."
+            end
+          end
+        end
+      end
+    end
+
+    def sandbox_mode_explainer
+      div(class: "flex flex-col gap-2.5 mb-1") do
+        # Row 1 — always-on simulation
+        div(class: "rounded-xl border border-gray-100 bg-gray-50 px-3 py-2.5") do
+          div(class: "flex items-center justify-between mb-1") do
+            div(class: "flex items-center gap-1.5") do
+              span(class: "w-1.5 h-1.5 rounded-full bg-gray-400 flex-shrink-0")
+              p(class: "text-[12px] font-semibold text-gray-600") { plain "Yagye simulation" }
+            end
+            span(class: "text-[10.5px] font-semibold text-gray-400") { plain "Always on" }
+          end
+          p(class: "text-[11.5px] text-gray-400 leading-snug") do
+            plain "Synthetic responses — instant, no real network calls. Active right now."
+          end
+        end
+        # Row 2 — PSP sandbox (locked until enabled)
+        div(class: "rounded-xl border border-amber-200 bg-amber-50 px-3 py-2.5") do
+          div(class: "flex items-center justify-between mb-1") do
+            div(class: "flex items-center gap-1.5") do
+              span(class: "w-1.5 h-1.5 rounded-full bg-amber-400 flex-shrink-0")
+              p(class: "text-[12px] font-semibold text-amber-700") { plain "PSP sandbox" }
+            end
+            span(class: "text-[10.5px] font-semibold text-amber-500") { plain "Locked" }
+          end
+          p(class: "text-[11.5px] text-amber-600 leading-snug") do
+            plain "Real provider test environments: MTN MoMo sandbox, Stripe test mode, etc. Unlocked here."
+          end
+        end
+      end
+    end
+
     def live_mode_card
       return unless can?(:approve?, :kyb_reviews)
 
+      already_live = PortalMerchant.find_for(@app.merchant_code)&.live_mode_enabled?
+
       render UI::Card.new do |c|
-        c.header("Live mode", icon: :zap)
+        c.header("Live mode", icon: :shield)
         c.body do
-          p(class: "#{TYPE_CAPTION} mb-3") do
-            plain "Grant live processing once KYB tier 3+ is confirmed."
-          end
-          a(href: grant_live_modal_kyb_review_path(@app),
-            class: "#{BTN_SUCCESS} w-full justify-center",
-            data: { turbo_frame: "modal-frame" }) do
-            render UI::Icon.new(:zap, class: ICON_SM)
-            plain "Activate live mode"
+          if already_live
+            div(class: "flex items-center gap-2 px-3 py-2 bg-green-50 border border-green-200 rounded-xl") do
+              span(class: "flex w-4 h-4 text-green-600 flex-shrink-0") do
+                render UI::Icon.new(:check_circle, class: "w-full h-full")
+              end
+              p(class: "text-[12.5px] font-semibold text-green-800") { plain "Live mode is active" }
+            end
+          else
+            p(class: "#{TYPE_CAPTION} mb-3") do
+              plain "Grant live processing once KYB tier 3+ is confirmed."
+            end
+            a(href: grant_live_modal_kyb_review_path(@app),
+              class: "#{BTN_SUCCESS} w-full justify-center",
+              data: { turbo_frame: "modal-frame" }) do
+              render UI::Icon.new(:shield, class: ICON_SM)
+              plain "Activate live mode"
+            end
           end
         end
       end

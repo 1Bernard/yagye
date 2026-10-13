@@ -14,6 +14,7 @@ module Compliance
         current_user_code: current_user.user_code
       )
       pagy, applications = pagy(scope, limit: 25)
+      resolve_reviewer_names!(applications)
       render KybReviews::IndexView.new(
         tab: tab, applications: applications, pagy: pagy,
         query: params[:q], from: params[:from], to: params[:to],
@@ -53,6 +54,9 @@ module Compliance
         documents           = docs_r.success?      ? (docs_r.body["data"]     || []) : []
         screening           = screening_r.success? ? screening_r.body              : nil
       end
+
+      application.reviewed_by = resolve_user_display(application.reviewed_by)
+      application.approved_by = resolve_user_display(application.approved_by)
 
       render KybReviews::ShowView.new(
         application:       application,
@@ -95,7 +99,7 @@ module Compliance
     end
 
     def assign
-      authorize :kyb_reviews, :approve?
+      authorize :kyb_reviews, :assign?
       application = decode_id(PortalMerchantApplication)
       application.update!(reviewed_by: current_user.user_code, status: "under_review")
       if application.merchant_code.present?
@@ -131,6 +135,50 @@ module Compliance
       authorize :kyb_reviews, :show?
       application = decode_id(PortalMerchantApplication)
       render KybReviews::AddUboModalView.new(application: application)
+    end
+
+    def grant_sandbox_modal
+      authorize :kyb_reviews, :grant_sandbox?
+      application = decode_id(PortalMerchantApplication)
+      render UI::ConfirmModal.new(
+        title:        "Enable sandbox access",
+        body:         "#{application.legal_name} will be able to route test transactions to real PSP sandbox environments (e.g. MTN MoMo sandbox, Stripe test mode).",
+        warning_note: "Requires KYB tier 1+ (business profile submitted). Sandbox access does not activate live payments.",
+        confirm_path: grant_sandbox_kyb_review_path(application),
+        confirm_label: "Enable sandbox",
+        success:      true
+      )
+    end
+
+    def grant_sandbox
+      authorize :kyb_reviews, :grant_sandbox?
+      application = decode_id(PortalMerchantApplication)
+      unless application.merchant_code.present?
+        return redirect_to kyb_review_path(application), alert: "Merchant not yet registered in Core."
+      end
+
+      merchant = PortalMerchant.find_for(application.merchant_code)
+      if merchant&.sandbox_enabled?
+        return redirect_to kyb_review_path(application), alert: "Sandbox access is already enabled for this merchant."
+      end
+
+      result = CoreApiClient.new.enable_sandbox_mode(application.merchant_code,
+                                                      granted_by: current_user.user_code)
+      if result.success?
+        merchant&.update!(sandbox_enabled: true)
+        AuditLog.record(
+          actor:         current_user,
+          action:        "merchant.sandbox_enabled",
+          resource_type: "merchant",
+          resource_code: application.merchant_code,
+          outcome:       "succeeded"
+        )
+        KybMailer.sandbox_enabled(application).deliver_later if application.submitted_by_email.present?
+        redirect_to kyb_review_path(application),
+                    notice: "Sandbox access enabled for #{application.legal_name}."
+      else
+        redirect_to kyb_review_path(application), alert: result.error_message
+      end
     end
 
     def grant_live_modal
@@ -214,6 +262,10 @@ module Compliance
       unless application.merchant_code.present?
         return redirect_to kyb_review_path(application), alert: "Merchant not yet registered in Core."
       end
+      unless application.approved?
+        return redirect_to kyb_review_path(application),
+                           alert: "Live mode can only be activated after the KYB application is approved."
+      end
       result = CoreApiClient.new.approve_merchant_kyb(application.merchant_code,
                                                        approved_by: current_user.user_code)
       if result.success?
@@ -225,6 +277,23 @@ module Compliance
     end
 
     private
+
+    def resolve_reviewer_names!(applications)
+      codes = applications.filter_map(&:reviewed_by).uniq
+      return if codes.empty?
+
+      name_map = User.where(user_code: codes).each_with_object({}) do |u, h|
+        h[u.user_code] = u.full_name
+      end
+      applications.each do |a|
+        a.reviewed_by = name_map[a.reviewed_by] || a.reviewed_by if a.reviewed_by.present?
+      end
+    end
+
+    def resolve_user_display(user_code)
+      return nil if user_code.blank?
+      User.find_by(user_code: user_code)&.full_name || user_code
+    end
 
     def review_stats
       all = PortalMerchantApplication.all
