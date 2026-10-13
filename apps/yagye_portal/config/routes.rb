@@ -14,8 +14,11 @@ Rails.application.routes.draw do
   patch "invitations/:token", to: "account/invitations#update"
 
   devise_scope :user do
-    get  "users/otp-challenge", to: "users/sessions#otp_challenge", as: :users_otp_challenge
-    post "users/otp-challenge", to: "users/sessions#verify_otp",    as: :users_verify_otp
+    get  "users/otp-challenge",      to: "users/sessions#otp_challenge",          as: :users_otp_challenge
+    post "users/otp-challenge",      to: "users/sessions#verify_otp",             as: :users_verify_otp
+    post "users/request-email-otp",  to: "users/sessions#request_email_otp",      as: :users_request_email_otp
+    get  "users/totp-enrollment",    to: "users/sessions#totp_enrollment",        as: :users_totp_enrollment
+    post "users/totp-enrollment",    to: "users/sessions#complete_totp_enrollment", as: :users_complete_totp_enrollment
     root "users/sessions#new"
 
     # SSO / SAML
@@ -47,7 +50,8 @@ Rails.application.routes.draw do
     get "settlement-batches",     to: "settlement_batches#index", as: :settlement_batches
     get "settlement-batches/:id", to: "settlement_batches#show",  as: :settlement_batch
 
-    get "reserves", to: "reserves#index", as: :reserves
+    get  "reserves",             to: "reserves#index",       as: :reserves
+    post "reserves/:id/acknowledge", to: "reserves#acknowledge", as: :acknowledge_reserve
   end
 
   # ── Merchants domain (ops — policy-gated) ────────────────────────────────
@@ -64,6 +68,13 @@ Rails.application.routes.draw do
     get   "merchants/:id/reactivate-modal",        to: "merchants#reactivate_modal",   as: :reactivate_modal_merchant
     get   "merchants/:id/settlement-controls",     to: "settlement_controls#show",     as: :merchant_settlement_controls
     patch "merchants/:id/settlement-controls",     to: "settlement_controls#update"
+
+    get  "merchants/:id/reserve-policy/new-modal",                              to: "reserve_policies#new_modal",        as: :new_modal_merchant_reserve_policy
+    post "merchants/:id/reserve-policy",                                        to: "reserve_policies#create",           as: :merchant_reserve_policy
+    get  "merchants/:id/reserve-policy/:policy_id/approve-modal",               to: "reserve_policies#approve_modal",    as: :approve_modal_merchant_reserve_policy
+    post "merchants/:id/reserve-policy/:policy_id/approve",                     to: "reserve_policies#approve",          as: :approve_merchant_reserve_policy
+    get  "merchants/:id/reserve-policy/:policy_id/deactivate-modal",            to: "reserve_policies#deactivate_modal", as: :deactivate_modal_merchant_reserve_policy
+    post "merchants/:id/reserve-policy/:policy_id/deactivate",                  to: "reserve_policies#deactivate",       as: :deactivate_merchant_reserve_policy
   end
 
   # ── Compliance domain (ops — policy-gated) ───────────────────────────────
@@ -75,8 +86,10 @@ Rails.application.routes.draw do
     post "kyb-reviews/:id/reject",                                 to: "kyb_reviews#reject",          as: :reject_kyb_review
     post "kyb-reviews/:id/assign",                                 to: "kyb_reviews#assign",          as: :assign_kyb_review
     post "kyb-reviews/:id/add-ubo",                                to: "kyb_reviews#add_ubo",         as: :add_ubo_kyb_review
-    post "kyb-reviews/:id/grant-live",                             to: "kyb_reviews#grant_live",       as: :grant_live_kyb_review
-    get   "kyb-reviews/:id/grant-live-modal",                      to: "kyb_reviews#grant_live_modal",  as: :grant_live_modal_kyb_review
+    post "kyb-reviews/:id/grant-live",                             to: "kyb_reviews#grant_live",          as: :grant_live_kyb_review
+    get   "kyb-reviews/:id/grant-live-modal",                      to: "kyb_reviews#grant_live_modal",    as: :grant_live_modal_kyb_review
+    post "kyb-reviews/:id/grant-sandbox",                          to: "kyb_reviews#grant_sandbox",       as: :grant_sandbox_kyb_review
+    get   "kyb-reviews/:id/grant-sandbox-modal",                   to: "kyb_reviews#grant_sandbox_modal", as: :grant_sandbox_modal_kyb_review
     get   "kyb-reviews/:id/approve-modal",                         to: "kyb_reviews#approve_modal",     as: :approve_modal_kyb_review
     get   "kyb-reviews/:id/reject-modal",                          to: "kyb_reviews#reject_modal",      as: :reject_modal_kyb_review
     get   "kyb-reviews/:id/add-ubo-modal",                         to: "kyb_reviews#add_ubo_modal",     as: :add_ubo_modal_kyb_review

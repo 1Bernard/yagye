@@ -210,6 +210,12 @@ class CoreApiClient
          { approved_by: approved_by })
   end
 
+  # POST /internal/merchants/:code/enable-sandbox
+  def enable_sandbox_mode(merchant_code, granted_by:)
+    post("/internal/merchants/#{merchant_code}/enable-sandbox",
+         { granted_by: granted_by })
+  end
+
   # POST /internal/merchants/:code/suspend
   def suspend_merchant(merchant_code, suspended_by:, reason: nil)
     post("/internal/merchants/#{merchant_code}/suspend",
@@ -507,6 +513,32 @@ class CoreApiClient
   def get_reserves(merchant_code, limit: 50, offset: 0)
     qs = "?limit=#{limit}&offset=#{offset}"
     get("/internal/merchants/#{merchant_code}/reserves#{qs}")
+  end
+
+  # Alias for merchant show page (returns policy + summary + holds)
+  def list_merchant_reserves(merchant_code, params = {})
+    qs = params.any? ? "?#{params.to_query}" : ""
+    get("/internal/merchants/#{merchant_code}/reserves#{qs}")
+  end
+
+  # POST /internal/merchants/:merchant_code/reserves
+  def create_reserve_policy(merchant_code, params)
+    post("/internal/merchants/#{merchant_code}/reserves", params)
+  end
+
+  # POST /internal/reserves/:id/approve
+  def approve_reserve_policy(policy_id, approved_by:)
+    post("/internal/reserves/#{policy_id}/approve", { approved_by: approved_by })
+  end
+
+  # POST /internal/reserves/:id/deactivate
+  def deactivate_reserve_policy(policy_id)
+    post("/internal/reserves/#{policy_id}/deactivate", {})
+  end
+
+  # POST /internal/reserves/:id/acknowledge
+  def acknowledge_reserve_policy(policy_id, acknowledged_by:)
+    post("/internal/reserves/#{policy_id}/acknowledge", { acknowledged_by: acknowledged_by })
   end
 
   # ── FX rates ──────────────────────────────────────────────────────────────

@@ -8,9 +8,9 @@ module Payments
       PER_PAGE = 50
 
       STATE_STYLES = {
-        "pending"  => { badge: "badge-amber",  label: "Held"     },
-        "released" => { badge: "badge-green",  label: "Released" },
-        "drawn"    => { badge: "badge-red",    label: "Drawn"    }
+        "pending"  => { badge: STATUS_WARNING, label: "Held"     },
+        "released" => { badge: STATUS_SUCCESS, label: "Released" },
+        "drawn"    => { badge: STATUS_FAILED,  label: "Drawn"    }
       }.freeze
 
       def initialize(policy: nil, summary: {}, holds: [], page: 1, total: 0)
@@ -39,8 +39,9 @@ module Payments
             no_policy_state
           else
             div(class: "flex flex-col gap-5") do
+              policy_status_notice if @policy
               summary_stats
-              policy_card  if @policy
+              policy_card if @policy
               holds_table
             end
           end
@@ -48,6 +49,49 @@ module Payments
       end
 
       private
+
+      # ── Policy status notice ──────────────────────────────────────────────────
+
+      def policy_status_notice
+        status = @policy["status"] || (@policy["approved_by"] ? "active" : "pending_approval")
+
+        case status
+        when "pending_approval"
+          div(class: "bg-gray-50 border border-gray-200 rounded-xl px-5 py-4") do
+            p(class: "text-[12.5px] font-semibold text-gray-700 mb-1") { plain "Reserve policy under review" }
+            p(class: "#{TYPE_CAPTION} text-gray-500") do
+              plain "A reserve policy has been set for your account and is undergoing internal approval. No funds will be withheld until it is approved and you have acknowledged the terms."
+            end
+          end
+        when "awaiting_merchant_ack"
+          auto_date = begin
+                        Time.parse(@policy["auto_activates_at"].to_s).strftime("%-d %B %Y")
+                      rescue
+                        "7 days from now"
+                      end
+          div(class: "bg-amber-50 border border-amber-200 rounded-xl px-5 py-5") do
+            div(class: "flex items-start gap-3 mb-3") do
+              span(class: "flex w-5 h-5 text-amber-500 flex-shrink-0 mt-0.5") do
+                render UI::Icon.new(:alert_circle, class: "w-full h-full")
+              end
+              div do
+                p(class: "text-[13px] font-semibold text-amber-900 mb-0.5") { plain "Action required: Acknowledge your reserve policy" }
+                p(class: "#{TYPE_CAPTION} text-amber-700") do
+                  plain "Yagye has applied a reserve policy to your account. Please review the details below and acknowledge your acceptance. If you take no action, the policy will activate automatically on #{auto_date}."
+                end
+              end
+            end
+            form(action: acknowledge_reserve_path(@policy["id"]), method: "post") do
+              input(type: "hidden", name: "authenticity_token", value: form_authenticity_token)
+              button(type: "submit",
+                     class: "#{BTN_PRIMARY} w-full justify-center") do
+                render UI::Icon.new(:check_circle, class: ICON_SM)
+                plain "I acknowledge and accept this reserve policy"
+              end
+            end
+          end
+        end
+      end
 
       # ── No policy state ───────────────────────────────────────────────────────
 
@@ -135,11 +179,21 @@ module Payments
               p(class: TYPE_TITLE) { plain "Reserve policy" }
               p(class: "#{TYPE_CAPTION} mt-[3px]") { plain "The active rule governing how much is held from each settlement." }
             end
-            if p["approved_by"]
-              span(class: "badge-green text-[11.5px] font-semibold px-3 py-1 rounded-full") { plain "Approved" }
+            status = p["status"] || (p["approved_by"] ? "active" : "pending_approval")
+            case status
+            when "active"
+              span(class: "#{BADGE} #{STATUS_SUCCESS}") { plain "Active" }
+            when "awaiting_merchant_ack"
+              span(class: "#{BADGE} #{STATUS_WARNING}") { plain "Awaiting your acknowledgment" }
+            when "inactive"
+              span(class: "#{BADGE} #{STATUS_NEUTRAL}") { plain "Inactive" }
             else
-              span(class: "badge-amber text-[11.5px] font-semibold px-3 py-1 rounded-full") { plain "Pending approval" }
+              span(class: "#{BADGE} #{STATUS_NEUTRAL}") { plain "Pending approval" }
             end
+          end
+
+          div(class: "px-6 pb-2") do
+            p(class: "text-[11px] text-gray-400") { plain "Set by Yagye Risk Team" }
           end
 
           div(class: "grid grid-cols-3 divide-x divide-gray-100") do
@@ -215,7 +269,7 @@ module Payments
 
       def hold_row(h)
         state  = h["state"] || "pending"
-        style  = STATE_STYLES[state] || { badge: "badge-gray", label: state.capitalize }
+        style  = STATE_STYLES[state] || { badge: STATUS_NEUTRAL, label: state.capitalize }
         cur    = h["currency"] || "GHS"
 
         tr(class: "border-b border-gray-50 last:border-0 hover:bg-gray-50 transition-colors") do
@@ -226,7 +280,7 @@ module Payments
             span(class: "text-[13px] font-semibold tabular-nums text-gray-900") { plain format_amount(h["amount"], cur) }
           end
           td(class: "px-6 py-3") do
-            span(class: "#{style[:badge]} text-[11.5px] font-semibold px-[9px] py-[3px] rounded-full") { plain style[:label] }
+            span(class: "#{BADGE} #{style[:badge]}") { plain style[:label] }
           end
           td(class: "px-6 py-3") do
             span(class: "text-[12.5px] text-gray-500") { plain format_date(h["held_at"]) }

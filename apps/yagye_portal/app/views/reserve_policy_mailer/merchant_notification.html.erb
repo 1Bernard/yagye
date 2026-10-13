@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <style>
+    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; color: #1a1a1a; max-width: 600px; margin: 0 auto; padding: 40px 20px; font-size: 14px; line-height: 1.6; }
+    h2 { font-size: 20px; font-weight: 700; margin: 0 0 16px; }
+    .card { background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 12px; padding: 20px 24px; margin: 24px 0; }
+    .row { display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #f3f4f6; font-size: 13px; }
+    .row:last-child { border-bottom: none; }
+    .label { color: #6b7280; }
+    .value { font-weight: 600; text-align: right; }
+    .notice { background: #fffbeb; border: 1px solid #fde68a; border-radius: 10px; padding: 16px 20px; margin: 24px 0; font-size: 13px; }
+    .notice strong { display: block; margin-bottom: 4px; color: #92400e; }
+    .notice p { margin: 0; color: #78350f; }
+    .btn { display: inline-block; background: #111827; color: #ffffff !important; padding: 12px 28px; border-radius: 8px; text-decoration: none; font-weight: 600; font-size: 14px; margin: 8px 0 24px; }
+    .footer { color: #9ca3af; font-size: 12px; margin-top: 40px; border-top: 1px solid #f3f4f6; padding-top: 20px; }
+  </style>
+</head>
+<body>
+  <h2>Reserve policy applied to your account</h2>
+
+  <p>Dear <%= @merchant_name %>,</p>
+
+  <p>Yagye has applied a reserve policy to your merchant account as part of our standard risk management process. Please review the details below and acknowledge your understanding in the Yagye portal.</p>
+
+  <div class="card">
+    <div class="row"><span class="label">Reserve type</span><span class="value"><%= @kind_label %></span></div>
+    <div class="row"><span class="label">Rate / amount</span><span class="value"><%= @rate_display %></span></div>
+    <div class="row"><span class="label">Hold period</span><span class="value"><%= @hold_days %> days</span></div>
+    <% if @policy["reason"].present? %>
+    <div class="row"><span class="label">Reason</span><span class="value"><%= @policy["reason"] %></span></div>
+    <% end %>
+  </div>
+
+  <div class="notice">
+    <strong>Action required by <%= @auto_activates_at.strftime("%-d %B %Y") %></strong>
+    <p>Please log in to your Yagye portal and acknowledge this reserve policy. If no action is taken, the policy will activate automatically on that date.</p>
+  </div>
+
+  <a href="<%= @portal_url %>/reserves" class="btn">Review &amp; acknowledge in portal →</a>
+
+  <p><strong>What is a rolling reserve?</strong> A reserve is a portion of your settlement funds held by Yagye as a financial safeguard against chargebacks and disputes. Funds withheld under this policy will be released to you on a rolling basis after the <%= @hold_days %>-day hold period.</p>
+
+  <p>If you have questions about this reserve, please contact your Yagye account manager or reach out to our merchant support team.</p>
+
+  <div class="footer">
+    <p>This message was sent by Yagye Payment Services. Please do not reply directly to this email.</p>
+  </div>
+</body>
+</html>

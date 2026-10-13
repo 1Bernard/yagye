@@ -1,0 +1,32 @@
+Reserve policy applied to your Yagye account
+=============================================
+
+Dear <%= @merchant_name %>,
+
+Yagye has applied a reserve policy to your merchant account as part of our
+standard risk management process.
+
+Reserve details:
+  Type:        <%= @kind_label %>
+  Rate/amount: <%= @rate_display %>
+  Hold period: <%= @hold_days %> days
+<% if @policy["reason"].present? %>  Reason:      <%= @policy["reason"] %>
+<% end %>
+
+ACTION REQUIRED by <%= @auto_activates_at.strftime("%-d %B %Y") %>
+---------------------------------------------------------------
+Please log in to your Yagye portal and acknowledge this reserve policy.
+If no action is taken, the policy will activate automatically on that date.
+
+  <%= @portal_url %>/reserves
+
+What is a rolling reserve?
+A reserve is a portion of your settlement funds held by Yagye as a financial
+safeguard against chargebacks and disputes. Funds will be released to you on
+a rolling basis after the <%= @hold_days %>-day hold period.
+
+If you have questions, please contact your Yagye account manager.
+
+--
+Yagye Payment Services
+This message was sent automatically. Please do not reply to this email.

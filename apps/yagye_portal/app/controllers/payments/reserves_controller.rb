@@ -19,5 +19,28 @@ module Payments
         total:   data.dig("meta", "total").to_i
       )
     end
+
+    def acknowledge
+      authorize :reserve, :index?, policy_class: ReservePolicy
+
+      result = CoreApiClient.new.acknowledge_reserve_policy(
+        params[:id],
+        acknowledged_by: current_user.user_code
+      )
+
+      if result.success?
+        AuditLog.record(
+          actor:         current_user,
+          action:        "reserve_policy.acknowledged",
+          resource_type: "merchant",
+          resource_code: current_user.merchant_code,
+          outcome:       "succeeded"
+        )
+        redirect_to reserves_path,
+                    notice: "Reserve policy acknowledged. Funds will be withheld from your next settlement."
+      else
+        redirect_to reserves_path, alert: result.error_message
+      end
+    end
   end
 end
