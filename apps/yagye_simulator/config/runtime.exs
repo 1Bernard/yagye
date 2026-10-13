@@ -2,10 +2,10 @@ import Config
 
 :logger.update_primary_config(%{
   metadata: %{
-    service:     "yagye_simulator",
+    service: "yagye_simulator",
     environment: config_env() |> to_string(),
-    release:     System.get_env("RELEASE_SHA", "local"),
-    host:        System.get_env("HOSTNAME", "localhost")
+    release: System.get_env("RELEASE_SHA", "local"),
+    host: System.get_env("HOSTNAME", "localhost")
   }
 })
 
