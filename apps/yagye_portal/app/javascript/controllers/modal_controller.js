@@ -4,6 +4,11 @@ export default class extends Controller {
   static targets = ["panel"]
 
   open() {
+    const frame = this.element.querySelector("[id='modal-frame']")
+    if (frame && !frame.firstElementChild) {
+      this.close()
+      return
+    }
     document.body.classList.add("overflow-hidden")
     this.element.classList.remove("opacity-0", "pointer-events-none")
     this.panelTarget.classList.remove("translate-y-3", "scale-[0.98]")

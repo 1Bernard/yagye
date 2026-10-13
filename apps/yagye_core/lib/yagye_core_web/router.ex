@@ -196,6 +196,12 @@ defmodule YagyeCoreWeb.Router do
       :kyb_start_review
     )
 
+    post(
+      "/merchants/:merchant_code/enable-sandbox",
+      InternalMerchantsController,
+      :enable_sandbox
+    )
+
     post("/merchants/:merchant_code/kyb-resubmit", KybController, :resubmit)
 
     # Reconciliation — ops view of breaks per merchant and cross-merchant
@@ -319,6 +325,10 @@ defmodule YagyeCoreWeb.Router do
 
     # Reserves — active policy + holds (portal read-only)
     get("/merchants/:merchant_code/reserves", InternalReservesController, :index)
+    post("/merchants/:merchant_code/reserves", InternalReservesController, :create_policy)
+    post("/reserves/:id/approve", InternalReservesController, :approve_policy)
+    post("/reserves/:id/deactivate", InternalReservesController, :deactivate_policy)
+    post("/reserves/:id/acknowledge", InternalReservesController, :acknowledge_policy)
 
     # FX rates — no merchant context needed, read-only reference data
     get("/fx-rates", YagyeCoreWeb.Controllers.Fx.FxRateController, :index)

@@ -183,6 +183,9 @@ module Activity
                   p(class: "#{TYPE_MONO} text-[11px] text-gray-400 mt-[2px] truncate") { plain ref }
                 end
               end
+              if (actor = event["actor_name"].presence)
+                p(class: "text-[11px] text-gray-400 mt-[1px]") { plain "by #{actor}" }
+              end
             end
             span(class: "text-[11.5px] font-medium text-gray-400 tabular-nums flex-shrink-0 mt-[1px]") do
               plain ts

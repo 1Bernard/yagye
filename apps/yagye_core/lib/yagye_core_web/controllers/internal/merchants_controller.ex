@@ -35,7 +35,22 @@ defmodule YagyeCoreWeb.Controllers.Internal.MerchantsController do
     end
   end
 
-  defp require_actor(nil), do: {:error, {:missing_param, "approved_by"}}
-  defp require_actor(""), do: {:error, {:missing_param, "approved_by"}}
-  defp require_actor(v), do: {:ok, v}
+  def enable_sandbox(conn, %{"merchant_code" => merchant_code} = params) do
+    with {:ok, granted_by} <- require_param(params["granted_by"], "granted_by"),
+         {:ok, merchant} <- Merchants.get_merchant(merchant_code),
+         {:ok, :enabled} <- Merchants.enable_sandbox_mode(merchant.id, granted_by) do
+      Response.ok(conn, %{
+        object: "merchant",
+        id: merchant.public_id,
+        sandbox_enabled: true,
+        granted_by: granted_by
+      })
+    end
+  end
+
+  defp require_actor(v), do: require_param(v, "approved_by")
+
+  defp require_param(nil, name), do: {:error, {:missing_param, name}}
+  defp require_param("", name), do: {:error, {:missing_param, name}}
+  defp require_param(v, _name), do: {:ok, v}
 end

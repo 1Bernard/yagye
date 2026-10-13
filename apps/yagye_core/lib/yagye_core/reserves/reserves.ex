@@ -27,16 +27,13 @@ defmodule YagyeCore.Reserves do
     {:ok, reserves}
   end
 
-  @doc """
-  Returns the active reserve policy for a merchant+currency+mode, or nil.
-  """
   def reserve_policy_for(merchant_id, currency, mode) do
     from(r in MerchantReserve,
       where:
         r.merchant_id == ^merchant_id and
           r.currency == ^currency and
           r.mode == ^mode and
-          r.active == true,
+          r.status == "active",
       order_by: [desc: :inserted_at],
       limit: 1
     )
@@ -53,20 +50,56 @@ defmodule YagyeCore.Reserves do
     |> Repo.insert()
   end
 
+  def deactivate_policy(%MerchantReserve{status: "inactive"}), do: {:error, :already_inactive}
+
   def deactivate_policy(%MerchantReserve{} = reserve) do
     reserve
     |> MerchantReserve.deactivate_changeset()
     |> Repo.update()
   end
 
-  @doc """
-  Approves a reserve policy, enforcing SoD (approved_by must differ from created_by).
-  Returns {:ok, reserve} or {:error, changeset}.
-  """
+  def approve_policy(%MerchantReserve{approved_by: approved_by}, _) when not is_nil(approved_by),
+    do: {:error, :already_approved}
+
   def approve_policy(%MerchantReserve{} = reserve, approved_by) do
     reserve
     |> MerchantReserve.approve_changeset(approved_by)
     |> Repo.update()
+  end
+
+  def acknowledge_policy(%MerchantReserve{status: "active"}, _),
+    do: {:error, :already_acknowledged}
+
+  def acknowledge_policy(%MerchantReserve{status: s}, _) when s != "awaiting_merchant_ack",
+    do: {:error, :invalid_state}
+
+  def acknowledge_policy(%MerchantReserve{} = reserve, acknowledged_by) do
+    reserve
+    |> MerchantReserve.acknowledge_changeset(acknowledged_by)
+    |> Repo.update()
+  end
+
+  def auto_activate_policy(%MerchantReserve{} = reserve) do
+    reserve
+    |> MerchantReserve.auto_activate_changeset()
+    |> Repo.update()
+  end
+
+  def pending_auto_activations do
+    now = DateTime.utc_now()
+
+    from(r in MerchantReserve,
+      where: r.status == "awaiting_merchant_ack" and r.auto_activates_at <= ^now
+    )
+    |> Repo.all()
+  end
+
+  def list_merchant_reserves(merchant_id) do
+    from(r in MerchantReserve,
+      where: r.merchant_id == ^merchant_id,
+      order_by: [desc: :inserted_at]
+    )
+    |> Repo.all()
   end
 
   @doc """

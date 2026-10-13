@@ -46,7 +46,7 @@ module UI
           end
         end
 
-        form(action: @confirm_path, method: "post") do
+        form(action: @confirm_path, method: "post", data: { turbo_frame: "_top" }) do
           input(type: "hidden", name: "_method", value: @confirm_method) unless @confirm_method == "post"
 
           div(class: MODAL_BODY) do

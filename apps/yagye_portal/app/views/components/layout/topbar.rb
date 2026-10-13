@@ -46,9 +46,9 @@ module Layout
                 li(style: "display:flex;align-items:center") do
                   span(style: DISPLAY) { plain item[:label] }
                 end
-              elsif item[:href]
+              elsif (link = item[:href] || item[:url])
                 li(style: "display:flex;align-items:center") do
-                  a(href: item[:href], style: ANCESTOR, class: "topbar-ancestor-crumb") do
+                  a(href: link, style: ANCESTOR, class: "topbar-ancestor-crumb") do
                     plain item[:label]
                   end
                 end

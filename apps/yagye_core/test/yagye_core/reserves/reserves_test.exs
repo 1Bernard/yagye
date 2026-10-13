@@ -37,6 +37,8 @@ defmodule YagyeCore.Reserves.ReservesTest do
           mode: "simulation"
         })
 
+      activate_policy!(reserve)
+
       result = Reserves.reserve_policy_for(merchant.id, "GHS", "simulation")
       assert result.id == reserve.id
     end
@@ -51,13 +53,13 @@ defmodule YagyeCore.Reserves.ReservesTest do
           mode: "simulation"
         })
 
-      Reserves.deactivate_policy(reserve)
+      reserve |> activate_policy!() |> Reserves.deactivate_policy()
 
       assert Reserves.reserve_policy_for(merchant.id, "GHS", "simulation") == nil
     end
 
     test "returns the newest active policy when multiple exist", %{merchant: merchant} do
-      {:ok, _older} =
+      {:ok, older} =
         Reserves.create_policy(merchant.id, %{
           kind: "fixed",
           fixed_amount: 500,
@@ -72,6 +74,9 @@ defmodule YagyeCore.Reserves.ReservesTest do
           currency: "GHS",
           mode: "live"
         })
+
+      activate_policy!(older)
+      activate_policy!(newer)
 
       result = Reserves.reserve_policy_for(merchant.id, "GHS", "live")
       assert result.id == newer.id
@@ -143,7 +148,7 @@ defmodule YagyeCore.Reserves.ReservesTest do
     end
 
     test "creates a hold for a rolling policy", %{merchant: merchant, payment: payment} do
-      {:ok, _reserve} =
+      {:ok, reserve} =
         Reserves.create_policy(merchant.id, %{
           kind: "rolling",
           percentage_bps: 500,
@@ -151,6 +156,8 @@ defmodule YagyeCore.Reserves.ReservesTest do
           currency: "GHS",
           mode: "live"
         })
+
+      activate_policy!(reserve)
 
       assert {:ok, %ReserveHold{} = hold} = Reserves.create_hold(payment)
       # 5% of 100_000 = 5_000
@@ -161,7 +168,7 @@ defmodule YagyeCore.Reserves.ReservesTest do
     end
 
     test "creates a hold for a fixed policy", %{merchant: merchant, payment: payment} do
-      {:ok, _reserve} =
+      {:ok, reserve} =
         Reserves.create_policy(merchant.id, %{
           kind: "fixed",
           fixed_amount: 2_000,
@@ -169,12 +176,14 @@ defmodule YagyeCore.Reserves.ReservesTest do
           mode: "live"
         })
 
+      activate_policy!(reserve)
+
       assert {:ok, %ReserveHold{} = hold} = Reserves.create_hold(payment)
       assert hold.amount == 2_000
     end
 
     test "posts ledger entries for the hold", %{merchant: merchant, payment: payment} do
-      {:ok, _reserve} =
+      {:ok, reserve} =
         Reserves.create_policy(merchant.id, %{
           kind: "rolling",
           percentage_bps: 500,
@@ -182,6 +191,8 @@ defmodule YagyeCore.Reserves.ReservesTest do
           currency: "GHS",
           mode: "live"
         })
+
+      activate_policy!(reserve)
 
       {:ok, _hold} = Reserves.create_hold(payment)
 
@@ -195,13 +206,15 @@ defmodule YagyeCore.Reserves.ReservesTest do
       merchant: merchant,
       payment: payment
     } do
-      {:ok, _reserve} =
+      {:ok, reserve} =
         Reserves.create_policy(merchant.id, %{
           kind: "fixed",
           fixed_amount: 1_000,
           currency: "GHS",
           mode: "live"
         })
+
+      activate_policy!(reserve)
 
       {:ok, hold1} = Reserves.create_hold(payment)
       # Unique index on (payment_id, reserve_id) prevents a second hold
@@ -244,13 +257,15 @@ defmodule YagyeCore.Reserves.ReservesTest do
 
   describe "draw_hold/2" do
     test "draws a pending hold and updates state", %{merchant: merchant, payment: payment} do
-      {:ok, _reserve} =
+      {:ok, reserve} =
         Reserves.create_policy(merchant.id, %{
           kind: "fixed",
           fixed_amount: 1_000,
           currency: "GHS",
           mode: "live"
         })
+
+      activate_policy!(reserve)
 
       {:ok, hold} = Reserves.create_hold(payment)
       dispute_id = Uniq.UUID.uuid7()
@@ -262,13 +277,15 @@ defmodule YagyeCore.Reserves.ReservesTest do
     end
 
     test "rejects draw on a non-pending hold", %{merchant: merchant, payment: payment} do
-      {:ok, _reserve} =
+      {:ok, reserve} =
         Reserves.create_policy(merchant.id, %{
           kind: "fixed",
           fixed_amount: 1_000,
           currency: "GHS",
           mode: "live"
         })
+
+      activate_policy!(reserve)
 
       {:ok, hold} = Reserves.create_hold(payment)
       {:ok, drawn} = Reserves.draw_hold(hold, Uniq.UUID.uuid7())
@@ -281,13 +298,15 @@ defmodule YagyeCore.Reserves.ReservesTest do
       merchant: merchant,
       payment: payment
     } do
-      {:ok, _} =
+      {:ok, reserve} =
         Reserves.create_policy(merchant.id, %{
           kind: "fixed",
           fixed_amount: 3_000,
           currency: "GHS",
           mode: "live"
         })
+
+      activate_policy!(reserve)
 
       {:ok, hold} = Reserves.create_hold(payment)
       assert {:ok, _} = Reserves.draw_hold(hold, Uniq.UUID.uuid7())
@@ -365,13 +384,15 @@ defmodule YagyeCore.Reserves.ReservesTest do
       merchant: merchant,
       payment: payment
     } do
-      {:ok, _} =
+      {:ok, reserve} =
         Reserves.create_policy(merchant.id, %{
           kind: "fixed",
           fixed_amount: 2_500,
           currency: "GHS",
           mode: "live"
         })
+
+      activate_policy!(reserve)
 
       # create_hold also posts the reserve_hold ledger entry
       {:ok, hold} = Reserves.create_hold(payment)
@@ -394,6 +415,17 @@ defmodule YagyeCore.Reserves.ReservesTest do
       {:ok, payable_balance} = Ledger.get_balance(payable_account.id)
       assert payable_balance == 0
     end
+  end
+
+  # ── Helpers ──────────────────────────────────────────────────────────────────
+
+  # Bypasses the approval lifecycle and marks a reserve as active directly.
+  # Use only in tests that need an active policy as a pre-condition for testing
+  # something else (e.g. create_hold, draw_hold).
+  defp activate_policy!(reserve) do
+    reserve
+    |> Ecto.Changeset.change(%{status: "active", active: true})
+    |> Repo.update!()
   end
 
   describe "ReserveReleaseWorker" do

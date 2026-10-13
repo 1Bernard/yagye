@@ -124,6 +124,27 @@ defmodule YagyeCore.Merchants do
     })
   end
 
+  def enable_sandbox_mode(merchant_id, granted_by) do
+    with {:ok, merchant} <- get_merchant_by_id(merchant_id) do
+      Multi.new()
+      |> Multi.run(:mode, fn _repo, _changes ->
+        grant_mode(merchant_id, :sandbox)
+      end)
+      |> Multi.insert(
+        :outbox,
+        Outbox.build_changeset(merchant, "merchant.sandbox_enabled", %{
+          merchant_code: merchant.public_id,
+          granted_by: granted_by
+        })
+      )
+      |> Repo.transaction()
+      |> case do
+        {:ok, _} -> {:ok, :enabled}
+        {:error, _step, reason, _} -> {:error, reason}
+      end
+    end
+  end
+
   # State-only transition for ops tooling. Business metadata is stored via Compliance.submit_onboarding/2.
   def submit_basic_info(merchant_id, submitted_by) do
     dispatch(%SubmitBasicInfo{merchant_id: merchant_id, submitted_by: submitted_by})
@@ -582,6 +603,13 @@ defmodule YagyeCore.Merchants do
     Multi.new()
     |> Multi.run(:merchant, fn _repo, _changes ->
       fetch_approvable(cmd.merchant_id)
+    end)
+    |> Multi.run(:sod_check, fn _repo, %{merchant: merchant} ->
+      if merchant.reviewed_by && merchant.reviewed_by == cmd.approved_by do
+        {:error, :sod_violation}
+      else
+        {:ok, :cleared}
+      end
     end)
     |> Multi.run(:threshold_check, fn _repo, %{merchant: merchant} ->
       if Compliance.ubo_threshold_cleared?(merchant.id) do

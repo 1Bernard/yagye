@@ -18,10 +18,15 @@ defmodule YagyeCore.Reserves.Schemas.MerchantReserve do
     field :fixed_amount, :integer
     field :currency, :string
     field :hold_days, :integer
-    field :active, :boolean, default: true
+    field :active, :boolean, default: false
     field :reason, :string
     field :created_by, :string
     field :approved_by, :string
+    field :status, :string, default: "pending_approval"
+    field :acknowledged_by, :string
+    field :acknowledged_at, :utc_datetime_usec
+    field :notice_sent_at, :utc_datetime_usec
+    field :auto_activates_at, :utc_datetime_usec
 
     belongs_to :merchant, Merchant
 
@@ -53,10 +58,33 @@ defmodule YagyeCore.Reserves.Schemas.MerchantReserve do
   end
 
   def approve_changeset(reserve, approved_by) do
+    now = DateTime.utc_now()
+
     reserve
     |> cast(%{approved_by: approved_by}, [:approved_by])
     |> validate_required([:approved_by])
     |> validate_sod()
+    |> put_change(:status, "awaiting_merchant_ack")
+    |> put_change(:notice_sent_at, now)
+    |> put_change(:auto_activates_at, DateTime.add(now, 7 * 24 * 3600, :second))
+  end
+
+  def acknowledge_changeset(reserve, acknowledged_by) do
+    reserve
+    |> change(%{
+      acknowledged_by: acknowledged_by,
+      acknowledged_at: DateTime.utc_now(),
+      active: true,
+      status: "active"
+    })
+  end
+
+  def auto_activate_changeset(reserve) do
+    change(reserve, %{active: true, status: "active"})
+  end
+
+  def deactivate_changeset(reserve) do
+    change(reserve, %{active: false, status: "inactive"})
   end
 
   defp validate_sod(%{valid?: false} = cs), do: cs
@@ -73,10 +101,6 @@ defmodule YagyeCore.Reserves.Schemas.MerchantReserve do
     else
       cs
     end
-  end
-
-  def deactivate_changeset(reserve) do
-    change(reserve, active: false)
   end
 
   defp validate_kind_fields(%{valid?: false} = cs), do: cs

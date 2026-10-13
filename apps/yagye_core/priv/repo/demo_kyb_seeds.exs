@@ -69,9 +69,12 @@ case Repo.get_by(Merchant, public_id: merchant_code) do
 
     # ── 3. Beneficial owners referencing pii_vault.subject_ref ──────────────
     ubo_attrs = [
-      %{merchant_id: m.id, subject_ref: pii_ref_1, role: "director",    ownership_bps: 4500},
-      %{merchant_id: m.id, subject_ref: pii_ref_2, role: "both", ownership_bps: 3000},
-      %{merchant_id: m.id, subject_ref: pii_ref_3, role: "ubo",         ownership_bps: 2500}
+      %{merchant_id: m.id, subject_ref: pii_ref_1, role: "director", ownership_bps: 4500,
+        subject_name: "Kofi Agyeman",  subject_dob: "1978-03-12"},
+      %{merchant_id: m.id, subject_ref: pii_ref_2, role: "both",     ownership_bps: 3000,
+        subject_name: "Abena Mensah",  subject_dob: "1985-07-24"},
+      %{merchant_id: m.id, subject_ref: pii_ref_3, role: "ubo",      ownership_bps: 2500,
+        subject_name: "Kwame Owusu",   subject_dob: "1990-11-05"}
     ]
 
     Enum.each(ubo_attrs, fn attrs ->

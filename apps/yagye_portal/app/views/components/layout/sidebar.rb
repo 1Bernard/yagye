@@ -316,6 +316,14 @@ module Layout
             end
           end
         end
+
+        unless live
+          p(class: "sidebar-nav-label",
+            style: "font-size:9.5px;font-weight:500;color:#92400e;opacity:0.6;" \
+                   "margin-top:4px;padding:0 3px;letter-spacing:0.01em") do
+            plain test_environment_label
+          end
+        end
       end
     end
 
@@ -347,6 +355,17 @@ module Layout
       PortalMerchant.find_for(Current.user.merchant_code)&.live_mode_enabled? || false
     rescue
       false
+    end
+
+    def portal_sandbox_enabled?
+      return false unless Current.user&.merchant_user?
+      PortalMerchant.find_for(Current.user.merchant_code)&.sandbox_enabled? || false
+    rescue
+      false
+    end
+
+    def test_environment_label
+      portal_sandbox_enabled? ? "Environment: Sandbox" : "Environment: Simulation"
     end
 
     # ── User row ────────────────────────────────────────────────────────────────

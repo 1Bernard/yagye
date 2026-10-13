@@ -65,7 +65,7 @@ module Shared
             style: "background: #{cfg[:icon_bg]}; border: 1px solid #{cfg[:icon_border]}"
           ) do
             span(class: "flex w-[14px] h-[14px]", style: "color: #{cfg[:accent]}") do
-              render UI::Icon.new(:x_circle, class: "w-full h-full")
+              render UI::Icon.new(:alert_circle, class: "w-full h-full")
             end
           end
 

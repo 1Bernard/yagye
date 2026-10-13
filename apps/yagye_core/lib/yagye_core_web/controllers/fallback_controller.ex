@@ -64,6 +64,34 @@ defmodule YagyeCoreWeb.FallbackController do
   def call(conn, {:error, :not_kyb_ready}),
     do: Response.unprocessable(conn, "kyb_incomplete", "KYB must be completed before approval")
 
+  def call(conn, {:error, :already_inactive}),
+    do:
+      Response.unprocessable(conn, "already_inactive", "This reserve policy is already inactive")
+
+  def call(conn, {:error, :already_approved}),
+    do:
+      Response.unprocessable(
+        conn,
+        "already_approved",
+        "This reserve policy has already been approved"
+      )
+
+  def call(conn, {:error, :already_acknowledged}),
+    do:
+      Response.unprocessable(
+        conn,
+        "already_acknowledged",
+        "This reserve policy has already been acknowledged"
+      )
+
+  def call(conn, {:error, :sod_violation}),
+    do:
+      Response.unprocessable(
+        conn,
+        "sod_violation",
+        "The reviewer and approver must be different people"
+      )
+
   def call(conn, {:error, :no_rejected_application}),
     do:
       Response.unprocessable(

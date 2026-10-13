@@ -67,6 +67,8 @@ config :yagye_core, Oban,
        {"0 * * * *", YagyeCore.Settlement.Workers.SettlementSchedulerWorker},
        # Reserve release runs every 6 hours; batches up to 200 holds per run
        {"0 */6 * * *", YagyeCore.Reserves.Workers.ReserveReleaseWorker},
+       # Auto-activate reserve policies whose 7-day notice window has elapsed
+       {"0 * * * *", YagyeCore.Reserves.Workers.AutoActivateReserveWorker},
        # Recover processing-orphaned payments every 5 minutes
        {"*/5 * * * *", YagyeCore.Payments.Workers.StuckPaymentScannerWorker},
        # Fetch FX rates daily at 06:00 UTC (06:00 WAT — Ghana does not observe DST)
