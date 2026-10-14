@@ -91,6 +91,7 @@ defmodule YagyeCoreWeb.Router do
 
   scope "/" do
     get("/health", YagyeCoreWeb.HealthController, :check)
+    get("/metrics", YagyeCoreWeb.MetricsController, :index)
   end
 
   scope "/provider-webhooks" do

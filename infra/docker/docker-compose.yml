@@ -107,6 +107,9 @@ services:
       REDIS_URL: redis://redis:6379/0
       PORT: "4000"
       PHX_HOST: localhost
+      # P18 — Observability: send OTLP traces to Alloy
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://alloy:4318
+      OTEL_RESOURCE_ATTRIBUTES: service.name=yagye_core,deployment.environment=local
       # P21 — Floci (local AWS emulator)
       AWS_ACCESS_KEY_ID: test
       AWS_SECRET_ACCESS_KEY: test
@@ -138,9 +141,10 @@ services:
       retries: 10
       start_period: 20s
     networks:
-      - data       # PostgreSQL access
-      - core_mesh  # Core ↔ Simulator calls
-      - edge       # Receives HTTP calls from Portal
+      - data          # PostgreSQL access
+      - core_mesh     # Core ↔ Simulator calls
+      - edge          # Receives HTTP calls from Portal
+      - observability # Sends OTLP to Alloy; Alloy scrapes /metrics
 
   yagye_simulator:
     build:
@@ -300,12 +304,105 @@ services:
       - data  # DB writes + Redpanda consumption only
     # NOT on edge or core_mesh — consumers write to DB, they don't call other services
 
+  # ---------------------------------------------------------------------------
+  # P18 — Observability stack
+  #
+  #   alloy      — Grafana Alloy: OTLP receiver + Prometheus scraper + Docker log shipper
+  #   tempo      — Distributed traces backend (OTLP ingestion, Grafana data source)
+  #   loki       — Log aggregation backend (Grafana data source)
+  #   prometheus — Metrics backend + recording rules + alert evaluation
+  #   grafana    — Dashboards at http://localhost:3100  (admin / yagye_dev)
+  #
+  # All services share the `observability` network. Alloy also sits on `core_mesh`
+  # so it can scrape Core's /metrics endpoint and receive OTLP from app containers.
+  # ---------------------------------------------------------------------------
+
+  alloy:
+    image: grafana/alloy:latest
+    restart: unless-stopped
+    volumes:
+      - ./alloy/config.alloy:/etc/alloy/config.alloy:ro
+      - /var/run/docker.sock:/var/run/docker.sock
+    command: run --server.http.listen-addr=0.0.0.0:12345 /etc/alloy/config.alloy
+    ports:
+      - "4317:4317"   # OTLP gRPC (apps → Alloy)
+      - "4318:4318"   # OTLP HTTP (apps → Alloy)
+      - "12345:12345" # Alloy UI  http://localhost:12345
+    networks:
+      - observability
+      - core_mesh   # Scrapes yagye_core:4000/metrics
+    depends_on:
+      - tempo
+      - loki
+      - prometheus
+
+  tempo:
+    image: grafana/tempo:latest
+    restart: unless-stopped
+    command: -config.file=/etc/tempo/config.yaml
+    volumes:
+      - ./tempo/config.yaml:/etc/tempo/config.yaml:ro
+      - tempo_data:/var/tempo
+    networks:
+      - observability
+
+  loki:
+    image: grafana/loki:latest
+    restart: unless-stopped
+    command: -config.file=/etc/loki/config.yaml
+    volumes:
+      - ./loki/config.yaml:/etc/loki/config.yaml:ro
+      - loki_data:/loki
+    networks:
+      - observability
+
+  prometheus:
+    image: prom/prometheus:latest
+    restart: unless-stopped
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.retention.time=15d
+      - --web.enable-remote-write-receiver
+    volumes:
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./prometheus/rules:/etc/prometheus/rules:ro
+      - prometheus_data:/prometheus
+    ports:
+      - "9090:9090"   # Prometheus UI http://localhost:9090
+    networks:
+      - observability
+
+  grafana:
+    image: grafana/grafana:latest
+    restart: unless-stopped
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: yagye_dev
+      GF_PATHS_PROVISIONING: /etc/grafana/provisioning
+      GF_FEATURE_TOGGLES_ENABLE: traceqlEditor
+    volumes:
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./grafana/dashboards:/var/lib/grafana/dashboards:ro
+      - grafana_data:/var/lib/grafana
+    ports:
+      - "3100:3000"   # Grafana UI http://localhost:3100
+    depends_on:
+      - prometheus
+      - loki
+      - tempo
+    networks:
+      - observability
+
 volumes:
   postgres_data:
   redpanda_data:
   rabbitmq_data:
   redis_data:
   floci_data:
+  tempo_data:
+  loki_data:
+  prometheus_data:
+  grafana_data:
 
 networks:
   data:
@@ -313,4 +410,6 @@ networks:
   core_mesh:
     driver: bridge
   edge:
+    driver: bridge
+  observability:
     driver: bridge

@@ -1,0 +1,57 @@
+groups:
+  - name: yagye.slos
+
+    # ── SLO 1: Payment success rate ──────────────────────────────────────────
+    # SLO target: 99.5% of payment attempts succeed within a 30-day window.
+    # "success" = event_type "payment.succeeded"; denominator = all terminal events.
+    rules:
+      - record: yagye:payment:success_rate_5m
+        expr: |
+          sum(rate(yagye_payment_event_count_total{event_type="payment.succeeded"}[5m]))
+          /
+          sum(rate(yagye_payment_event_count_total{event_type=~"payment\\.succeeded|payment\\.failed"}[5m]))
+
+      - record: yagye:payment:success_rate_1h
+        expr: |
+          sum(rate(yagye_payment_event_count_total{event_type="payment.succeeded"}[1h]))
+          /
+          sum(rate(yagye_payment_event_count_total{event_type=~"payment\\.succeeded|payment\\.failed"}[1h]))
+
+      - record: yagye:payment:success_rate_24h
+        expr: |
+          sum(rate(yagye_payment_event_count_total{event_type="payment.succeeded"}[24h]))
+          /
+          sum(rate(yagye_payment_event_count_total{event_type=~"payment\\.succeeded|payment\\.failed"}[24h]))
+
+    # ── SLO 2: Payment API p99 latency ───────────────────────────────────────
+    # SLO target: p99 of POST /v1/payments (Core API) ≤ 2000 ms.
+    # Source: phoenix.router_dispatch.stop.duration_milliseconds histogram.
+      - record: yagye:payment_api:p99_latency_5m
+        expr: |
+          histogram_quantile(
+            0.99,
+            sum(rate(phoenix_router_dispatch_stop_duration_milliseconds_bucket{route="/v1/payments"}[5m])) by (le)
+          )
+
+      - record: yagye:payment_api:p95_latency_5m
+        expr: |
+          histogram_quantile(
+            0.95,
+            sum(rate(phoenix_router_dispatch_stop_duration_milliseconds_bucket{route="/v1/payments"}[5m])) by (le)
+          )
+
+    # ── SLO 3: Settlement sweep lag ───────────────────────────────────────────
+    # SLO target: settlement sweep runs at least every 30 minutes; no batch
+    # older than 4 hours remains unprocessed.
+    # Source: yagye.settlement.sweep counter incremented by SettlementProcessorWorker.
+      - record: yagye:settlement:sweeps_per_hour
+        expr: |
+          sum(increase(yagye_settlement_sweep_count_total[1h]))
+
+    # ── SLO 4: Oban job failure rate ─────────────────────────────────────────
+    # SLO target: < 1% of Oban jobs permanently fail (discarded state).
+      - record: yagye:oban:failure_rate_1h
+        expr: |
+          sum(rate(oban_job_completed_count_total{state="discard"}[1h]))
+          /
+          sum(rate(oban_job_completed_count_total[1h]))

@@ -1,0 +1,98 @@
+groups:
+  - name: yagye.alerts
+
+    rules:
+      # ── Settlement stuck ──────────────────────────────────────────────────
+      - alert: SettlementSweepMissing
+        expr: |
+          (time() - yagye:settlement:last_sweep_timestamp) > 14400
+          or absent(yagye:settlement:last_sweep_timestamp) == 1
+        for: 5m
+        labels:
+          severity: critical
+          team: payments
+        annotations:
+          summary: "Settlement sweep has not run in > 4 hours"
+          description: >
+            The SettlementProcessorWorker has not completed a sweep for
+            {{ humanizeDuration $value }}. Check Oban queue and DB connectivity.
+
+      - alert: SettlementSweepSlowdown
+        expr: yagye:settlement:sweeps_per_hour < 1
+        for: 35m
+        labels:
+          severity: warning
+          team: payments
+        annotations:
+          summary: "Settlement sweep running < once per hour"
+          description: "Only {{ $value }} sweeps in the last hour (expected ≥ 2)."
+
+      # ── Payment success rate ──────────────────────────────────────────────
+      - alert: PaymentSuccessRateLow
+        expr: yagye:payment:success_rate_5m < 0.95
+        for: 10m
+        labels:
+          severity: critical
+          team: payments
+        annotations:
+          summary: "Payment success rate dropped below 95%"
+          description: "5-minute success rate is {{ $value | humanizePercentage }}."
+
+      - alert: PaymentSuccessRateWarning
+        expr: yagye:payment:success_rate_5m < 0.99
+        for: 15m
+        labels:
+          severity: warning
+          team: payments
+        annotations:
+          summary: "Payment success rate below SLO (99.5%)"
+          description: "5-minute success rate is {{ $value | humanizePercentage }}."
+
+      # ── Payment API latency ───────────────────────────────────────────────
+      - alert: PaymentApiHighLatency
+        expr: yagye:payment_api:p99_latency_5m > 2000
+        for: 5m
+        labels:
+          severity: warning
+          team: payments
+        annotations:
+          summary: "Payment API p99 latency > 2 s"
+          description: "p99 latency is {{ $value | humanizeDuration }} (SLO ≤ 2 s)."
+
+      # ── Recon break spike ─────────────────────────────────────────────────
+      - alert: ReconciliationBreakSpike
+        expr: |
+          sum(rate(yagye_payment_event_count_total{event_type="reconciliation.break_opened"}[30m])) > 0.1
+        for: 10m
+        labels:
+          severity: warning
+          team: finance
+        annotations:
+          summary: "Reconciliation break rate spiked"
+          description: "More than 6 breaks opened in the last 30 minutes."
+
+      # ── Oban jobs ─────────────────────────────────────────────────────────
+      - alert: ObanJobDiscardRate
+        expr: yagye:oban:failure_rate_1h > 0.01
+        for: 10m
+        labels:
+          severity: warning
+          team: engineering
+        annotations:
+          summary: "Oban job discard rate > 1%"
+          description: "{{ $value | humanizePercentage }} of jobs permanently failed in the last hour."
+
+      # ── Infra ─────────────────────────────────────────────────────────────
+      - alert: HighDbQueueTime
+        expr: |
+          histogram_quantile(
+            0.95,
+            sum(rate(yagye_core_repo_query_queue_time_milliseconds_bucket[5m])) by (le)
+          ) > 50
+        for: 5m
+        labels:
+          severity: warning
+          team: engineering
+        annotations:
+          summary: "DB connection pool queue time p95 > 50 ms"
+          description: "p95 wait for a DB connection is {{ $value }} ms. Pool may be saturated."

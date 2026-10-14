@@ -1,0 +1,83 @@
+// Grafana Alloy — single collector for all three signals (traces, metrics, logs).
+// Receives OTLP from Elixir apps, scrapes /metrics, ships Docker logs.
+
+// ── OTLP receiver (traces + metrics from apps) ──────────────────────────────
+otelcol.receiver.otlp "default" {
+  grpc { endpoint = "0.0.0.0:4317" }
+  http { endpoint = "0.0.0.0:4318" }
+
+  output {
+    traces  = [otelcol.processor.batch.default.input]
+    metrics = [otelcol.processor.batch.default.input]
+  }
+}
+
+otelcol.processor.batch "default" {
+  output {
+    traces  = [otelcol.exporter.otlphttp.tempo.input]
+    metrics = [otelcol.exporter.prometheus.default.input]
+  }
+}
+
+// ── Traces → Tempo ───────────────────────────────────────────────────────────
+otelcol.exporter.otlphttp "tempo" {
+  client {
+    endpoint = "http://tempo:4318"
+    tls { insecure = true }
+  }
+}
+
+// ── OTel metrics → Prometheus ────────────────────────────────────────────────
+otelcol.exporter.prometheus "default" {
+  forward_to = [prometheus.remote_write.default.receiver]
+}
+
+// ── Prometheus scrape: Core /metrics endpoint ─────────────────────────────────
+prometheus.scrape "yagye_core" {
+  targets = [{"__address__" = "yagye_core:4000", "job" = "yagye_core"}]
+  forward_to = [prometheus.remote_write.default.receiver]
+  scrape_interval = "15s"
+  metrics_path    = "/metrics"
+}
+
+// ── Remote-write to Prometheus ────────────────────────────────────────────────
+prometheus.remote_write "default" {
+  endpoint {
+    url = "http://prometheus:9090/api/v1/write"
+  }
+}
+
+// ── Docker log collection → Loki ─────────────────────────────────────────────
+discovery.docker "containers" {
+  host             = "unix:///var/run/docker.sock"
+  refresh_interval = "5s"
+}
+
+discovery.relabel "containers" {
+  targets = discovery.docker.containers.targets
+
+  rule {
+    source_labels = ["__meta_docker_container_name"]
+    target_label  = "container"
+    regex         = "/?(.*)"
+    replacement   = "$1"
+  }
+
+  rule {
+    source_labels = ["__meta_docker_container_label_com_docker_compose_service"]
+    target_label  = "service"
+  }
+}
+
+loki.source.docker "containers" {
+  host             = "unix:///var/run/docker.sock"
+  targets          = discovery.relabel.containers.output
+  forward_to       = [loki.write.default.receiver]
+  refresh_interval = "5s"
+}
+
+loki.write "default" {
+  endpoint {
+    url = "http://loki:3100/loki/api/v1/push"
+  }
+}

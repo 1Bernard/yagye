@@ -9,11 +9,8 @@ defmodule YagyeCoreWeb.Telemetry do
   @impl true
   def init(_arg) do
     children = [
-      # Telemetry poller will execute the given period measurements
-      # every 10_000ms. Learn more here: https://hexdocs.pm/telemetry_metrics
-      {:telemetry_poller, measurements: periodic_measurements(), period: 10_000}
-      # Add reporters as children of your supervision tree.
-      # {Telemetry.Metrics.ConsoleReporter, metrics: metrics()}
+      {:telemetry_poller, measurements: periodic_measurements(), period: 10_000},
+      {TelemetryMetricsPrometheus.Core, metrics: metrics(), name: :yagye_prometheus}
     ]
 
     Supervisor.init(children, strategy: :one_for_one)
@@ -21,73 +18,90 @@ defmodule YagyeCoreWeb.Telemetry do
 
   def metrics do
     [
-      # Phoenix Metrics
-      summary("phoenix.endpoint.start.system_time",
-        unit: {:native, :millisecond}
+      # ── Phoenix ──────────────────────────────────────────────────────────────
+      counter("phoenix.endpoint.stop.count",
+        tags: [:status],
+        tag_values: &extract_http_status/1
       ),
-      summary("phoenix.endpoint.stop.duration",
-        unit: {:native, :millisecond}
+      distribution("phoenix.endpoint.stop.duration",
+        unit: {:native, :millisecond},
+        reporter_options: [buckets: [10, 50, 100, 250, 500, 1000, 2500, 5000]]
       ),
-      summary("phoenix.router_dispatch.start.system_time",
-        tags: [:route],
-        unit: {:native, :millisecond}
+      distribution("phoenix.router_dispatch.stop.duration",
+        tags: [:route, :status],
+        tag_values: &extract_route_status/1,
+        unit: {:native, :millisecond},
+        reporter_options: [buckets: [10, 50, 100, 250, 500, 1000, 2500, 5000]]
       ),
-      summary("phoenix.router_dispatch.exception.duration",
-        tags: [:route],
-        unit: {:native, :millisecond}
-      ),
-      summary("phoenix.router_dispatch.stop.duration",
-        tags: [:route],
-        unit: {:native, :millisecond}
-      ),
-      summary("phoenix.socket_connected.duration",
-        unit: {:native, :millisecond}
-      ),
-      sum("phoenix.socket_drain.count"),
-      summary("phoenix.channel_joined.duration",
-        unit: {:native, :millisecond}
-      ),
-      summary("phoenix.channel_handled_in.duration",
-        tags: [:event],
-        unit: {:native, :millisecond}
+      counter("phoenix.router_dispatch.exception.count",
+        tags: [:route, :kind]
       ),
 
-      # Database Metrics
-      summary("yagye_core.repo.query.total_time",
+      # ── Database ─────────────────────────────────────────────────────────────
+      distribution("yagye_core.repo.query.total_time",
         unit: {:native, :millisecond},
-        description: "The sum of the other measurements"
+        reporter_options: [buckets: [1, 5, 10, 25, 50, 100, 250, 500, 1000]]
       ),
-      summary("yagye_core.repo.query.decode_time",
+      distribution("yagye_core.repo.query.queue_time",
         unit: {:native, :millisecond},
-        description: "The time spent decoding the data received from the database"
-      ),
-      summary("yagye_core.repo.query.query_time",
-        unit: {:native, :millisecond},
-        description: "The time spent executing the query"
-      ),
-      summary("yagye_core.repo.query.queue_time",
-        unit: {:native, :millisecond},
-        description: "The time spent waiting for a database connection"
-      ),
-      summary("yagye_core.repo.query.idle_time",
-        unit: {:native, :millisecond},
-        description:
-          "The time the connection spent waiting before being checked out for the query"
+        reporter_options: [buckets: [1, 5, 10, 25, 50, 100]]
       ),
 
-      # VM Metrics
-      summary("vm.memory.total", unit: {:byte, :kilobyte}),
-      summary("vm.total_run_queue_lengths.total"),
-      summary("vm.total_run_queue_lengths.cpu"),
-      summary("vm.total_run_queue_lengths.io")
+      # ── Oban jobs ────────────────────────────────────────────────────────────
+      counter("oban.job.completed.count",
+        tags: [:queue, :worker, :state],
+        tag_values: &extract_oban_state/1
+      ),
+      distribution("oban.job.duration",
+        tags: [:queue, :worker],
+        unit: {:native, :millisecond},
+        reporter_options: [buckets: [100, 500, 1000, 5000, 15_000, 60_000, 300_000]]
+      ),
+
+      # ── Payments (business metrics for SLOs) ─────────────────────────────────
+      # Emitted by YagyeCore.Payments when a payment event is recorded.
+      # yagye.payment.event is dispatched as:
+      #   :telemetry.execute([:yagye, :payment, :event], %{count: 1}, %{event_type: event_type, mode: mode})
+      counter("yagye.payment.event.count",
+        tags: [:event_type, :mode],
+        event_name: [:yagye, :payment, :event]
+      ),
+
+      # ── Settlements ──────────────────────────────────────────────────────────
+      # Emitted by SettlementProcessorWorker on each sweep.
+      # yagye.settlement.sweep: %{batch_count: n, total_amount_minor: n}
+      counter("yagye.settlement.sweep.count",
+        event_name: [:yagye, :settlement, :sweep]
+      ),
+      sum("yagye.settlement.sweep.batch_count",
+        event_name: [:yagye, :settlement, :sweep]
+      ),
+
+      # ── VM ───────────────────────────────────────────────────────────────────
+      last_value("vm.memory.total", unit: {:byte, :kilobyte}),
+      last_value("vm.total_run_queue_lengths.total"),
+      last_value("vm.total_run_queue_lengths.cpu"),
+      last_value("vm.total_run_queue_lengths.io")
     ]
   end
 
   defp periodic_measurements do
-    [
-      # A module, function and arguments to be invoked periodically.
-      # This function must call :telemetry.execute/3 and a metric must be added above.
-      # {YagyeCoreWeb, :count_users, []}
-    ]
+    []
   end
+
+  defp extract_http_status(%{status: status}) when is_integer(status),
+    do: %{status: div(status, 100) |> then(&"#{&1}xx")}
+
+  defp extract_http_status(_), do: %{status: "unknown"}
+
+  defp extract_route_status(%{route: route, status: status}) when is_integer(status),
+    do: %{route: route, status: div(status, 100) |> then(&"#{&1}xx")}
+
+  defp extract_route_status(meta), do: %{route: meta[:route] || "unknown", status: "unknown"}
+
+  defp extract_oban_state(%{state: state} = meta),
+    do: %{queue: meta[:queue] || "unknown", worker: meta[:worker] || "unknown", state: state}
+
+  defp extract_oban_state(meta),
+    do: %{queue: meta[:queue] || "unknown", worker: meta[:worker] || "unknown", state: "unknown"}
 end
