@@ -23,6 +23,15 @@ module PricingPlans
       ]
     }.freeze
 
+    PROVIDER_LABEL_MAP = {
+      "MTN_MOMO_GH"   => "MTN MoMo",
+      "TELECEL_GH"    => "Telecel Cash",
+      "AIRTELTIGO_GH" => "AirtelTigo Money",
+      "VISA"          => "Visa",
+      "MASTERCARD"    => "Mastercard",
+      "HUBTEL_GH"     => "Hubtel"
+    }.freeze
+
     def initialize(plan:)
       @plan = plan
     end
@@ -37,7 +46,6 @@ module PricingPlans
       rescue
         "—"
       end
-      status_cls = UI::Theme::STATUS_MAP.fetch(status, UI::Theme::STATUS_NEUTRAL)
 
       render Layout::Shell.new(
         active_nav:  :pricing_plans,
@@ -51,10 +59,10 @@ module PricingPlans
           title:    @plan["name"] || "Pricing Plan",
           subtitle: "v#{@plan["version"]} · #{mode}"
         ) do
-          span(class: "#{UI::Theme::BADGE} #{status_cls}") { plain status.capitalize }
+          render UI::StatusBadge.new(status: status)
           if status == "draft" && can?(:update?, :pricing_plans)
             form(action: activate_pricing_plan_path(@plan["id"]), method: "post",
-                 class: "ml-3",
+                 class: "ml-2",
                  data: { turbo_confirm: "Activate this plan? A different ops member must approve to enforce maker-checker." }) do
               input(type: "hidden", name: "authenticity_token", value: form_authenticity_token)
               render UI::Button.new(variant: :primary, type: "submit") { plain "Activate plan" }
@@ -75,21 +83,20 @@ module PricingPlans
             add_rule_form if can?(:update?, :pricing_plans)
           end
 
-          # ── Right: plan metadata + rule list ─────────────────────────────────
+          # ── Right: plan metadata + rules list ────────────────────────────────
           div(class: "flex flex-col gap-5") do
             render UI::Card.new do |c|
               c.header("Plan details", icon: :tag)
-              c.body do
-                div(class: "divide-y divide-gray-50") do
-                  reserve_detail_row("Plan",         @plan["name"] || "—")
-                  reserve_detail_row("Version",      "v#{@plan["version"]}") if @plan["version"]
-                  reserve_detail_row("Status",       status.capitalize)
-                  reserve_detail_row("Currency",     cur)
-                  reserve_detail_row("Fee mode",     mode)
-                  reserve_detail_row("Monthly fee",  monthly.positive? ? format_money(monthly, currency: cur) : "None")
-                  reserve_detail_row("Active from",  eff || "—")
-                  reserve_detail_row("Created by",   @plan["created_by"] || "—")
-                  reserve_detail_row("Activated by", @plan["activated_by"] || "—") if @plan["activated_by"]
+              c.body(padding: false) do
+                render UI::DetailList.new do |list|
+                  list.row("Version",      "v#{@plan["version"]}")
+                  list.row("Status") { render UI::StatusBadge.new(status: status) }
+                  list.row("Currency",     cur)
+                  list.row("Fee mode",     mode)
+                  list.row("Monthly fee",  monthly.positive? ? format_money(monthly, currency: cur) : "None")
+                  list.row("Active from",  eff || "—")
+                  list.row("Created by",   @plan["created_by"] || "—")
+                  list.row("Activated by", @plan["activated_by"] || "—")
                 end
               end
             end
@@ -162,10 +169,11 @@ module PricingPlans
 
     def rule_row(r)
       cur          = @plan["currency"] || "GHS"
-      method_label = r["method"] ? r["method"].humanize : "All methods"
-      prov_label   = r["provider_code"] || "All providers"
+      method_label = r["method"] ? r["method"].tr("_", " ").split.map(&:capitalize).join(" ") : "All methods"
+      prov_label   = r["provider_code"]&.then { |c| PROVIDER_LABEL_MAP[c.upcase] || c } || "All providers"
       pct          = r["percentage_bps"].to_i
       pct_label    = pct.positive? ? "#{sprintf('%.4f', pct / 100.0).sub(/0+$/, '').sub(/\.$/, '.0')}%" : "—"
+      rule_ref     = r["id"].to_s.first(8)
 
       div(class: "flex items-center gap-3 px-5 py-3.5") do
         div(class: "flex-1 min-w-0") do
@@ -176,7 +184,7 @@ module PricingPlans
             plain parts.join(" + ")
           end
         end
-        span(class: "#{BADGE} #{STATUS_NEUTRAL}") { plain "Rule ##{r["id"]}" }
+        span(class: "#{BADGE} #{STATUS_NEUTRAL} #{TYPE_MONO} shrink-0") { plain rule_ref }
       end
     end
 
