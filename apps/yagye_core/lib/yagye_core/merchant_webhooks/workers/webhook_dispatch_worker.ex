@@ -24,8 +24,6 @@ defmodule YagyeCore.MerchantWebhooks.Workers.WebhookDispatchWorker do
     "dispute.opened" => "dispute.opened",
     "dispute.evidence_submitted" => "dispute.evidence_submitted",
     "dispute.resolved" => "dispute.resolved",
-    "refund.created" => "refund.created",
-    "refund.failed" => "refund.failed",
     "merchant.kyb.approved" => "merchant.kyb.approved",
     "merchant.kyb.rejected" => "merchant.kyb.rejected"
   }

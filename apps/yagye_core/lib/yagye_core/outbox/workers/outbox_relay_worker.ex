@@ -117,7 +117,6 @@ defmodule YagyeCore.Outbox.Workers.OutboxRelayWorker do
   @webhook_eligible ~w[
     payment.succeeded payment.failed payment.refunded payment.disputed
     dispute.opened dispute.evidence_submitted dispute.resolved
-    refund.created refund.failed
     payout.created payout.paid payout.failed
     merchant.kyb.approved merchant.kyb.rejected
   ]
