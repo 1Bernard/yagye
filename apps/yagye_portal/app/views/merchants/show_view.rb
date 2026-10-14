@@ -21,12 +21,14 @@ module Merchants
       "suspended"               => "Suspended"
     }.freeze
 
-    def initialize(application:, beneficial_owners: [], documents: [], screening: nil, reserve_policy: nil)
+    def initialize(application:, beneficial_owners: [], documents: [], screening: nil,
+                   reserve_policy: nil, pricing_plan: nil)
       @app               = application
       @beneficial_owners = beneficial_owners
       @documents         = documents
       @screening         = screening
       @reserve_policy    = reserve_policy
+      @pricing_plan      = pricing_plan
     end
 
     def view_template
@@ -34,7 +36,7 @@ module Merchants
         active_nav: :merchants,
         title:      @app.legal_name || @app.merchant_code,
         breadcrumbs: [
-          { label: "Merchants", url: merchants_path },
+          { label: "Merchants", href: merchants_path },
           { label: @app.legal_name || @app.merchant_code }
         ]
       ) do
@@ -59,6 +61,7 @@ module Merchants
     def right_column
       div(class: "flex flex-col gap-5") do
         actions_card
+        pricing_plan_card if @app.merchant_code.present?
         reserve_policy_card if @app.merchant_code.present? && can?(:manage?, :reserve_policies)
         status_card
       end
@@ -376,6 +379,54 @@ module Merchants
     end
 
     # ── Reserve policy card (ops only) ───────────────────────────────────────
+
+    def pricing_plan_card
+      render UI::Card.new do |c|
+        c.header("Pricing plan", icon: :tag) do
+          if can?(:update?, :merchants)
+            a(href: assign_pricing_plan_modal_merchant_path(@app),
+              class: "#{BTN_SECONDARY} !py-1 !px-2.5 !text-[11.5px] inline-flex items-center gap-1",
+              data: { turbo_frame: "modal-frame" }) do
+              render UI::Icon.new(:edit, class: "w-3 h-3")
+              plain @pricing_plan ? "Change" : "Assign"
+            end
+          end
+        end
+        c.body do
+          if @pricing_plan.nil?
+            div(class: "flex items-start gap-2.5") do
+              span(class: "flex w-4 h-4 flex-shrink-0 mt-0.5", style: "color:#{AMBER}") do
+                render UI::Icon.new(:alert_circle, class: "w-full h-full")
+              end
+              div do
+                p(class: "text-[13px] font-semibold text-gray-700") { plain "No plan assigned" }
+                p(class: TYPE_CAPTION) { plain "This merchant cannot process payments until a pricing plan is assigned." }
+              end
+            end
+          else
+            pricing_plan_body
+          end
+        end
+      end
+    end
+
+    def pricing_plan_body
+      plan = @pricing_plan
+      cur  = plan["currency"] || "GHS"
+      mode = plan["fee_mode"] == "invoiced" ? "Invoiced monthly" : "Deducted from settlement"
+      monthly = plan["monthly_fee"].to_i
+
+      div(class: "divide-y divide-gray-50") do
+        reserve_detail_row("Plan",         plan["name"] || "—")
+        reserve_detail_row("Version",      "v#{plan["version"]}") if plan["version"]
+        reserve_detail_row("Currency",     cur)
+        reserve_detail_row("Fee mode",     mode)
+        reserve_detail_row("Monthly fee",  monthly.positive? ? format_money(monthly, currency: cur) : "None")
+        if (eff = plan["effective_from"])
+          reserve_detail_row("Active since", (fmt_date(Time.parse(eff.to_s)) rescue "—"))
+        end
+      end
+    end
 
     def reserve_policy_card
       pol_status = @reserve_policy && (@reserve_policy["status"] ||

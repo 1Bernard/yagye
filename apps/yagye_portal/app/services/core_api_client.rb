@@ -517,9 +517,19 @@ class CoreApiClient
 
   # ── Pricing ───────────────────────────────────────────────────────────────
 
+  # GET /internal/pricing-plans
+  def list_pricing_plans
+    get("/internal/pricing-plans")
+  end
+
   # GET /internal/merchants/:code/pricing-plan
   def get_merchant_pricing_plan(merchant_code)
     get("/internal/merchants/#{merchant_code}/pricing-plan")
+  end
+
+  # PATCH /internal/merchants/:code/pricing-plan
+  def assign_merchant_pricing_plan(merchant_code, plan_id)
+    patch("/internal/merchants/#{merchant_code}/pricing-plan", { plan_id: plan_id })
   end
 
   # GET /internal/merchants/:code/fee-invoices

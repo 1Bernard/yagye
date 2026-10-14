@@ -337,7 +337,9 @@ defmodule YagyeCoreWeb.Router do
     get("/settlement-batches-info/:id", InternalSettlementBatchesController, :show)
 
     # Pricing — merchant rate card and fee invoices
+    get("/pricing-plans", InternalPricingController, :list_plans)
     get("/merchants/:merchant_code/pricing-plan", InternalPricingController, :show_plan)
+    patch("/merchants/:merchant_code/pricing-plan", InternalPricingController, :assign_plan)
     get("/merchants/:merchant_code/fee-invoices", InternalPricingController, :list_fee_invoices)
 
     # Reserves — active policy + holds (portal read-only)

@@ -148,6 +148,22 @@ defmodule YagyeCore.Pricing do
     {:ok, plans}
   end
 
+  def assign_plan(merchant_id, plan_public_id) do
+    case Repo.get_by(PricingPlan, public_id: plan_public_id) do
+      nil ->
+        {:error, :plan_not_found}
+
+      plan ->
+        Repo.get!(Merchant, merchant_id)
+        |> Ecto.Changeset.change(pricing_plan_id: plan.id)
+        |> Repo.update()
+        |> case do
+          {:ok, _merchant} -> {:ok, plan}
+          {:error, cs} -> {:error, cs}
+        end
+    end
+  end
+
   def create_rule(plan_id, attrs, actor) do
     %PricingRule{}
     |> PricingRule.create_changeset(Map.merge(attrs, %{plan_id: plan_id, created_by: actor}))

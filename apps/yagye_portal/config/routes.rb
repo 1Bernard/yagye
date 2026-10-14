@@ -68,6 +68,8 @@ Rails.application.routes.draw do
     get   "merchants/:id/reactivate-modal",        to: "merchants#reactivate_modal",   as: :reactivate_modal_merchant
     get   "merchants/:id/settlement-controls",     to: "settlement_controls#show",     as: :merchant_settlement_controls
     patch "merchants/:id/settlement-controls",     to: "settlement_controls#update"
+    get   "merchants/:id/assign-pricing-plan-modal", to: "merchants#assign_pricing_plan_modal", as: :assign_pricing_plan_modal_merchant
+    patch "merchants/:id/pricing-plan",            to: "merchants#assign_pricing_plan",       as: :assign_merchant_pricing_plan
 
     get  "merchants/:id/reserve-policy/new-modal",                              to: "reserve_policies#new_modal",        as: :new_modal_merchant_reserve_policy
     post "merchants/:id/reserve-policy",                                        to: "reserve_policies#create",           as: :merchant_reserve_policy

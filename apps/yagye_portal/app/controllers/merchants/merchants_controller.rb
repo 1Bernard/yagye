@@ -34,8 +34,8 @@ module Merchants
       beneficial_owners = []
       documents         = []
       screening         = nil
-
-      reserve_policy = nil
+      reserve_policy    = nil
+      pricing_plan      = nil
 
       if (mc = application.merchant_code).present?
         client = CoreApiClient.new
@@ -43,11 +43,13 @@ module Merchants
         docs_r      = client.list_kyb_documents(mc)
         screening_r = client.merchant_screening_status(mc)
         reserves_r  = client.list_merchant_reserves(mc)
+        plan_r      = client.get_merchant_pricing_plan(mc)
 
         beneficial_owners = ubos_r.success?     ? (ubos_r.body["data"] || []) : []
         documents         = docs_r.success?     ? (docs_r.body["data"] || []) : []
         screening         = screening_r.success? ? screening_r.body            : nil
         reserve_policy    = reserves_r.success?  ? reserves_r.body["policy"]   : nil
+        pricing_plan      = plan_r.success?      ? plan_r.body                 : nil
       end
 
       application.reviewed_by = resolve_user_display(application.reviewed_by)
@@ -58,8 +60,35 @@ module Merchants
         beneficial_owners: beneficial_owners,
         documents:         documents,
         screening:         screening,
-        reserve_policy:    reserve_policy
+        reserve_policy:    reserve_policy,
+        pricing_plan:      pricing_plan
       )
+    end
+
+    def assign_pricing_plan_modal
+      authorize :merchants, :update?
+      application    = decode_id(PortalMerchantApplication)
+      plans_r        = CoreApiClient.new.list_pricing_plans
+      available_plans = plans_r.success? ? (plans_r.body["data"] || []) : []
+      render Merchants::AssignPricingPlanModal.new(application: application, plans: available_plans)
+    end
+
+    def assign_pricing_plan
+      authorize :merchants, :update?
+      application = decode_id(PortalMerchantApplication)
+      plan_id     = params[:plan_id].to_s.strip
+
+      if plan_id.blank?
+        return redirect_to merchant_path(application), alert: "Please select a plan."
+      end
+
+      result = CoreApiClient.new.assign_merchant_pricing_plan(application.merchant_code, plan_id)
+
+      if result.success?
+        redirect_to merchant_path(application), notice: "Pricing plan updated."
+      else
+        redirect_to merchant_path(application), alert: result.error_message || "Could not assign pricing plan."
+      end
     end
 
     def update

@@ -9,6 +9,26 @@ defmodule YagyeCoreWeb.Controllers.Internal.PricingController do
 
   action_fallback YagyeCoreWeb.FallbackController
 
+  # GET /internal/pricing-plans
+  def list_plans(conn, _params) do
+    {:ok, plans} = Pricing.list_plans()
+    Response.ok(conn, %{object: "list", data: Enum.map(plans, &plan_summary/1)})
+  end
+
+  # PATCH /internal/merchants/:merchant_code/pricing-plan
+  def assign_plan(conn, %{"merchant_code" => merchant_code, "plan_id" => plan_id}) do
+    with {:ok, merchant} <- Merchants.get_merchant(merchant_code),
+         {:ok, plan} <- Pricing.assign_plan(merchant.id, plan_id) do
+      Response.ok(conn, plan_summary(plan))
+    else
+      {:error, :plan_not_found} ->
+        conn |> put_status(:not_found) |> json(%{error: "plan_not_found"})
+
+      {:error, _} ->
+        conn |> put_status(:unprocessable_entity) |> json(%{error: "assign_failed"})
+    end
+  end
+
   # GET /internal/merchants/:merchant_code/pricing-plan
   def show_plan(conn, %{"merchant_code" => merchant_code}) do
     with {:ok, merchant} <- Merchants.get_merchant(merchant_code),
@@ -36,6 +56,18 @@ defmodule YagyeCoreWeb.Controllers.Internal.PricingController do
   end
 
   # ── Private serialisers ──────────────────────────────────────────────────────
+
+  defp plan_summary(plan) do
+    %{
+      id: plan.public_id,
+      name: plan.name,
+      version: plan.version,
+      currency: plan.currency,
+      fee_mode: plan.fee_mode,
+      monthly_fee: plan.monthly_fee,
+      effective_from: plan.effective_from
+    }
+  end
 
   defp plan_data(plan) do
     %{
