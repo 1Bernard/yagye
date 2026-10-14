@@ -3,11 +3,9 @@ defmodule YagyeCore.Compliance.AmlProvider.Stub do
   @behaviour YagyeCore.Compliance.AmlProvider
 
   @impl true
-  def enrol(%{name: name} = _subject) do
-    {:ok, %{provider_id: "stub_#{Uniq.UUID.uuid7()}", status: "clean", name: name}}
+  def enrol(_subject) do
+    {:ok, %{provider_id: "stub_#{Uniq.UUID.uuid7()}", status: "clean"}}
   end
-
-  def enrol(subject), do: enrol(Map.put_new(subject, :name, "unknown"))
 
   @impl true
   def refresh(_provider_id) do

@@ -103,32 +103,6 @@ defmodule Simulator.Web.Live.SimulationLive do
     {:noreply, put_flash(socket, :error, "No pending bank charge to simulate")}
   end
 
-  defp apply_bank_transfer(socket, charge, charge_ref) do
-    case Charges.authorise_bank_charge_by_va(charge.virtual_account_number, charge.amount_minor) do
-      {:ok, updated} ->
-        account = socket.assigns.account
-        Webhooks.enqueue_delivery(account.id, updated.charge_ref, schedule_in: 1)
-
-        entry =
-          socket.assigns.history
-          |> Enum.find(&(&1.charge_ref == charge_ref))
-          |> case do
-            nil -> build_history_entry_from_charge(updated, "BANK")
-            existing -> %{existing | state: updated.state}
-          end
-
-        history = replace_in_history(socket.assigns.history, charge_ref, entry)
-        {:noreply, assign(socket, result: entry, history: history)}
-
-      {:error, reason} ->
-        {:noreply, put_flash(socket, :error, "Transfer simulation failed: #{inspect(reason)}")}
-    end
-  end
-
-  defp replace_in_history(history, charge_ref, entry) do
-    Enum.map(history, fn h -> if h.charge_ref == charge_ref, do: entry, else: h end)
-  end
-
   @impl true
   def handle_event("fire", _params, %{assigns: %{account: nil}} = socket) do
     {:noreply,
@@ -157,6 +131,32 @@ defmodule Simulator.Web.Live.SimulationLive do
       {:error, reason} ->
         {:noreply, put_flash(socket, :error, "Charge failed: #{inspect(reason)}")}
     end
+  end
+
+  defp apply_bank_transfer(socket, charge, charge_ref) do
+    case Charges.authorise_bank_charge_by_va(charge.virtual_account_number, charge.amount_minor) do
+      {:ok, updated} ->
+        account = socket.assigns.account
+        Webhooks.enqueue_delivery(account.id, updated.charge_ref, schedule_in: 1)
+
+        entry =
+          socket.assigns.history
+          |> Enum.find(&(&1.charge_ref == charge_ref))
+          |> case do
+            nil -> build_history_entry_from_charge(updated, "BANK")
+            existing -> %{existing | state: updated.state}
+          end
+
+        history = replace_in_history(socket.assigns.history, charge_ref, entry)
+        {:noreply, assign(socket, result: entry, history: history)}
+
+      {:error, reason} ->
+        {:noreply, put_flash(socket, :error, "Transfer simulation failed: #{inspect(reason)}")}
+    end
+  end
+
+  defp replace_in_history(history, charge_ref, entry) do
+    Enum.map(history, fn h -> if h.charge_ref == charge_ref, do: entry, else: h end)
   end
 
   @impl true

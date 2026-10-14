@@ -13,5 +13,9 @@
   ~r/ExUnit\.Callbacks\.on_exit/,
   # Ecto.Multi is an opaque type; Dialyzer cannot inspect its internal structure.
   # All call_without_opaque warnings on Multi pipeline calls are false positives.
-  ~r/call_without_opaque/
+  ~r/call_without_opaque/,
+  # compute_fee_totals/1 has a defensive fallback clause in case compute_batch_fee_totals/1
+  # ever returns an error. Dialyzer infers the function always returns {:ok, _} and flags the
+  # catch-all as unreachable, but the clause is intentional defensive code.
+  ~r/settlement_processor_worker\.ex.*pattern_match_cov/
 ]
