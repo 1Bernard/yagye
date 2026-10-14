@@ -411,9 +411,9 @@ module Merchants
     end
 
     def pricing_plan_body
-      plan = @pricing_plan
-      cur  = plan["currency"] || "GHS"
-      mode = plan["fee_mode"] == "invoiced" ? "Invoiced monthly" : "Deducted from settlement"
+      plan    = @pricing_plan
+      cur     = plan["currency"] || "GHS"
+      mode    = plan["fee_mode"] == "invoiced" ? "Invoiced monthly" : "Deducted from settlement"
       monthly = plan["monthly_fee"].to_i
 
       div(class: "divide-y divide-gray-50") do
@@ -424,6 +424,13 @@ module Merchants
         reserve_detail_row("Monthly fee",  monthly.positive? ? format_money(monthly, currency: cur) : "None")
         if (eff = plan["effective_from"])
           reserve_detail_row("Active since", (fmt_date(Time.parse(eff.to_s)) rescue "—"))
+        end
+      end
+
+      if (plan["rules"] || []).any?
+        div(class: "border-t border-gray-100 pt-1") do
+          p(class: "px-5 pt-3 pb-1 #{TYPE_MICRO} text-gray-400 font-semibold uppercase tracking-wide") { plain "Rate card" }
+          render UI::PricingRateCard.new(plan: plan)
         end
       end
     end
