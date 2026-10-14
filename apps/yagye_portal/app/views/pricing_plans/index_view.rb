@@ -99,22 +99,13 @@ module PricingPlans
                 class: FILTER_SEARCH_INPUT,
                 data: { action: "input->filter-form#submit" })
         end
-      end
 
-      div(class: "flex items-center gap-2") do
-        status_select
-      end
-    end
-
-    def status_select
-      form(action: pricing_plans_path, method: "get") do
-        input(type: "hidden", name: "q", value: @query) if @query.present?
         select(name: "status",
                class: "h-8 border rounded-[9px] pl-3 pr-7 text-[12.5px] font-medium bg-white " \
                       "cursor-pointer appearance-none focus:outline-none transition-colors " \
                       "#{@status_filter.present? ? 'border-gray-400 text-gray-900' : 'border-gray-200 text-gray-600'} " \
                       "hover:border-gray-400",
-               onchange: "this.form.submit()") do
+               data: { action: "change->filter-form#submit" }) do
           STATUS_OPTIONS.each do |(label, val)|
             if val == @status_filter.to_s
               option(value: val, selected: "selected") { plain label }
