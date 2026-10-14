@@ -69,9 +69,31 @@ defmodule YagyeCore.Disputes do
   def submit_evidence(%Dispute{stage: "resolved"} = dispute), do: {:ok, dispute}
 
   def submit_evidence(%Dispute{} = dispute) do
-    dispute
-    |> Dispute.advance_stage_changeset("under_review")
-    |> Repo.update()
+    with {:ok, updated} <-
+           dispute
+           |> Dispute.advance_stage_changeset("under_review")
+           |> Repo.update() do
+      payment = Repo.get!(Payment, updated.payment_id)
+
+      Outbox.emit(
+        payment,
+        "dispute.evidence_submitted",
+        %{
+          public_id: updated.public_id,
+          payment_id: payment.public_id,
+          merchant_code: merchant_code(payment.merchant_id),
+          amount: updated.amount,
+          currency: updated.currency,
+          reason: updated.reason,
+          network: updated.network,
+          stage: updated.stage,
+          mode: payment.mode
+        },
+        correlation_id: updated.public_id
+      )
+
+      {:ok, updated}
+    end
   end
 
   def get_dispute(public_id) do
@@ -101,6 +123,44 @@ defmodule YagyeCore.Disputes do
     |> Multi.run(:event, fn _repo, %{payment: p} ->
       insert_payment_event(p, "payment.disputed", "succeeded", "disputed")
     end)
+    |> Multi.insert(:payment_outbox, fn %{payment: p, dispute: d} ->
+      Outbox.build_changeset(
+        p,
+        "payment.disputed",
+        %{
+          public_id: p.public_id,
+          state: p.state,
+          merchant_code: merchant_code(p.merchant_id),
+          amount: p.amount,
+          currency: p.currency,
+          method: p.method,
+          mode: p.mode,
+          dispute_id: d.public_id
+        },
+        correlation_id: p.public_id
+      )
+    end)
+    |> Multi.insert(:dispute_outbox, fn %{payment: p, dispute: d} ->
+      Outbox.build_changeset(
+        p,
+        "dispute.opened",
+        %{
+          dispute_id: d.public_id,
+          payment_id: p.public_id,
+          merchant_code: merchant_code(p.merchant_id),
+          reference: d.public_id,
+          payment_reference: p.public_id,
+          amount: d.amount,
+          currency: d.currency,
+          reason: d.reason,
+          network: d.network,
+          status: "open",
+          opened_at: DateTime.to_iso8601(DateTime.utc_now()),
+          mode: p.mode
+        },
+        correlation_id: d.public_id
+      )
+    end)
     |> Repo.transaction()
     |> case do
       {:ok, %{dispute: dispute, payment: payment}} -> {:ok, {dispute, payment}}
@@ -124,6 +184,26 @@ defmodule YagyeCore.Disputes do
     end)
     |> Multi.run(:event, fn _repo, %{transitioned_payment: p} ->
       insert_payment_event(p, "payment.#{to_state}", "disputed", to_state)
+    end)
+    |> Multi.insert(:dispute_outbox, fn %{dispute: d, transitioned_payment: p} ->
+      Outbox.build_changeset(
+        p,
+        "dispute.resolved",
+        %{
+          dispute_id: d.public_id,
+          payment_id: p.public_id,
+          merchant_code: merchant_code(p.merchant_id),
+          reference: d.public_id,
+          payment_reference: p.public_id,
+          amount: d.amount,
+          currency: d.currency,
+          reason: d.reason,
+          status: d.outcome,
+          resolved_at: d.resolved_at && DateTime.to_iso8601(d.resolved_at),
+          mode: p.mode
+        },
+        correlation_id: d.public_id
+      )
     end)
     |> Repo.transaction()
     |> case do

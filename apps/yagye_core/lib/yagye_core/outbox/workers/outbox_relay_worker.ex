@@ -100,7 +100,10 @@ defmodule YagyeCore.Outbox.Workers.OutboxRelayWorker do
   # Maps event_type → list of projection workers that care about it
   defp projection_workers_for(event_type) do
     []
-    |> maybe_add(String.starts_with?(event_type, "payment."), PaymentSummaryProjection)
+    |> maybe_add(
+      String.starts_with?(event_type, "payment.") or event_type == "dispute.resolved",
+      PaymentSummaryProjection
+    )
     |> maybe_add(
       event_type in ~w[payment.succeeded payment.failed payment.refunded],
       MerchantBalanceProjection

@@ -4,6 +4,8 @@ defmodule YagyeCore.Payouts do
   import Ecto.Query
 
   alias Ecto.Multi
+  alias YagyeCore.Merchants.Schemas.Merchant
+  alias YagyeCore.Outbox
   alias YagyeCore.Payouts.Schemas.{Payout, PayoutDestination}
   alias YagyeCore.Payouts.Workers.PayoutSagaWorker
   alias YagyeCore.Repo
@@ -12,17 +14,65 @@ defmodule YagyeCore.Payouts do
   # ── Public API ───────────────────────────────────────────────────────────────
 
   def create_payout(merchant_id, attrs) do
-    attrs = Map.put(attrs, :merchant_id, merchant_id)
+    destination_ref = attrs["destination_id"] || attrs[:destination_id]
 
-    Multi.new()
-    |> Multi.insert(:payout, Payout.create_changeset(%Payout{}, attrs))
-    |> Multi.run(:job, fn _repo, %{payout: payout} ->
-      PayoutSagaWorker.new(%{payout_id: payout.id}) |> Oban.insert()
-    end)
-    |> Repo.transaction()
-    |> case do
-      {:ok, %{payout: payout}} -> {:ok, payout}
-      {:error, _step, reason, _changes} -> {:error, reason}
+    with {:ok, attrs} <- maybe_resolve_destination(attrs, destination_ref, merchant_id) do
+      Multi.new()
+      |> Multi.insert(:payout, Payout.create_changeset(%Payout{}, attrs))
+      |> Multi.run(:job, fn _repo, %{payout: payout} ->
+        PayoutSagaWorker.new(%{payout_id: payout.id}) |> Oban.insert()
+      end)
+      |> Multi.insert(:outbox, fn %{payout: payout} ->
+        Outbox.build_changeset(
+          payout,
+          "payout.created",
+          %{
+            payout_code: payout.public_id,
+            merchant_code: merchant_code(merchant_id),
+            state: payout.state,
+            amount: payout.amount,
+            currency: payout.currency,
+            destination_type: payout.destination_type,
+            destination_fingerprint: payout.destination_fingerprint,
+            scheduled_for: payout.scheduled_for && Date.to_iso8601(payout.scheduled_for),
+            mode: payout.mode
+          },
+          correlation_id: payout.public_id
+        )
+      end)
+      |> Repo.transaction()
+      |> case do
+        {:ok, %{payout: payout}} -> {:ok, payout}
+        {:error, _step, reason, _changes} -> {:error, reason}
+      end
+    end
+  end
+
+  # Only resolve public_id refs from the API; internal UUID refs bypass (tests, saga).
+  defp maybe_resolve_destination(attrs, ref, merchant_id)
+       when is_binary(ref) and binary_part(ref, 0, 4) == "pdt_" do
+    case Repo.get_by(PayoutDestination, public_id: ref, merchant_id: merchant_id, active: true) do
+      nil ->
+        {:error, :destination_not_found}
+
+      dest ->
+        {:ok,
+         attrs
+         |> Map.put(:merchant_id, merchant_id)
+         |> Map.put(:destination_id, dest.id)
+         |> Map.put(:destination_type, dest.kind)
+         |> Map.put(:destination_fingerprint, dest.fingerprint)}
+    end
+  end
+
+  defp maybe_resolve_destination(attrs, _ref, merchant_id) do
+    {:ok, Map.put(attrs, :merchant_id, merchant_id)}
+  end
+
+  defp merchant_code(merchant_id) do
+    case Repo.get(Merchant, merchant_id) do
+      %Merchant{public_id: code} -> code
+      nil -> nil
     end
   end
 

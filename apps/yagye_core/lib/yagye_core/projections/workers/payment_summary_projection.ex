@@ -59,6 +59,29 @@ defmodule YagyeCore.Projections.Workers.PaymentSummaryProjection do
     end
   end
 
+  # dispute.resolved transitions payment to succeeded/chargebacked/refunded;
+  # read the resolved state from the payload since the event_type is not "payment.*"
+  defp apply_event(%EventEnvelope{event_type: "dispute.resolved"} = env) do
+    case Repo.get(PaymentSummary, env.aggregate_id) do
+      nil ->
+        {:snooze, 2}
+
+      %PaymentSummary{aggregate_version: stored} when stored >= env.aggregate_version ->
+        :ok
+
+      summary ->
+        summary
+        |> PaymentSummary.upsert_changeset(%{
+          aggregate_version: env.aggregate_version,
+          state: env.payload["payment_state"] || "unknown",
+          last_transition_at: env.occurred_at,
+          last_event_id: env.event_id
+        })
+        |> Repo.update()
+        |> to_ok()
+    end
+  end
+
   defp apply_event(%EventEnvelope{} = env) do
     case Repo.get(PaymentSummary, env.aggregate_id) do
       nil ->

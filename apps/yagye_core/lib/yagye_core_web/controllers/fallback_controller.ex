@@ -103,5 +103,27 @@ defmodule YagyeCoreWeb.FallbackController do
   def call(conn, {:error, {:missing_param, field}}),
     do: Response.unprocessable(conn, "missing_param", "#{field} is required")
 
+  def call(conn, {:error, :destination_required}),
+    do: Response.unprocessable(conn, "missing_param", "destination_id is required")
+
+  def call(conn, {:error, :insufficient_payable_balance}),
+    do:
+      Response.unprocessable(
+        conn,
+        "insufficient_balance",
+        "Insufficient payable balance for this payout"
+      )
+
+  def call(conn, {:error, :destination_inactive}),
+    do: Response.unprocessable(conn, "destination_inactive", "Payout destination is inactive")
+
+  def call(conn, {:error, :destination_unverified}),
+    do:
+      Response.unprocessable(
+        conn,
+        "destination_unverified",
+        "Payout destination has not been verified"
+      )
+
   def call(conn, {:error, changeset}), do: Response.validation_error(conn, changeset)
 end
