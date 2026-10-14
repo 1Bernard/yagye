@@ -4,16 +4,23 @@ module PricingPlans
   class PricingPlansController < ApplicationController
     def index
       authorize :pricing_plans, :index?
-      result = CoreApiClient.new.list_pricing_plans
-      plans  = result.success? ? (result.body["data"] || []) : []
+      result    = CoreApiClient.new.list_pricing_plans
+      all_plans = result.success? ? (result.body["data"] || []) : []
 
-      query         = params[:q].presence
-      status_filter = params[:status].presence
+      stats = {
+        total:    all_plans.size,
+        active:   all_plans.count { |p| p["status"] == "active" },
+        draft:    all_plans.count { |p| p["status"] == "draft" || p["status"].nil? },
+        archived: all_plans.count { |p| p["status"] == "archived" }
+      }
 
+      tab   = params[:tab].presence_in(%w[all draft active archived]) || "all"
+      query = params[:q].presence
+
+      plans = tab == "all" ? all_plans : all_plans.select { |p| (p["status"] || "draft") == tab }
       plans = plans.select { |p| p["name"]&.downcase&.include?(query.downcase) } if query
-      plans = plans.select { |p| p["status"] == status_filter } if status_filter
 
-      render PricingPlans::IndexView.new(plans: plans, query: query, status_filter: status_filter)
+      render PricingPlans::IndexView.new(plans: plans, tab: tab, query: query, stats: stats)
     end
 
     def new
