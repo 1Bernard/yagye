@@ -38,12 +38,12 @@ defmodule YagyeCoreWeb.Controllers.Internal.InvoicesController do
       (params["line_items"] || [])
       |> Enum.map(fn item ->
         Map.take(item, ["description", "quantity", "unit_amount", "tax_rate_bps"])
-        |> Map.new(fn {k, v} -> {String.to_atom(k), v} end)
+        |> Map.new(fn {k, v} -> {String.to_existing_atom(k), v} end)
       end)
 
     attrs =
       Map.take(params, @allowed_create_fields)
-      |> Map.new(fn {k, v} -> {String.to_atom(k), v} end)
+      |> Map.new(fn {k, v} -> {String.to_existing_atom(k), v} end)
       |> Map.put(:line_items, line_items)
 
     with {:ok, merchant} <- Merchants.get_merchant(merchant_code),
@@ -60,12 +60,12 @@ defmodule YagyeCoreWeb.Controllers.Internal.InvoicesController do
       (params["line_items"] || [])
       |> Enum.map(fn item ->
         Map.take(item, ["description", "quantity", "unit_amount", "tax_rate_bps"])
-        |> Map.new(fn {k, v} -> {String.to_atom(k), v} end)
+        |> Map.new(fn {k, v} -> {String.to_existing_atom(k), v} end)
       end)
 
     attrs =
       Map.take(params, @allowed_update_fields)
-      |> Map.new(fn {k, v} -> {String.to_atom(k), v} end)
+      |> Map.new(fn {k, v} -> {String.to_existing_atom(k), v} end)
       |> Map.put(:line_items, line_items)
 
     with {:ok, invoice} <- Invoices.update_invoice(id, attrs) do

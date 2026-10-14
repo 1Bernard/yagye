@@ -1,0 +1,12 @@
+{
+  "ignored_warnings": [
+    {
+      "fingerprint": "00214db5a1ce2e4dccf01fb21a90bd32c59b816cdb2bf8d378a831417d581d64",
+      "note": "Intentional redirect to external SAML IdP; allow_other_host: true is required for SSO"
+    },
+    {
+      "fingerprint": "1ef2c389d25bb1421e5caacdc5d6ce9d25537aae712fdefba334a3e7d787f036",
+      "note": "uri.host/port from a Core API-returned presigned URL, not raw user input; not a local file access"
+    }
+  ]
+}

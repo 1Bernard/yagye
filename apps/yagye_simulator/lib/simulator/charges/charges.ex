@@ -165,24 +165,28 @@ defmodule Simulator.Charges do
     Repo.transaction(fn ->
       with {:ok, charge} <- insert_charge(charge_attrs),
            {:ok, _event} <- insert_charge_event(charge, "charge.created", nil, "PENDING_AUTH"),
-           {:ok, _prompt} <- insert_wallet_prompt(charge, attrs, outcome, now) do
-        if suppress_webhook do
-          # Transition the charge on the simulator side (so query_charge returns the
-          # resolved state) but do NOT deliver the webhook to yagye_core. This lets
-          # tests verify that PaymentStatusCheckWorker can poll and recover the payment.
-          transition_charge_without_webhook(charge, account, outcome)
-        else
-          case Webhooks.enqueue_delivery(account.id, charge.charge_ref,
-                 schedule_in: max(div(delay_ms, 1000), 1)
-               ) do
-            {:ok, _job} -> charge
-            {:error, reason} -> Repo.rollback(reason)
-          end
-        end
+           {:ok, _prompt} <- insert_wallet_prompt(charge, attrs, outcome, now),
+           # Transition without webhook (suppress mode) or enqueue delivery.
+           {:ok, result} <-
+             maybe_deliver_webhook(charge, account, outcome, suppress_webhook, delay_ms) do
+        result
       else
         {:error, reason} -> Repo.rollback(reason)
       end
     end)
+  end
+
+  defp maybe_deliver_webhook(charge, account, outcome, true, _delay_ms) do
+    {:ok, transition_charge_without_webhook(charge, account, outcome)}
+  end
+
+  defp maybe_deliver_webhook(charge, account, _outcome, false, delay_ms) do
+    case Webhooks.enqueue_delivery(account.id, charge.charge_ref,
+           schedule_in: max(div(delay_ms, 1000), 1)
+         ) do
+      {:ok, _job} -> {:ok, charge}
+      {:error, _} = err -> err
+    end
   end
 
   defp transition_charge_without_webhook(charge, account, :approved) do
@@ -191,7 +195,7 @@ defmodule Simulator.Charges do
     rrn = ("RRN" <> String.slice(account.id, 0, 8)) |> String.upcase()
 
     charge
-    |> Simulator.Charges.Schemas.Charge.transition_changeset("AUTHORISED", %{
+    |> Charge.transition_changeset("AUTHORISED", %{
       auth_code: auth_code,
       rrn: rrn,
       authorised_amount_minor: charge.amount_minor,
@@ -203,9 +207,7 @@ defmodule Simulator.Charges do
 
   defp transition_charge_without_webhook(charge, _account, _outcome) do
     charge
-    |> Simulator.Charges.Schemas.Charge.transition_changeset("DECLINED", %{
-      decline_code: "PROMPT_EXPIRED"
-    })
+    |> Charge.transition_changeset("DECLINED", %{decline_code: "PROMPT_EXPIRED"})
     |> Repo.update!()
   end
 

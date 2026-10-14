@@ -59,7 +59,7 @@ defmodule YagyeCoreWeb.Controllers.Internal.PaymentLinksController do
   def create(conn, %{"merchant_code" => merchant_code} = params) do
     attrs =
       Map.take(params, @allowed_create_fields)
-      |> Map.new(fn {k, v} -> {String.to_atom(k), v} end)
+      |> Map.new(fn {k, v} -> {String.to_existing_atom(k), v} end)
 
     with {:ok, merchant} <- Merchants.get_merchant(merchant_code),
          {:ok, link} <- PaymentLinks.create_link(merchant.id, attrs) do
