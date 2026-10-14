@@ -55,13 +55,12 @@ Rails.application.routes.draw do
   end
 
   # ── Pricing plans (ops — policy-gated) ──────────────────────────────────
-  scope module: "ops" do
-    get    "pricing-plans",                            to: "pricing_plans#index",       as: :pricing_plans
-    get    "pricing-plans/new",                        to: "pricing_plans#new",         as: :new_pricing_plan
-    post   "pricing-plans",                            to: "pricing_plans#create"
-    get    "pricing-plans/:id",                        to: "pricing_plans#show",        as: :pricing_plan
-    post   "pricing-plans/:id/rules",                  to: "pricing_plans#create_rule", as: :pricing_plan_rules
-    delete "pricing-plans/:id/rules/:rule_id",         to: "pricing_plans#destroy_rule",as: :pricing_plan_rule
+  scope module: "pricing_plans" do
+    get  "pricing-plans",          to: "pricing_plans#index",       as: :pricing_plans
+    get  "pricing-plans/new",      to: "pricing_plans#new",         as: :new_pricing_plan
+    post "pricing-plans",          to: "pricing_plans#create"
+    get  "pricing-plans/:id",      to: "pricing_plans#show",        as: :pricing_plan
+    post "pricing-plans/:id/rules", to: "pricing_plans#create_rule", as: :pricing_plan_rules
   end
 
   # ── Merchants domain (ops — policy-gated) ────────────────────────────────

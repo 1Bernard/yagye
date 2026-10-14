@@ -67,15 +67,6 @@ defmodule YagyeCoreWeb.Controllers.Internal.PricingController do
     end
   end
 
-  # DELETE /internal/pricing-plans/:plan_id/rules/:rule_id
-  def remove_rule(conn, %{"rule_id" => rule_id}) do
-    case Pricing.delete_rule(rule_id) do
-      {:ok, _rule} -> Response.ok(conn, %{deleted: true})
-      {:error, :not_found} -> conn |> put_status(:not_found) |> json(%{error: "rule_not_found"})
-      {:error, _} -> conn |> put_status(:unprocessable_entity) |> json(%{error: "delete_failed"})
-    end
-  end
-
   # PATCH /internal/merchants/:merchant_code/pricing-plan
   def assign_plan(conn, %{"merchant_code" => merchant_code, "plan_id" => plan_id}) do
     with {:ok, merchant} <- Merchants.get_merchant(merchant_code),

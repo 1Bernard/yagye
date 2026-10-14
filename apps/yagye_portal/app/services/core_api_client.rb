@@ -537,10 +537,6 @@ class CoreApiClient
     post("/internal/pricing-plans/#{plan_id}/rules", attrs)
   end
 
-  # DELETE /internal/pricing-plans/:plan_id/rules/:rule_id
-  def delete_pricing_rule(plan_id, rule_id)
-    delete("/internal/pricing-plans/#{plan_id}/rules/#{rule_id}")
-  end
 
   # GET /internal/merchants/:code/pricing-plan
   def get_merchant_pricing_plan(merchant_code)

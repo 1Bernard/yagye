@@ -1,17 +1,17 @@
 # frozen_string_literal: true
 
-module Ops
+module PricingPlans
   class PricingPlansController < ApplicationController
     def index
       authorize :pricing_plans, :index?
       result = CoreApiClient.new.list_pricing_plans
       plans  = result.success? ? (result.body["data"] || []) : []
-      render Ops::PricingPlans::IndexView.new(plans: plans)
+      render PricingPlans::IndexView.new(plans: plans)
     end
 
     def new
       authorize :pricing_plans, :create?
-      render Ops::PricingPlans::NewView.new
+      render PricingPlans::NewView.new
     end
 
     def create
@@ -23,7 +23,7 @@ module Ops
         redirect_to pricing_plan_path(result.body["id"]), notice: "Pricing plan created."
       else
         errors = result.body&.dig("details") || {}
-        render Ops::PricingPlans::NewView.new(errors: errors, params: attrs), status: :unprocessable_entity
+        render PricingPlans::NewView.new(errors: errors, params: attrs), status: :unprocessable_entity
       end
     end
 
@@ -32,7 +32,7 @@ module Ops
       result = CoreApiClient.new.get_pricing_plan(params[:id])
       return redirect_to pricing_plans_path, alert: "Plan not found." unless result.success?
 
-      render Ops::PricingPlans::ShowView.new(plan: result.body)
+      render PricingPlans::ShowView.new(plan: result.body)
     end
 
     def create_rule
@@ -45,16 +45,6 @@ module Ops
         redirect_to pricing_plan_path(plan_id), notice: "Rule added."
       else
         redirect_to pricing_plan_path(plan_id), alert: rule_error_message(result)
-      end
-    end
-
-    def destroy_rule
-      authorize :pricing_plans, :update?
-      result = CoreApiClient.new.delete_pricing_rule(params[:id], params[:rule_id])
-      if result.success?
-        redirect_to pricing_plan_path(params[:id]), notice: "Rule removed."
-      else
-        redirect_to pricing_plan_path(params[:id]), alert: "Could not remove rule."
       end
     end
 
@@ -72,13 +62,13 @@ module Ops
     end
 
     def rule_params
-      pct_bps = params[:percentage_pct].to_s.strip
-      pct_bps = (pct_bps.to_f * 100).round unless pct_bps.blank?
+      pct_str = params[:percentage_pct].to_s.strip
+      pct_bps = pct_str.blank? ? nil : (pct_str.to_f * 100).round
 
       {
         method:         params[:method].presence,
         provider_code:  params[:provider_code].presence,
-        percentage_bps: pct_bps.presence,
+        percentage_bps: pct_bps,
         fixed_amount:   params[:fixed_amount].presence&.then { |v| (v.to_f * 100).round },
         minimum_fee:    params[:minimum_fee].presence&.then { |v| (v.to_f * 100).round },
         maximum_fee:    params[:maximum_fee].presence&.then { |v| (v.to_f * 100).round }
