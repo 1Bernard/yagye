@@ -32,11 +32,14 @@ defmodule YagyeCoreWeb.Controllers.Internal.ApiKeysController do
     end
   end
 
-  # Portal uses "test"/"live"; Core's YagyeMode uses "sandbox"/"live".
+  # Portal uses "test"/"live"; Core's YagyeMode uses "simulation"/"sandbox"/"live".
+  # "test" maps to "simulation" — Yagye's internal simulator, always available with no
+  # ops provisioning. "sandbox" (real provider staging) is an explicit advanced step.
   defp portal_mode_to_core(mode) do
     case mode do
-      "test" -> "sandbox"
-      other -> other || "sandbox"
+      "test" -> "simulation"
+      "live" -> "live"
+      other -> other || "simulation"
     end
   end
 
