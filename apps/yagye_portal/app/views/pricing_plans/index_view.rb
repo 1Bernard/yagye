@@ -89,6 +89,7 @@ module PricingPlans
 
     def toolbar
       form(action: pricing_plans_path, method: "get",
+           class: "flex items-center justify-between w-full",
            data: { controller: "filter-form", filter_form_target: "form" }) do
         div(class: FILTER_SEARCH_WRAP) do
           span(class: "flex w-[13px] h-[13px] text-gray-400 flex-shrink-0") do
