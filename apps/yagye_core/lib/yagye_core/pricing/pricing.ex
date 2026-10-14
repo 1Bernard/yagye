@@ -148,6 +148,28 @@ defmodule YagyeCore.Pricing do
     {:ok, plans}
   end
 
+  def create_plan(attrs) do
+    %PricingPlan{}
+    |> PricingPlan.create_changeset(attrs)
+    |> Repo.insert()
+  end
+
+  def get_plan(public_id) do
+    rules_q = from(r in PricingRule, order_by: [desc: r.specificity])
+
+    case Repo.get_by(PricingPlan, public_id: public_id) do
+      nil -> {:error, :not_found}
+      plan -> {:ok, Repo.preload(plan, rules: rules_q)}
+    end
+  end
+
+  def delete_rule(rule_id) do
+    case Repo.get(PricingRule, rule_id) do
+      nil -> {:error, :not_found}
+      rule -> Repo.delete(rule)
+    end
+  end
+
   def assign_plan(merchant_id, plan_public_id) do
     case Repo.get_by(PricingPlan, public_id: plan_public_id) do
       nil ->

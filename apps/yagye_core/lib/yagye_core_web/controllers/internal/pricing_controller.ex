@@ -15,6 +15,67 @@ defmodule YagyeCoreWeb.Controllers.Internal.PricingController do
     Response.ok(conn, %{object: "list", data: Enum.map(plans, &plan_summary/1)})
   end
 
+  # POST /internal/pricing-plans
+  def create_plan(conn, params) do
+    attrs = %{
+      name: params["name"],
+      version: params["version"] && String.to_integer(to_string(params["version"])),
+      currency: params["currency"],
+      fee_mode: params["fee_mode"],
+      monthly_fee: params["monthly_fee"] && String.to_integer(to_string(params["monthly_fee"])),
+      effective_from: params["effective_from"]
+    }
+
+    case Pricing.create_plan(attrs) do
+      {:ok, plan} ->
+        conn |> put_status(:created) |> json(plan_summary(plan))
+
+      {:error, %Ecto.Changeset{} = cs} ->
+        errors = Ecto.Changeset.traverse_errors(cs, fn {msg, _} -> msg end)
+
+        conn
+        |> put_status(:unprocessable_entity)
+        |> json(%{error: "validation_failed", details: errors})
+    end
+  end
+
+  # GET /internal/pricing-plans/:plan_id
+  def get_plan(conn, %{"plan_id" => plan_id}) do
+    case Pricing.get_plan(plan_id) do
+      {:ok, plan} -> Response.ok(conn, plan_data(plan))
+      {:error, :not_found} -> conn |> put_status(:not_found) |> json(%{error: "plan_not_found"})
+    end
+  end
+
+  # POST /internal/pricing-plans/:plan_id/rules
+  def add_rule(conn, %{"plan_id" => plan_id} = params) do
+    actor = get_req_header(conn, "x-actor-code") |> List.first("system")
+
+    with {:ok, plan} <- Pricing.get_plan(plan_id),
+         {:ok, rule} <- Pricing.create_rule(plan.id, rule_attrs(params), actor) do
+      conn |> put_status(:created) |> json(rule_data(rule))
+    else
+      {:error, :not_found} ->
+        conn |> put_status(:not_found) |> json(%{error: "plan_not_found"})
+
+      {:error, %Ecto.Changeset{} = cs} ->
+        errors = Ecto.Changeset.traverse_errors(cs, fn {msg, _} -> msg end)
+
+        conn
+        |> put_status(:unprocessable_entity)
+        |> json(%{error: "validation_failed", details: errors})
+    end
+  end
+
+  # DELETE /internal/pricing-plans/:plan_id/rules/:rule_id
+  def remove_rule(conn, %{"rule_id" => rule_id}) do
+    case Pricing.delete_rule(rule_id) do
+      {:ok, _rule} -> Response.ok(conn, %{deleted: true})
+      {:error, :not_found} -> conn |> put_status(:not_found) |> json(%{error: "rule_not_found"})
+      {:error, _} -> conn |> put_status(:unprocessable_entity) |> json(%{error: "delete_failed"})
+    end
+  end
+
   # PATCH /internal/merchants/:merchant_code/pricing-plan
   def assign_plan(conn, %{"merchant_code" => merchant_code, "plan_id" => plan_id}) do
     with {:ok, merchant} <- Merchants.get_merchant(merchant_code),
@@ -67,6 +128,18 @@ defmodule YagyeCoreWeb.Controllers.Internal.PricingController do
       monthly_fee: plan.monthly_fee,
       effective_from: plan.effective_from
     }
+  end
+
+  defp rule_attrs(params) do
+    ~w[method provider_code card_brand region amount_min amount_max
+       percentage_bps fixed_amount minimum_fee maximum_fee rounding]
+    |> Enum.flat_map(fn k ->
+      case params[k] do
+        nil -> []
+        v -> [{k, v}]
+      end
+    end)
+    |> Map.new()
   end
 
   defp plan_data(plan) do

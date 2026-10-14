@@ -427,12 +427,6 @@ module Merchants
         end
       end
 
-      if (plan["rules"] || []).any?
-        div(class: "border-t border-gray-100 pt-1") do
-          p(class: "px-5 pt-3 pb-1 #{TYPE_MICRO} text-gray-400 font-semibold uppercase tracking-wide") { plain "Rate card" }
-          render UI::PricingRateCard.new(plan: plan)
-        end
-      end
     end
 
     def reserve_policy_card

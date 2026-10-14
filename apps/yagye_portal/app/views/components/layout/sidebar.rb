@@ -43,6 +43,7 @@ module Layout
           { key: :merchants,       icon: :building,     label: "Merchants",       path: :merchants_path },
           { key: :kyb_reviews,     icon: :shield,       label: "KYB Review",      path: :kyb_reviews_path },
           { key: :approvals,       icon: :check_circle, label: "Approvals",       path: :compliance_approvals_path },
+          { key: :pricing_plans,   icon: :tag,          label: "Pricing Plans",   path: :pricing_plans_path },
           { key: :routing_rules,   icon: :swap,         label: "Routing Rules",   path: :developers_routing_rules_path },
           { key: :reconciliation,  icon: :trending_up,  label: "Reconciliation",  path: :reconciliation_path },
           { key: :settlements,     icon: :wallet,       label: "Settlements",      path: :settlements_path }

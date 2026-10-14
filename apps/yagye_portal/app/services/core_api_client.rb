@@ -522,6 +522,26 @@ class CoreApiClient
     get("/internal/pricing-plans")
   end
 
+  # POST /internal/pricing-plans
+  def create_pricing_plan(attrs)
+    post("/internal/pricing-plans", attrs)
+  end
+
+  # GET /internal/pricing-plans/:plan_id
+  def get_pricing_plan(plan_id)
+    get("/internal/pricing-plans/#{plan_id}")
+  end
+
+  # POST /internal/pricing-plans/:plan_id/rules
+  def create_pricing_rule(plan_id, attrs)
+    post("/internal/pricing-plans/#{plan_id}/rules", attrs)
+  end
+
+  # DELETE /internal/pricing-plans/:plan_id/rules/:rule_id
+  def delete_pricing_rule(plan_id, rule_id)
+    delete("/internal/pricing-plans/#{plan_id}/rules/#{rule_id}")
+  end
+
   # GET /internal/merchants/:code/pricing-plan
   def get_merchant_pricing_plan(merchant_code)
     get("/internal/merchants/#{merchant_code}/pricing-plan")
