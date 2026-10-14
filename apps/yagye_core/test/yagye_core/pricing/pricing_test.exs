@@ -222,6 +222,23 @@ defmodule YagyeCore.Pricing.PricingTest do
 
   # ── assign_plan/2 ─────────────────────────────────────────────────────────────
 
+  test "create_rule rejects a rule with zero percentage and zero fixed fee" do
+    plan = active_plan_fixture()
+
+    result =
+      Pricing.create_rule(plan.id, %{percentage_bps: 0, fixed_amount: 0}, "ops_user")
+
+    assert {:error, cs} = result
+    assert cs.errors[:base] != nil
+  end
+
+  test "create_rule rejects a rule with no rate fields at all" do
+    plan = active_plan_fixture()
+    result = Pricing.create_rule(plan.id, %{}, "ops_user")
+    assert {:error, cs} = result
+    assert cs.errors[:base] != nil
+  end
+
   test "assign_plan accepts only active plans" do
     draft_plan = plan_fixture()
     merchant = Fixtures.approved_merchant_fixture()

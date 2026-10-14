@@ -52,6 +52,7 @@ defmodule YagyeCore.Pricing.Schemas.PricingRule do
     |> validate_required([:plan_id, :percentage_bps, :fixed_amount])
     |> validate_number(:percentage_bps, greater_than_or_equal_to: 0)
     |> validate_number(:fixed_amount, greater_than_or_equal_to: 0)
+    |> validate_rate_present()
     |> validate_inclusion(:rounding, @valid_roundings)
     |> foreign_key_constraint(:plan_id)
     |> put_specificity()
@@ -83,6 +84,21 @@ defmodule YagyeCore.Pricing.Schemas.PricingRule do
   end
 
   defp put_specificity(cs), do: cs
+
+  defp validate_rate_present(cs) do
+    pct = get_field(cs, :percentage_bps) || 0
+    fixed = get_field(cs, :fixed_amount) || 0
+
+    if pct > 0 or fixed > 0 do
+      cs
+    else
+      add_error(
+        cs,
+        :base,
+        "at least one of percentage rate or fixed fee must be greater than zero"
+      )
+    end
+  end
 
   defp validate_sod(cs, initiator_field, approver_field) do
     initiator = get_field(cs, initiator_field)

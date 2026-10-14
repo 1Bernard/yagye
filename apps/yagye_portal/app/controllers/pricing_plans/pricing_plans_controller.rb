@@ -54,6 +54,13 @@ module PricingPlans
       plan_id = params[:id]
       attrs   = rule_params
 
+      pct   = attrs[:percentage_bps].to_i
+      fixed = attrs[:fixed_amount].to_i
+      unless pct > 0 || fixed > 0
+        return redirect_to pricing_plan_path(plan_id),
+                            alert: "A rule needs at least a percentage rate or a fixed fee."
+      end
+
       result = CoreApiClient.new.create_pricing_rule(plan_id, attrs)
       if result.success?
         redirect_to pricing_plan_path(plan_id), notice: "Rule added."
