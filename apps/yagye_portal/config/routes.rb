@@ -60,7 +60,8 @@ Rails.application.routes.draw do
     get  "pricing-plans/new",      to: "pricing_plans#new",         as: :new_pricing_plan
     post "pricing-plans",          to: "pricing_plans#create"
     get  "pricing-plans/:id",      to: "pricing_plans#show",        as: :pricing_plan
-    post "pricing-plans/:id/rules", to: "pricing_plans#create_rule", as: :pricing_plan_rules
+    post "pricing-plans/:id/rules",    to: "pricing_plans#create_rule", as: :pricing_plan_rules
+    post "pricing-plans/:id/activate", to: "pricing_plans#activate",    as: :activate_pricing_plan
   end
 
   # ── Merchants domain (ops — policy-gated) ────────────────────────────────

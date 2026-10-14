@@ -537,6 +537,11 @@ class CoreApiClient
     post("/internal/pricing-plans/#{plan_id}/rules", attrs)
   end
 
+  # POST /internal/pricing-plans/:plan_id/activate
+  def activate_pricing_plan(plan_id)
+    post("/internal/pricing-plans/#{plan_id}/activate", {})
+  end
+
 
   # GET /internal/merchants/:code/pricing-plan
   def get_merchant_pricing_plan(merchant_code)

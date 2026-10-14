@@ -341,6 +341,7 @@ defmodule YagyeCoreWeb.Router do
     post("/pricing-plans", InternalPricingController, :create_plan)
     get("/pricing-plans/:plan_id", InternalPricingController, :get_plan)
     post("/pricing-plans/:plan_id/rules", InternalPricingController, :add_rule)
+    post("/pricing-plans/:plan_id/activate", InternalPricingController, :activate_plan)
     get("/merchants/:merchant_code/pricing-plan", InternalPricingController, :show_plan)
     patch("/merchants/:merchant_code/pricing-plan", InternalPricingController, :assign_plan)
     get("/merchants/:merchant_code/fee-invoices", InternalPricingController, :list_fee_invoices)

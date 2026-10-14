@@ -1,6 +1,8 @@
 defmodule YagyeCore.Pricing do
   @moduledoc false
 
+  require Logger
+
   import Ecto.Query
 
   alias YagyeCore.Merchants.Schemas.Merchant
@@ -154,6 +156,27 @@ defmodule YagyeCore.Pricing do
     |> Repo.insert()
   end
 
+  @doc """
+  Activates a pricing plan so it can be assigned to merchants and used in fee computation.
+
+  Enforces SoD: the actor who activates cannot be the same as the one who created.
+  Returns `{:ok, plan}` or `{:error, :not_found | :already_active | changeset}`.
+  """
+  def activate_plan(public_id, actor) do
+    case Repo.get_by(PricingPlan, public_id: public_id) do
+      nil ->
+        {:error, :not_found}
+
+      %PricingPlan{status: "active"} = plan ->
+        {:ok, plan}
+
+      plan ->
+        plan
+        |> PricingPlan.activate_changeset(actor)
+        |> Repo.update()
+    end
+  end
+
   def get_plan(public_id) do
     rules_q = from(r in PricingRule, order_by: [desc: r.specificity])
 
@@ -174,6 +197,9 @@ defmodule YagyeCore.Pricing do
     case Repo.get_by(PricingPlan, public_id: plan_public_id) do
       nil ->
         {:error, :plan_not_found}
+
+      %PricingPlan{status: status} when status != "active" ->
+        {:error, :plan_not_active}
 
       plan ->
         Repo.get!(Merchant, merchant_id)
@@ -210,9 +236,96 @@ defmodule YagyeCore.Pricing do
     |> Repo.update()
   end
 
+  @doc """
+  Reverses the PSP margin fee for a refund.
+
+  Finds the original fee for the payment attempt, computes a proportional
+  reversal amount (refund_amount / payment_amount × original_fee), and inserts
+  a new fee_record with fee_kind "psp_margin_reversal". Idempotent: if a
+  reversal already exists for this refund_id it is a no-op.
+
+  Non-fatal by design — callers should log and continue if this returns an error.
+  """
+  def reverse_fee(payment_attempt_id, merchant_id, refund_id, refund_amount) do
+    with {:ok, original} <- find_fee_for_attempt(payment_attempt_id),
+         false <- already_reversed?(refund_id) do
+      attempt_amount = get_in(original.computation, ["gross_amount"]) || 0
+      reversal_amount = compute_reversal_amount(refund_amount, attempt_amount, original.amount)
+
+      %FeeRecord{}
+      |> FeeRecord.reversal_changeset(%{
+        source_type: "refund",
+        source_id: refund_id,
+        merchant_id: merchant_id,
+        mode: original.mode,
+        party: original.party,
+        amount: reversal_amount,
+        currency: original.currency,
+        computation: %{
+          original_fee: original.amount,
+          refund_amount: refund_amount,
+          attempt_amount: attempt_amount,
+          reversal_amount: reversal_amount
+        },
+        reversal_of_id: original.id
+      })
+      |> Repo.insert()
+    else
+      {:error, :no_fee_record} -> {:ok, :no_fee_to_reverse}
+      true -> {:ok, :already_reversed}
+      err -> err
+    end
+  end
+
+  @doc """
+  Aggregates fee revenue by period for ops reporting.
+
+  Returns net fee revenue (original fees minus reversals), grouped by month.
+  """
+  def fee_revenue_summary(opts \\ []) do
+    merchant_id = Keyword.get(opts, :merchant_id)
+    from_date = Keyword.get(opts, :from_date)
+    to_date = Keyword.get(opts, :to_date)
+
+    q =
+      from(f in FeeRecord,
+        where: f.party == "platform",
+        select: %{
+          fee_kind: f.fee_kind,
+          currency: f.currency,
+          total_amount: sum(f.amount),
+          count: count(f.id)
+        },
+        group_by: [f.fee_kind, f.currency]
+      )
+
+    q = if merchant_id, do: where(q, [f], f.merchant_id == ^merchant_id), else: q
+    q = if from_date, do: where(q, [f], f.inserted_at >= ^from_date), else: q
+    q = if to_date, do: where(q, [f], f.inserted_at <= ^to_date), else: q
+
+    rows = Repo.all(q)
+
+    gross = rows |> Enum.filter(&(&1.fee_kind == "psp_margin")) |> Enum.sum_by(& &1.total_amount)
+
+    reversals =
+      rows
+      |> Enum.filter(&(&1.fee_kind == "psp_margin_reversal"))
+      |> Enum.sum_by(& &1.total_amount)
+
+    {:ok,
+     %{
+       gross_fee_revenue: gross,
+       total_reversals: reversals,
+       net_fee_revenue: gross - reversals,
+       breakdown: rows
+     }}
+  end
+
   # ── Private ──────────────────────────────────────────────────────────────────
 
   defp resolve_plan(merchant_id) do
+    now = DateTime.utc_now()
+
     plan_id =
       from(m in Merchant,
         where: m.id == ^merchant_id,
@@ -221,8 +334,23 @@ defmodule YagyeCore.Pricing do
       |> Repo.one()
 
     case plan_id do
-      nil -> {:error, :no_pricing_plan}
-      id -> {:ok, Repo.get!(PricingPlan, id)}
+      nil ->
+        {:error, :no_pricing_plan}
+
+      id ->
+        plan =
+          from(p in PricingPlan,
+            where: p.id == ^id,
+            where: p.status in ["active", "archived"],
+            where: p.effective_from <= ^now,
+            where: is_nil(p.effective_to) or p.effective_to > ^now
+          )
+          |> Repo.one()
+
+        case plan do
+          nil -> {:error, :no_pricing_plan}
+          p -> {:ok, p}
+        end
     end
   end
 
@@ -250,4 +378,32 @@ defmodule YagyeCore.Pricing do
     raw = if rule.minimum_fee, do: max(raw, rule.minimum_fee), else: raw
     if rule.maximum_fee, do: min(raw, rule.maximum_fee), else: raw
   end
+
+  defp find_fee_for_attempt(payment_attempt_id) do
+    case Repo.get_by(FeeRecord,
+           source_type: "payment_attempt",
+           source_id: payment_attempt_id,
+           party: "platform"
+         ) do
+      nil -> {:error, :no_fee_record}
+      fee -> {:ok, fee}
+    end
+  end
+
+  defp already_reversed?(refund_id) do
+    Repo.exists?(
+      from(f in FeeRecord,
+        where:
+          f.source_type == "refund" and f.source_id == ^refund_id and
+            f.fee_kind == "psp_margin_reversal"
+      )
+    )
+  end
+
+  defp compute_reversal_amount(refund_amount, attempt_amount, original_fee)
+       when attempt_amount > 0 do
+    div(refund_amount * original_fee, attempt_amount)
+  end
+
+  defp compute_reversal_amount(_refund_amount, _attempt_amount, original_fee), do: original_fee
 end

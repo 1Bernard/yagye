@@ -8,7 +8,7 @@ defmodule YagyeCore.Pricing.Schemas.FeeRecord do
   alias YagyeCore.Pricing.Schemas.{PricingPlan, PricingRule}
 
   @valid_parties ~w[platform provider]
-  @valid_fee_kinds ~w[psp_margin orchestration_fee]
+  @valid_fee_kinds ~w[psp_margin orchestration_fee psp_margin_reversal]
   @valid_modes ~w[simulation sandbox live]
 
   @type t :: %__MODULE__{}
@@ -26,6 +26,7 @@ defmodule YagyeCore.Pricing.Schemas.FeeRecord do
     belongs_to(:merchant, Merchant)
     belongs_to(:pricing_plan, PricingPlan)
     belongs_to(:pricing_rule, PricingRule)
+    belongs_to(:reversal_of, __MODULE__, foreign_key: :reversal_of_id, type: :binary_id)
 
     timestamps(inserted_at: :inserted_at, updated_at: false)
   end
@@ -67,5 +68,39 @@ defmodule YagyeCore.Pricing.Schemas.FeeRecord do
     |> unique_constraint([:source_type, :source_id, :party],
       name: :fee_records_source_type_source_id_party_index
     )
+  end
+
+  def reversal_changeset(record, attrs) do
+    record
+    |> cast(attrs, [
+      :source_type,
+      :source_id,
+      :merchant_id,
+      :mode,
+      :party,
+      :amount,
+      :currency,
+      :computation,
+      :reversal_of_id
+    ])
+    |> put_change(:fee_kind, "psp_margin_reversal")
+    |> validate_required([
+      :source_type,
+      :source_id,
+      :merchant_id,
+      :mode,
+      :party,
+      :fee_kind,
+      :amount,
+      :currency,
+      :computation,
+      :reversal_of_id
+    ])
+    |> validate_inclusion(:party, @valid_parties)
+    |> validate_inclusion(:mode, @valid_modes)
+    |> validate_length(:currency, is: 3)
+    |> validate_number(:amount, greater_than_or_equal_to: 0)
+    |> foreign_key_constraint(:merchant_id)
+    |> foreign_key_constraint(:reversal_of_id)
   end
 end

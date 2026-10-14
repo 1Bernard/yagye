@@ -31,11 +31,13 @@ module PricingPlans
       cur     = @plan["currency"] || "GHS"
       mode    = @plan["fee_mode"] == "invoiced" ? "Invoiced monthly" : "Deducted from settlement"
       monthly = @plan["monthly_fee"].to_i
+      status  = @plan["status"] || "draft"
       eff     = begin
         fmt_date(Date.parse(@plan["effective_from"].to_s)) if @plan["effective_from"]
       rescue
         "—"
       end
+      status_cls = UI::Theme::STATUS_MAP.fetch(status, UI::Theme::STATUS_NEUTRAL)
 
       render Layout::Shell.new(
         active_nav:  :pricing_plans,
@@ -48,7 +50,17 @@ module PricingPlans
         render UI::PageHeader.new(
           title:    @plan["name"] || "Pricing Plan",
           subtitle: "v#{@plan["version"]} · #{mode}"
-        )
+        ) do
+          span(class: "#{UI::Theme::BADGE} #{status_cls}") { plain status.capitalize }
+          if status == "draft" && can?(:update?, :pricing_plans)
+            form(action: activate_pricing_plan_path(@plan["id"]), method: "post",
+                 class: "ml-3",
+                 data: { turbo_confirm: "Activate this plan? A different ops member must approve to enforce maker-checker." }) do
+              input(type: "hidden", name: "authenticity_token", value: form_authenticity_token)
+              render UI::Button.new(variant: :primary, type: "submit") { plain "Activate plan" }
+            end
+          end
+        end
 
         render UI::Grid.new(columns: :sidebar) do
           # ── Left: rate card + add rule form ──────────────────────────────────
@@ -71,10 +83,13 @@ module PricingPlans
                 div(class: "divide-y divide-gray-50") do
                   reserve_detail_row("Plan",         @plan["name"] || "—")
                   reserve_detail_row("Version",      "v#{@plan["version"]}") if @plan["version"]
+                  reserve_detail_row("Status",       status.capitalize)
                   reserve_detail_row("Currency",     cur)
                   reserve_detail_row("Fee mode",     mode)
                   reserve_detail_row("Monthly fee",  monthly.positive? ? format_money(monthly, currency: cur) : "None")
                   reserve_detail_row("Active from",  eff || "—")
+                  reserve_detail_row("Created by",   @plan["created_by"] || "—")
+                  reserve_detail_row("Activated by", @plan["activated_by"] || "—") if @plan["activated_by"]
                 end
               end
             end

@@ -42,6 +42,7 @@ module PricingPlans
               thead do
                 tr(class: "border-b border-gray-100") do
                   th(class: "px-5 py-3 #{TYPE_MICRO} text-gray-400 font-semibold uppercase tracking-wide") { plain "Plan" }
+                  th(class: "px-5 py-3 #{TYPE_MICRO} text-gray-400 font-semibold uppercase tracking-wide") { plain "Status" }
                   th(class: "px-5 py-3 #{TYPE_MICRO} text-gray-400 font-semibold uppercase tracking-wide") { plain "Currency" }
                   th(class: "px-5 py-3 #{TYPE_MICRO} text-gray-400 font-semibold uppercase tracking-wide") { plain "Fee mode" }
                   th(class: "px-5 py-3 #{TYPE_MICRO} text-gray-400 font-semibold uppercase tracking-wide") { plain "Monthly fee" }
@@ -70,10 +71,16 @@ module PricingPlans
         "—"
       end
 
+      status     = plan["status"] || "draft"
+      status_cls = STATUS_MAP.fetch(status, STATUS_NEUTRAL)
+
       tr(class: "hover:bg-gray-50 transition-colors") do
         td(class: "px-5 py-3.5") do
           p(class: TYPE_BODY_MD) { plain plan["name"] || "—" }
           p(class: TYPE_CAPTION) { plain "v#{plan["version"]}" } if plan["version"]
+        end
+        td(class: "px-5 py-3.5") do
+          span(class: "#{BADGE} #{status_cls}") { plain status.capitalize }
         end
         td(class: "px-5 py-3.5 #{TYPE_CAPTION}") { plain cur }
         td(class: "px-5 py-3.5") do

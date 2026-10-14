@@ -48,6 +48,19 @@ module PricingPlans
       end
     end
 
+    def activate
+      authorize :pricing_plans, :update?
+      plan_id = params[:id]
+
+      result = CoreApiClient.new.activate_pricing_plan(plan_id)
+      if result.success?
+        redirect_to pricing_plan_path(plan_id), notice: "Plan activated."
+      else
+        msg = result.body&.dig("details", "activated_by")&.first || "Could not activate plan."
+        redirect_to pricing_plan_path(plan_id), alert: msg
+      end
+    end
+
     private
 
     def plan_params

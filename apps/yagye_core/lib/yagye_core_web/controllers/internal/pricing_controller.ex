@@ -17,13 +17,16 @@ defmodule YagyeCoreWeb.Controllers.Internal.PricingController do
 
   # POST /internal/pricing-plans
   def create_plan(conn, params) do
+    actor = get_req_header(conn, "x-actor-code") |> List.first("system")
+
     attrs = %{
       name: params["name"],
       version: params["version"] && String.to_integer(to_string(params["version"])),
       currency: params["currency"],
       fee_mode: params["fee_mode"],
       monthly_fee: params["monthly_fee"] && String.to_integer(to_string(params["monthly_fee"])),
-      effective_from: params["effective_from"]
+      effective_from: params["effective_from"],
+      created_by: actor
     }
 
     case Pricing.create_plan(attrs) do
@@ -44,6 +47,26 @@ defmodule YagyeCoreWeb.Controllers.Internal.PricingController do
     case Pricing.get_plan(plan_id) do
       {:ok, plan} -> Response.ok(conn, plan_data(plan))
       {:error, :not_found} -> conn |> put_status(:not_found) |> json(%{error: "plan_not_found"})
+    end
+  end
+
+  # POST /internal/pricing-plans/:plan_id/activate
+  def activate_plan(conn, %{"plan_id" => plan_id}) do
+    actor = get_req_header(conn, "x-actor-code") |> List.first("system")
+
+    case Pricing.activate_plan(plan_id, actor) do
+      {:ok, plan} ->
+        Response.ok(conn, plan_summary(plan))
+
+      {:error, :not_found} ->
+        conn |> put_status(:not_found) |> json(%{error: "plan_not_found"})
+
+      {:error, %Ecto.Changeset{} = cs} ->
+        errors = Ecto.Changeset.traverse_errors(cs, fn {msg, _} -> msg end)
+
+        conn
+        |> put_status(:unprocessable_entity)
+        |> json(%{error: "validation_failed", details: errors})
     end
   end
 
@@ -117,7 +140,8 @@ defmodule YagyeCoreWeb.Controllers.Internal.PricingController do
       currency: plan.currency,
       fee_mode: plan.fee_mode,
       monthly_fee: plan.monthly_fee,
-      effective_from: plan.effective_from
+      effective_from: plan.effective_from,
+      status: plan.status
     }
   end
 
@@ -144,6 +168,10 @@ defmodule YagyeCoreWeb.Controllers.Internal.PricingController do
       monthly_fee: plan.monthly_fee,
       effective_from: plan.effective_from,
       effective_to: plan.effective_to,
+      status: plan.status,
+      created_by: plan.created_by,
+      activated_by: plan.activated_by,
+      activated_at: plan.activated_at,
       rules: Enum.map(plan.rules, &rule_data/1)
     }
   end

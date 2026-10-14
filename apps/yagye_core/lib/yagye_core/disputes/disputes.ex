@@ -3,12 +3,15 @@ defmodule YagyeCore.Disputes do
 
   require OpenTelemetry.Tracer
 
+  require Logger
+
   alias Ecto.Multi
   alias YagyeCore.Disputes.Schemas.{Dispute, Refund}
   alias YagyeCore.Ledger
   alias YagyeCore.Merchants.Schemas.Merchant
   alias YagyeCore.Outbox
   alias YagyeCore.Payments.Schemas.{Payment, PaymentAttempt, PaymentEvent}
+  alias YagyeCore.Pricing
   alias YagyeCore.Repo
   alias YagyeCore.Shared.Pagination
 
@@ -239,6 +242,9 @@ defmodule YagyeCore.Disputes do
     |> Multi.run(:ledger, fn _repo, %{payment: p, settled_refund: r} ->
       post_ledger_reversal_if_settled(p, r, prior_state)
     end)
+    |> Multi.run(:fee_reversal, fn _repo, %{settled_refund: refund, payment: p} ->
+      try_reverse_fee(p, refund)
+    end)
     |> Multi.insert(:outbox, fn %{payment: p} ->
       Outbox.build_changeset(
         p,
@@ -348,6 +354,24 @@ defmodule YagyeCore.Disputes do
 
   # Prior state is used as the guard, not payment.state, because payment is already
   # "refunded" at the point of this call (transitioned earlier in the same Multi).
+  defp try_reverse_fee(payment, refund) do
+    case find_succeeded_attempt(payment.id) do
+      {:ok, attempt} -> attempt_fee_reversal(attempt, payment, refund)
+      {:error, _} -> {:ok, :fee_reversal_skipped}
+    end
+  end
+
+  defp attempt_fee_reversal(attempt, payment, refund) do
+    case Pricing.reverse_fee(attempt.id, payment.merchant_id, refund.id, refund.amount) do
+      {:ok, _} = ok ->
+        ok
+
+      {:error, reason} ->
+        Logger.warning("fee reversal failed for refund #{refund.id}: #{inspect(reason)}")
+        {:ok, :fee_reversal_skipped}
+    end
+  end
+
   defp post_ledger_reversal_if_settled(payment, refund, "succeeded") do
     case find_succeeded_attempt(payment.id) do
       {:ok, attempt} -> Ledger.post_refund(payment, attempt, refund)
