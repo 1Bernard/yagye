@@ -38,15 +38,18 @@ module PricingPlans
                     field_group("Version", :version, placeholder: "1", type: "number") do
                       error_for(:version)
                     end
-                    field_group("Currency", :currency, placeholder: "GHS") do
+                    div do
+                      label(class: "block #{TYPE_MICRO} text-gray-500 font-medium mb-1.5") { plain "Currency" }
+                      select(name: "currency", class: select_cls) do
+                        option(value: "GHS", selected: true) { plain "GHS — Ghanaian Cedi" }
+                      end
                       error_for(:currency)
                     end
                   end
 
                   div do
                     label(class: "block #{TYPE_MICRO} text-gray-500 font-medium mb-1.5") { plain "Fee mode" }
-                    select(name: "fee_mode",
-                           class: "w-full border border-gray-200 rounded-xl px-3.5 py-2.5 text-[13px] text-gray-800 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-400") do
+                    select(name: "fee_mode", class: select_cls) do
                       option(value: "deducted", selected: @params[:fee_mode] != "invoiced") { plain "Deducted from settlement" }
                       option(value: "invoiced",  selected: @params[:fee_mode] == "invoiced") { plain "Invoiced monthly" }
                     end
@@ -86,12 +89,18 @@ module PricingPlans
           name:        field,
           value:       value || @params[field],
           placeholder: placeholder,
-          class:       "w-full border border-gray-200 rounded-xl px-3.5 py-2.5 text-[13px] text-gray-800 " \
-                       "bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-400"
+          class:       input_cls
         )
         yield if block_given?
       end
     end
+
+    def input_cls
+      "w-full border border-gray-200 rounded-xl px-3.5 py-2.5 text-[13px] text-gray-800 " \
+        "bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-400"
+    end
+
+    def select_cls = input_cls
 
     def error_for(field)
       msgs = @errors[field.to_s] || @errors[field.to_sym] || []
