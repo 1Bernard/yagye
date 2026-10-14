@@ -10,6 +10,14 @@ defmodule YagyeCoreWeb.Controllers.Internal.CheckoutSessionsController do
 
   action_fallback YagyeCoreWeb.FallbackController
 
+  # GET /internal/merchants/:merchant_code/checkout-sessions/stats
+  def stats(conn, %{"merchant_code" => merchant_code}) do
+    with {:ok, merchant} <- Merchants.get_merchant(merchant_code) do
+      counts = Checkout.session_stats(merchant.id)
+      Response.ok(conn, counts)
+    end
+  end
+
   # GET /internal/merchants/:merchant_code/checkout-sessions
   def index(conn, %{"merchant_code" => merchant_code} = params) do
     limit =

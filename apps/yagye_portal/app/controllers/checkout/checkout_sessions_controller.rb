@@ -6,6 +6,19 @@ module Checkout
       authorize :checkout_session, :index?
       tab   = params[:tab].presence_in(%w[all open processing completed expired]) || "all"
       state = tab == "all" ? nil : tab
+
+      stats_result = core.get_checkout_session_stats(current_user.merchant_code)
+      stats = if stats_result.success?
+        body = stats_result.body
+        {
+          total:     body["total"].to_i,
+          completed: body["completed"].to_i,
+          expired:   body["expired"].to_i
+        }
+      else
+        { total: 0, completed: 0, expired: 0 }
+      end
+
       result = core.list_checkout_sessions(
         merchant_code:   current_user.merchant_code,
         state:           state,
@@ -14,12 +27,6 @@ module Checkout
       )
       all_sessions = result.success? ? (result.body["data"] || []) : []
       all_sessions = filter_sessions(all_sessions)
-
-      stats = {
-        total:     all_sessions.size,
-        completed: all_sessions.count { |s| s["state"] == "completed" },
-        open:      all_sessions.count { |s| s["state"] == "open" }
-      }
 
       pagy, sessions = pagy(all_sessions, limit: 25)
       render Checkout::CheckoutSessions::IndexView.new(

@@ -180,6 +180,11 @@ class CoreApiClient
     get("/internal/merchants/#{merchant_code}/checkout-sessions?#{URI.encode_www_form(query.transform_keys(&:to_s))}")
   end
 
+  # GET /internal/merchants/:code/checkout-sessions/stats
+  def get_checkout_session_stats(merchant_code)
+    get("/internal/merchants/#{merchant_code}/checkout-sessions/stats")
+  end
+
   # GET /internal/checkout-sessions/:id
   def get_checkout_session(public_id)
     get("/internal/checkout-sessions/#{public_id}")

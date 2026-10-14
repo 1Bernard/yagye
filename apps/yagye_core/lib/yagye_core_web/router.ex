@@ -304,6 +304,12 @@ defmodule YagyeCoreWeb.Router do
     post("/invoices/:id/void", InternalInvoicesController, :void)
 
     # P16 — Checkout Sessions (portal read-only via service token)
+    get(
+      "/merchants/:merchant_code/checkout-sessions/stats",
+      InternalCheckoutSessionsController,
+      :stats
+    )
+
     get("/merchants/:merchant_code/checkout-sessions", InternalCheckoutSessionsController, :index)
     get("/checkout-sessions/:id", InternalCheckoutSessionsController, :show)
 

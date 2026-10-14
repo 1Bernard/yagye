@@ -62,13 +62,13 @@ module Checkout
       def stat_band
         total     = @stats[:total]     || 0
         completed = @stats[:completed] || 0
-        open_ct   = @stats[:open]      || 0
+        expired   = @stats[:expired]   || 0
         rate      = total > 0 ? (completed * 100.0 / total).round : 0
 
         render UI::Grid.new(columns: 4) do
           stat_cell("Total sessions",  total.to_s,      icon: :layers,       color: BRAND, tint: TINT_BRAND)
           stat_cell("Completed",       completed.to_s,  icon: :check_circle, color: GREEN, tint: TINT_GREEN)
-          stat_cell("Open / Active",   open_ct.to_s,    icon: :clock,        color: TEAL,  tint: TINT_TEAL)
+          stat_cell("Abandoned",       expired.to_s,    icon: :alert_circle, color: RED,   tint: TINT_RED)
           stat_cell("Conversion rate", "#{rate}%",      icon: :trending_up,  color: AMBER, tint: TINT_AMBER)
         end
       end

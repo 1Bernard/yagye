@@ -117,6 +117,26 @@ defmodule YagyeCore.CheckoutSessions do
     end
   end
 
+  def session_stats(merchant_id) do
+    rows =
+      from(cs in CheckoutSession,
+        where: cs.merchant_id == ^merchant_id,
+        group_by: cs.state,
+        select: {cs.state, count(cs.id)}
+      )
+      |> Repo.all()
+
+    counts = Map.new(rows)
+
+    %{
+      total: Enum.sum(Map.values(counts)),
+      completed: Map.get(counts, "completed", 0),
+      expired: Map.get(counts, "expired", 0),
+      open: Map.get(counts, "open", 0),
+      processing: Map.get(counts, "processing", 0)
+    }
+  end
+
   def list_sessions(merchant_id, opts \\ []) do
     state = Keyword.get(opts, :state)
     payment_link_id = Keyword.get(opts, :payment_link_id)
