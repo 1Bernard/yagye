@@ -69,6 +69,12 @@ module Account
       )
     end
 
+    # GET /settings/totp/disable-modal
+    def disable_confirm
+      authorize :settings, :update?
+      render Settings::DisableTotpModalView.new
+    end
+
     # DELETE /settings/totp
     def destroy
       authorize :settings, :update?

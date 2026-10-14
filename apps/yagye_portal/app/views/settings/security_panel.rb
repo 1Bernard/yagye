@@ -69,8 +69,7 @@ module Settings
     # ── Authentication ────────────────────────────────────────────────────────
 
     def authentication_card(totp_on)
-      div(class: "bg-white border border-gray-100 rounded-2xl overflow-hidden",
-          data: { controller: "dialog" }) do
+      div(class: "bg-white border border-gray-100 rounded-2xl overflow-hidden") do
         div(class: "px-6 py-5 border-b border-gray-100") do
           p(class: TYPE_TITLE) { plain "Authentication" }
           p(class: "#{TYPE_CAPTION} mt-[3px]") { plain "Manage how you verify your identity when signing in." }
@@ -154,7 +153,6 @@ module Settings
                             desc: "Receive a one-time code via text message", coming_soon: true)
             email_otp_row(totp_on)
           end
-          disable_totp_dialog if totp_on
         end
       end
     end
@@ -192,8 +190,9 @@ module Settings
           p(class: TYPE_CAPTION) { plain "Google Authenticator, Authy, 1Password" }
         end
         if enabled
-          render UI::Button.new(variant: :danger,
-                 data: { action: "click->dialog#open", dialog_target_param: "disable-totp-dialog" }) do
+          a(href: settings_totp_disable_modal_path,
+            class: BTN_DANGER,
+            data: { turbo_frame: "modal-frame" }) do
             render UI::Icon.new(:shield_off, class: ICON_SM)
             plain "Disable"
           end
@@ -240,35 +239,6 @@ module Settings
         end
         render UI::Toggle.new(name: "auth_#{label.downcase.gsub(/\W+/, '_')}", checked: checked,
                               href: toggle_href, **toggle_attrs)
-      end
-    end
-
-    def disable_totp_dialog
-      dialog(id: "disable-totp-dialog",
-             class: "border-0 rounded-2xl p-0 shadow-2xl w-full max-w-[400px] bg-white") do
-        div(class: "px-6 py-[22px] border-b border-gray-100") do
-          p(class: TYPE_TITLE) { plain "Disable two-factor authentication" }
-          p(class: "#{TYPE_CAPTION} mt-[3px]") do
-            plain "Confirm your password to turn off 2FA. Your account will be less secure."
-          end
-        end
-        form(action: settings_totp_delete_path, method: "post",
-             class: "px-6 py-[22px] flex flex-col gap-4") do
-          input(type: "hidden", name: "_method",            value: "delete")
-          input(type: "hidden", name: "authenticity_token", value: form_authenticity_token)
-          render UI::InputField.new(name: "current_password", label: "Current password", type: "password")
-          div(class: "flex gap-[10px] justify-end mt-1") do
-            render UI::Button.new(variant: :secondary,
-                   data: { action: "click->dialog#close", dialog_target_param: "disable-totp-dialog" }) do
-              render UI::Icon.new(:x, class: ICON_SM)
-              plain "Cancel"
-            end
-            render UI::Button.new(variant: :danger, type: "submit") do
-              render UI::Icon.new(:shield_off, class: ICON_SM)
-              plain "Disable 2FA"
-            end
-          end
-        end
       end
     end
 

@@ -258,10 +258,11 @@ Rails.application.routes.draw do
     delete "settings/business/branding/logo",         to: "merchant_branding#remove_logo",       as: :settings_remove_merchant_logo
     get    "settings/business/branding/logo/remove-modal", to: "merchant_branding#remove_logo_modal", as: :remove_logo_modal_settings
 
-    get    "settings/totp/new",              to: "totp#new",           as: :settings_totp_new
-    post   "settings/totp",                  to: "totp#create",        as: :settings_totp
-    delete "settings/totp",                  to: "totp#destroy",       as: :settings_totp_delete
-    get    "settings/totp/recovery-codes",   to: "totp#recovery_codes", as: :settings_totp_recovery_codes
+    get    "settings/totp/new",              to: "totp#new",             as: :settings_totp_new
+    post   "settings/totp",                  to: "totp#create",          as: :settings_totp
+    delete "settings/totp",                  to: "totp#destroy",         as: :settings_totp_delete
+    get    "settings/totp/recovery-codes",   to: "totp#recovery_codes",  as: :settings_totp_recovery_codes
+    get    "settings/totp/disable-modal",    to: "totp#disable_confirm", as: :settings_totp_disable_modal
 
     post   "settings/passkeys/register-challenge", to: "passkeys#register_challenge", as: :settings_passkey_register_challenge
     post   "settings/passkeys",                    to: "passkeys#create",             as: :settings_passkeys
