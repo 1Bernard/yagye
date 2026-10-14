@@ -184,6 +184,7 @@ defmodule YagyeCoreWeb.Controllers.Internal.CheckoutController do
 
   defp create_payment(session, params) do
     attrs = %{
+      mode: String.to_existing_atom(session.mode),
       method: params["method"] || params["payment_method"] || "mobile_money",
       rail: "fiat_provider",
       amount: session.total_amount,

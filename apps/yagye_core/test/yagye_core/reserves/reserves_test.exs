@@ -15,7 +15,7 @@ defmodule YagyeCore.Reserves.ReservesTest do
       Fixtures.succeeded_payment_fixture(merchant, %{
         amount: 100_000,
         currency: "GHS",
-        mode: "simulation"
+        mode: "live"
       })
 
     %{merchant: merchant, payment: payment}

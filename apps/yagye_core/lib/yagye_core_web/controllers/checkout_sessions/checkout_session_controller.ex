@@ -25,6 +25,7 @@ defmodule YagyeCoreWeb.Controllers.CheckoutSessions.CheckoutSessionController do
       conn.body_params
       |> Map.from_struct()
       |> Map.reject(fn {_k, v} -> is_nil(v) end)
+      |> Map.put(:mode, Atom.to_string(conn.assigns.mode))
       |> atomise_line_items()
 
     with {:ok, {session, url_token}} <- CheckoutSessions.create_session(merchant_id, attrs) do

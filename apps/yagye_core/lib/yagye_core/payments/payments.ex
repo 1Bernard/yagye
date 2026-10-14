@@ -507,7 +507,14 @@ defmodule YagyeCore.Payments do
       resolve_merchant(merchant_id)
     end)
     |> Multi.insert(:payment, fn %{merchant: merchant} ->
-      merged = Map.merge(attrs, %{merchant_id: merchant.id, mode: current_mode(merchant)})
+      mode =
+        case Map.get(attrs, :mode) do
+          nil -> current_mode(merchant)
+          m when is_atom(m) -> Atom.to_string(m)
+          m -> m
+        end
+
+      merged = Map.merge(attrs, %{merchant_id: merchant.id, mode: mode})
       Payment.changeset(%Payment{}, merged)
     end)
     |> Multi.run(:event, fn _repo, %{payment: p} ->

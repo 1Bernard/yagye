@@ -20,7 +20,11 @@ defmodule YagyeCoreWeb.Controllers.Payments.PaymentController do
 
   def create(conn, _params) do
     merchant_id = conn.assigns.merchant_id
-    attrs = Map.from_struct(conn.body_params)
+
+    attrs =
+      conn.body_params
+      |> Map.from_struct()
+      |> Map.put(:mode, conn.assigns.mode)
 
     with {:ok, {payment, _event}} <- Payments.create_payment(merchant_id, attrs) do
       object = PaymentJSON.data(payment)
