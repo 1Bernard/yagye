@@ -32,10 +32,16 @@ otelcol.exporter.prometheus "default" {
   forward_to = [prometheus.remote_write.default.receiver]
 }
 
-// ── Prometheus scrape: Core /metrics endpoint ─────────────────────────────────
+// ── Prometheus scrape: Core /metrics endpoint ────────────────────────────────
+// host.docker.internal resolves to the host machine from within Docker Desktop
+// (macOS/Windows). When Core runs in docker compose, yagye_core:4000 is also
+// tried. Prometheus silently drops targets that are unreachable.
 prometheus.scrape "yagye_core" {
-  targets = [{"__address__" = "yagye_core:4000", "job" = "yagye_core"}]
-  forward_to = [prometheus.remote_write.default.receiver]
+  targets = [
+    {"__address__" = "host.docker.internal:4000", "job" = "yagye_core", "instance" = "native"},
+    {"__address__" = "yagye_core:4000",            "job" = "yagye_core", "instance" = "docker"},
+  ]
+  forward_to      = [prometheus.remote_write.default.receiver]
   scrape_interval = "15s"
   metrics_path    = "/metrics"
 }

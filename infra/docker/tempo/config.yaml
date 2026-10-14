@@ -12,12 +12,13 @@ distributor:
         http:
           endpoint: 0.0.0.0:4318
 
-ingester:
-  max_block_duration: 5m
-
-compactor:
-  compaction:
-    block_retention: 48h
+storage:
+  trace:
+    backend: local
+    wal:
+      path: /var/tempo/wal
+    local:
+      path: /var/tempo/blocks
 
 metrics_generator:
   registry:
@@ -28,16 +29,7 @@ metrics_generator:
     remote_write:
       - url: http://prometheus:9090/api/v1/write
 
-storage:
-  trace:
-    backend: local
-    wal:
-      path: /var/tempo/wal
-    local:
-      path: /var/tempo/blocks
-
 overrides:
   defaults:
     metrics_generator:
       processors: [service-graphs, span-metrics]
-      generate_native_histograms: both
