@@ -104,21 +104,51 @@ defmodule YagyeCore.Payouts do
   end
 
   def mark_paid(payout, provider_reference) do
-    transition(payout, "paid", %{
-      provider_reference: provider_reference,
-      completed_at: DateTime.utc_now()
-    })
+    with {:ok, updated} <-
+           transition(payout, "paid", %{
+             provider_reference: provider_reference,
+             completed_at: DateTime.utc_now()
+           }) do
+      emit_payout_event(updated, "payout.paid")
+      {:ok, updated}
+    end
   end
 
   def mark_returned(payout, failure_code) do
-    transition(payout, "returned", %{
-      failure_code: failure_code,
-      returned_at: DateTime.utc_now()
-    })
+    with {:ok, updated} <-
+           transition(payout, "returned", %{
+             failure_code: failure_code,
+             returned_at: DateTime.utc_now()
+           }) do
+      emit_payout_event(updated, "payout.returned")
+      {:ok, updated}
+    end
   end
 
   def mark_failed(payout, failure_code) do
-    transition(payout, "failed", %{failure_code: failure_code})
+    with {:ok, updated} <- transition(payout, "failed", %{failure_code: failure_code}) do
+      emit_payout_event(updated, "payout.failed")
+      {:ok, updated}
+    end
+  end
+
+  defp emit_payout_event(payout, event_type) do
+    Outbox.emit(
+      payout,
+      event_type,
+      %{
+        payout_code: payout.public_id,
+        merchant_code: merchant_code(payout.merchant_id),
+        state: payout.state,
+        amount: payout.amount,
+        currency: payout.currency,
+        destination_type: payout.destination_type,
+        destination_fingerprint: payout.destination_fingerprint,
+        failure_code: payout.failure_code,
+        mode: payout.mode
+      },
+      correlation_id: payout.public_id
+    )
   end
 
   # ── Destinations ─────────────────────────────────────────────────────────────

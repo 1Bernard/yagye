@@ -200,6 +200,7 @@ defmodule YagyeCore.Disputes do
           reason: d.reason,
           status: d.outcome,
           resolved_at: d.resolved_at && DateTime.to_iso8601(d.resolved_at),
+          payment_state: p.state,
           mode: p.mode
         },
         correlation_id: d.public_id
