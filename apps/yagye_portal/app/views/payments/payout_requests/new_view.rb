@@ -33,25 +33,17 @@ module Payments
 
         amount_label = "#{@unsettled_currency} #{"%.2f" % (@unsettled_amount / 100.0)}"
 
-        div(class: "rounded-2xl px-6 py-5 flex items-start gap-4",
-            style: "background:rgba(61,71,245,0.06);border:1px solid rgba(61,71,245,0.18)") do
-          span(class: "flex-shrink-0 mt-[2px]") do
-            render UI::Icon.new(:info_circle, class: "w-5 h-5", style: "color:#3D47F5")
-          end
-          div do
-            p(class: "text-[13.5px] font-semibold text-gray-800 mb-1") do
-              plain "#{amount_label} available to request"
-            end
-            p(class: "#{TYPE_CAPTION} leading-relaxed") do
-              plain "This is your current unsettled balance — funds collected but not yet disbursed. " \
-                    "Leave the amount blank to request the full balance, or enter a specific amount."
-            end
-          end
-        end
+        render UI::Notice.new(
+          title:   "#{amount_label} available to request",
+          body:    "This is your current unsettled balance — funds collected but not yet disbursed. " \
+                   "Leave the amount blank to request the full balance, or enter a specific amount.",
+          variant: :info,
+          size:    :lg
+        )
       end
 
       def form_card
-        div(class: "bg-white border border-gray-100 rounded-2xl overflow-hidden") do
+        div(class: "#{SURFACE_CARD} overflow-hidden") do
           div(class: "px-6 py-5 border-b border-gray-100") do
             p(class: TYPE_TITLE) { plain "Early Payout Request" }
             p(class: "#{TYPE_CAPTION} mt-[3px]") do

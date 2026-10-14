@@ -93,7 +93,7 @@ module Payments
             list.row("Merchant") { copyable_mono(@payment.merchant_code) }
             if @payment.fulfilment_type.present?
               list.row("Fulfilment") do
-                span(class: "inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium bg-gray-100 text-gray-600") do
+                span(class: "#{BADGE} #{STATUS_NEUTRAL}") do
                   plain @payment.fulfilment_type.capitalize
                 end
               end
@@ -102,9 +102,9 @@ module Payments
             unless @payment.billing_shipping_match.nil?
               list.row("Billing = shipping") do
                 if @payment.billing_shipping_match
-                  span(class: "text-[12px] text-green-700 font-medium") { plain "Match ✓" }
+                  span(class: "text-[12px] font-medium", style: "color:#{GREEN}") { plain "Match ✓" }
                 else
-                  span(class: "text-[12px] text-amber-600 font-medium") { plain "Mismatch ✗" }
+                  span(class: "text-[12px] font-medium", style: "color:#{AMBER}") { plain "Mismatch ✗" }
                 end
               end
             end
@@ -238,18 +238,15 @@ module Payments
 
     def dispute_banner
       href = @dispute ? dispute_path(@dispute) : disputes_path
-      div(class: "flex items-start gap-3 px-5 py-4 rounded-2xl border bg-amber-50 border-amber-200") do
-        span(class: "flex-shrink-0 w-5 h-5 mt-px text-amber-600") do
-          render UI::Icon.new(:flag, class: "w-full h-full")
-        end
-        div(class: "flex-1 min-w-0") do
-          p(class: "text-[13px] font-semibold text-amber-900") { plain "Dispute open" }
-          p(class: "text-[12px] mt-[2px] text-amber-700") do
-            plain "A chargeback has been raised against this payment. "
-            a(href: href, class: "font-semibold underline text-amber-600") { plain "View dispute →" }
-          end
-        end
-      end
+      render UI::Notice.new(
+        title:        "Dispute open",
+        body:         "A chargeback has been raised against this payment.",
+        variant:      :warning,
+        size:         :lg,
+        icon:         :flag,
+        action_label: "View dispute →",
+        action_href:  href
+      )
     end
 
     # ── Helpers ───────────────────────────────────────────────────────────────
@@ -260,7 +257,8 @@ module Payments
       render UI::Card.new do |c|
         c.header("Payment events") do
           a(href: developers_path(tab: "deliveries"),
-            class: "#{TYPE_CAPTION} text-[#3D47F5] hover:underline no-underline") do
+            class: "#{TYPE_CAPTION} hover:underline no-underline",
+            style: "color:#{BRAND}") do
             plain "Webhook logs →"
           end
         end

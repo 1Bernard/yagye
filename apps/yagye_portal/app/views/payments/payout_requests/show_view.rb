@@ -43,7 +43,7 @@ module Payments
       end
 
       def hero_card
-        div(class: "bg-white border border-gray-100 rounded-2xl px-8 py-7") do
+        div(class: "#{SURFACE_CARD} px-8 py-7") do
           div(class: "flex items-start justify-between mb-5") do
             div do
               p(class: "#{TYPE_CAPTION} mb-1") { plain "Requested amount" }
@@ -75,7 +75,7 @@ module Payments
       end
 
       def review_card
-        div(class: "bg-white border border-gray-100 rounded-2xl overflow-hidden") do
+        div(class: "#{SURFACE_CARD} overflow-hidden") do
           div(class: "px-5 py-[18px] border-b border-gray-100") do
             p(class: "text-[13px] font-semibold text-gray-800") { plain "Review request" }
           end

@@ -19,10 +19,14 @@ module Payments
 
       def view_template
         render Layout::Shell.new(
-          active_nav: :settlements,
-          title: "Settlements",
-          subtitle: "Period-based reconciliation of funds owed to your account"
+          active_nav:  :settlements,
+          title:       "Settlements",
+          breadcrumbs: [ { label: "Settlements" } ]
         ) do
+          render UI::PageHeader.new(
+            title:    "Settlements",
+            subtitle: "Period-based reconciliation of funds owed to your account."
+          )
           stat_band
           ops_strip if @ops_dashboard.any?
           settlements_table

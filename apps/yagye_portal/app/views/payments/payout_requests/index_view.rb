@@ -13,10 +13,17 @@ module Payments
 
       def view_template
         render Layout::Shell.new(
-          active_nav: :payouts,
-          title:      "Payout Requests",
-          subtitle:   "Early payout requests submitted by merchants"
+          active_nav:  :payouts,
+          title:       "Payout Requests",
+          breadcrumbs: [
+            { label: "Payouts",         href: payouts_path },
+            { label: "Payout Requests" }
+          ]
         ) do
+          render UI::PageHeader.new(
+            title:    "Payout Requests",
+            subtitle: "Early payout requests submitted by merchants."
+          )
           stat_band if @stats.any?
           requests_table
         end

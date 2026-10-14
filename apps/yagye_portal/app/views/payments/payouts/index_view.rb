@@ -19,9 +19,9 @@ module Payments
 
       def view_template
         render Layout::Shell.new(
-          active_nav: :payouts,
-          title:    "Payouts",
-          subtitle: "Scheduled and completed disbursements to your bank account"
+          active_nav:  :payouts,
+          title:       "Payouts",
+          breadcrumbs: [ { label: "Payouts" } ]
         ) do
           render UI::PageHeader.new(
             title:    "Payouts",

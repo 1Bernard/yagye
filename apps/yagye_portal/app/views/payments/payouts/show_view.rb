@@ -68,11 +68,8 @@ module Payments
             end
             div(class: "flex items-center gap-2") do
               render UI::StatusBadge.new(status: @payout.state)
-              a(href: payout_statement_path(@payout), target: "_blank",
-                class: "inline-flex items-center gap-[6px] px-3 py-1.5 rounded-[9px] border border-gray-200 " \
-                       "bg-white text-[12px] font-medium text-gray-600 hover:text-gray-900 hover:bg-gray-50 " \
-                       "transition-colors no-underline") do
-                span(class: "flex w-[12px] h-[12px]") { render UI::Icon.new(:file, class: "w-full h-full") }
+              render UI::Button.new(variant: :secondary, href: payout_statement_path(@payout), target: "_blank") do
+                render UI::Icon.new(:file, class: ICON_SM)
                 plain "Statement"
               end
             end

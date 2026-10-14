@@ -68,7 +68,7 @@ module Account
         eff_from  = @plan["effective_from"]
 
         mode_label = mode == "invoiced" ? "Invoiced (billed monthly)" : "Deducted from settlement"
-        mode_css   = mode == "invoiced" ? "bg-purple-50 text-purple-700" : "bg-green-50 text-green-700"
+        mode_status = mode == "invoiced" ? STATUS_INFO : STATUS_SUCCESS
 
         div(class: "#{SURFACE_CARD} px-8 py-7") do
           div(class: "flex items-start justify-between mb-5") do
@@ -77,9 +77,7 @@ module Account
               p(class: TYPE_HEADING) { plain @plan["name"] || "Standard" }
               p(class: "#{TYPE_CAPTION} mt-0.5") { plain "v#{@plan["version"]}" } if @plan["version"]
             end
-            span(class: "inline-flex items-center px-2.5 py-1 rounded-full text-[11.5px] font-semibold #{mode_css}") do
-              plain mode_label
-            end
+            span(class: "#{BADGE} #{mode_status}") { plain mode_label }
           end
           div(class: "grid grid-cols-3 gap-[1px] bg-gray-100 rounded-xl overflow-hidden") do
             meta_cell("Currency",      cur)
@@ -221,17 +219,16 @@ module Account
       def fee_mode_explainer
         mode = @plan["fee_mode"] || "deducted"
 
-        div(class: "bg-blue-50 border border-blue-100 rounded-2xl px-6 py-5") do
-          p(class: "text-[13px] font-semibold text-blue-800 mb-1.5") { plain "How your fees work" }
+        render UI::Notice.new(title: "How your fees work", variant: :info, size: :lg) do
           if mode == "deducted"
-            ul(class: "#{TYPE_CAPTION} text-blue-700 space-y-1 list-disc list-inside") do
+            ul(class: "#{TYPE_CAPTION} mt-[3px] space-y-1 list-disc list-inside") do
               li { plain "Fees are automatically deducted from each settlement batch." }
               li { plain "Your settlement net amount = gross volume − platform fees." }
               li { plain "Fee and net amount are shown on each payment and each settlement batch." }
               li { plain "No separate invoice — everything is visible in your dashboard." }
             end
           else
-            ul(class: "#{TYPE_CAPTION} text-blue-700 space-y-1 list-disc list-inside") do
+            ul(class: "#{TYPE_CAPTION} mt-[3px] space-y-1 list-disc list-inside") do
               li { plain "You receive gross settlement — no fees are taken from each batch." }
               li { plain "Fees are consolidated into a monthly platform fee invoice." }
               li { plain "Invoices are billed at the start of each month for the prior period." }

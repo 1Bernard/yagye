@@ -115,7 +115,7 @@ module Activity
     # ── Events card ───────────────────────────────────────────────────────────
 
     def events_card
-      div(class: "bg-white border border-gray-100 rounded-2xl overflow-hidden") do
+      div(class: "#{SURFACE_CARD} overflow-hidden") do
         div(class: "px-6 py-4 border-b border-gray-100 flex items-center justify-between") do
           p(class: TYPE_TITLE) { plain "Events" }
           span(class: "text-[12px] font-medium text-gray-400 tabular-nums") do
@@ -176,7 +176,8 @@ module Activity
               if (ref = event["resource_ref"].presence)
                 if href
                   a(href: href,
-                    class: "#{TYPE_MONO} text-[11px] text-[#3D47F5] hover:underline no-underline mt-[2px] block truncate") do
+                    class: "#{TYPE_MONO} text-[11px] hover:underline no-underline mt-[2px] block truncate",
+                    style: "color:#{BRAND}") do
                     plain ref
                   end
                 else

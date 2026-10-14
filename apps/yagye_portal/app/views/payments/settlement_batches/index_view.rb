@@ -12,9 +12,9 @@ module Payments
 
       def view_template
         render Layout::Shell.new(
-          active_nav: :settlement_batches,
-          title:      "Settlement Batches",
-          subtitle:   "Daily settlement runs grouped by period"
+          active_nav:  :settlement_batches,
+          title:       "Settlement Batches",
+          breadcrumbs: [ { label: "Settlement Batches" } ]
         ) do
           render UI::PageHeader.new(
             title:    "Settlement Batches",

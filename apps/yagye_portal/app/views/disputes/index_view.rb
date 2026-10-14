@@ -172,7 +172,8 @@ module Disputes
         plain "Filters"
         if filter_count > 0
           span(class: "ml-[2px] inline-flex items-center justify-center w-4 h-4 rounded-full " \
-                      "bg-[#3D47F5] text-white text-[9px] font-bold leading-none") do
+                      "text-white text-[9px] font-bold leading-none",
+               style: "background:#{BRAND}") do
             plain filter_count.to_s
           end
         end
