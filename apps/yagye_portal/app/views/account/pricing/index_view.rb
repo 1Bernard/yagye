@@ -89,6 +89,21 @@ module Account
         end
       end
 
+      METHOD_LABELS = {
+        "mobile_money"  => "Mobile Money",
+        "card"          => "Card",
+        "bank_transfer" => "Bank Transfer"
+      }.freeze
+
+      PROVIDER_LABELS = {
+        "MTN_MOMO_GH"      => "MTN MoMo",
+        "TELECEL_GH"       => "Telecel Cash",
+        "AIRTELTIGO_GH"    => "AirtelTigo Money",
+        "VISA"             => "Visa",
+        "MASTERCARD"       => "Mastercard",
+        "HUBTEL_GH"        => "Hubtel"
+      }.freeze
+
       def rules_card
         rules = @plan["rules"] || []
 
@@ -100,31 +115,86 @@ module Account
                 p(class: TYPE_CAPTION) { plain "No pricing rules defined for this plan." }
               end
             else
-              div(class: "overflow-x-auto") do
-                table(class: "w-full text-left") do
-                  thead do
-                    tr(class: "border-b border-gray-100") do
-                      th(class: "px-5 py-3 #{TYPE_MICRO} text-gray-400 font-semibold uppercase tracking-wide") { plain "Method" }
-                      th(class: "px-5 py-3 #{TYPE_MICRO} text-gray-400 font-semibold uppercase tracking-wide") { plain "Provider" }
-                      th(class: "px-5 py-3 #{TYPE_MICRO} text-gray-400 font-semibold uppercase tracking-wide text-right") { plain "Rate" }
-                      th(class: "px-5 py-3 #{TYPE_MICRO} text-gray-400 font-semibold uppercase tracking-wide text-right") { plain "Fixed" }
-                      th(class: "px-5 py-3 #{TYPE_MICRO} text-gray-400 font-semibold uppercase tracking-wide text-right") { plain "Min" }
-                      th(class: "px-5 py-3 #{TYPE_MICRO} text-gray-400 font-semibold uppercase tracking-wide text-right") { plain "Max" }
-                      th(class: "px-5 py-3 #{TYPE_MICRO} text-gray-400 font-semibold uppercase tracking-wide") { plain "Amount band" }
-                    end
-                  end
-                  tbody(class: "divide-y divide-gray-50") do
-                    rules.each { |r| rule_row(r) }
-                  end
+              grouped_rules_table(rules)
+            end
+          end
+        end
+      end
+
+      def grouped_rules_table(rules)
+        catch_all  = rules.select { |r| r["method"].nil? && r["provider_code"].nil? }
+        by_method  = rules
+          .reject { |r| r["method"].nil? && r["provider_code"].nil? }
+          .group_by { |r| r["method"] }
+
+        div(class: "overflow-x-auto") do
+          table(class: "w-full text-left") do
+            thead do
+              tr(class: "border-b border-gray-100") do
+                th(class: "px-5 py-3 #{TYPE_MICRO} text-gray-400 font-semibold uppercase tracking-wide w-[160px]") { plain "Payment method" }
+                th(class: "px-5 py-3 #{TYPE_MICRO} text-gray-400 font-semibold uppercase tracking-wide") { plain "Applies to" }
+                th(class: "px-5 py-3 #{TYPE_MICRO} text-gray-400 font-semibold uppercase tracking-wide text-right") { plain "Rate" }
+                th(class: "px-5 py-3 #{TYPE_MICRO} text-gray-400 font-semibold uppercase tracking-wide text-right") { plain "+ Fixed fee" }
+                th(class: "px-5 py-3 #{TYPE_MICRO} text-gray-400 font-semibold uppercase tracking-wide text-right") { plain "Min charge" }
+                th(class: "px-5 py-3 #{TYPE_MICRO} text-gray-400 font-semibold uppercase tracking-wide text-right") { plain "Cap" }
+              end
+            end
+            tbody do
+              by_method.each_with_index do |(method_key, method_rules), idx|
+                method_rules.each_with_index do |r, ri|
+                  first_in_group = ri.zero?
+                  last_in_group  = ri == method_rules.size - 1
+                  last_method    = idx == by_method.size - 1 && catch_all.empty?
+                  rule_row_grouped(r, method_key, method_rules, first_in_group, last_in_group && last_method)
                 end
+              end
+
+              catch_all.each do |r|
+                fallback_row(r)
               end
             end
           end
         end
       end
 
-      def rule_row(r)
-        cur   = @plan["currency"] || "GHS"
+      def rule_row_grouped(r, method_key, method_rules, first_in_group, is_last)
+        cur        = @plan["currency"] || "GHS"
+        has_specific = method_rules.any? { |x| x["provider_code"].present? }
+        scope      = scope_label(r, has_specific)
+
+        border_cls = is_last ? "" : "border-b border-gray-50"
+        group_top  = first_in_group ? "pt-4" : "pt-2.5"
+        group_bot  = (method_rules.last == r) ? "pb-4" : "pb-2.5"
+
+        tr(class: "hover:bg-gray-50 transition-colors #{border_cls}") do
+          td(class: "pl-5 pr-3 #{group_top} #{group_bot} align-top") do
+            if first_in_group
+              p(class: "text-[13px] font-semibold text-gray-800") do
+                plain(METHOD_LABELS[method_key] || method_key.to_s.humanize)
+              end
+            end
+          end
+          td(class: "px-3 #{group_top} #{group_bot} align-top") do
+            span(class: "text-[13px] text-gray-600") { plain scope }
+          end
+          rate_cells(r, cur)
+        end
+      end
+
+      def fallback_row(r)
+        cur = @plan["currency"] || "GHS"
+        tr(class: "bg-gray-50/70 border-t border-gray-100 hover:bg-gray-50 transition-colors") do
+          td(class: "pl-5 pr-3 py-3.5 align-top") do
+            p(class: "text-[13px] font-semibold text-gray-500") { plain "All other methods" }
+          end
+          td(class: "px-3 py-3.5 align-top") do
+            span(class: "text-[12px] text-gray-400") { plain "Fallback — applies if no specific rule matches" }
+          end
+          rate_cells(r, cur)
+        end
+      end
+
+      def rate_cells(r, cur)
         pct   = r["percentage_bps"].to_i
         fixed = r["fixed_amount"].to_i
         min_f = r["minimum_fee"]
@@ -135,41 +205,17 @@ module Account
         min_label   = min_f ? format_money(min_f.to_i, currency: cur) : "—"
         max_label   = max_f ? format_money(max_f.to_i, currency: cur) : "—"
 
-        amount_min = r["amount_min"]
-        amount_max = r["amount_max"]
-        band_label = if amount_min || amount_max
-                       from_s = amount_min ? format_money(amount_min.to_i, currency: cur) : "0"
-                       to_s   = amount_max ? format_money(amount_max.to_i, currency: cur) : "∞"
-                       "#{from_s} – #{to_s}"
-        else
-                       "All amounts"
-        end
+        td(class: "px-3 py-3 text-right tabular-nums text-[13px] font-semibold text-gray-800") { plain pct_label }
+        td(class: "px-3 py-3 text-right tabular-nums text-[13px] text-gray-600") { plain fixed_label }
+        td(class: "px-3 py-3 text-right tabular-nums #{TYPE_CAPTION}") { plain min_label }
+        td(class: "pr-5 pl-3 py-3 text-right tabular-nums #{TYPE_CAPTION}") { plain max_label }
+      end
 
-        is_default = r["method"].nil? && r["provider_code"].nil?
-        row_cls    = is_default ? "bg-gray-50/60 hover:bg-gray-50 transition-colors" : "hover:bg-gray-50 transition-colors"
+      def scope_label(rule, has_specific_providers)
+        code = rule["provider_code"]
+        return PROVIDER_LABELS[code&.upcase] || code if code.present?
 
-        tr(class: row_cls) do
-          td(class: "px-5 py-3 #{TYPE_BODY_MD}") do
-            if is_default
-              span(class: "inline-flex items-center gap-1.5") do
-                plain "Default"
-                span(class: "text-[10.5px] font-medium px-1.5 py-px rounded-full bg-gray-200 text-gray-500 leading-none") do
-                  plain "catch-all"
-                end
-              end
-            else
-              plain(r["method"]&.humanize || "—")
-            end
-          end
-          td(class: "px-5 py-3 #{TYPE_BODY_MD} text-gray-500") do
-            plain(r["provider_code"]&.upcase || "—")
-          end
-          td(class: "px-5 py-3 #{TYPE_BODY_MD} text-right font-semibold tabular-nums") { plain pct_label }
-          td(class: "px-5 py-3 #{TYPE_BODY_MD} text-right tabular-nums") { plain fixed_label }
-          td(class: "px-5 py-3 #{TYPE_CAPTION} text-right tabular-nums") { plain min_label }
-          td(class: "px-5 py-3 #{TYPE_CAPTION} text-right tabular-nums") { plain max_label }
-          td(class: "px-5 py-3 #{TYPE_CAPTION} text-gray-500") { plain band_label }
-        end
+        has_specific_providers ? "All other networks" : "All providers"
       end
 
       def fee_mode_explainer
