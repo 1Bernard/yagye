@@ -32,7 +32,7 @@ module Payments
           active_nav:  :reconciliation,
           title:       "Break #{short_id}",
           breadcrumbs: [
-            { label: "Reconciliation", url: reconciliation_path },
+            { label: "Reconciliation", href: reconciliation_path },
             { label: short_id }
           ]
         ) do

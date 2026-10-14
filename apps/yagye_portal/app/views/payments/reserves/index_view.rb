@@ -25,10 +25,7 @@ module Payments
         render Layout::Shell.new(
           active_nav:  :reserves,
           title:       "Rolling Reserve",
-          breadcrumbs: [
-            { label: "Payments", href: payments_path },
-            { label: "Reserve"  }
-          ]
+          breadcrumbs: [ { label: "Reserves" } ]
         ) do
           render UI::PageHeader.new(
             title:    "Rolling Reserve",

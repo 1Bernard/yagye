@@ -14,8 +14,8 @@ module Team
           active_nav: :team_users,
           title:      "Team activity log",
           breadcrumbs: [
-            { label: "Team", href: team_path },
-            { label: "Activity log" }
+            { label: "Users", href: team_users_path },
+            { label: "Activity Log" }
           ]
         ) do
           render UI::PageHeader.new(

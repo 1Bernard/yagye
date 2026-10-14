@@ -19,7 +19,7 @@ module Team
           active_nav: :team_users,
           title:      @user.full_name,
           breadcrumbs: [
-            { label: "Team members", url: team_users_path },
+            { label: "Users", href: team_users_path },
             { label: @user.full_name }
           ]
         ) do

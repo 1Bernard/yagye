@@ -24,7 +24,7 @@ module Payments
           active_nav:  :customers,
           title:       ref,
           breadcrumbs: [
-            { label: "Customers", url: customers_path },
+            { label: "Customers", href: customers_path },
             { label: ref }
           ]
         ) do

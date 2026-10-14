@@ -32,7 +32,7 @@ module Payments
           active_nav: :payouts,
           title:      @payout.payout_code.first(16),
           breadcrumbs: [
-            { label: "Payouts", url: payouts_path },
+            { label: "Payouts", href: payouts_path },
             { label: @payout.payout_code.first(16) }
           ]
         ) do

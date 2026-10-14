@@ -15,7 +15,7 @@ module Payments
           active_nav: :payouts,
           title:      "Request Early Payout",
           breadcrumbs: [
-            { label: "Payouts", url: payouts_path },
+            { label: "Payouts", href: payouts_path },
             { label: "Request Early Payout" }
           ]
         ) do

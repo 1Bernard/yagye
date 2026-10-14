@@ -18,10 +18,7 @@ module Team
         render Layout::Shell.new(
           active_nav: :team_users,
           title:      "Team members",
-          breadcrumbs: [
-            { label: "Team" },
-            { label: "Users" }
-          ]
+          breadcrumbs: [ { label: "Users" } ]
         ) do
           render UI::PageHeader.new(title: "Team members", subtitle: "Manage who has access to your account.") do
             render UI::Button.new(variant: :secondary, href: team_activity_log_path) do

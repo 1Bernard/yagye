@@ -18,10 +18,7 @@ module Team
         render Layout::Shell.new(
           active_nav: :team_roles,
           title:      "Roles & Permissions",
-          breadcrumbs: [
-            { label: "Team",                href: team_users_path },
-            { label: "Roles & Permissions" }
-          ]
+          breadcrumbs: [ { label: "Roles & Permissions" } ]
         ) do
           render UI::PageHeader.new(
             title:    "Roles & permissions",

@@ -16,7 +16,7 @@ module Payments
           active_nav: :settlements,
           title:      @settlement.period_label,
           breadcrumbs: [
-            { label: "Settlements", url: settlements_path },
+            { label: "Settlements", href: settlements_path },
             { label: @settlement.period_label }
           ]
         ) do

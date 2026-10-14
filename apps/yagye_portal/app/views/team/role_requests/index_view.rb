@@ -19,10 +19,7 @@ module Team
         render Layout::Shell.new(
           active_nav: :team_role_requests,
           title:      "Role change requests",
-          breadcrumbs: [
-            { label: "Team members", url: team_users_path },
-            { label: "Role change requests" }
-          ]
+          breadcrumbs: [ { label: "Role Requests" } ]
         ) do
           render UI::PageHeader.new(
             title:    "Role change requests",

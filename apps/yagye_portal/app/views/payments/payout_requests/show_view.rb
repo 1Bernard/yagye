@@ -14,8 +14,8 @@ module Payments
           active_nav: :payouts,
           title:      "Payout Request",
           breadcrumbs: [
-            { label: "Payouts",          url: payouts_path },
-            { label: "Payout Requests",  url: payout_requests_path },
+            { label: "Payouts",         href: payouts_path },
+            { label: "Payout Requests", href: payout_requests_path },
             { label: "##{@req.id}" }
           ]
         ) do

@@ -15,7 +15,7 @@ module Payments
           active_nav:  :settlement_batches,
           title:       label,
           breadcrumbs: [
-            { label: "Settlement Batches", url: settlement_batches_path },
+            { label: "Settlement Batches", href: settlement_batches_path },
             { label: label }
           ]
         ) do

@@ -18,7 +18,7 @@ module Payments
         active_nav: :payments,
         title:      @payment.reference.presence || @payment.core_payment_id&.first(12) || @payment.id.to_s,
         breadcrumbs: [
-          { label: "Payments", url: payments_path },
+          { label: "Payments", href: payments_path },
           { label: @payment.reference.presence || @payment.core_payment_id&.first(12) || @payment.id.to_s }
         ]
       ) do
