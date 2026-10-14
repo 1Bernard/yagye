@@ -179,28 +179,76 @@ module Settings
     end
 
     def totp_method_row(enabled)
-      div(class: "flex items-center gap-3") do
-        div(class: "w-8 h-8 rounded-xl bg-gray-100 border border-gray-200 flex items-center justify-center flex-shrink-0") do
-          span(class: "flex w-[14px] h-[14px] text-gray-400") do
-            render UI::Icon.new(:shield, class: "w-full h-full")
+      if enabled
+        div(data: { controller: "inline-edit" }) do
+          div(class: "flex items-center gap-3", data: { inline_edit_target: "display" }) do
+            totp_icon_box
+            div(class: "flex-1 min-w-0") do
+              span(class: TYPE_BODY_MD) { plain "Authenticator app (TOTP)" }
+              p(class: TYPE_CAPTION) { plain "Google Authenticator, Authy, 1Password" }
+            end
+            div(data: { inline_edit_target: "trigger" }) do
+              render UI::Button.new(variant: :danger,
+                                    data: { action: "click->inline-edit#edit" }) do
+                render UI::Icon.new(:shield_off, class: ICON_SM)
+                plain "Disable"
+              end
+            end
+          end
+
+          div(hidden: true, data: { inline_edit_target: "form" }) do
+            totp_disable_form
           end
         end
-        div(class: "flex-1 min-w-0") do
-          span(class: TYPE_BODY_MD) { plain "Authenticator app (TOTP)" }
-          p(class: TYPE_CAPTION) { plain "Google Authenticator, Authy, 1Password" }
-        end
-        if enabled
-          a(href: settings_totp_disable_modal_path,
-            class: BTN_DANGER,
-            data: { turbo_frame: "modal-frame" }) do
-            render UI::Icon.new(:shield_off, class: ICON_SM)
-            plain "Disable"
+      else
+        div(class: "flex items-center gap-3") do
+          totp_icon_box
+          div(class: "flex-1 min-w-0") do
+            span(class: TYPE_BODY_MD) { plain "Authenticator app (TOTP)" }
+            p(class: TYPE_CAPTION) { plain "Google Authenticator, Authy, 1Password" }
           end
-        else
           render UI::Button.new(variant: :secondary, href: settings_totp_new_path) do
             render UI::Icon.new(:shield, class: ICON_SM)
             plain "Enable"
           end
+        end
+      end
+    end
+
+    def totp_icon_box
+      div(class: "w-8 h-8 rounded-xl bg-gray-100 border border-gray-200 flex items-center justify-center flex-shrink-0") do
+        span(class: "flex w-[14px] h-[14px] text-gray-400") do
+          render UI::Icon.new(:shield, class: "w-full h-full")
+        end
+      end
+    end
+
+    def totp_disable_form
+      form(action: settings_totp_delete_path, method: "post",
+           class: "flex flex-col gap-3 pt-1") do
+        input(type: "hidden", name: "_method",            value: "delete")
+        input(type: "hidden", name: "authenticity_token", value: form_authenticity_token)
+
+        div(class: "flex items-start gap-2 px-4 py-3 bg-amber-50 border border-amber-200 rounded-xl") do
+          span(class: "flex-shrink-0 w-4 h-4 mt-px text-amber-600") do
+            render UI::Icon.new(:alert_circle, class: "w-full h-full")
+          end
+          p(class: "text-[12.5px] text-amber-800") do
+            plain "Removing 2FA makes your account less secure. You'll only be protected by your email and password."
+          end
+        end
+
+        render UI::InputField.new(name: "current_password", label: "Current password",
+                                   type: "password", autocomplete: "current-password")
+
+        div(class: "flex items-center gap-3 pt-1") do
+          render UI::Button.new(variant: :danger, type: "submit") do
+            render UI::Icon.new(:shield_off, class: ICON_SM)
+            plain "Disable 2FA"
+          end
+          button(type: "button",
+                 class: "text-[12.5px] font-medium text-gray-400 hover:text-gray-700 transition-colors bg-transparent border-0 cursor-pointer p-0",
+                 data: { action: "click->inline-edit#cancel" }) { plain "Cancel" }
         end
       end
     end
