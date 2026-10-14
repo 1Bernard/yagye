@@ -217,6 +217,7 @@ Rails.application.routes.draw do
     patch "settings/profile",              to: "settings#update_profile",       as: :settings_profile
     patch "settings/password",             to: "settings#update_password",      as: :settings_password
     patch "settings/notifications",        to: "settings#update_notifications",  as: :settings_notifications
+    patch "settings/payment-methods",      to: "settings#update_payment_methods", as: :settings_payment_methods
 
     # Payout destinations management (dedicated page, merchant-only)
     post   "settings/payout-destinations",              to: "payout_destinations#create",      as: :settings_payout_destinations
@@ -292,12 +293,6 @@ Rails.application.routes.draw do
   scope module: "checkout" do
     get "checkout-sessions",      to: "checkout_sessions#index", as: :checkout_sessions
     get "checkout-sessions/:id",  to: "checkout_sessions#show",  as: :checkout_session
-  end
-
-  # ── Checkout Settings (payment method toggles + conversion analytics) ─────────
-  scope module: "checkout" do
-    get   "checkout/settings",                  to: "settings#index",                  as: :checkout_settings
-    patch "checkout/settings/payment-methods",  to: "settings#update_payment_methods", as: :checkout_settings_payment_methods
   end
 
   # ── Notifications ─────────────────────────────────────────────────────────

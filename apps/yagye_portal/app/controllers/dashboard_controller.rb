@@ -56,7 +56,8 @@ class DashboardController < ApplicationController
       network_health:     network_health_data(scope),
       upcoming_payout:    upcoming_payout_data,
       payout_balance:     payout_balance_data,
-      feed_stream_key:    merchant_feed_stream_key
+      feed_stream_key:    merchant_feed_stream_key,
+      checkout_analytics: current_user.merchant_user? ? load_checkout_analytics : nil
     )
   end
 
@@ -139,5 +140,15 @@ class DashboardController < ApplicationController
     return nil if current_user.internal_staff?
     mode = Current.mode.presence || "live"
     "dashboard_feed_#{current_user.merchant_code}_#{mode}"
+  end
+
+  def load_checkout_analytics
+    result = CoreApiClient.new.get_checkout_analytics(
+      current_user.merchant_code,
+      from: 30.days.ago.to_date.to_s
+    )
+    result.success? ? result.body : {}
+  rescue StandardError
+    {}
   end
 end

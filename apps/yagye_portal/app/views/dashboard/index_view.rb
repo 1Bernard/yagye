@@ -15,7 +15,7 @@ module Dashboard
                    fx_currency: "GHS", fx_rate: nil, fx_corridor: [],
                    is_ops: false, network_health: [],
                    upcoming_payout: nil, payout_balance: nil,
-                   feed_stream_key: nil)
+                   feed_stream_key: nil, checkout_analytics: nil)
       @volume                = volume
       @net_volume            = net_volume.nil? ? volume : net_volume
       @refunded_volume       = refunded_volume.to_i
@@ -43,6 +43,7 @@ module Dashboard
       @upcoming_payout       = upcoming_payout
       @payout_balance        = payout_balance
       @feed_stream_key       = feed_stream_key
+      @checkout_analytics    = checkout_analytics || {}
     end
 
     def view_template
@@ -58,6 +59,7 @@ module Dashboard
           payout_actions_bar
           upcoming_payout_card
           chart_card
+          checkout_performance_card
           breakdown_row
         end
       end
@@ -548,6 +550,98 @@ module Dashboard
         : "text-[11.5px] font-medium px-3 py-1.5 rounded-lg text-gray-500 hover:text-gray-700 cursor-pointer border-0 bg-transparent"
       button(type: "button", class: cls,
              data: { period_btn: period, action: "click->period-toggle#switch" }) { plain label }
+    end
+
+    # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    # CHECKOUT PERFORMANCE CARD
+    # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+    def checkout_performance_card
+      return if @is_ops
+      started = @checkout_analytics["sessions_started"].to_i
+      return if started.zero?
+
+      attempted  = @checkout_analytics["payment_attempted"].to_i
+      completed  = @checkout_analytics["completed"].to_i
+      rate       = @checkout_analytics["conversion_rate"].to_f
+      breakdown  = Array(@checkout_analytics["method_breakdown"])
+
+      div(class: "bg-white border border-gray-100 rounded-2xl mb-5") do
+        div(class: "px-6 py-5 border-b border-gray-100 flex items-center justify-between") do
+          div do
+            p(class: TYPE_TITLE) { plain "Checkout Performance" }
+            p(class: "#{TYPE_CAPTION} mt-[3px]") { plain "Session conversion funnel · last 30 days" }
+          end
+          a(href: checkout_sessions_path,
+            class: "text-[12px] font-semibold no-underline",
+            style: "color:#{BRAND}") { plain "View sessions →" }
+        end
+
+        div(class: "px-6 py-5") do
+          div(class: "grid grid-cols-4 gap-4 mb-5") do
+            funnel_stat("Sessions Started",    :eye,          started,   nil,      BRAND,  TINT_BRAND)
+            funnel_stat("Method Selected",     :credit_card,  @checkout_analytics["method_selected"].to_i,
+                        pct(started, @checkout_analytics["method_selected"].to_i), PURPLE, TINT_PURPLE)
+            funnel_stat("Payment Attempted",   :arrow_right,  attempted, pct(started, attempted), AMBER, TINT_AMBER)
+            funnel_stat("Completed",           :check_circle, completed, pct(started, completed), GREEN, TINT_GREEN)
+          end
+
+          div(class: "mb-4") do
+            div(class: "flex items-center justify-between mb-1") do
+              p(class: TYPE_CAPTION) { plain "Overall conversion" }
+              p(class: "text-[12px] font-bold", style: "color:#{GREEN}") { plain "#{rate}%" }
+            end
+            div(class: "h-2 bg-gray-100 rounded-full overflow-hidden") do
+              div(class: "h-full rounded-full transition-all",
+                  style: "width:#{[ rate, 100 ].min}%;background:#{GREEN}") {}
+            end
+          end
+
+          unless breakdown.empty?
+            div(class: "flex flex-col gap-[6px]") do
+              breakdown.each do |row|
+                method_label = case row["method"]
+                when "mobile_money"  then "Mobile Money"
+                when "card"          then "Card"
+                when "bank_transfer" then "Bank Transfer"
+                else row["method"].to_s.humanize
+                end
+                count = row["count"].to_i
+                share = started.positive? ? (count * 100.0 / started).round(1) : 0
+
+                div(class: "flex items-center gap-3") do
+                  p(class: "text-[12px] font-medium text-gray-600 w-[110px] flex-shrink-0") { plain method_label }
+                  div(class: "flex-1 h-[6px] bg-gray-100 rounded-full overflow-hidden") do
+                    div(class: "h-full rounded-full", style: "width:#{share}%;background:#{BRAND}") {}
+                  end
+                  p(class: "text-[12px] font-semibold text-gray-700 w-[28px] text-right flex-shrink-0") do
+                    plain count.to_s
+                  end
+                end
+              end
+            end
+          end
+        end
+      end
+    end
+
+    def funnel_stat(label, icon, count, caption, color, tint)
+      div(class: "flex flex-col gap-[6px]") do
+        div(class: "w-8 h-8 rounded-xl flex items-center justify-center mb-1",
+            style: "background:#{tint}") do
+          span(class: "flex w-[15px] h-[15px]", style: "color:#{color}") do
+            render UI::Icon.new(icon, class: "w-full h-full")
+          end
+        end
+        p(class: "#{TYPE_HEADING} tabular-nums") { plain count.to_s }
+        p(class: TYPE_CAPTION) { plain label }
+        p(class: "text-[11px] font-semibold", style: "color:#{color}") { plain caption } if caption
+      end
+    end
+
+    def pct(total, part)
+      return nil if total.zero?
+      "#{(part * 100.0 / total).round(1)}% of sessions"
     end
 
     # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━

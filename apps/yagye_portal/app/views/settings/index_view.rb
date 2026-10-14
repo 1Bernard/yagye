@@ -7,7 +7,7 @@ module Settings
     def initialize(tab: "profile", current_user: nil, roles: [], ip_allowlists: [], ip_blocklists: [],
                    msisdn_allowlists: [], msisdn_blocklists: [], email_blocklists: [], branding: nil,
                    kyb_application: nil, audit_events: [], sso_configs: [], tier: 1,
-                   payout_controls: {}, payout_destinations: [],
+                   payout_controls: {}, payout_destinations: [], allowed_methods: nil,
                    password_error: nil, password_error_field: nil)
       @tab                  = tab
       @current_user         = current_user
@@ -24,6 +24,7 @@ module Settings
       @tier                 = tier
       @payout_controls      = payout_controls
       @payout_destinations  = payout_destinations
+      @allowed_methods      = allowed_methods
       @password_error       = password_error
       @password_error_field = password_error_field
     end
@@ -85,6 +86,8 @@ module Settings
                   destinations:    @payout_destinations
                 )
               end
+            when "payment_methods"
+              render Settings::PaymentMethodsPanel.new(allowed_methods: @allowed_methods) if @current_user&.merchant_user?
             end
           end
         end
@@ -117,7 +120,8 @@ module Settings
         groups << {
           label: "Finance",
           items: [
-            { key: "payouts", label: "Payouts", icon: :trending_up }
+            { key: "payouts",          label: "Payouts",          icon: :trending_up },
+            { key: "payment_methods",  label: "Payment Methods",  icon: :credit_card }
           ]
         }
       end
