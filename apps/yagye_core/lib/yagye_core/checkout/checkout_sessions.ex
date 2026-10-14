@@ -268,6 +268,75 @@ defmodule YagyeCore.CheckoutSessions do
     |> Repo.insert_or_update()
   end
 
+  # ── Analytics ────────────────────────────────────────────────────────────────
+
+  def analytics(merchant_id, opts \\ []) do
+    from_dt = Keyword.get(opts, :from, DateTime.add(DateTime.utc_now(), -30 * 86_400, :second))
+    to_dt = Keyword.get(opts, :to, DateTime.utc_now())
+
+    session_base =
+      from(cs in CheckoutSession,
+        where: cs.merchant_id == ^merchant_id,
+        where: cs.inserted_at >= ^from_dt,
+        where: cs.inserted_at <= ^to_dt
+      )
+
+    started = Repo.aggregate(session_base, :count, :id) || 0
+
+    attempted =
+      Repo.aggregate(
+        where(session_base, [cs], cs.state in ["processing", "completed", "cancelled"]),
+        :count,
+        :id
+      ) || 0
+
+    completed =
+      Repo.aggregate(where(session_base, [cs], cs.state == "completed"), :count, :id) || 0
+
+    method_selected_count =
+      Repo.one(
+        from(ce in CheckoutEvent,
+          join: cs in CheckoutSession,
+          on: ce.session_id == cs.id,
+          where: cs.merchant_id == ^merchant_id,
+          where: cs.inserted_at >= ^from_dt,
+          where: cs.inserted_at <= ^to_dt,
+          where: ce.event_type == "method_selected",
+          select: count(cs.id, :distinct)
+        )
+      ) || 0
+
+    breakdown =
+      Repo.all(
+        from(ce in CheckoutEvent,
+          join: cs in CheckoutSession,
+          on: ce.session_id == cs.id,
+          where: cs.merchant_id == ^merchant_id,
+          where: cs.inserted_at >= ^from_dt,
+          where: cs.inserted_at <= ^to_dt,
+          where: ce.event_type == "method_selected",
+          where: not is_nil(ce.method_selected),
+          group_by: ce.method_selected,
+          select: {ce.method_selected, count(ce.id)}
+        )
+      )
+      |> Enum.map(fn {method, cnt} -> %{method: method, count: cnt} end)
+
+    conversion_rate =
+      if started > 0,
+        do: Float.round(completed / started * 100, 1),
+        else: 0.0
+
+    %{
+      sessions_started: started,
+      method_selected: method_selected_count,
+      payment_attempted: attempted,
+      completed: completed,
+      conversion_rate: conversion_rate,
+      method_breakdown: breakdown
+    }
+  end
+
   # ── Expiry sweep ─────────────────────────────────────────────────────────────
 
   @doc "Marks all open/processing sessions past their expiry as expired. Called by a worker."

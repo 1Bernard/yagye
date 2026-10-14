@@ -19,6 +19,8 @@ module Layout
             merchant_only: true },
           { key: :checkout_sessions, icon: :wallet,      label: "Checkout Sessions", path: :checkout_sessions_path,
             merchant_only: true },
+          { key: :checkout_settings, icon: :settings,   label: "Checkout Settings", path: :checkout_settings_path,
+            merchant_only: true },
           { key: :customers,         icon: :users,       label: "Customers",         path: :customers_path,
             merchant_only: true },
           { key: :settlement_batches, icon: :layers,     label: "Settlement Batches", path: :settlement_batches_path,

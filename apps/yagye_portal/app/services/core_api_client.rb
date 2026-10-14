@@ -422,6 +422,14 @@ class CoreApiClient
           { allowed_methods: allowed_methods })
   end
 
+  # GET /internal/merchants/:merchant_code/checkout-analytics
+  def get_checkout_analytics(merchant_code, from: nil, to: nil)
+    params = {}
+    params[:from] = from if from
+    params[:to]   = to   if to
+    get("/internal/merchants/#{merchant_code}/checkout-analytics", params)
+  end
+
   # ── Reconciliation (ops read-only) ────────────────────────────────────────
 
   # GET /internal/merchants/:merchant_id/reconciliation-breaks
@@ -590,8 +598,8 @@ class CoreApiClient
     Result.new(success?: false, error_code: "network_error", error_message: e.message)
   end
 
-  def get(path)
-    response = @conn.get(path, nil, request_headers)
+  def get(path, params = nil)
+    response = @conn.get(path, params, request_headers)
     handle(response)
   rescue Faraday::TimeoutError, Faraday::ConnectionFailed => e
     Result.new(success?: false, error_code: "network_error", error_message: e.message)

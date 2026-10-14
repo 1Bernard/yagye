@@ -4,7 +4,7 @@ module Account
   class SettingsController < ApplicationController
     def index
       authorize :settings, :index?
-      tab = params[:tab].presence_in(%w[profile security notifications allowlists sso verification payouts checkout]) || "profile"
+      tab = params[:tab].presence_in(%w[profile security notifications allowlists sso verification payouts]) || "profile"
       ip_allowlists        = PortalIpAllowlist.kept.for_merchant(current_user.merchant_code).order(:created_at)
       ip_blocklists        = PortalIpBlocklist.kept.for_merchant(current_user.merchant_code).order(:created_at)
       msisdn_allowlists    = PortalMsisdnAllowlist.kept.for_merchant(current_user.merchant_code).order(:created_at)
@@ -16,7 +16,6 @@ module Account
       sso_configs          = tab == "sso" ? SsoConfiguration.order(:name) : []
       tier                 = current_user.merchant_tier || 1
       payout_controls, payout_destinations = tab == "payouts" && current_user.merchant_user? ? load_payouts_data : [ {}, [] ]
-      checkout_allowed_methods = tab == "checkout" && current_user.merchant_user? ? load_checkout_methods : %w[mobile_money card bank_transfer]
       render Settings::IndexView.new(tab: tab, current_user: current_user,
                                      ip_allowlists: ip_allowlists, ip_blocklists: ip_blocklists,
                                      msisdn_allowlists: msisdn_allowlists,
@@ -26,8 +25,7 @@ module Account
                                      kyb_application: kyb_application,
                                      audit_events: audit_events, sso_configs: sso_configs, tier: tier,
                                      payout_controls: payout_controls,
-                                     payout_destinations: payout_destinations,
-                                     checkout_allowed_methods: checkout_allowed_methods)
+                                     payout_destinations: payout_destinations)
     end
 
     def update_profile
@@ -65,23 +63,6 @@ module Account
       redirect_to settings_path(tab: "notifications"), notice: "Notification preferences saved."
     end
 
-    def update_checkout
-      authorize :settings, :update?
-      allowed = Array(params[:allowed_methods]).select { |m| %w[mobile_money card bank_transfer].include?(m) }
-
-      if allowed.empty?
-        return redirect_to settings_path(tab: "checkout"), alert: "At least one payment method must be enabled."
-      end
-
-      result = CoreApiClient.new.update_checkout_config(current_user.merchant_code, allowed_methods: allowed)
-
-      if result.success?
-        redirect_to settings_path(tab: "checkout"), notice: "Payment methods updated."
-      else
-        redirect_to settings_path(tab: "checkout"), alert: "Could not save payment method settings."
-      end
-    end
-
     def update_password
       authorize :settings, :update?
       unless current_user.valid_password?(params[:current_password])
@@ -97,13 +78,6 @@ module Account
     end
 
     private
-
-    def load_checkout_methods
-      result = CoreApiClient.new.get_checkout_config(current_user.merchant_code)
-      result.success? ? (result.body["allowed_methods"] || %w[mobile_money card bank_transfer]) : %w[mobile_money card bank_transfer]
-    rescue StandardError
-      %w[mobile_money card bank_transfer]
-    end
 
     def load_payouts_data
       client          = CoreApiClient.new

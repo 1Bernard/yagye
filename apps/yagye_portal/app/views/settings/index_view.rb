@@ -8,7 +8,6 @@ module Settings
                    msisdn_allowlists: [], msisdn_blocklists: [], email_blocklists: [], branding: nil,
                    kyb_application: nil, audit_events: [], sso_configs: [], tier: 1,
                    payout_controls: {}, payout_destinations: [],
-                   checkout_allowed_methods: %w[mobile_money card bank_transfer],
                    password_error: nil, password_error_field: nil)
       @tab                  = tab
       @current_user         = current_user
@@ -23,10 +22,9 @@ module Settings
       @audit_events         = audit_events
       @sso_configs          = sso_configs
       @tier                 = tier
-      @payout_controls            = payout_controls
-      @payout_destinations        = payout_destinations
-      @checkout_allowed_methods   = checkout_allowed_methods
-      @password_error             = password_error
+      @payout_controls      = payout_controls
+      @payout_destinations  = payout_destinations
+      @password_error       = password_error
       @password_error_field = password_error_field
     end
 
@@ -87,8 +85,6 @@ module Settings
                   destinations:    @payout_destinations
                 )
               end
-            when "checkout"
-              render Settings::CheckoutPanel.new(allowed_methods: @checkout_allowed_methods) if @current_user&.merchant_user?
             end
           end
         end
@@ -121,8 +117,7 @@ module Settings
         groups << {
           label: "Finance",
           items: [
-            { key: "payouts",   label: "Payouts",          icon: :trending_up },
-            { key: "checkout",  label: "Payment Methods",  icon: :credit_card }
+            { key: "payouts", label: "Payouts", icon: :trending_up }
           ]
         }
       end
