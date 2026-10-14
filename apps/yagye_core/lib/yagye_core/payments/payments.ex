@@ -453,7 +453,7 @@ defmodule YagyeCore.Payments do
         where:
           fr.source_type == "payment_attempt" and pa.payment_id == ^payment.id and
             fr.party == "platform",
-        select: sum(fr.amount)
+        select: type(sum(fr.amount), :integer)
       )
       |> Repo.one()
 
@@ -473,7 +473,7 @@ defmodule YagyeCore.Payments do
           fr.source_type == "payment_attempt" and pa.payment_id in ^payment_ids and
             fr.party == "platform",
         group_by: pa.payment_id,
-        select: {pa.payment_id, sum(fr.amount)}
+        select: {pa.payment_id, type(sum(fr.amount), :integer)}
       )
       |> Repo.all()
       |> Map.new()

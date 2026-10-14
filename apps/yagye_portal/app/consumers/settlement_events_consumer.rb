@@ -29,7 +29,7 @@ class SettlementEventsConsumer < ApplicationConsumer
       currency:                   payload["currency"] || "GHS",
       period_start:               payload["period_start"],
       period_end:                 payload["period_end"],
-      expected_net:               payload["expected_net"].to_i,
+      expected_net:               (payload["expected_net"] || payload["net_amount"]).to_i,
       reported_net:               payload["reported_net"],
       variance:                   payload["variance"],
       value_date:                 payload["value_date"],

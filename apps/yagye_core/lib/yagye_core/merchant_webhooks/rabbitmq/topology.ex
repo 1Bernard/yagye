@@ -18,7 +18,6 @@ defmodule YagyeCore.MerchantWebhooks.RabbitMQ.Topology do
   @queue "yagye.webhooks.delivery"
   @dlq "yagye.webhooks.dead_letter"
   @routing_key "delivery"
-  @max_attempts 5
 
   def setup!(conn) do
     case AMQP.Channel.open(conn) do
@@ -42,14 +41,14 @@ defmodule YagyeCore.MerchantWebhooks.RabbitMQ.Topology do
     # Main exchange
     :ok = AMQP.Exchange.declare(chan, @exchange, :direct, durable: true)
 
-    # Main delivery queue — DLX on nack; x-delivery-limit caps retries at the broker.
-    # After @max_attempts nacks the message is dead-lettered without re-queue.
+    # Main delivery queue — dead-letter on nack. Retry counting is handled
+    # consumer-side via MerchantWebhookDelivery.attempt column.
+    # x-delivery-limit is quorum-queue-only; this queue is classic.
     {:ok, _} =
       AMQP.Queue.declare(chan, @queue,
         durable: true,
         arguments: [
-          {"x-dead-letter-exchange", :longstr, @dlx_exchange},
-          {"x-delivery-limit", :long, @max_attempts}
+          {"x-dead-letter-exchange", :longstr, @dlx_exchange}
         ]
       )
 

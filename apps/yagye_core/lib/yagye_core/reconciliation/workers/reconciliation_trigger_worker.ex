@@ -18,7 +18,7 @@ defmodule YagyeCore.Reconciliation.Workers.ReconciliationTriggerWorker do
 
   @impl Oban.Worker
   def perform(%Oban.Job{args: %{"envelope" => envelope}}) do
-    batch_id = envelope["payload"]["batch_id"]
+    batch_id = envelope["payload"]["settlement_code"]
     batch = Repo.get!(SettlementBatch, batch_id)
     provider = Repo.get!(Provider, batch.provider_id)
 
