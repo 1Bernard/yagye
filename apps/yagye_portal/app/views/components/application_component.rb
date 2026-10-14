@@ -135,6 +135,13 @@ class ApplicationComponent < Phlex::HTML
     format_money(minor_units, currency: "GHS")
   end
 
+  def reserve_detail_row(label, value)
+    div(class: "py-2.5 flex items-center justify-between") do
+      p(class: UI::Theme::TYPE_MICRO) { plain label }
+      p(class: "text-[12.5px] text-gray-700 font-medium") { plain value.to_s }
+    end
+  end
+
   def i18n_scope
     @i18n_scope ||= self.class.name.delete_suffix("View").underscore.tr("/", ".")
   end

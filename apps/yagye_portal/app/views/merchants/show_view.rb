@@ -532,13 +532,6 @@ module Merchants
       end
     end
 
-    def reserve_detail_row(label, value)
-      div(class: "py-2.5 flex items-center justify-between") do
-        p(class: TYPE_MICRO) { plain label }
-        p(class: "text-[12.5px] text-gray-700 font-medium") { plain value.to_s }
-      end
-    end
-
     def policy_kind_label(kind)
       case kind
       when "rolling" then "Rolling percentage"
