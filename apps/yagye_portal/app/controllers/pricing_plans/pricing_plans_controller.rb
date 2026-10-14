@@ -6,7 +6,14 @@ module PricingPlans
       authorize :pricing_plans, :index?
       result = CoreApiClient.new.list_pricing_plans
       plans  = result.success? ? (result.body["data"] || []) : []
-      render PricingPlans::IndexView.new(plans: plans)
+
+      query         = params[:q].presence
+      status_filter = params[:status].presence
+
+      plans = plans.select { |p| p["name"]&.downcase&.include?(query.downcase) } if query
+      plans = plans.select { |p| p["status"] == status_filter } if status_filter
+
+      render PricingPlans::IndexView.new(plans: plans, query: query, status_filter: status_filter)
     end
 
     def new

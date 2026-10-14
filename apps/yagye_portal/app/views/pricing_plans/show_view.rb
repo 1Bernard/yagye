@@ -59,13 +59,14 @@ module PricingPlans
           title:    @plan["name"] || "Pricing Plan",
           subtitle: "v#{@plan["version"]} · #{mode}"
         ) do
-          render UI::StatusBadge.new(status: status)
-          if status == "draft" && can?(:update?, :pricing_plans)
-            form(action: activate_pricing_plan_path(@plan["id"]), method: "post",
-                 class: "ml-2",
-                 data: { turbo_confirm: "Activate this plan? A different ops member must approve to enforce maker-checker." }) do
-              input(type: "hidden", name: "authenticity_token", value: form_authenticity_token)
-              render UI::Button.new(variant: :primary, type: "submit") { plain "Activate plan" }
+          div(class: "flex items-center gap-2") do
+            render UI::StatusBadge.new(status: status)
+            if status == "draft" && can?(:update?, :pricing_plans)
+              form(action: activate_pricing_plan_path(@plan["id"]), method: "post",
+                   data: { turbo_confirm: "Activate this plan? A different ops member must approve to enforce maker-checker." }) do
+                input(type: "hidden", name: "authenticity_token", value: form_authenticity_token)
+                render UI::Button.new(variant: :primary, type: "submit") { plain "Activate plan" }
+              end
             end
           end
         end

@@ -4,8 +4,17 @@ module PricingPlans
   class IndexView < ApplicationComponent
     include UI::Theme
 
-    def initialize(plans: [])
-      @plans = plans
+    STATUS_OPTIONS = [
+      ["All statuses", ""],
+      ["Draft",        "draft"],
+      ["Active",       "active"],
+      ["Archived",     "archived"]
+    ].freeze
+
+    def initialize(plans: [], query: nil, status_filter: nil)
+      @plans         = plans
+      @query         = query
+      @status_filter = status_filter
     end
 
     def view_template
@@ -16,7 +25,7 @@ module PricingPlans
       ) do
         render UI::PageHeader.new(
           title:    "Pricing Plans",
-          subtitle: "Global rate plans that can be assigned to merchants."
+          subtitle: "Global rate plans assigned to merchants at transaction time."
         ) do
           render UI::Button.new(variant: :primary, href: new_pricing_plan_path) do
             render UI::Icon.new(:plus, class: "w-[14px] h-[14px]")
@@ -24,35 +33,52 @@ module PricingPlans
           end
         end
 
-        if @plans.empty?
-          div(class: "#{SURFACE_CARD} px-8 py-14 flex flex-col items-center text-center gap-3 mt-4") do
-            div(class: "w-12 h-12 rounded-2xl flex items-center justify-center mb-1",
-                style: "background:#{TINT_BRAND}") do
-              span(class: "flex w-[22px] h-[22px]", style: "color:#{BRAND}") do
-                render UI::Icon.new(:tag, class: "w-full h-full")
-              end
+        render UI::Datatable.new(
+          records:       @plans,
+          empty_message: empty_message,
+          empty_icon:    :tag
+        ) do |t|
+          t.header { toolbar }
+
+          t.column("Plan") do |p|
+            div do
+              span(class: TYPE_BODY_MD) { plain p["name"] || "—" }
+              span(class: "block #{TYPE_MONO} text-gray-400 mt-px") { plain "v#{p["version"]}" } if p["version"]
             end
-            p(class: TYPE_TITLE) { plain "No pricing plans yet" }
-            p(class: "#{TYPE_CAPTION} max-w-sm") { plain "Create a plan to define the rates merchants will be charged." }
-            render UI::Button.new(variant: :primary, href: new_pricing_plan_path) { plain "Create first plan" }
           end
-        else
-          div(class: "#{SURFACE_CARD} overflow-hidden mt-4") do
-            table(class: "w-full text-left") do
-              thead do
-                tr(class: "border-b border-gray-100") do
-                  th(class: "px-5 py-3 #{TYPE_MICRO} text-gray-400 font-semibold uppercase tracking-wide") { plain "Plan" }
-                  th(class: "px-5 py-3 #{TYPE_MICRO} text-gray-400 font-semibold uppercase tracking-wide") { plain "Status" }
-                  th(class: "px-5 py-3 #{TYPE_MICRO} text-gray-400 font-semibold uppercase tracking-wide") { plain "Currency" }
-                  th(class: "px-5 py-3 #{TYPE_MICRO} text-gray-400 font-semibold uppercase tracking-wide") { plain "Fee mode" }
-                  th(class: "px-5 py-3 #{TYPE_MICRO} text-gray-400 font-semibold uppercase tracking-wide") { plain "Monthly fee" }
-                  th(class: "px-5 py-3 #{TYPE_MICRO} text-gray-400 font-semibold uppercase tracking-wide") { plain "Active from" }
-                  th(class: "px-5 py-3") {}
-                end
-              end
-              tbody(class: "divide-y divide-gray-50") do
-                @plans.each { |p| plan_row(p) }
-              end
+
+          t.column("Status") do |p|
+            render UI::StatusBadge.new(status: p["status"] || "draft")
+          end
+
+          t.column("Currency") { |p| plain(p["currency"] || "—") }
+
+          t.column("Fee mode") do |p|
+            mode = p["fee_mode"] == "invoiced" ? "Invoiced" : "Deducted"
+            span(class: "#{BADGE} #{p["fee_mode"] == 'invoiced' ? STATUS_INFO : STATUS_SUCCESS}") { plain mode }
+          end
+
+          t.column("Monthly fee", class: "text-right tabular-nums") do |p|
+            cur     = p["currency"] || "GHS"
+            monthly = p["monthly_fee"].to_i
+            plain(monthly.positive? ? format_money(monthly, currency: cur) : "—")
+          end
+
+          t.column("Active from") do |p|
+            eff = begin
+              fmt_date(Date.parse(p["effective_from"].to_s)) if p["effective_from"]
+            rescue
+              nil
+            end
+            plain(eff || "—")
+          end
+
+          t.column("Created by") { |p| plain(p["created_by"] || "—") }
+
+          t.actions do |p|
+            a(href: pricing_plan_path(p["id"]), class: DROPDOWN_ITEM) do
+              render UI::Icon.new(:eye, class: ICON_SM)
+              plain "View"
             end
           end
         end
@@ -61,39 +87,50 @@ module PricingPlans
 
     private
 
-    def plan_row(plan)
-      cur     = plan["currency"] || "GHS"
-      monthly = plan["monthly_fee"].to_i
-      mode    = plan["fee_mode"] == "invoiced" ? "Invoiced" : "Deducted"
-      eff     = begin
-        fmt_date(Date.parse(plan["effective_from"].to_s)) if plan["effective_from"]
-      rescue
-        "—"
+    def toolbar
+      form(action: pricing_plans_path, method: "get",
+           data: { controller: "filter-form", filter_form_target: "form" }) do
+        div(class: FILTER_SEARCH_WRAP) do
+          span(class: "flex w-[13px] h-[13px] text-gray-400 flex-shrink-0") do
+            render UI::Icon.new(:search, class: "w-full h-full")
+          end
+          input(type: "search", name: "q", value: @query,
+                placeholder: "Search by name…",
+                class: FILTER_SEARCH_INPUT,
+                data: { action: "input->filter-form#submit" })
+        end
       end
 
-      status     = plan["status"] || "draft"
-      status_cls = STATUS_MAP.fetch(status, STATUS_NEUTRAL)
+      div(class: "flex items-center gap-2") do
+        status_select
+      end
+    end
 
-      tr(class: "hover:bg-gray-50 transition-colors") do
-        td(class: "px-5 py-3.5") do
-          p(class: TYPE_BODY_MD) { plain plan["name"] || "—" }
-          p(class: TYPE_CAPTION) { plain "v#{plan["version"]}" } if plan["version"]
+    def status_select
+      form(action: pricing_plans_path, method: "get") do
+        input(type: "hidden", name: "q", value: @query) if @query.present?
+        select(name: "status",
+               class: "h-8 border rounded-[9px] pl-3 pr-7 text-[12.5px] font-medium bg-white " \
+                      "cursor-pointer appearance-none focus:outline-none transition-colors " \
+                      "#{@status_filter.present? ? 'border-gray-400 text-gray-900' : 'border-gray-200 text-gray-600'} " \
+                      "hover:border-gray-400",
+               onchange: "this.form.submit()") do
+          STATUS_OPTIONS.each do |(label, val)|
+            if val == @status_filter.to_s
+              option(value: val, selected: "selected") { plain label }
+            else
+              option(value: val) { plain label }
+            end
+          end
         end
-        td(class: "px-5 py-3.5") do
-          span(class: "#{BADGE} #{status_cls}") { plain status.capitalize }
-        end
-        td(class: "px-5 py-3.5 #{TYPE_CAPTION}") { plain cur }
-        td(class: "px-5 py-3.5") do
-          span(class: "#{BADGE} #{mode == 'Invoiced' ? STATUS_INFO : STATUS_SUCCESS}") { plain mode }
-        end
-        td(class: "px-5 py-3.5 #{TYPE_CAPTION} tabular-nums") do
-          plain monthly.positive? ? format_money(monthly, currency: cur) : "None"
-        end
-        td(class: "px-5 py-3.5 #{TYPE_CAPTION}") { plain eff || "—" }
-        td(class: "px-5 py-3.5 text-right") do
-          a(href: pricing_plan_path(plan["id"]),
-            class: "#{TYPE_CAPTION} font-medium text-indigo-600 hover:underline") { plain "View" }
-        end
+      end
+    end
+
+    def empty_message
+      if @query.present? || @status_filter.present?
+        "No plans match your search."
+      else
+        "No pricing plans yet. Create one to define the rates merchants are charged."
       end
     end
   end
