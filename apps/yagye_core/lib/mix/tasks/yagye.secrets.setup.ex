@@ -26,6 +26,7 @@ defmodule Mix.Tasks.Yagye.Secrets.Setup do
       MTN_SANDBOX_API_KEY=<key>
   """
 
+  use Boundary, classify_to: YagyeCore
   use Mix.Task
 
   alias YagyeCore.Shared.SecretsManager

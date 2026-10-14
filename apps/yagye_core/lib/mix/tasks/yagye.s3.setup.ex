@@ -10,6 +10,7 @@ defmodule Mix.Tasks.Yagye.S3.Setup do
   targets real AWS using the credentials in the environment.
   """
 
+  use Boundary, classify_to: YagyeCore
   use Mix.Task
 
   @impl Mix.Task
