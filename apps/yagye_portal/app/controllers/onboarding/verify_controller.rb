@@ -182,7 +182,12 @@ module Onboarding
       skip_authorization
       return head(:no_content) unless current_user&.merchant_user?
 
-      result   = CoreApiClient.new.get_kyb_status(merchant_code)
+      result = CoreApiClient.new.get_kyb_status(merchant_code)
+
+      # When Core is unreachable, silently suppress the banner rather than showing
+      # a misleading "complete KYB" prompt driven by empty fallback data.
+      return head(:no_content) if result.error_code == "network_error"
+
       progress = KybProgress.new(result.success? ? result.body : {})
       return head(:no_content) if progress.all_complete? && !progress.rejected?
 

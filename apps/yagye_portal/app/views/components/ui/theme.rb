@@ -320,8 +320,10 @@ module UI
       "won"                => STATUS_SUCCESS,
       "collected"          => STATUS_SUCCESS,
       "reconciled"         => STATUS_SUCCESS,
+      "delivered"          => STATUS_SUCCESS,
       # ── Red: terminal failure / urgent ───────────────────────────────────
       "failed"                  => STATUS_FAILED,
+      "exhausted"               => STATUS_FAILED,  # webhook: all retries spent
       "rejected"                => STATUS_FAILED,
       "rejected_by_psp"         => STATUS_FAILED,
       "expired"                 => STATUS_FAILED,
@@ -333,6 +335,7 @@ module UI
       # ── Violet: in-flight / under review ────────────────────────────────
       "processing"         => STATUS_PENDING,
       "pending"            => STATUS_PENDING,
+      "delivering"         => STATUS_PENDING,  # webhook: in-flight attempt
       "under_review"       => STATUS_PENDING,
       "initiated"          => STATUS_PENDING,
       "invited"            => STATUS_PENDING,
