@@ -409,6 +409,19 @@ class CoreApiClient
         }.compact)
   end
 
+  # ── Checkout config ───────────────────────────────────────────────────────
+
+  # GET /internal/merchants/:merchant_code/checkout-config
+  def get_checkout_config(merchant_code)
+    get("/internal/merchants/#{merchant_code}/checkout-config")
+  end
+
+  # PATCH /internal/merchants/:merchant_code/checkout-config
+  def update_checkout_config(merchant_code, allowed_methods:)
+    patch("/internal/merchants/#{merchant_code}/checkout-config",
+          { allowed_methods: allowed_methods })
+  end
+
   # ── Reconciliation (ops read-only) ────────────────────────────────────────
 
   # GET /internal/merchants/:merchant_id/reconciliation-breaks

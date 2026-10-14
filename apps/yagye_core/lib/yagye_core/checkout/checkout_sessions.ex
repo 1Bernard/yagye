@@ -4,7 +4,14 @@ defmodule YagyeCore.CheckoutSessions do
   import Ecto.Query
 
   alias Ecto.Multi
-  alias YagyeCore.Checkout.Schemas.{CheckoutEvent, CheckoutLineItem, CheckoutSession}
+
+  alias YagyeCore.Checkout.Schemas.{
+    CheckoutEvent,
+    CheckoutLineItem,
+    CheckoutSession,
+    MerchantCheckoutConfig
+  }
+
   alias YagyeCore.Outbox
   alias YagyeCore.PaymentLinks
   alias YagyeCore.PaymentLinks.Schemas.PaymentLink
@@ -242,6 +249,25 @@ defmodule YagyeCore.CheckoutSessions do
     end
   end
 
+  # ── Checkout config ──────────────────────────────────────────────────────────
+
+  def get_checkout_config(merchant_id) do
+    case Repo.get(MerchantCheckoutConfig, merchant_id) do
+      nil -> {:error, :not_found}
+      config -> {:ok, config}
+    end
+  end
+
+  def update_checkout_config(merchant_id, attrs) do
+    config =
+      Repo.get(MerchantCheckoutConfig, merchant_id) ||
+        %MerchantCheckoutConfig{merchant_id: merchant_id}
+
+    config
+    |> MerchantCheckoutConfig.changeset(Map.put(attrs, :merchant_id, merchant_id))
+    |> Repo.insert_or_update()
+  end
+
   # ── Expiry sweep ─────────────────────────────────────────────────────────────
 
   @doc "Marks all open/processing sessions past their expiry as expired. Called by a worker."
@@ -348,7 +374,13 @@ defmodule YagyeCore.CheckoutSessions do
   end
 
   defp effective_methods(%PaymentLink{allowed_methods: [_ | _] = methods}), do: methods
-  defp effective_methods(_link), do: ["mobile_money", "card", "bank_transfer"]
+
+  defp effective_methods(%PaymentLink{merchant_id: merchant_id}) do
+    case Repo.get(MerchantCheckoutConfig, merchant_id) do
+      %MerchantCheckoutConfig{allowed_methods: [_ | _] = methods} -> methods
+      _ -> ["mobile_money", "card", "bank_transfer"]
+    end
+  end
 
   defp insert_line_items(_session, []), do: {:ok, []}
 

@@ -217,6 +217,7 @@ Rails.application.routes.draw do
     patch "settings/profile",              to: "settings#update_profile",       as: :settings_profile
     patch "settings/password",             to: "settings#update_password",      as: :settings_password
     patch "settings/notifications",        to: "settings#update_notifications",  as: :settings_notifications
+    patch "settings/checkout",             to: "settings#update_checkout",      as: :settings_checkout
 
     # Payout destinations management (dedicated page, merchant-only)
     post   "settings/payout-destinations",              to: "payout_destinations#create",      as: :settings_payout_destinations

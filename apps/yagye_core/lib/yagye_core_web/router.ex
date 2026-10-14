@@ -46,6 +46,8 @@ defmodule YagyeCoreWeb.Router do
   alias YagyeCoreWeb.Controllers.Internal.CheckoutSessionsController,
     as: InternalCheckoutSessionsController
 
+  alias YagyeCoreWeb.Controllers.Internal.CheckoutConfigController
+
   alias YagyeCoreWeb.Controllers.Internal.CustomersController, as: InternalCustomersController
 
   alias YagyeCoreWeb.Controllers.Internal.DashboardController, as: InternalDashboardController
@@ -303,6 +305,10 @@ defmodule YagyeCoreWeb.Router do
     # P16 — Checkout Sessions (portal read-only via service token)
     get("/merchants/:merchant_code/checkout-sessions", InternalCheckoutSessionsController, :index)
     get("/checkout-sessions/:id", InternalCheckoutSessionsController, :show)
+
+    # Checkout config — merchant-level payment method toggles
+    get("/merchants/:merchant_code/checkout-config", CheckoutConfigController, :show)
+    patch("/merchants/:merchant_code/checkout-config", CheckoutConfigController, :update)
 
     # P11 — Customers (portal read-only via service token)
     get("/merchants/:merchant_code/customers", InternalCustomersController, :index)

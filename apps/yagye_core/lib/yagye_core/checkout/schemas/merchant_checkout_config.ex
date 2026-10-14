@@ -18,9 +18,11 @@ defmodule YagyeCore.Checkout.Schemas.MerchantCheckoutConfig do
     field :privacy_url, :string
     field :refund_policy_url, :string
     field :default_locale, :string, default: "en"
+    field :allowed_methods, {:array, :string}, default: ["mobile_money", "card", "bank_transfer"]
     field :updated_at, :utc_datetime_usec
   end
 
+  @valid_methods ~w[mobile_money card bank_transfer]
   @required ~w[merchant_id display_name default_locale]a
 
   def changeset(config, attrs) do
@@ -36,8 +38,14 @@ defmodule YagyeCore.Checkout.Schemas.MerchantCheckoutConfig do
       :terms_url,
       :privacy_url,
       :refund_policy_url,
-      :default_locale
+      :default_locale,
+      :allowed_methods
     ])
+    |> validate_subset(:allowed_methods, @valid_methods)
+    |> validate_length(:allowed_methods,
+      min: 1,
+      message: "must enable at least one payment method"
+    )
     |> validate_required(@required)
     |> validate_format(:brand_colour, ~r/\A#[0-9A-Fa-f]{6}\z/,
       message: "must be a valid hex colour e.g. #3D47F5"
