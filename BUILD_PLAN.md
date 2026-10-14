@@ -61,7 +61,7 @@ step is completed or a decision is made. Status values: `todo`, `in-progress`, `
 | Phase | Name | Status |
 |---|---|---|
 | P17 | Horizontal Scale & Distributed State | todo |
-| P18 | Observability II: Tracing & SLOs | todo |
+| P18 | Observability II: Tracing & SLOs | **done** |
 | P19 | The Data Platform | todo |
 | P20 | Risk & Machine Learning | todo |
 | P21 | Security Hardening | todo |
@@ -311,11 +311,11 @@ Redpanda config: `localhost:19092` (dev), `KAFKA_BOOTSTRAP_SERVERS` env (prod), 
 
 ### P18 — Observability II: Tracing & SLOs
 
-- [ ] OpenTelemetry collector in docker-compose (Jaeger or Grafana Tempo for local dev)
-- [ ] SLO definitions: payment success rate p99 latency, settlement sweep lag,
-      reconciliation break mean-time-to-resolution
-- [ ] Dashboards: Grafana (or equivalent) wired to OTLP collector
-- [ ] Alert rules: settlement stuck > 4h, recon break spike, fraud scorer p95 latency > 50ms
+- [x] OpenTelemetry collector in docker-compose (Grafana Alloy → Tempo for traces; Loki for logs; Prometheus for metrics)
+- [x] SLO definitions: payment success rate p99 latency, settlement sweep lag,
+      reconciliation break mean-time-to-resolution (prometheus/rules/slos.yml)
+- [x] Dashboards: Grafana at localhost:3100 wired to Prometheus + Tempo + Loki
+- [x] Alert rules: settlement stuck > 4h, recon break spike, p99 latency > 2s, Oban discard rate > 1%
 
 ---
 
