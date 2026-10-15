@@ -70,6 +70,7 @@ module Checkout
       end
 
       attrs = {
+        description:     params[:description].presence,
         allowed_methods: allowed_methods,
         collect_email:   params[:collect_email] == "1",
         collect_phone:   params[:collect_phone] == "1",

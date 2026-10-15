@@ -420,6 +420,18 @@ module Checkout
           input(type: "hidden", name: "_method",            value: "patch")
           input(type: "hidden", name: "authenticity_token", value: form_authenticity_token)
 
+          # Description
+          divider
+          div(class: "px-4 pt-3 pb-4") do
+            section_label("Description")
+            textarea(
+              name:        "description",
+              rows:        "2",
+              placeholder: "e.g. School fees — Term 2",
+              class:       "#{INPUT_FIELD} resize-none w-full"
+            ) { plain @link["description"].to_s }
+          end
+
           # Methods
           divider
           div(class: "px-4 pt-3 pb-4") do
