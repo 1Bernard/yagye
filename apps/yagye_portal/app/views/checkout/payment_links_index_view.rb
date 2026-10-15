@@ -206,6 +206,12 @@ module Checkout
             render UI::Icon.new(:eye, class: ICON_SM)
             plain "View"
           end
+          if link["kind"] != "invoice"
+            a(href: payment_link_path(link["id"]), class: DROPDOWN_ITEM) do
+              render UI::Icon.new(:settings, class: ICON_SM)
+              plain "Edit settings"
+            end
+          end
           a(href: payment_link_layout_path(link["id"]), class: DROPDOWN_ITEM) do
             render UI::Icon.new(:edit, class: ICON_SM)
             plain "Edit layout"
