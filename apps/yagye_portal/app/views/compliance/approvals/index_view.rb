@@ -5,12 +5,13 @@ module Compliance
     class IndexView < ApplicationComponent
       include UI::Theme
 
-      def initialize(tab:, records:, pagy:, pending_count:, can_decide: false)
-        @tab           = tab
-        @records       = records
-        @pagy          = pagy
-        @pending_count = pending_count
-        @can_decide    = can_decide
+      def initialize(tab:, records:, pagy:, pending_count:, can_decide: false, current_user_code: nil)
+        @tab               = tab
+        @records           = records
+        @pagy              = pagy
+        @pending_count     = pending_count
+        @can_decide        = can_decide
+        @current_user_code = current_user_code
       end
 
       def view_template
@@ -61,7 +62,12 @@ module Compliance
 
           t.column("Proposed by") do |r|
             div do
-              p(class: TYPE_BODY_MD) { plain r.proposed_by }
+              p(class: TYPE_BODY_MD) do
+                plain r.proposed_by
+                if r.proposed_by == @current_user_code
+                  span(class: "#{BADGE} #{STATUS_WARNING} ml-2") { plain "You" }
+                end
+              end
               p(class: TYPE_CAPTION) { plain fmt_datetime(r.proposed_at) }
             end
           end
@@ -98,25 +104,30 @@ module Compliance
 
           if @can_decide
             t.actions do |r|
-              a(href: approve_modal_compliance_approval_path(r),
-                class: DROPDOWN_ITEM,
-                data: { turbo_frame: "modal-frame" }) do
-                render UI::Icon.new(:check_circle, class: ICON_SM)
-                plain "Approve"
-              end
-              div(class: DROPDOWN_SEP)
-              button(type: "button", class: DROPDOWN_ITEM_DANGER,
-                     data: { action: "click->dialog#open",
-                             dialog_target_param: "reject-dialog-#{r.id}" }) do
-                render UI::Icon.new(:x, class: ICON_SM)
-                plain "Reject"
+              own = r.proposed_by == @current_user_code
+              if own
+                div(class: "#{DROPDOWN_ITEM} opacity-40 cursor-not-allowed select-none") do
+                  render UI::Icon.new(:shield, class: ICON_SM)
+                  plain "Awaiting another officer"
+                end
+              else
+                a(href: approve_modal_compliance_approval_path(r),
+                  class: DROPDOWN_ITEM,
+                  data: { turbo_frame: "modal-frame" }) do
+                  render UI::Icon.new(:check_circle, class: ICON_SM)
+                  plain "Approve"
+                end
+                div(class: DROPDOWN_SEP)
+                a(href: reject_modal_compliance_approval_path(r),
+                  class: DROPDOWN_ITEM_DANGER,
+                  data: { turbo_frame: "modal-frame" }) do
+                  render UI::Icon.new(:x, class: ICON_SM)
+                  plain "Reject"
+                end
               end
             end
           end
         end
-
-        # Dialogs must live outside the datatable (instance_exec scope in actions block)
-        @records.each { |r| reject_dialog(r) } if @can_decide
       end
 
       # ── Decided tab ───────────────────────────────────────────────────────────
@@ -159,39 +170,6 @@ module Compliance
 
           t.column("Proposed") do |r|
             span(class: TYPE_CAPTION) { plain fmt_date(r.proposed_at) }
-          end
-        end
-      end
-
-      # ── Reject dialog ─────────────────────────────────────────────────────────
-
-      def reject_dialog(record)
-        dialog(id: "reject-dialog-#{record.id}",
-               class: "border-0 rounded-2xl p-0 shadow-2xl w-full max-w-[440px] bg-white") do
-          div(class: "px-6 py-[22px] border-b border-gray-100") do
-            p(class: TYPE_TITLE) { plain "Reject adjustment" }
-            p(class: "#{TYPE_CAPTION} mt-[3px]") do
-              plain "Provide a reason for the rejection. This is recorded for the audit trail."
-            end
-          end
-          form(action: compliance_reject_approval_path(record), method: "post",
-               class: "px-6 py-[22px] flex flex-col gap-[14px]") do
-            input(type: "hidden", name: "authenticity_token", value: form_authenticity_token)
-            div do
-              p(class: "#{TYPE_MICRO} mb-1.5") { plain "Reason" }
-              textarea(name: "reason", rows: 3, required: true,
-                       placeholder: "Explain why this adjustment is being rejected…",
-                       class: "#{TEXTAREA_FIELD} placeholder:text-gray-400")
-            end
-            div(class: "flex gap-[10px] justify-end") do
-              render UI::Button.new(variant: :secondary,
-                     data: { action: "click->dialog#close",
-                             dialog_target_param: "reject-dialog-#{record.id}" }) { plain "Cancel" }
-              render UI::Button.new(variant: :danger, type: "submit") do
-                render UI::Icon.new(:x, class: ICON_SM)
-                plain "Confirm rejection"
-              end
-            end
           end
         end
       end

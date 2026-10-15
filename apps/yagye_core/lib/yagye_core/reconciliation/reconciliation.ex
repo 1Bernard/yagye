@@ -222,8 +222,8 @@ defmodule YagyeCore.Reconciliation do
   Approves an adjustment proposal and atomically posts the correcting ledger
   entry. Returns `{:error, :sod_violation}` if approver == proposer.
   """
-  def approve_adjustment(approval_id, approved_by) do
-    with {:ok, approval} <- fetch_pending_approval(approval_id) do
+  def approve_adjustment(break_id, approved_by) do
+    with {:ok, approval} <- fetch_pending_approval(break_id) do
       Multi.new()
       |> Multi.update(:approval, AdjustmentApproval.approve_changeset(approval, approved_by))
       |> Multi.run(:entry, fn _repo, %{approval: approval} ->
@@ -260,8 +260,8 @@ defmodule YagyeCore.Reconciliation do
   @doc """
   Rejects an adjustment proposal.
   """
-  def reject_adjustment(approval_id, rejected_by, reason) do
-    with {:ok, approval} <- fetch_pending_approval(approval_id) do
+  def reject_adjustment(break_id, rejected_by, reason) do
+    with {:ok, approval} <- fetch_pending_approval(break_id) do
       Multi.new()
       |> Multi.update(
         :approval,
@@ -325,11 +325,26 @@ defmodule YagyeCore.Reconciliation do
     end)
   end
 
-  defp fetch_pending_approval(approval_id) do
-    case Repo.get(AdjustmentApproval, approval_id) do
-      nil -> {:error, :not_found}
-      %AdjustmentApproval{approved_by: nil, rejected_reason: nil} = a -> {:ok, a}
-      %AdjustmentApproval{} -> {:error, :already_decided}
+  defp fetch_pending_approval(break_id) do
+    pending =
+      from(a in AdjustmentApproval,
+        where: a.break_id == ^break_id,
+        where: is_nil(a.approved_by),
+        where: is_nil(a.rejected_reason),
+        limit: 1
+      )
+      |> Repo.one()
+
+    case pending do
+      nil ->
+        if Repo.exists?(from a in AdjustmentApproval, where: a.break_id == ^break_id) do
+          {:error, :already_decided}
+        else
+          {:error, :not_found}
+        end
+
+      approval ->
+        {:ok, approval}
     end
   end
 

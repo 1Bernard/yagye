@@ -422,7 +422,7 @@ defmodule YagyeCore.Reconciliation.ReconciliationTest do
         })
 
       assert {:error, :sod_violation} =
-               Reconciliation.approve_adjustment(approval.id, "user:alice")
+               Reconciliation.approve_adjustment(approval.break_id, "user:alice")
     end
 
     test "a different user can approve the adjustment", %{break: break} do
@@ -433,7 +433,7 @@ defmodule YagyeCore.Reconciliation.ReconciliationTest do
           "resolution_code" => "provider_shortfall"
         })
 
-      assert {:ok, approved} = Reconciliation.approve_adjustment(approval.id, "user:bob")
+      assert {:ok, approved} = Reconciliation.approve_adjustment(approval.break_id, "user:bob")
       assert approved.approved_by == "user:bob"
       assert approved.approved_at != nil
     end
@@ -446,7 +446,7 @@ defmodule YagyeCore.Reconciliation.ReconciliationTest do
           "resolution_code" => "provider_shortfall"
         })
 
-      assert {:ok, _approved} = Reconciliation.approve_adjustment(approval.id, "user:bob")
+      assert {:ok, _approved} = Reconciliation.approve_adjustment(approval.break_id, "user:bob")
 
       resolved_break = Repo.get!(ReconciliationBreak, break.id)
       assert resolved_break.state == "resolved"
@@ -460,10 +460,10 @@ defmodule YagyeCore.Reconciliation.ReconciliationTest do
           "direction" => "credit_merchant"
         })
 
-      {:ok, _} = Reconciliation.approve_adjustment(approval.id, "user:bob")
+      {:ok, _} = Reconciliation.approve_adjustment(approval.break_id, "user:bob")
 
       assert {:error, :already_decided} =
-               Reconciliation.approve_adjustment(approval.id, "user:carol")
+               Reconciliation.approve_adjustment(approval.break_id, "user:carol")
     end
   end
 end

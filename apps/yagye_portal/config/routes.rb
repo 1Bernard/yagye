@@ -113,6 +113,7 @@ Rails.application.routes.draw do
     post "compliance/approvals/:id/approve", to: "approvals#approve", as: :compliance_approve_approval
     post "compliance/approvals/:id/reject",  to: "approvals#reject",  as: :compliance_reject_approval
     get  "compliance/approvals/:id/approve-modal", to: "approvals#approve_modal", as: :approve_modal_compliance_approval
+    get  "compliance/approvals/:id/reject-modal",  to: "approvals#reject_modal",  as: :reject_modal_compliance_approval
   end
 
   # ── Activity feed ────────────────────────────────────────────────────────
