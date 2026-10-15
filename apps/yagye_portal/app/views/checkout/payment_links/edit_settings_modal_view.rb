@@ -18,16 +18,17 @@ module Checkout
       end
 
       def view_template
-        div(class: MODAL_HEAD) do
-          p(class: TYPE_TITLE) { plain "Edit settings" }
-          p(class: "#{TYPE_CAPTION} mt-[3px]") { plain "Payment methods, collect fields, usage limits and expiry." }
-        end
+        turbo_frame(id: "modal-frame") do
+          div(class: MODAL_HEAD) do
+            p(class: TYPE_TITLE) { plain "Edit settings" }
+            p(class: "#{TYPE_CAPTION} mt-[3px]") { plain "Payment methods, collect fields, usage limits and expiry." }
+          end
 
-        form(
-          id:     "edit-settings-form",
-          action: payment_link_settings_path(@id),
-          method: "post"
-        ) do
+          form(
+            id:     "edit-settings-form",
+            action: payment_link_settings_path(@id),
+            method: "post"
+          ) do
           input(type: "hidden", name: "_method",            value: "patch")
           input(type: "hidden", name: "authenticity_token", value: form_authenticity_token)
 
@@ -45,6 +46,7 @@ module Checkout
               class: BTN_SECONDARY) { plain "Cancel" }
             button(type: "submit", class: BTN_PRIMARY) { plain "Save settings" }
           end
+        end
         end
       end
 
