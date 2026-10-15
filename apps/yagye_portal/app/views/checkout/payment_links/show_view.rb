@@ -145,15 +145,14 @@ module Checkout
                  "shadow-[0_8px_32px_rgba(0,0,0,0.07),0_2px_8px_rgba(0,0,0,0.04)]",
           **(editable ? { data: { controller: "inline-edit" } } : {})
         ) do
-          panel_header(editable: editable)
-          div(class: "flex-1 overflow-y-auto") do
-            analytics_section
-            divider
-            link_info_section
-
-            if editable
-              # ── Display mode ──────────────────────────────────────────────
-              div(data: { "inline-edit-target" => "display" }) do
+          if editable
+            # ── Display header + body ─────────────────────────────────────────
+            div(data: { "inline-edit-target" => "display" }, class: "flex flex-col flex-1 overflow-hidden") do
+              panel_header_display
+              div(class: "flex-1 overflow-y-auto") do
+                analytics_section
+                divider
+                link_info_section
                 divider
                 methods_info_section
                 divider
@@ -161,12 +160,22 @@ module Checkout
                 divider
                 usage_info_section
               end
+            end
 
-              # ── Edit mode (hidden until trigger clicked) ───────────────────
-              div(data: { "inline-edit-target" => "form" }, hidden: true) do
+            # ── Edit header + form (hidden until trigger clicked) ─────────────
+            div(data: { "inline-edit-target" => "form" }, hidden: true,
+                class: "flex flex-col flex-1 overflow-hidden") do
+              panel_header_edit
+              div(class: "flex-1 overflow-y-auto") do
                 settings_form_section
               end
-            else
+            end
+          else
+            panel_header_display
+            div(class: "flex-1 overflow-y-auto") do
+              analytics_section
+              divider
+              link_info_section
               divider
               methods_info_section
               divider
@@ -178,7 +187,7 @@ module Checkout
         end
       end
 
-      def panel_header(editable: false)
+      def panel_header_display
         div(class: "flex items-center justify-between px-4 pt-[14px] pb-[10px] flex-shrink-0") do
           p(class: "text-[11px] font-bold uppercase tracking-[0.1em] text-gray-400") { plain "Link details" }
           div(class: "flex items-center gap-2") do
@@ -193,18 +202,26 @@ module Checkout
                 plain "Inactive"
               end
             end
-
-            if editable
-              button(
-                type:  "button",
-                class: "flex items-center justify-center w-6 h-6 rounded-lg hover:bg-gray-100 " \
-                       "text-gray-400 hover:text-gray-600 transition-colors cursor-pointer border-0 bg-transparent",
-                data:  { "inline-edit-target" => "trigger", action: "inline-edit#edit" },
-                title: "Edit settings"
-              ) do
-                span(class: "flex w-[12px] h-[12px]") { render UI::Icon.new(:edit, class: "w-full h-full") }
-              end
+            button(
+              type:  "button",
+              class: "flex items-center gap-[4px] ml-1 px-2 py-[3px] rounded-lg " \
+                     "text-[10.5px] font-medium text-gray-400 hover:text-gray-700 hover:bg-gray-100 " \
+                     "transition-colors cursor-pointer border-0 bg-transparent",
+              data:  { "inline-edit-target" => "trigger", action: "inline-edit#edit" }
+            ) do
+              span(class: "flex w-[10px] h-[10px]") { render UI::Icon.new(:edit, class: "w-full h-full") }
+              plain "Edit"
             end
+          end
+        end
+        div(class: "h-px bg-gray-100 flex-shrink-0 mx-3")
+      end
+
+      def panel_header_edit
+        div(class: "flex items-center justify-between px-4 pt-[14px] pb-[10px] flex-shrink-0") do
+          p(class: "text-[11px] font-bold uppercase tracking-[0.1em] text-[#3D47F5]") { plain "Edit settings" }
+          span(class: "flex items-center gap-[4px] text-[10.5px] font-medium text-gray-400") do
+            plain "Changes saved on submit"
           end
         end
         div(class: "h-px bg-gray-100 flex-shrink-0 mx-3")
@@ -419,6 +436,13 @@ module Checkout
         ) do
           input(type: "hidden", name: "_method",            value: "patch")
           input(type: "hidden", name: "authenticity_token", value: form_authenticity_token)
+
+          # Immutable-fields notice
+          div(class: "px-4 pt-3 pb-1") do
+            p(class: "text-[10.5px] text-gray-400 italic leading-relaxed") do
+              plain "Amount, currency and payment type are fixed at creation and cannot be changed."
+            end
+          end
 
           # Description
           divider
