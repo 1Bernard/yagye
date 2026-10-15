@@ -108,9 +108,12 @@ module Checkout
               end
               if @link["expires_at"]
                 list.row("Expires") do
-                  span(class: TYPE_BODY_MD) do
-                    plain(fmt_date(Time.parse(@link["expires_at"])) rescue @link["expires_at"])
+                  expires_label = begin
+                    fmt_date(Time.parse(@link["expires_at"]))
+                  rescue
+                    @link["expires_at"]
                   end
+                  span(class: TYPE_BODY_MD) { plain expires_label }
                 end
               end
             end
