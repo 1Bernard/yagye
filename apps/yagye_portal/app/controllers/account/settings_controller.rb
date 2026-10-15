@@ -88,6 +88,9 @@ module Account
       unless current_user.valid_password?(params[:current_password])
         return render_password_error("Current password is incorrect.", :current)
       end
+      if params[:password].blank?
+        return render_password_error("New password cannot be blank.", :current)
+      end
       if params[:password] != params[:password_confirmation]
         return render_password_error("Passwords do not match.", :confirmation)
       end

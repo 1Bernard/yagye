@@ -52,14 +52,19 @@ module Payments
     end
 
     def show
-      req = PortalPayoutRequest.find(params[:id])
+      req = decode_id(PortalPayoutRequest)
       authorize req
       render Payments::PayoutRequests::ShowView.new(request: req)
     end
 
     def approve
-      req = PortalPayoutRequest.find(params[:id])
+      req = decode_id(PortalPayoutRequest)
       authorize req, :review?
+      if req.requested_by == current_user.user_code
+        return redirect_to payout_request_path(req),
+                           alert: "You submitted this request and cannot also approve it (maker-checker)."
+      end
+
       req.update!(
         state:         "approved",
         reviewed_by:   current_user.user_code,
@@ -73,8 +78,13 @@ module Payments
     end
 
     def reject
-      req = PortalPayoutRequest.find(params[:id])
+      req = decode_id(PortalPayoutRequest)
       authorize req, :review?
+      if req.requested_by == current_user.user_code
+        return redirect_to payout_request_path(req),
+                           alert: "You submitted this request and cannot also reject it (maker-checker)."
+      end
+
       req.update!(
         state:         "rejected",
         reviewed_by:   current_user.user_code,

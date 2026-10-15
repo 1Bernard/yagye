@@ -126,7 +126,7 @@ module Compliance
     end
 
     def reject_modal
-      authorize :kyb_reviews, :show?
+      authorize :kyb_reviews, :approve?
       application = decode_id(PortalMerchantApplication)
       render KybReviews::RejectModalView.new(application: application)
     end

@@ -141,6 +141,12 @@ module Onboarding
 
     def submit_agreement
       authorize :onboarding, :create?
+      progress = kyb_progress
+      unless progress.steps.reject { |s| s.key == "agreement" }.all?(&:complete)
+        return redirect_to verify_step_path("agreement"),
+                           alert: "Please complete all required steps before signing the agreement."
+      end
+
       result = CoreApiClient.new.accept_service_agreement(
         merchant_code,
         {

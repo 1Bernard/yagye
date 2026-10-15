@@ -28,19 +28,28 @@ module Merchants
               div(class: "flex flex-col gap-4") do
                 div do
                   label(class: "#{TEXT_LABEL} block mb-1.5") { plain "Reserve type" }
-                  select(name: "kind", class: SELECT_FIELD) do
+                  select(name: "kind", id: "reserve_kind", class: SELECT_FIELD) do
                     option(value: "rolling", selected: "selected") { plain "Rolling reserve (% of each settlement)" }
                     option(value: "fixed") { plain "Fixed reserve (set amount per payment)" }
                     option(value: "ad_hoc") { plain "Ad hoc (one-time hold)" }
                   end
                 end
 
-                div do
+                div(id: "reserve_rate_wrap") do
                   label(class: "#{TEXT_LABEL} block mb-1.5") { plain "Reserve rate (%)" }
                   div(class: "relative") do
                     input(type: "number", name: "rate", value: "5", min: "0.01", max: "100",
                           step: "0.01", class: INPUT_FIELD + " pr-8")
                     span(class: "absolute right-3 top-1/2 -translate-y-1/2 text-[12px] text-gray-400") { plain "%" }
+                  end
+                end
+
+                div(id: "reserve_fixed_wrap", hidden: true) do
+                  label(class: "#{TEXT_LABEL} block mb-1.5") { plain "Reserve amount (GHS)" }
+                  div(class: "relative") do
+                    input(type: "number", name: "fixed_amount", value: "0", min: "0.01",
+                          step: "0.01", class: INPUT_FIELD + " pl-14")
+                    span(class: "absolute left-3 top-1/2 -translate-y-1/2 text-[12px] text-gray-400") { plain "GHS" }
                   end
                 end
 
@@ -74,7 +83,23 @@ module Merchants
               end
             end
 
-            div(class: MODAL_FOOT) do
+            script do
+            raw <<~JS
+              (function() {
+                var kind = document.getElementById("reserve_kind");
+                var rateW = document.getElementById("reserve_rate_wrap");
+                var fixW  = document.getElementById("reserve_fixed_wrap");
+                function sync() {
+                  rateW.hidden = kind.value !== "rolling";
+                  fixW.hidden  = kind.value !== "fixed";
+                }
+                kind.addEventListener("change", sync);
+                sync();
+              })();
+            JS
+          end
+
+          div(class: MODAL_FOOT) do
               button(type: "button", class: BTN_SECONDARY,
                      data: { action: "click->modal#close" }) { plain "Cancel" }
               button(type: "submit", class: BTN_PRIMARY) do

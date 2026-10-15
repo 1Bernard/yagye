@@ -67,6 +67,8 @@ module Developers
               outcome: "failed", metadata: { name: params[:name] })
         redirect_to new_developers_routing_rule_path, alert: result.error_message
       end
+    rescue JSON::ParserError
+      redirect_to new_developers_routing_rule_path, alert: "Invalid graph payload — please try again."
     end
 
     def update
@@ -91,6 +93,9 @@ module Developers
         redirect_to edit_developers_routing_rule_path(params[:id]),
                     alert: result.error_message
       end
+    rescue JSON::ParserError
+      redirect_to edit_developers_routing_rule_path(params[:id]),
+                  alert: "Invalid graph payload — please try again."
     end
 
     def publish

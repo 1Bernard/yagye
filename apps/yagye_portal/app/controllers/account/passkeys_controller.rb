@@ -38,10 +38,14 @@ module Account
 
     def remove_modal
       authorize :settings, :update?
-      cred = current_user.passkey_credentials.find(params[:id])
+      cred              = current_user.passkey_credentials.find(params[:id])
+      last_passkey      = current_user.passkey_credentials.count == 1
+      totp_disabled     = !current_user.otp_required_for_login?
+      warning           = last_passkey && totp_disabled ? "This is your only passkey and 2FA is disabled. After removal you will sign in with email + password only." : nil
       render UI::ConfirmModal.new(
         title:          "Remove passkey",
         body:           "\"#{cred.nickname || "Passkey"}\" will be removed. You won't be able to use it to sign in.",
+        warning_note:   warning,
         confirm_path:   settings_remove_passkey_path(cred),
         confirm_method: "delete",
         confirm_label:  "Remove passkey",

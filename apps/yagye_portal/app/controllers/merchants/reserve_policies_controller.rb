@@ -56,6 +56,17 @@ module Merchants
       authorize :reserve_policies, :approve?
       application = decode_id(PortalMerchantApplication)
       policy_id   = params[:policy_id]
+
+      if sod_violation?(application.merchant_code, policy_id)
+        return render UI::ConfirmModal.new(
+          title:         "Cannot approve",
+          body:          "You created this reserve policy. A different ops officer must approve it (maker-checker).",
+          confirm_path:  merchant_path(application),
+          confirm_label: "OK",
+          danger:        false
+        )
+      end
+
       render Merchants::ReservePolicies::ApproveModalView.new(
         application: application,
         policy_id:   policy_id
@@ -66,6 +77,11 @@ module Merchants
       authorize :reserve_policies, :approve?
       application = decode_id(PortalMerchantApplication)
       policy_id   = params[:policy_id]
+
+      if sod_violation?(application.merchant_code, policy_id)
+        return redirect_to merchant_path(application),
+                           alert: "You created this reserve policy and cannot approve it (maker-checker)."
+      end
 
       result = CoreApiClient.new.approve_reserve_policy(
         policy_id,
@@ -109,6 +125,19 @@ module Merchants
         redirect_to merchant_path(application), alert: result.error_message
       end
     end
+
+    private
+
+    def sod_violation?(merchant_code, policy_id)
+      result = CoreApiClient.new.get_reserves(merchant_code)
+      return false unless result.success?
+
+      reserves = result.body["reserves"] || [result.body["policy"]].compact
+      policy   = reserves.find { |p| p.is_a?(Hash) && p["id"].to_s == policy_id.to_s }
+      policy&.fetch("created_by", nil) == current_user.user_code
+    end
+
+    public
 
     def deactivate_modal
       authorize :reserve_policies, :manage?

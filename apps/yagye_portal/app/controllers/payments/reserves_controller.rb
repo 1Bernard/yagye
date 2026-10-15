@@ -21,7 +21,7 @@ module Payments
     end
 
     def acknowledge
-      authorize :reserve, :index?, policy_class: ReservePolicy
+      authorize :reserve, :acknowledge?, policy_class: ReservePolicy
 
       result = CoreApiClient.new.acknowledge_reserve_policy(
         params[:id],

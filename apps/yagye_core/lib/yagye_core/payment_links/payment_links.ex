@@ -83,7 +83,7 @@ defmodule YagyeCore.PaymentLinks do
 
   def deactivate_link(public_id, merchant_id) do
     with {:ok, link} <- get_link(public_id, merchant_id),
-         false <- link.kind == "invoice" do
+         :ok <- if(link.kind == "invoice", do: {:error, :invoice_link_immutable}, else: :ok) do
       Multi.new()
       |> Multi.update(:link, PaymentLink.deactivate_changeset(link))
       |> Multi.insert(:outbox, fn %{link: updated} ->
@@ -98,9 +98,6 @@ defmodule YagyeCore.PaymentLinks do
         {:ok, %{link: link}} -> {:ok, link}
         {:error, _step, reason, _} -> {:error, reason}
       end
-    else
-      true -> {:error, :invoice_link_immutable}
-      {:error, _} = err -> err
     end
   end
 

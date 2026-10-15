@@ -74,6 +74,8 @@ module Team
       authorize role
       role.destroy!
       redirect_to team_roles_path, notice: "Role \"#{role.name}\" deleted."
+    rescue ActiveRecord::RecordNotDestroyed, ActiveRecord::DeleteRestrictionError
+      redirect_to team_roles_path, alert: "\"#{role.name}\" has active members and cannot be deleted. Reassign users first."
     end
 
     private
