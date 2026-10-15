@@ -145,6 +145,11 @@ class CoreApiClient
     post("/internal/payment-links/#{public_id}/deactivate", {})
   end
 
+  # PATCH /internal/payment-links/:id
+  def update_payment_link(public_id, merchant_code:, **attrs)
+    patch("/internal/payment-links/#{public_id}", attrs.merge(merchant_code: merchant_code))
+  end
+
   # POST /internal/invoices
   def create_invoice(merchant_code:, **attrs)
     post("/internal/invoices", attrs.merge(merchant_code: merchant_code))

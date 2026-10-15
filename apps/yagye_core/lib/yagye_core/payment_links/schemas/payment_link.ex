@@ -56,6 +56,15 @@ defmodule YagyeCore.PaymentLinks.Schemas.PaymentLink do
     |> foreign_key_constraint(:merchant_id)
   end
 
+  @updatable ~w[description allowed_methods collect_email collect_phone collect_name
+                max_uses expires_at]a
+
+  def update_changeset(link, attrs) do
+    link
+    |> cast(attrs, @updatable)
+    |> validate_number(:max_uses, greater_than: 0)
+  end
+
   def deactivate_changeset(link) do
     change(link, active: false)
   end

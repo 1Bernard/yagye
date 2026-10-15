@@ -286,6 +286,7 @@ defmodule YagyeCoreWeb.Router do
     get("/payment-links", InternalPaymentLinksController, :index)
     post("/payment-links", InternalPaymentLinksController, :create)
     get("/payment-links/:public_id", InternalPaymentLinksController, :show)
+    patch("/payment-links/:public_id", InternalPaymentLinksController, :update)
     post("/payment-links/:public_id/deactivate", InternalPaymentLinksController, :deactivate)
 
     patch(

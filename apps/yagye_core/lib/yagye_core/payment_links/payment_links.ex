@@ -81,6 +81,14 @@ defmodule YagyeCore.PaymentLinks do
     end
   end
 
+  def update_link(public_id, merchant_id, attrs) do
+    with {:ok, link} <- get_link(public_id, merchant_id) do
+      link
+      |> PaymentLink.update_changeset(attrs)
+      |> Repo.update()
+    end
+  end
+
   def deactivate_link(public_id, merchant_id) do
     with {:ok, link} <- get_link(public_id, merchant_id),
          :ok <- if(link.kind == "invoice", do: {:error, :invoice_link_immutable}, else: :ok) do

@@ -285,6 +285,8 @@ Rails.application.routes.draw do
     get  "payment-links/:id/layout",         to: "payment_links#layout",     as: :payment_link_layout
     get  "payment-links/:id/display",        to: "payment_links#display",    as: :payment_link_display
     patch "payment-links/:id/layout",        to: "payment_links#update_layout"
+    patch "payment-links/:id/settings",      to: "payment_links#update_settings", as: :payment_link_settings
+    get  "payment-links/:id/edit-settings",  to: "payment_links#edit_settings_modal", as: :edit_settings_payment_link
     post "payment-links/:id/deactivate",     to: "payment_links#deactivate", as: :deactivate_payment_link
   end
 

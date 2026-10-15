@@ -103,6 +103,16 @@ module Checkout
             end
           end
 
+          if @link["kind"] != "invoice"
+            a(href: edit_settings_payment_link_path(@link["id"]),
+              data:  { turbo_frame: "modal-frame" },
+              class: "flex items-center gap-[5px] px-[10px] py-[5px] rounded-xl text-[12.5px] font-medium " \
+                     "border border-gray-200 text-gray-600 hover:bg-gray-50 transition-colors no-underline") do
+              render UI::Icon.new(:settings, class: "w-3.5 h-3.5")
+              plain "Settings"
+            end
+          end
+
           a(href: payment_link_layout_path(@link["id"]),
             class: "flex items-center gap-[5px] px-[10px] py-[5px] rounded-xl text-[12.5px] font-semibold " \
                    "bg-[#3D47F5] hover:bg-[#2e38d4] text-white transition-colors no-underline") do

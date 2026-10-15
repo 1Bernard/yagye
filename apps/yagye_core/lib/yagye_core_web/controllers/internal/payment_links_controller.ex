@@ -16,6 +16,21 @@ defmodule YagyeCoreWeb.Controllers.Internal.PaymentLinksController do
     end
   end
 
+  # PATCH /internal/payment-links/:public_id — update mutable fields
+  @allowed_update_fields ~w[description allowed_methods collect_email collect_phone collect_name
+                             max_uses expires_at]
+
+  def update(conn, %{"public_id" => public_id, "merchant_code" => merchant_code} = params) do
+    attrs =
+      Map.take(params, @allowed_update_fields)
+      |> Map.new(fn {k, v} -> {String.to_existing_atom(k), v} end)
+
+    with {:ok, merchant} <- Merchants.get_merchant(merchant_code),
+         {:ok, link} <- PaymentLinks.update_link(public_id, merchant.id, attrs) do
+      conn |> put_status(:ok) |> json(PaymentLinkJSON.data(link))
+    end
+  end
+
   # POST /internal/payment-links/:public_id/deactivate
   def deactivate(conn, %{"public_id" => public_id}) do
     with {:ok, link} <- PaymentLinks.get_link_by_public_id(public_id),

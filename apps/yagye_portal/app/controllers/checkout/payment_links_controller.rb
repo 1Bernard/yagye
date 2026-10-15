@@ -53,6 +53,44 @@ module Checkout
       render Checkout::PaymentLinks::DisplayView.new(link: link)
     end
 
+    def edit_settings_modal
+      authorize :checkout, :create?
+      result = core.get_payment_link(params[:id])
+      return head(:not_found) unless result.success?
+      render Checkout::PaymentLinks::EditSettingsModalView.new(link: result.body)
+    end
+
+    def update_settings
+      authorize :checkout, :create?
+
+      allowed_methods = Array(params[:allowed_methods]).reject(&:blank?)
+      if allowed_methods.empty?
+        return redirect_to payment_link_path(params[:id]),
+                           alert: "Select at least one accepted payment method."
+      end
+
+      attrs = {
+        allowed_methods: allowed_methods,
+        collect_email:   params[:collect_email] == "1",
+        collect_phone:   params[:collect_phone] == "1",
+        collect_name:    params[:collect_name] == "1",
+        max_uses:        params[:max_uses].present? ? params[:max_uses].to_i : nil,
+        expires_at:      params[:expires_at].presence
+      }.compact
+
+      result = core.update_payment_link(
+        params[:id],
+        merchant_code: current_user.merchant_code,
+        **attrs
+      )
+
+      if result.success?
+        redirect_to payment_link_path(params[:id]), notice: "Settings saved."
+      else
+        redirect_to payment_link_path(params[:id]), alert: result.error_message || "Could not save settings."
+      end
+    end
+
     def deactivate
       authorize :checkout, :create?
       result = core.deactivate_payment_link(params[:id])
