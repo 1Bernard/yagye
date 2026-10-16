@@ -5,10 +5,14 @@ defmodule YagyeCore.Payouts.Workers.PayoutSagaWorker do
 
   import Ecto.Query
 
+  require Logger
+
   alias YagyeCore.Ledger
   alias YagyeCore.Ledger.Schemas.Balance
+  alias YagyeCore.Payments.Adapters.{MTNMomoAdapter, PaystackAdapter}
   alias YagyeCore.Payouts
   alias YagyeCore.Payouts.Schemas.{Payout, PayoutDestination}
+  alias YagyeCore.Providers
   alias YagyeCore.Repo
 
   @impl Oban.Worker
@@ -57,14 +61,13 @@ defmodule YagyeCore.Payouts.Workers.PayoutSagaWorker do
       {:ok, _entry} ->
         now = DateTime.utc_now()
 
-        Payouts.transition(payout, "submitted", %{
-          submitted_at: now,
-          saga_state: %{committed_at: DateTime.to_iso8601(now)}
-        })
-
-        # Provider submission deferred to P13; payout sits in "submitted"
-        # until a webhook or polling job transitions it to paid/returned.
-        :ok
+        case Payouts.transition(payout, "submitted", %{
+               submitted_at: now,
+               saga_state: %{committed_at: DateTime.to_iso8601(now)}
+             }) do
+          {:ok, submitted} -> advance(submitted)
+          err -> err
+        end
 
       {:error, reason} ->
         Payouts.mark_failed(payout, "ledger_commit_failed:#{inspect(reason)}")
@@ -72,9 +75,32 @@ defmodule YagyeCore.Payouts.Workers.PayoutSagaWorker do
     end
   end
 
+  # Already dispatched — provider_reference is set; wait for webhook.
+  defp advance(%Payout{state: "submitted", provider_reference: ref}) when is_binary(ref), do: :ok
+
+  # Submitted but not yet dispatched — attempt provider submission now.
+  defp advance(%Payout{state: "submitted"} = payout) do
+    case dispatch_payout(payout) do
+      {:ok, ref} ->
+        Payouts.mark_paid(payout, ref)
+        :ok
+
+      {:pending, ref} ->
+        Payouts.transition(payout, "submitted", %{provider_reference: ref})
+        :ok
+
+      {:error, reason} ->
+        Logger.error("[PayoutSagaWorker] dispatch failed for payout #{payout.id}",
+          reason: inspect(reason)
+        )
+
+        {:error, reason}
+    end
+  end
+
   # Terminal states — nothing to do
   defp advance(%Payout{state: state})
-       when state in ~w[submitted paid returned failed cancelled],
+       when state in ~w[paid returned failed cancelled],
        do: :ok
 
   # ── Helpers ──────────────────────────────────────────────────────────────────
@@ -111,4 +137,61 @@ defmodule YagyeCore.Payouts.Workers.PayoutSagaWorker do
   defp post_payout_committed(payout) do
     Ledger.post_payout_committed(payout)
   end
+
+  # ── Disbursement routing ──────────────────────────────────────────────────────
+
+  defp dispatch_payout(%Payout{mode: "simulation"} = payout) do
+    {:ok, "sim_payout_#{payout.id}"}
+  end
+
+  defp dispatch_payout(%Payout{} = payout) do
+    destination = Repo.get!(PayoutDestination, payout.destination_id)
+
+    case PayoutDestination.decrypt_details(destination) do
+      {:ok, details} -> route_payout_dispatch(payout, destination.kind, details)
+      {:error, reason} -> {:error, {:decrypt_failed, reason}}
+    end
+  end
+
+  defp route_payout_dispatch(payout, "mobile_money", details) do
+    msisdn = details["msisdn"] || details["phone_number"]
+
+    with {:ok, credential} <- Providers.fetch_credential_for_psp("mtn_momo_gh", payout.mode) do
+      MTNMomoAdapter.disburse(
+        %{
+          amount: payout.amount,
+          currency: payout.currency,
+          reference: payout.id,
+          recipient_msisdn: msisdn
+        },
+        credential
+      )
+      |> normalize_disburse_result()
+    end
+  end
+
+  defp route_payout_dispatch(payout, "bank", details) do
+    with {:ok, credential} <- Providers.fetch_credential_for_psp("paystack", payout.mode) do
+      PaystackAdapter.disburse(
+        %{
+          amount: payout.amount,
+          currency: payout.currency,
+          reference: payout.id,
+          recipient_bank_code: details["bank_code"],
+          recipient_account_number: details["account_number"],
+          recipient_name: details["account_name"] || ""
+        },
+        credential
+      )
+      |> normalize_disburse_result()
+    end
+  end
+
+  defp route_payout_dispatch(_payout, kind, _details) do
+    {:error, {:unsupported_destination_kind, kind}}
+  end
+
+  defp normalize_disburse_result({:ok, %{provider_reference: ref}}), do: {:ok, ref}
+  defp normalize_disburse_result({:pending, %{provider_reference: ref}}), do: {:pending, ref}
+  defp normalize_disburse_result({:error, _} = err), do: err
 end

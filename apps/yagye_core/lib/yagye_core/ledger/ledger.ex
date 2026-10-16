@@ -5,7 +5,7 @@ defmodule YagyeCore.Ledger do
 
   import Ecto.Query
 
-  alias YagyeCore.Disputes.Schemas.Refund
+  alias YagyeCore.Disputes.Schemas.{Dispute, Refund}
   alias YagyeCore.Ledger.Schemas.{Account, Balance, Entry, Posting}
   alias YagyeCore.Payments.Schemas.{Payment, PaymentAttempt}
   alias YagyeCore.Payouts.Schemas.Payout
@@ -130,6 +130,55 @@ defmodule YagyeCore.Ledger do
              ) do
         apply_balance(merchant_account.id, refund.amount, :debit, debit.id)
         apply_balance(settlement_account.id, refund.amount, :credit, credit.id)
+        {:ok, entry}
+      end
+    end
+  end
+
+  @doc """
+  Posts the "chargeback_posted" journal entry when a dispute is lost.
+
+  Mirrors post_refund: the merchant's payable balance is debited (they bear the loss)
+  and the provider's settlement_pending account is credited.
+
+  Debit  : merchant_payable   — reduce what we owe the merchant (liability ↓)
+  Credit : settlement_pending — reduce what we're owed from provider (asset ↓)
+  """
+  def post_chargeback(%Payment{} = payment, %PaymentAttempt{} = attempt, %Dispute{} = dispute) do
+    OpenTelemetry.Tracer.with_span "ledger.post_chargeback" do
+      with {:ok, merchant_account} <-
+             get_or_create_account(%{
+               account_type: "merchant_payable",
+               normal_balance: "credit",
+               scope_type: "merchant",
+               scope_id: payment.merchant_id,
+               currency: payment.currency,
+               mode: payment.mode,
+               allows_negative: false
+             }),
+           {:ok, settlement_account} <-
+             get_or_create_account(%{
+               account_type: "settlement_pending",
+               normal_balance: "debit",
+               scope_type: "provider",
+               scope_id: attempt.provider_id,
+               currency: payment.currency,
+               mode: payment.mode,
+               allows_negative: false
+             }),
+           {:ok, entry} <- insert_chargeback_entry(payment, dispute),
+           {:ok, debit} <-
+             insert_posting(entry, merchant_account, "debit", dispute.amount, payment.merchant_id),
+           {:ok, credit} <-
+             insert_posting(
+               entry,
+               settlement_account,
+               "credit",
+               dispute.amount,
+               payment.merchant_id
+             ) do
+        apply_balance(merchant_account.id, dispute.amount, :debit, debit.id)
+        apply_balance(settlement_account.id, dispute.amount, :credit, credit.id)
         {:ok, entry}
       end
     end
@@ -543,6 +592,38 @@ defmodule YagyeCore.Ledger do
          ) do
       {:ok, _} ->
         {:ok, Repo.get_by!(Account, code: code)}
+
+      {:error, _} = err ->
+        err
+    end
+  end
+
+  defp insert_chargeback_entry(%Payment{} = payment, %Dispute{} = dispute) do
+    now = DateTime.utc_now()
+
+    Entry.changeset(%Entry{}, %{
+      mode: payment.mode,
+      currency: payment.currency,
+      entry_type: "chargeback_posted",
+      source_type: "dispute",
+      source_id: dispute.id,
+      description: "Chargeback posted: #{dispute.public_id} for #{payment.public_id}",
+      correlation_id: payment.public_id,
+      effective_at: now,
+      recorded_at: now
+    })
+    |> Repo.insert(
+      on_conflict: :nothing,
+      conflict_target: [:source_type, :source_id, :entry_type]
+    )
+    |> case do
+      {:ok, _} ->
+        {:ok,
+         Repo.get_by!(Entry,
+           source_type: "dispute",
+           source_id: dispute.id,
+           entry_type: "chargeback_posted"
+         )}
 
       {:error, _} = err ->
         err

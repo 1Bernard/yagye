@@ -4,6 +4,8 @@ defmodule YagyeCore.Webhooks.Workers.WebhookProcessorWorker do
   use Oban.Worker, queue: :webhooks, max_attempts: 5
 
   alias YagyeCore.Payments
+  alias YagyeCore.Payouts
+  alias YagyeCore.Payouts.Schemas.Payout
   alias YagyeCore.Repo
   alias YagyeCore.Webhooks
   alias YagyeCore.Webhooks.Schemas.WebhookEvent
@@ -102,6 +104,48 @@ defmodule YagyeCore.Webhooks.Workers.WebhookProcessorWorker do
 
       Payments.handle_provider_response(payment, attempt, result)
       :ok
+    end
+  end
+
+  # Paystack Transfer webhooks — handle merchant payout completions.
+  # The transfer_code stored as provider_reference on the Payout is the lookup key.
+
+  defp route("paystack", "transfer.success", %{"data" => data}) do
+    ref = data["transfer_code"]
+
+    case Repo.get_by(Payout, provider_reference: ref) do
+      nil ->
+        :ok
+
+      payout ->
+        Payouts.mark_paid(payout, ref)
+        :ok
+    end
+  end
+
+  defp route("paystack", "transfer.failed", %{"data" => data}) do
+    ref = data["transfer_code"]
+
+    case Repo.get_by(Payout, provider_reference: ref) do
+      nil ->
+        :ok
+
+      payout ->
+        Payouts.mark_returned(payout, "transfer_failed")
+        :ok
+    end
+  end
+
+  defp route("paystack", "transfer.reversed", %{"data" => data}) do
+    ref = data["transfer_code"]
+
+    case Repo.get_by(Payout, provider_reference: ref) do
+      nil ->
+        :ok
+
+      payout ->
+        Payouts.mark_returned(payout, "transfer_reversed")
+        :ok
     end
   end
 

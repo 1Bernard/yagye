@@ -251,6 +251,45 @@ case Repo.get_by(ProviderCredential, provider_id: mtn_provider.id, mode: "sandbo
     IO.puts("MTN sandbox credential: created (#{c.id}) → SM: #{mtn_sandbox_secret_name}")
 end
 
+# ── 6b-ii. Paystack platform credential (for bank account disbursements) ────────
+# Paystack is used as the bank transfer rail for settlement disbursements when
+# a merchant has configured a bank account (not mobile money) as settlement target.
+# Yagye holds the platform-level Paystack key (merchant_id: nil), allowing
+# BankDispatchWorker and PayoutSagaWorker to disburse to any GH bank account.
+#
+# Sandbox credentials: create at dashboard.paystack.com → Settings → API Keys.
+# Replace the secret_name pointer; the actual key lives in Secrets Manager.
+# For local dev: set PAYSTACK_SANDBOX_SK=sk_test_... in your environment and
+# run `mix yagye.secrets.setup` to push it to Floci/Localstack.
+
+paystack_provider = Repo.get_by!(Provider, code: "paystack")
+
+paystack_sandbox_secret_name = "yagye/dev/providers/paystack/sandbox"
+
+case Repo.get_by(ProviderCredential,
+       provider_id: paystack_provider.id,
+       mode: "sandbox",
+       merchant_id: nil
+     ) do
+  %ProviderCredential{} = c ->
+    IO.puts("Paystack platform cred: already exists (#{c.id})")
+
+  nil ->
+    {:ok, c} =
+      %ProviderCredential{}
+      |> ProviderCredential.changeset(%{
+        provider_id: paystack_provider.id,
+        merchant_id: nil,
+        mode: "sandbox",
+        base_url: "https://api.paystack.co",
+        secret_name: paystack_sandbox_secret_name,
+        active: true
+      })
+      |> Repo.insert()
+
+    IO.puts("Paystack platform cred: created (#{c.id}) → SM: #{paystack_sandbox_secret_name}")
+end
+
 # ── 6c. Platform routing rules — native rail (MTN MoMo) ───────────────────────
 # Platform-scope rules apply to ALL merchants. These are the baseline routing
 # rules that direct mobile_money payments to the MTN native rail.

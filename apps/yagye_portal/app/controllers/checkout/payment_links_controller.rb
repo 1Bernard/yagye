@@ -53,13 +53,6 @@ module Checkout
       render Checkout::PaymentLinks::DisplayView.new(link: link)
     end
 
-    def edit_settings_modal
-      authorize :checkout, :create?
-      result = core.get_payment_link(params[:id])
-      return head(:not_found) unless result.success?
-      render Checkout::PaymentLinks::EditSettingsModalView.new(link: result.body)
-    end
-
     def update_settings
       authorize :checkout, :create?
 

@@ -188,6 +188,9 @@ defmodule YagyeCore.Disputes do
     |> Multi.run(:event, fn _repo, %{transitioned_payment: p} ->
       insert_payment_event(p, "payment.#{to_state}", "disputed", to_state)
     end)
+    |> Multi.run(:ledger, fn _repo, %{transitioned_payment: p} ->
+      if outcome == :lost, do: post_chargeback_ledger(p, dispute), else: {:ok, :no_ledger}
+    end)
     |> Multi.insert(:dispute_outbox, fn %{dispute: d, transitioned_payment: p} ->
       Outbox.build_changeset(
         p,
@@ -380,6 +383,13 @@ defmodule YagyeCore.Disputes do
   end
 
   defp post_ledger_reversal_if_settled(_payment, _refund, _prior_state), do: {:ok, :skipped}
+
+  defp post_chargeback_ledger(payment, dispute) do
+    case find_succeeded_attempt(payment.id) do
+      {:ok, attempt} -> Ledger.post_chargeback(payment, attempt, dispute)
+      {:error, :no_settled_attempt} -> {:ok, :skipped}
+    end
+  end
 
   defp find_succeeded_attempt(payment_id) do
     case Repo.one(

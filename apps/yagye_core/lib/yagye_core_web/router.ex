@@ -58,6 +58,7 @@ defmodule YagyeCoreWeb.Router do
     as: InternalSettlementBatchesController
 
   alias YagyeCoreWeb.Controllers.Internal.ActivityController, as: InternalActivityController
+  alias YagyeCoreWeb.Controllers.Internal.BankStatementsController
   alias YagyeCoreWeb.Controllers.Internal.DisputesController, as: InternalDisputesController
   alias YagyeCoreWeb.Controllers.Internal.KybController
   alias YagyeCoreWeb.Controllers.Internal.ReservesController, as: InternalReservesController
@@ -236,6 +237,11 @@ defmodule YagyeCoreWeb.Router do
     )
 
     get("/reconciliation-breaks", InternalReconciliationController, :list_all_breaks)
+
+    # Bank statement ingestion — ops uploads CSV-parsed lines for reconciliation
+    get("/bank-statements", BankStatementsController, :index)
+    post("/bank-statements", BankStatementsController, :create)
+    get("/bank-statements/:id", BankStatementsController, :show)
 
     # Settlement controls + dispatch approvals (portal → core)
     get("/merchants/:merchant_id/settlement-controls", SettlementControlsController, :show)
