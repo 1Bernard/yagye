@@ -267,10 +267,12 @@ paystack_provider = Repo.get_by!(Provider, code: "paystack")
 
 paystack_sandbox_secret_name = "yagye/dev/providers/paystack/sandbox"
 
-case Repo.get_by(ProviderCredential,
-       provider_id: paystack_provider.id,
-       mode: "sandbox",
-       merchant_id: nil
+case Repo.one(
+       from(c in ProviderCredential,
+         where:
+           c.provider_id == ^paystack_provider.id and c.mode == "sandbox" and
+             is_nil(c.merchant_id)
+       )
      ) do
   %ProviderCredential{} = c ->
     IO.puts("Paystack platform cred: already exists (#{c.id})")
