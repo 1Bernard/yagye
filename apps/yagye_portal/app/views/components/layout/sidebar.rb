@@ -46,6 +46,7 @@ module Layout
           { key: :pricing_plans,   icon: :tag,          label: "Pricing Plans",   path: :pricing_plans_path },
           { key: :routing_rules,   icon: :swap,         label: "Routing Rules",   path: :developers_routing_rules_path },
           { key: :reconciliation,  icon: :trending_up,  label: "Reconciliation",  path: :reconciliation_path },
+          { key: :bank_statements, icon: :file,         label: "Bank Statements",  path: :ops_bank_statements_path },
           { key: :settlements,     icon: :wallet,       label: "Settlements",      path: :settlements_path }
         ]
       },

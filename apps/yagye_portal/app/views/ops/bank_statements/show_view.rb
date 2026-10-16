@@ -21,7 +21,7 @@ module Ops
         acct_ref = @statement["account_reference"].to_s
 
         render Layout::Shell.new(
-          active_nav:  :reconciliation,
+          active_nav:  :bank_statements,
           title:       "Statement #{acct_ref}",
           breadcrumbs: [
             { label: "Bank Statements", href: ops_bank_statements_path },

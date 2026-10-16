@@ -22,13 +22,14 @@ module Merchants
     }.freeze
 
     def initialize(application:, beneficial_owners: [], documents: [], screening: nil,
-                   reserve_policy: nil, pricing_plan: nil)
+                   reserve_policy: nil, pricing_plan: nil, payout_dests: [])
       @app               = application
       @beneficial_owners = beneficial_owners
       @documents         = documents
       @screening         = screening
       @reserve_policy    = reserve_policy
       @pricing_plan      = pricing_plan
+      @payout_dests      = payout_dests
     end
 
     def view_template
@@ -55,6 +56,7 @@ module Merchants
         kyb_card
         beneficial_owners_card
         documents_card
+        payout_destinations_card if @app.merchant_code.present?
       end
     end
 
@@ -292,6 +294,81 @@ module Merchants
                          "font-medium bg-gray-50 text-gray-400") do
               plain "Pending"
             end
+          end
+        end
+      end
+    end
+
+    # ── Payout destinations card (ops) ───────────────────────────────────────
+
+    VERIFY_STATE_CFG = {
+      "verified"            => { label: "Verified",      text: "text-green-700",  bg: "bg-green-50"  },
+      "unverified"          => { label: "Unverified",    text: "text-amber-700",  bg: "bg-amber-50"  },
+      "micro_deposit_sent"  => { label: "Micro-deposit", text: "text-blue-700",   bg: "bg-blue-50"   },
+      "failed"              => { label: "Failed",        text: "text-red-700",    bg: "bg-red-50"    }
+    }.freeze
+
+    def payout_destinations_card
+      mc = @app.merchant_code
+      render UI::Card.new do |c|
+        c.header("Payout destinations") do
+          span(class: TYPE_CAPTION) do
+            plain "#{@payout_dests.size} #{"account".pluralize(@payout_dests.size)}"
+          end
+        end
+        c.body(padding: @payout_dests.empty?) do
+          if @payout_dests.empty?
+            empty_state(:paper_plane, "No destinations", "The merchant has not added any payout accounts yet.")
+          else
+            div(class: "divide-y divide-gray-50") do
+              @payout_dests.each { |dest| payout_dest_row(dest, mc) }
+            end
+          end
+        end
+      end
+    end
+
+    def payout_dest_row(dest, merchant_code)
+      state = dest["verification_state"] || "unverified"
+      cfg   = VERIFY_STATE_CFG[state] || VERIFY_STATE_CFG["unverified"]
+
+      div(class: "flex items-center gap-3 px-5 py-3.5") do
+        div(class: "w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0",
+            style: "background:#{TINT_BRAND}") do
+          span(class: "flex w-4 h-4", style: "color:#{BRAND}") do
+            render UI::Icon.new(dest["kind"] == "bank" ? :bank : :smartphone, class: "w-full h-full")
+          end
+        end
+
+        div(class: "flex-1 min-w-0") do
+          div(class: "flex items-center gap-2") do
+            p(class: TYPE_BODY_MD) { plain dest["masked_account"].to_s }
+            span(class: "inline-flex items-center px-2 py-0.5 rounded-full text-[10.5px] " \
+                         "font-semibold #{cfg[:bg]} #{cfg[:text]}") { plain cfg[:label] }
+            if dest["is_default"]
+              span(class: "inline-flex items-center px-2 py-0.5 rounded-full text-[10.5px] font-semibold",
+                   style: "background:#{TINT_BRAND};color:#{BRAND}") { plain "Default" }
+            end
+          end
+          p(class: "#{TYPE_CAPTION} font-mono mt-[1px]") do
+            parts = []
+            parts << dest["bank_code"]   if dest["bank_code"].present?
+            parts << dest["network"]     if dest["network"].present?
+            parts << "Added by #{dest['added_by']}" if dest["added_by"].present?
+            plain parts.join(" · ")
+          end
+        end
+
+        if state == "unverified"
+          div(class: "flex items-center gap-2 flex-shrink-0") do
+            a(href: verify_modal_settings_payout_destination_path(dest["id"], merchant_code: merchant_code),
+              class: "text-[11.5px] font-semibold px-2.5 py-1 rounded-[7px] border " \
+                     "border-green-200 bg-green-50 text-green-700 hover:bg-green-100 no-underline transition-colors",
+              data: { turbo_frame: "modal-frame" }) { plain "Verify" }
+            a(href: reject_modal_settings_payout_destination_path(dest["id"]),
+              class: "text-[11.5px] font-semibold px-2.5 py-1 rounded-[7px] border " \
+                     "border-red-200 bg-red-50 text-red-700 hover:bg-red-100 no-underline transition-colors",
+              data: { turbo_frame: "modal-frame" }) { plain "Reject" }
           end
         end
       end

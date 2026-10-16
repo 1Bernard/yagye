@@ -33,6 +33,7 @@ module Merchants
 
       beneficial_owners = []
       documents         = []
+      payout_dests      = []
       screening         = nil
       reserve_policy    = nil
       pricing_plan      = nil
@@ -44,12 +45,14 @@ module Merchants
         screening_r = client.merchant_screening_status(mc)
         reserves_r  = client.list_merchant_reserves(mc)
         plan_r      = client.get_merchant_pricing_plan(mc)
+        dests_r     = client.list_payout_destinations(mc)
 
         beneficial_owners = ubos_r.success?     ? (ubos_r.body["data"] || []) : []
         documents         = docs_r.success?     ? (docs_r.body["data"] || []) : []
         screening         = screening_r.success? ? screening_r.body            : nil
         reserve_policy    = reserves_r.success?  ? reserves_r.body["policy"]   : nil
         pricing_plan      = plan_r.success?      ? plan_r.body                 : nil
+        payout_dests      = dests_r.success?     ? (dests_r.body["data"] || []) : []
       end
 
       application.reviewed_by = resolve_user_display(application.reviewed_by)
@@ -61,7 +64,8 @@ module Merchants
         documents:         documents,
         screening:         screening,
         reserve_policy:    reserve_policy,
-        pricing_plan:      pricing_plan
+        pricing_plan:      pricing_plan,
+        payout_dests:      payout_dests
       )
     end
 

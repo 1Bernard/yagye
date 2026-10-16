@@ -12,7 +12,7 @@ module Ops
 
       def view_template
         render Layout::Shell.new(
-          active_nav:  :reconciliation,
+          active_nav:  :bank_statements,
           title:       "Bank Statements",
           breadcrumbs: [ { label: "Bank Statements" } ]
         ) do

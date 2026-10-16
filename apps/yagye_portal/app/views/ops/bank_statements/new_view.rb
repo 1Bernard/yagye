@@ -7,7 +7,7 @@ module Ops
 
       def view_template
         render Layout::Shell.new(
-          active_nav:  :reconciliation,
+          active_nav:  :bank_statements,
           title:       "Import Statement",
           breadcrumbs: [
             { label: "Bank Statements", href: ops_bank_statements_path },
