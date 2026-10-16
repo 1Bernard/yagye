@@ -84,7 +84,7 @@ module Merchants
             end
 
             script do
-            raw <<~JS
+            unsafe_raw <<~JS
               (function() {
                 var kind = document.getElementById("reserve_kind");
                 var rateW = document.getElementById("reserve_rate_wrap");
