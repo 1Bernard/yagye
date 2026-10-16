@@ -39,12 +39,14 @@ module Settings
     ].freeze
 
     def initialize(controls: {}, next_value_date: nil, unsettled_amount: 0, currency: "GHS",
-                   destinations: [])
+                   destinations: [], current_user: nil, merchant_code: nil)
       @controls        = controls
       @next_value_date = next_value_date
       @unsettled       = unsettled_amount.to_i
       @currency        = currency
       @destinations    = destinations
+      @current_user    = current_user
+      @merchant_code   = merchant_code
     end
 
     def view_template
@@ -166,6 +168,25 @@ module Settings
                    "hover:border-red-200 bg-white transition-colors no-underline",
             data: { turbo_frame: "modal-frame" }) do
             span(class: "flex w-[13px] h-[13px]") { render UI::Icon.new(:minus, class: "w-full h-full") }
+          end
+
+          if @current_user&.internal_staff? && verify_state == "unverified"
+            a(href: verify_modal_settings_payout_destination_path(dest["id"],
+                     merchant_code: @merchant_code),
+              class: "text-[12px] font-medium px-3 py-1.5 rounded-[8px] border " \
+                     "border-green-200 bg-green-50 text-green-700 hover:bg-green-100 " \
+                     "transition-colors no-underline",
+              data: { turbo_frame: "modal-frame" }) do
+              plain "Verify"
+            end
+            a(href: reject_modal_settings_payout_destination_path(dest["id"],
+                     merchant_code: @merchant_code),
+              class: "text-[12px] font-medium px-3 py-1.5 rounded-[8px] border " \
+                     "border-red-200 bg-red-50 text-red-700 hover:bg-red-100 " \
+                     "transition-colors no-underline",
+              data: { turbo_frame: "modal-frame" }) do
+              plain "Reject"
+            end
           end
         end
       end

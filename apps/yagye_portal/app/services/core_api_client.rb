@@ -325,6 +325,17 @@ class CoreApiClient
     delete("/internal/merchants/#{merchant_code}/payout-destinations/#{destination_id}")
   end
 
+  # POST /internal/merchants/:code/payout-destinations/:id/verify
+  def verify_payout_destination(merchant_code, destination_id, verified_by:)
+    post("/internal/merchants/#{merchant_code}/payout-destinations/#{destination_id}/verify",
+      { verified_by: verified_by })
+  end
+
+  # POST /internal/merchants/:code/payout-destinations/:id/reject
+  def reject_payout_destination(merchant_code, destination_id)
+    post("/internal/merchants/#{merchant_code}/payout-destinations/#{destination_id}/reject", {})
+  end
+
   # ── Disputes (portal → core, service-token authenticated) ─────────────────
 
   # POST /internal/disputes/:id/evidence
@@ -467,6 +478,24 @@ class CoreApiClient
       resolution_code: resolution_code,
       resolution_note: resolution_note
     }.compact)
+  end
+
+  # ── Bank Statements (ops import / reconciliation) ─────────────────────────
+
+  # GET /internal/bank-statements
+  def list_bank_statements(account_reference: nil)
+    params = account_reference ? "?account_reference=#{URI.encode_www_form_component(account_reference)}" : ""
+    get("/internal/bank-statements#{params}")
+  end
+
+  # GET /internal/bank-statements/:id
+  def get_bank_statement(id)
+    get("/internal/bank-statements/#{id}")
+  end
+
+  # POST /internal/bank-statements
+  def import_bank_statement(attrs)
+    post("/internal/bank-statements", attrs)
   end
 
   # ── Customers (P11) ───────────────────────────────────────────────────────

@@ -83,7 +83,9 @@ module Settings
                   next_value_date: next_date,
                   unsettled_amount: unsettled,
                   currency:        currency,
-                  destinations:    @payout_destinations
+                  destinations:    @payout_destinations,
+                  current_user:    @current_user,
+                  merchant_code:   merchant_code
                 )
               end
             when "payment_methods"

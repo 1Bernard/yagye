@@ -61,6 +61,36 @@ defmodule YagyeCoreWeb.Controllers.Internal.PayoutDestinationsController do
     end
   end
 
+  def verify(conn, %{"merchant_code" => code, "id" => public_id} = params) do
+    with {:ok, merchant} <- Merchants.get_merchant(code),
+         {:ok, dest} <- Payouts.get_destination_by_public_id(public_id),
+         true <- dest.merchant_id == merchant.id || {:error, :not_found},
+         {:ok, updated} <- Payouts.verify_destination(dest, params["verified_by"] || "") do
+      json(conn, serialize(updated))
+    else
+      false ->
+        {:error, :not_found}
+
+      {:error, %Ecto.Changeset{} = cs} ->
+        conn |> put_status(422) |> json(%{errors: format_errors(cs)})
+
+      {:error, reason} ->
+        {:error, reason}
+    end
+  end
+
+  def reject(conn, %{"merchant_code" => code, "id" => public_id}) do
+    with {:ok, merchant} <- Merchants.get_merchant(code),
+         {:ok, dest} <- Payouts.get_destination_by_public_id(public_id),
+         true <- dest.merchant_id == merchant.id || {:error, :not_found},
+         {:ok, updated} <- Payouts.transition_destination_verification(dest, "failed") do
+      json(conn, serialize(updated))
+    else
+      false -> {:error, :not_found}
+      {:error, reason} -> {:error, reason}
+    end
+  end
+
   defp serialize(%PayoutDestination{} = d) do
     details = masked_details(d)
 

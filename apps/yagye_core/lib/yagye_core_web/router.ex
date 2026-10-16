@@ -267,6 +267,18 @@ defmodule YagyeCoreWeb.Router do
       :deactivate
     )
 
+    post(
+      "/merchants/:merchant_code/payout-destinations/:id/reject",
+      PayoutDestinationsController,
+      :reject
+    )
+
+    post(
+      "/merchants/:merchant_code/payout-destinations/:id/verify",
+      PayoutDestinationsController,
+      :verify
+    )
+
     # Dashboard KPIs (portal ops view + merchant settlement summary)
     get("/dashboard/ops", InternalDashboardController, :ops_summary)
 

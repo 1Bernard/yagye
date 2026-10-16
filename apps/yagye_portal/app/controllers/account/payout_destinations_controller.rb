@@ -3,6 +3,7 @@
 module Account
   class PayoutDestinationsController < ApplicationController
     before_action :require_merchant_user!
+    skip_before_action :require_merchant_user!, only: %i[verify_modal verify reject_modal reject]
 
     def create
       skip_authorization
@@ -56,6 +57,60 @@ module Account
       else
         redirect_to settings_path(tab: "payouts"),
                     alert: result.body["message"].presence || "Could not remove destination."
+      end
+    end
+
+    def verify_modal
+      authorize :payout_destinations, :verify?
+      render UI::ConfirmModal.new(
+        title:          "Approve payout destination",
+        body:           "Mark this account as verified. You cannot be the same user who added it (SoD).",
+        confirm_path:   verify_settings_payout_destination_path(params[:id]),
+        confirm_method: "post",
+        confirm_label:  "Approve",
+        success:        true,
+        hidden_fields:  { verified_by: current_user.user_code, merchant_code: params[:merchant_code] }
+      )
+    end
+
+    def verify
+      authorize :payout_destinations, :verify?
+      merchant_code = params[:merchant_code].presence || current_user.merchant_code
+      result = CoreApiClient.new.verify_payout_destination(
+        merchant_code,
+        params[:id],
+        verified_by: current_user.user_code
+      )
+      if result.success?
+        redirect_to settings_path(tab: "payouts"), notice: "Destination verified."
+      else
+        msg = result.body.dig("errors")&.values&.flatten&.first ||
+              result.body["message"].presence || "Could not verify destination."
+        redirect_to settings_path(tab: "payouts"), alert: msg
+      end
+    end
+
+    def reject_modal
+      authorize :payout_destinations, :verify?
+      render UI::ConfirmModal.new(
+        title:          "Reject payout destination",
+        body:           "Mark this account as failed verification. The merchant will need to add a new destination.",
+        confirm_path:   reject_settings_payout_destination_path(params[:id]),
+        confirm_method: "post",
+        confirm_label:  "Reject",
+        danger:         true,
+        hidden_fields:  { merchant_code: params[:merchant_code] }
+      )
+    end
+
+    def reject
+      authorize :payout_destinations, :verify?
+      merchant_code = params[:merchant_code].presence || current_user.merchant_code
+      result = CoreApiClient.new.reject_payout_destination(merchant_code, params[:id])
+      if result.success?
+        redirect_to settings_path(tab: "payouts"), notice: "Destination rejected."
+      else
+        redirect_to settings_path(tab: "payouts"), alert: "Could not reject destination."
       end
     end
 

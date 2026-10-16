@@ -165,6 +165,12 @@ defmodule YagyeCore.Payouts do
     |> Repo.update()
   end
 
+  def transition_destination_verification(%PayoutDestination{} = dest, state) do
+    dest
+    |> PayoutDestination.verification_changeset(state)
+    |> Repo.update()
+  end
+
   @doc """
   Marks a payout destination as verified, enforcing SoD (verified_by must differ from added_by).
   Returns {:ok, destination} or {:error, changeset}.

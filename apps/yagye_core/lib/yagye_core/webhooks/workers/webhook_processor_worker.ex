@@ -3,6 +3,7 @@ defmodule YagyeCore.Webhooks.Workers.WebhookProcessorWorker do
 
   use Oban.Worker, queue: :webhooks, max_attempts: 5
 
+  alias YagyeCore.Disputes
   alias YagyeCore.Payments
   alias YagyeCore.Payouts
   alias YagyeCore.Payouts.Schemas.Payout
@@ -149,12 +150,40 @@ defmodule YagyeCore.Webhooks.Workers.WebhookProcessorWorker do
     end
   end
 
+  # ── Dispute Retractions ────────────────────────────────────────────────────────
+  # Card networks may signal a chargeback withdrawal via charge.dispute.retracted or
+  # charge.refunded. Look up the payment by provider reference and retract its
+  # open dispute if one exists.
+
+  defp route("flutterwave", "charge.dispute.retracted", %{"data" => data}) do
+    id_str = to_string(data["id"])
+    retract_dispute_by_provider_ref(id_str)
+  end
+
+  defp route("paystack", "charge.dispute.retracted", %{"data" => data}) do
+    ref = data["reference"]
+    retract_dispute_by_provider_ref(ref)
+  end
+
   # ── Fallthrough ───────────────────────────────────────────────────────────────
 
   defp route(provider, event_type, _payload),
     do: {:error, {:unknown_event, provider, event_type}}
 
   # ── Helpers ───────────────────────────────────────────────────────────────────
+
+  defp retract_dispute_by_provider_ref(ref) do
+    with {:ok, attempt} <- Payments.get_attempt_by_provider_ref(ref),
+         {:ok, payment} <- Payments.get_payment_by_id(attempt.payment_id),
+         {:ok, dispute} <- Disputes.find_open_dispute_for_payment(payment.id) do
+      case Disputes.retract_dispute(dispute) do
+        {:ok, _} -> :ok
+        {:error, reason} -> {:error, reason}
+      end
+    else
+      {:error, :not_found} -> :ok
+    end
+  end
 
   defp flutterwave_result(%{"status" => "successful", "flw_ref" => flw_ref}, id_str) do
     {:ok, %{provider_reference: id_str, auth_code: flw_ref}}

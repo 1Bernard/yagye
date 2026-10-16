@@ -72,7 +72,9 @@ config :yagye_core, Oban,
        # Recover processing-orphaned payments every 5 minutes
        {"*/5 * * * *", YagyeCore.Payments.Workers.StuckPaymentScannerWorker},
        # Fetch FX rates daily at 06:00 UTC (06:00 WAT — Ghana does not observe DST)
-       {"0 6 * * *", YagyeCore.FX.Workers.FetchFxRatesWorker}
+       {"0 6 * * *", YagyeCore.FX.Workers.FetchFxRatesWorker},
+       # Escalate disputes past their evidence_due_at deadline daily at 03:00 UTC
+       {"0 3 * * *", YagyeCore.Disputes.Workers.DisputeEscalationWorker}
      ]}
   ],
   queues: [

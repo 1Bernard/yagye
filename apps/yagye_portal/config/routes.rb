@@ -116,6 +116,14 @@ Rails.application.routes.draw do
     get  "compliance/approvals/:id/reject-modal",  to: "approvals#reject_modal",  as: :reject_modal_compliance_approval
   end
 
+  # ── Ops — bank statements (internal_staff only) ─────────────────────────
+  scope module: "ops" do
+    get  "ops/bank-statements",      to: "bank_statements#index",  as: :ops_bank_statements
+    get  "ops/bank-statements/new",  to: "bank_statements#new",    as: :new_ops_bank_statement
+    post "ops/bank-statements",      to: "bank_statements#create"
+    get  "ops/bank-statements/:id",  to: "bank_statements#show",   as: :ops_bank_statement
+  end
+
   # ── Activity feed ────────────────────────────────────────────────────────
   get "activity", to: "activity#index", as: :activity
 
@@ -237,6 +245,10 @@ Rails.application.routes.draw do
     post   "settings/payout-destinations/:id/default", to: "payout_destinations#set_default", as: :settings_payout_destination_default
     delete "settings/payout-destinations/:id",           to: "payout_destinations#destroy",      as: :settings_payout_destination_remove
     get    "settings/payout-destinations/:id/remove-modal", to: "payout_destinations#remove_modal", as: :remove_modal_settings_payout_destination
+    get    "settings/payout-destinations/:id/verify-modal",  to: "payout_destinations#verify_modal",  as: :verify_modal_settings_payout_destination
+    post   "settings/payout-destinations/:id/verify",        to: "payout_destinations#verify",         as: :verify_settings_payout_destination
+    get    "settings/payout-destinations/:id/reject-modal",  to: "payout_destinations#reject_modal",  as: :reject_modal_settings_payout_destination
+    post   "settings/payout-destinations/:id/reject",        to: "payout_destinations#reject",         as: :reject_settings_payout_destination
     get "help",                       to: "help#index",               as: :help
 
     post   "settings/allowlists/ip",              to: "allowlists#create_ip",           as: :settings_add_ip

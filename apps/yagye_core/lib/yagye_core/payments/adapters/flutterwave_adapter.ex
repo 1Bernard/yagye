@@ -102,7 +102,107 @@ defmodule YagyeCore.Payments.Adapters.FlutterwaveAdapter do
     end
   end
 
+  @impl true
+  def disburse(
+        %{
+          amount: amount,
+          currency: currency,
+          reference: ref,
+          recipient_msisdn: msisdn
+        } = params,
+        credential
+      ) do
+    body = %{
+      type: "mobile_money_gh",
+      amount: to_major_units(amount, currency),
+      currency: currency,
+      reference: to_string(ref),
+      mobile_number: msisdn,
+      beneficiary_name: Map.get(params, :recipient_name, ""),
+      meta: [%{mobile_number: msisdn}]
+    }
+
+    Req.post(
+      url("/transfers", credential),
+      [json: body, headers: auth_headers(credential), receive_timeout: 15_000] ++ extra_req_opts()
+    )
+    |> translate_disburse_response()
+  end
+
+  def disburse(
+        %{
+          amount: amount,
+          currency: currency,
+          reference: ref,
+          recipient_bank_code: bank_code,
+          recipient_account_number: account_number,
+          recipient_name: name
+        },
+        credential
+      ) do
+    body = %{
+      type: bank_code,
+      amount: to_major_units(amount, currency),
+      currency: currency,
+      reference: to_string(ref),
+      account_number: account_number,
+      beneficiary_name: name,
+      narration: "Yagye payout #{ref}"
+    }
+
+    Req.post(
+      url("/transfers", credential),
+      [json: body, headers: auth_headers(credential), receive_timeout: 15_000] ++ extra_req_opts()
+    )
+    |> translate_disburse_response()
+  end
+
+  def disburse(_params, _credential) do
+    {:error,
+     %{
+       error_class: :definite_failure,
+       response_code: "missing_params",
+       response_message: "disburse/2 requires either recipient_msisdn or recipient_bank_code"
+     }}
+  end
+
   # ── Private ──────────────────────────────────────────────────────────────────
+
+  defp translate_disburse_response(
+         {:ok,
+          %Req.Response{
+            status: 200,
+            body: %{"status" => "success", "data" => %{"id" => id, "transfer_code" => code}}
+          }}
+       ) do
+    ref = code || to_string(id)
+    {:pending, %{provider_reference: ref}}
+  end
+
+  defp translate_disburse_response(
+         {:ok, %Req.Response{status: 200, body: %{"status" => "error", "message" => msg}}}
+       ) do
+    {:error, %{error_class: :definite_failure, response_code: "flw_error", response_message: msg}}
+  end
+
+  defp translate_disburse_response({:ok, %Req.Response{status: 400, body: %{"message" => msg}}}) do
+    {:error,
+     %{error_class: :definite_failure, response_code: "invalid_request", response_message: msg}}
+  end
+
+  defp translate_disburse_response({:ok, %Req.Response{status: status}}) do
+    {:error,
+     %{error_class: :retryable_error, response_code: "http_#{status}", response_message: nil}}
+  end
+
+  defp translate_disburse_response({:error, %{reason: :timeout}}) do
+    {:error, %{error_class: :indeterminate, response_code: "timeout", response_message: nil}}
+  end
+
+  defp translate_disburse_response({:error, _}) do
+    {:error,
+     %{error_class: :indeterminate, response_code: "network_error", response_message: nil}}
+  end
 
   defp translate_charge_http_response(
          {:ok, %Req.Response{status: 200, body: %{"status" => "success"} = resp}}

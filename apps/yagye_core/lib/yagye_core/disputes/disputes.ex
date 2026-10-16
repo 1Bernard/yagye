@@ -99,6 +99,43 @@ defmodule YagyeCore.Disputes do
     end
   end
 
+  @doc """
+  Auto-escalates an overdue dispute: resolves it with outcome `lost`.
+  Called by DisputeEscalationWorker for disputes past their evidence_due_at deadline.
+  Idempotent — no-ops if already resolved.
+  """
+  def auto_escalate(%Dispute{stage: "resolved"} = dispute), do: {:ok, dispute}
+
+  def auto_escalate(%Dispute{} = dispute) do
+    resolve_dispute(dispute, :lost)
+  end
+
+  @doc """
+  Retracts a dispute when the card network signals withdrawal.
+  Resolves the dispute with outcome `retracted`, transitioning the payment to `refunded`.
+  No-ops if already resolved.
+  """
+  def retract_dispute(%Dispute{stage: "resolved"} = dispute), do: {:ok, dispute}
+
+  def retract_dispute(%Dispute{} = dispute) do
+    resolve_dispute(dispute, :retracted)
+  end
+
+  @doc """
+  Finds the open dispute for a payment, if any.
+  Returns `{:ok, dispute}` or `{:error, :not_found}`.
+  """
+  def find_open_dispute_for_payment(payment_id) do
+    case Repo.one(
+           from d in Dispute,
+             where: d.payment_id == ^payment_id and d.stage != "resolved",
+             limit: 1
+         ) do
+      nil -> {:error, :not_found}
+      dispute -> {:ok, dispute}
+    end
+  end
+
   def get_dispute(public_id) do
     case Repo.get_by(Dispute, public_id: public_id) do
       nil -> {:error, :not_found}
