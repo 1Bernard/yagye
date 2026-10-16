@@ -365,7 +365,7 @@ module Merchants
               class: "text-[11.5px] font-semibold px-2.5 py-1 rounded-[7px] border " \
                      "border-green-200 bg-green-50 text-green-700 hover:bg-green-100 no-underline transition-colors",
               data: { turbo_frame: "modal-frame" }) { plain "Verify" }
-            a(href: reject_modal_settings_payout_destination_path(dest["id"]),
+            a(href: reject_modal_settings_payout_destination_path(dest["id"], merchant_code: merchant_code),
               class: "text-[11.5px] font-semibold px-2.5 py-1 rounded-[7px] border " \
                      "border-red-200 bg-red-50 text-red-700 hover:bg-red-100 no-underline transition-colors",
               data: { turbo_frame: "modal-frame" }) { plain "Reject" }

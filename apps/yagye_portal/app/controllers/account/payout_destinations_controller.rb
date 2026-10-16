@@ -81,12 +81,13 @@ module Account
         params[:id],
         verified_by: current_user.user_code
       )
+      target = after_verify_path
       if result.success?
-        redirect_to settings_path(tab: "payouts"), notice: "Destination verified."
+        redirect_to target, notice: "Destination verified."
       else
         msg = result.body.dig("errors")&.values&.flatten&.first ||
               result.body["message"].presence || "Could not verify destination."
-        redirect_to settings_path(tab: "payouts"), alert: msg
+        redirect_to target, alert: msg
       end
     end
 
@@ -107,14 +108,19 @@ module Account
       authorize :payout_destinations, :verify?
       merchant_code = params[:merchant_code].presence || current_user.merchant_code
       result = CoreApiClient.new.reject_payout_destination(merchant_code, params[:id])
+      target = after_verify_path
       if result.success?
-        redirect_to settings_path(tab: "payouts"), notice: "Destination rejected."
+        redirect_to target, notice: "Destination rejected."
       else
-        redirect_to settings_path(tab: "payouts"), alert: "Could not reject destination."
+        redirect_to target, alert: "Could not reject destination."
       end
     end
 
     private
+
+    def after_verify_path
+      current_user.internal_staff? ? merchants_path : settings_path(tab: "payouts")
+    end
 
     def require_merchant_user!
       redirect_to settings_path unless current_user.merchant_user?
