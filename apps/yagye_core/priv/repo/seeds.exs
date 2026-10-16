@@ -11,6 +11,7 @@ alias YagyeCore.Providers.Schemas.{Provider, ProviderCredential}
 alias YagyeCore.Shared.Vault
 alias YagyeCore.Customers
 alias YagyeCore.Invoices
+alias YagyeCore.Payouts
 alias YagyeCore.Repo
 import Ecto.Query, only: [from: 2]
 
@@ -559,6 +560,32 @@ if demo_invoice_count < 4 do
   IO.puts("Demo invoices         : seeded #{length(demo_invoices)} invoices for MCH_DEMO_001")
 else
   IO.puts("Demo invoices         : already seeded (#{demo_invoice_count} records) — skipping")
+end
+
+# ── 9. Demo payout destination for MCH_DEMO_001 (unverified — ops verify UI) ──
+alias YagyeCore.Payouts.Schemas.PayoutDestination
+
+demo_dest_count =
+  Repo.aggregate(
+    from(d in PayoutDestination,
+      where: d.merchant_id == ^demo_merchant.id and d.verification_state == "unverified"
+    ),
+    :count
+  )
+
+if demo_dest_count == 0 do
+  {:ok, _dest} =
+    Payouts.create_destination(demo_merchant.id, %{
+      mode: "live",
+      kind: "mobile_money",
+      currency: "GHS",
+      account_details: %{"msisdn" => "0241000001", "network" => "mtn"},
+      added_by: "owner@kofibuilds.com"
+    })
+
+  IO.puts("Demo payout destination: seeded unverified mobile-money dest for MCH_DEMO_001")
+else
+  IO.puts("Demo payout destination: already seeded (#{demo_dest_count} unverified) — skipping")
 end
 
 IO.puts("=== Done ===\n")

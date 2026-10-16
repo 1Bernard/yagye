@@ -217,6 +217,27 @@ if Rails.env.development? || Rails.env.test?
 
   puts "Dev merchant: owner@kofibuilds.com / Yagye2026! (merchant_owner, #{DEMO_MERCHANT_CODE})"
 
+  # ── Demo merchant application (ops view — required for payout-destination verify UI) ─────
+  DEMO_APP_CODE = "APP_DEMO_001"
+
+  PortalMerchantApplication.find_or_create_by!(application_code: DEMO_APP_CODE) do |a|
+    a.merchant_code    = DEMO_MERCHANT_CODE
+    a.status           = "approved"
+    a.legal_name       = DEMO_MERCHANT_NAME
+    a.trading_name     = "KofiBuild"
+    a.country          = "GH"
+    a.industry         = "technology"
+    a.employee_range   = "11-50"
+    a.submitted_by_email = "owner@kofibuilds.com"
+    a.approved_by      = "ops@yagye.com"
+    a.reviewed_by      = "ops@yagye.com"
+    a.last_applied_at  = 7.days.ago
+    a.last_event_id    = "evt_demo_001"
+    a.aggregate_version = 3
+  end
+
+  puts "Dev merchant application: #{DEMO_APP_CODE} → #{DEMO_MERCHANT_CODE} (approved)"
+
   # ── Demo API keys ─────────────────────────────────────────────────────────────
   demo_keys = [
     {
