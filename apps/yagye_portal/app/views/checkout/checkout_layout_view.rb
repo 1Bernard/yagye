@@ -666,7 +666,7 @@ module Checkout
     end
 
     def back_btn_script
-      script do
+      script(nonce: content_security_policy_nonce) do
         raw safe(<<~JS)
           (function () {
             var btn = document.getElementById('cl-back-btn');
@@ -689,7 +689,9 @@ module Checkout
     end
 
     def format_amount(minor_units)
-      "%.2f" % (minor_units.to_f / 100.0)
+      n = minor_units.to_f / 100
+      whole, frac = sprintf("%.2f", n).split(".")
+      "#{whole.to_i.to_s.reverse.gsub(/(\d{3})(?=\d)/, '\1,').reverse}.#{frac}"
     end
   end
 end

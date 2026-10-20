@@ -212,9 +212,9 @@ module Developers
 
     def state_chip(state)
       css, label = case state
-      when "published" then [ "badge-green text-[10.5px] font-semibold px-[8px] py-[2px] rounded-full", "Published" ]
-      when "archived"  then [ "badge-gray  text-[10.5px] font-semibold px-[8px] py-[2px] rounded-full", "Archived" ]
-      else                  [ "badge-amber text-[10.5px] font-semibold px-[8px] py-[2px] rounded-full", "Draft" ]
+      when "published" then [ "#{BADGE_XS} #{STATUS_SUCCESS}", "Published" ]
+      when "archived"  then [ "#{BADGE_XS} #{STATUS_NEUTRAL}", "Archived" ]
+      else                  [ "#{BADGE_XS} #{STATUS_WARNING}", "Draft" ]
       end
       span(class: css) { plain label }
     end

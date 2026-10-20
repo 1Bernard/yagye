@@ -19,6 +19,7 @@ module Auth
     end
 
     def view_template
+      content_for(:head) { meta(name: "turbo-cache-control", content: "no-store") }
       render Auth::Shell.new(
         title:    "Secure your account",
         subtitle: "Staff accounts require an authenticator app. Set it up once — it takes about 60 seconds."
@@ -335,7 +336,7 @@ module Auth
     # ── Inline JS (digit boxes + auto-submit) ─────────────────────────────────
 
     def enrollment_script
-      script do
+      script(nonce: content_security_policy_nonce) do
         raw safe(<<~JS)
           (function () {
             const boxes  = [...document.querySelectorAll('.otp-box')];

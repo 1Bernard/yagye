@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 module Auth
   class ForgotPasswordView < ApplicationComponent
     include UI::Theme

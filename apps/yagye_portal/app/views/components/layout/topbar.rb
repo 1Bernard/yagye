@@ -100,7 +100,7 @@ module Layout
       return unless current_user
 
       unread   = PortalNotification.for_user(current_user).unread.count
-      recent   = PortalNotification.for_user(current_user).recent.limit(12)
+      recent   = PortalNotification.for_user(current_user).recent.limit(50)
 
       div(style: "position:relative", data: { controller: "dropdown" }) do
         button(type: "button",
@@ -133,11 +133,12 @@ module Layout
           notif_dropdown_header(unread)
           div(id: "notif-list", style: "max-height:320px;overflow-y:auto;") do
             if recent.any?
-              recent.each { |n| notif_row(n) }
+              recent.each { |n| render Notifications::RowComponent.new(notification: n) }
             else
               notif_empty_state
             end
           end
+          notif_dropdown_footer
         end
       end
     end
@@ -152,7 +153,7 @@ module Layout
             input(type: "hidden", name: "_method", value: "patch")
             input(type: "hidden", name: authenticity_token_field, value: form_authenticity_token)
             button(type: "submit",
-                   style: "font-size:11.5px;font-weight:500;color:#{BRAND};background:none;" \
+                   style: "font-size:11.5px;font-weight:500;color:var(--brand);background:none;" \
                           "border:none;cursor:pointer;padding:0;") do
               plain "Mark all read"
             end
@@ -161,28 +162,11 @@ module Layout
       end
     end
 
-    def notif_row(notif)
-      div(style: "border-bottom:1px solid #f3f4f6;") do
-        a(href: notification_open_path(notif),
-          style: "display:flex;gap:10px;padding:12px 16px;text-decoration:none;" \
-                 "background:#{notif.read? ? '#fff' : '#F5F6FF'};" \
-                 "transition:background 120ms;") do
-          div(style: "flex-shrink:0;margin-top:6px;") do
-            span(style: "display:block;width:7px;height:7px;border-radius:50%;" \
-                        "background:#{notif.read? ? '#d1d5db' : BRAND};") { }
-          end
-          div(style: "flex:1;min-width:0;") do
-            p(style: "font-size:12.5px;font-weight:600;color:#{INK};margin:0 0 2px;" \
-                     "overflow:hidden;text-overflow:ellipsis;white-space:nowrap;") do
-              plain notif.title
-            end
-            p(style: "font-size:11.5px;color:#{MUTED_TEXT};margin:0;line-height:1.4;") do
-              plain notif.body.truncate(80)
-            end
-            p(style: "font-size:10.5px;color:#{FAINT_TEXT};margin:4px 0 0;") do
-              plain fmt_datetime(notif.created_at)
-            end
-          end
+    def notif_dropdown_footer
+      div(style: "padding:10px 16px;border-top:1px solid #{BORDER};text-align:center;") do
+        a(href: notifications_path,
+          style: "font-size:12px;font-weight:500;color:var(--brand);text-decoration:none;") do
+          plain "See all notifications"
         end
       end
     end

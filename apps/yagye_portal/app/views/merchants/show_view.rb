@@ -265,7 +265,7 @@ module Merchants
       status   = doc["status"] || "pending_upload"
       date_str = begin
         fmt_date(Time.parse(doc["inserted_at"])) if doc["inserted_at"]
-      rescue
+      rescue ArgumentError, TypeError
         nil
       end
 
@@ -620,7 +620,7 @@ module Merchants
 
     def format_reserve_amount(amount, currency)
       return "—" if amount.nil?
-      "#{currency} #{sprintf("%.2f", amount.to_f / 100)}"
+      format_money(amount.to_i, currency: currency)
     end
 
     # ── Actions card ──────────────────────────────────────────────────────────

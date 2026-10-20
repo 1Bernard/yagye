@@ -11,11 +11,14 @@ class ApplicationComponent < Phlex::HTML
   register_value_helper :params
   register_value_helper :request
   register_value_helper :current_user
+  register_value_helper :kyb_banner_progress
   register_value_helper :form_authenticity_token
   register_value_helper :number_to_currency
   register_value_helper :number_with_delimiter
+  register_value_helper :number_to_human_size
   register_value_helper :translate
   register_value_helper :asset_path
+  register_value_helper :content_security_policy_nonce
   register_value_helper :l
 
   register_element :turbo_frame
@@ -133,6 +136,12 @@ class ApplicationComponent < Phlex::HTML
 
   def format_ghs(minor_units)
     format_money(minor_units, currency: "GHS")
+  end
+
+  def fmt_num(minor_units)
+    n = minor_units.to_f / 100
+    whole, frac = sprintf("%.2f", n).split(".")
+    "#{whole.to_i.to_s.reverse.gsub(/(\d{3})(?=\d)/, '\\1,').reverse}.#{frac}"
   end
 
   def reserve_detail_row(label, value)

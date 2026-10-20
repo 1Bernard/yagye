@@ -75,11 +75,11 @@ module Checkout
 
           toolbar_state_badge(state)
 
-          span(class: "badge-gray #{BADGE_XS}") do
+          span(class: "#{BADGE_XS} #{STATUS_NEUTRAL}") do
             plain (@inv["mode"] || "simulation").capitalize
           end
 
-          span(class: "badge-gray #{BADGE_XS} flex items-center gap-[4px]") do
+          span(class: "#{BADGE_XS} #{STATUS_NEUTRAL} flex items-center gap-[4px]") do
             span(class: "flex w-[10px] h-[10px]") { render UI::Icon.new(:eye, class: "w-full h-full") }
             plain "Overview"
           end
@@ -388,7 +388,7 @@ module Checkout
 
       def print_script
         print_url = invoice_print_path(@inv["id"])
-        script do
+        script(nonce: content_security_policy_nonce) do
           raw safe(<<~JS)
             (function () {
               var btn = document.getElementById('inv-print-btn');
@@ -402,7 +402,7 @@ module Checkout
       end
 
       def copy_script
-        script do
+        script(nonce: content_security_policy_nonce) do
           raw safe(<<~JS)
             (function () {
               var btn = document.getElementById('copy-inv-url-btn');
@@ -583,13 +583,13 @@ module Checkout
                     plain qty % 1 == 0 ? qty.to_i.to_s : "%.2f" % qty
                   end
                   td(class: "px-4 py-3.5 text-right text-[12.5px] text-gray-500 tabular-nums") do
-                    plain "#{currency} #{"%.2f" % (unit / 100.0)}"
+                    plain format_money(unit, currency: currency)
                   end
                   td(class: "px-4 py-3.5 text-right text-[12.5px] text-gray-500 tabular-nums") do
                     plain bps > 0 ? "#{bps / 100.0}%" : "—"
                   end
                   td(class: "px-10 py-3.5 text-right text-[13px] font-semibold text-gray-900 tabular-nums") do
-                    plain "#{currency} #{"%.2f" % (amount / 100.0)}"
+                    plain format_money(amount, currency: currency)
                   end
                 end
               end
@@ -656,7 +656,7 @@ module Checkout
       end
 
       def format_money(minor_units, currency: @inv["currency"] || "GHS")
-        "#{currency} #{"%.2f" % (minor_units / 100.0)}"
+        super(minor_units, currency: currency)
       end
 
       def checkout_url

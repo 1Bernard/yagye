@@ -214,14 +214,14 @@ module Developers
     def format_published_at(ts)
       return "—" unless ts
       Time.parse(ts).strftime("%d %b %Y at %H:%M UTC")
-    rescue
+    rescue ArgumentError, TypeError
       "—"
     end
 
     def format_compiled_at(ts)
       return "—" unless ts
       Time.parse(ts).strftime("%d %b %Y at %H:%M UTC")
-    rescue
+    rescue ArgumentError, TypeError
       "—"
     end
   end

@@ -104,8 +104,8 @@ module Developers
     def status_pill
       return span(class: TYPE_CAPTION) { plain "—" } unless @delivery.response_status
 
-      cls = @delivery.success? ? "badge-green" : "badge-red"
-      span(class: "#{cls} #{BADGE}") { plain @delivery.response_status.to_s }
+      cls = @delivery.success? ? STATUS_SUCCESS : STATUS_FAILED
+      span(class: "#{BADGE} #{cls}") { plain @delivery.response_status.to_s }
     end
   end
 end

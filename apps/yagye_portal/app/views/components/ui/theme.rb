@@ -140,16 +140,6 @@ module UI
     CHECKBOX_INPUT = "h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500 " \
                      "accent-blue-600"
 
-    # ── Badges ─────────────────────────────────────────────────────────────
-    BADGE_BASE    = "inline-flex items-center gap-1.5 text-[12px] font-semibold " \
-                    "px-[9px] py-[3px] rounded-full"
-    BADGE_SUCCESS = "badge-green #{BADGE_BASE}"
-    BADGE_PENDING = "badge-violet #{BADGE_BASE}"
-    BADGE_FAILED  = "badge-red #{BADGE_BASE}"
-    BADGE_WARNING = "badge-amber #{BADGE_BASE}"
-    BADGE_INFO    = "badge-blue #{BADGE_BASE}"
-    BADGE_NEUTRAL = "badge-gray #{BADGE_BASE}"
-
     # ── Toast / Flash ──────────────────────────────────────────────────────
     TOAST_STACK = "fixed top-5 right-5 z-[90] flex flex-col items-end pointer-events-none"
     # Layout / animation classes only — colors and shadow use inline styles in UI::Flash
@@ -290,20 +280,16 @@ module UI
     ERROR_ITEM   = "text-xs text-red-600 space-y-0.5 list-disc list-inside"
 
     # ── Status semantic colours ────────────────────────────────────────────
-    STATUS_SUCCESS = "bg-green-50 text-green-700"
-    STATUS_FAILED  = "bg-red-50 text-red-600"
-    STATUS_PENDING = "bg-violet-50 text-violet-700"
-    STATUS_WARNING = "bg-amber-50 text-amber-700"
-    STATUS_INFO    = "bg-blue-50 text-blue-700"
-    STATUS_NEUTRAL = "bg-gray-100 text-gray-500"
+    STATUS_SUCCESS  = "bg-green-50 text-green-700"
+    STATUS_FAILED   = "bg-red-50 text-red-600"
+    STATUS_PENDING  = "bg-violet-50 text-violet-700"
+    STATUS_WARNING  = "bg-amber-50 text-amber-700"
+    STATUS_INFO     = "bg-blue-50 text-blue-700"
+    STATUS_NEUTRAL  = "bg-gray-100 text-gray-500"
+    STATUS_INTERNAL = "bg-purple-50 text-purple-700"
 
-    # ── Priority pills ─────────────────────────────────────────────────────
-    PRIORITY_HIGH   = "badge-red"
-    PRIORITY_MEDIUM = "badge-blue"
-    PRIORITY_LOW    = "badge-violet"
-
-    # ── badge-* sizing standard ────────────────────────────────────────────
-    # Pair with a badge-* CSS class: `"badge-green #{BADGE}"`.
+    # ── Badge sizing ──────────────────────────────────────────────────────
+    # Pair with a STATUS_* constant: `"#{BADGE} #{STATUS_SUCCESS}"`.
     BADGE    = "inline-flex items-center w-fit text-[11px] font-medium px-2.5 py-0.5 rounded-full"
     BADGE_XS = "inline-flex items-center w-fit text-[9.5px] font-bold px-[6px] py-[2px] rounded-full leading-tight"
 

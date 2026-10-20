@@ -223,7 +223,7 @@ module Auth
     # ── Inline JS ─────────────────────────────────────────────────────────────
 
     def otp_script
-      script do
+      script(nonce: content_security_policy_nonce) do
         raw safe(<<~JS)
           (function () {
             const boxes  = [...document.querySelectorAll('.otp-box')];

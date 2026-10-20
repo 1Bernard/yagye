@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 module UI
   class ErrorSummary < ApplicationComponent
     def initialize(errors:)

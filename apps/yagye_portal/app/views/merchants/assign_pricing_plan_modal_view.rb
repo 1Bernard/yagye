@@ -1,7 +1,7 @@
 # frozen_string_literal: true
 
 module Merchants
-  class AssignPricingPlanModal < ApplicationComponent
+  class AssignPricingPlanModalView < ApplicationComponent
     include UI::Theme
 
     def initialize(application:, plans: [])
@@ -14,7 +14,7 @@ module Merchants
         div(class: "fixed inset-0 z-50 flex items-center justify-center p-4",
             data: { controller: "modal" }) do
           div(class: "absolute inset-0 bg-black/40 backdrop-blur-[2px]",
-              data: { action: "click->modal#close" }) {}
+              data: { action: "click->modal#close" }) { }
 
           div(class: "relative #{SURFACE_CARD} w-full max-w-md p-0 overflow-hidden") do
             div(class: "px-6 pt-6 pb-5 border-b border-gray-100") do

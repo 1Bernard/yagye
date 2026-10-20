@@ -1,7 +1,8 @@
 # frozen_string_literal: true
 
 module Checkout
-  class PaymentLinkFormView < ApplicationComponent
+  module PaymentLinks
+    class FormView < ApplicationComponent
     include UI::Theme
 
     CURRENCIES = [
@@ -462,6 +463,7 @@ module Checkout
     def panel_input_cls
       "w-full h-[34px] border border-gray-200 rounded-[9px] px-2.5 text-[12.5px] " \
       "text-gray-700 bg-white outline-none focus:border-[#3D47F5] transition-colors"
+    end
     end
   end
 end

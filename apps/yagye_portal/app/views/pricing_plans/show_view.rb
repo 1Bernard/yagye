@@ -43,7 +43,7 @@ module PricingPlans
       status  = @plan["status"] || "draft"
       eff     = begin
         fmt_date(Date.parse(@plan["effective_from"].to_s)) if @plan["effective_from"]
-      rescue
+      rescue ArgumentError, TypeError
         "—"
       end
 

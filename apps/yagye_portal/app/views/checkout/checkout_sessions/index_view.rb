@@ -75,6 +75,7 @@ module Checkout
 
       def sessions_table
         offset = @pagy ? @pagy.offset : 0
+        fmt    = ->(amt, cur) { format_money(amt, currency: cur) }
 
         render UI::Datatable.new(records: @sessions, pagy: @pagy,
                                  empty_message: empty_message) do |t|
@@ -109,11 +110,11 @@ module Checkout
             currency = s["currency"] || "GHS"
             div(class: "text-right") do
               p(class: "text-[13px] font-semibold text-gray-800 tabular-nums") do
-                plain "#{currency} #{"%.2f" % (total / 100.0)}"
+                plain fmt.call(total, currency)
               end
               if shipping > 0
                 p(class: "#{TYPE_CAPTION} tabular-nums") do
-                  plain "+ #{currency} #{"%.2f" % (shipping / 100.0)} shipping"
+                  plain "+ #{fmt.call(shipping, currency)} shipping"
                 end
               end
             end

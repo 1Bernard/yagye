@@ -46,7 +46,7 @@ module Layout
           { key: :pricing_plans,   icon: :tag,          label: "Pricing Plans",   path: :pricing_plans_path },
           { key: :routing_rules,   icon: :swap,         label: "Routing Rules",   path: :developers_routing_rules_path },
           { key: :reconciliation,  icon: :trending_up,  label: "Reconciliation",  path: :reconciliation_path },
-          { key: :bank_statements, icon: :file,         label: "Bank Statements",  path: :ops_bank_statements_path },
+          { key: :bank_statements, icon: :file,         label: "Bank Statements",  path: :payments_bank_statements_path },
           { key: :settlements,     icon: :wallet,       label: "Settlements",      path: :settlements_path }
         ]
       },
@@ -138,7 +138,11 @@ module Layout
       return if item[:merchant_only] && internal_staff?
 
       active = @active == item[:key]
-      path   = (send(item[:path]) rescue "#")
+      path   = begin
+                 send(item[:path])
+               rescue NameError, NoMethodError
+                 "#"
+               end
       base   = active ? NAV_ITEM_ON : NAV_ITEM
       # sidebar-nav-item enables CSS targeting for collapsed centering + tooltip
       cls    = "#{base} sidebar-nav-item"
@@ -155,13 +159,17 @@ module Layout
 
     def show_tier_card?
       Current.user&.merchant_user?
-    rescue
+    rescue StandardError
       false
     end
 
     def tier_card
       user     = Current.user
-      tier     = user.merchant_tier rescue 1
+      tier     = begin
+                   user.merchant_tier
+                 rescue NoMethodError
+                   1
+                 end
       cfg      = tier_config(tier)
       done_pct = tier == 3 ? 100 : tier == 2 ? 60 : 15
       deg      = (done_pct * 3.6).round(1)
@@ -267,7 +275,7 @@ module Layout
 
     def show_mode_toggle?
       Current.user&.merchant_user?
-    rescue
+    rescue StandardError
       false
     end
 
@@ -355,14 +363,14 @@ module Layout
     def live_mode_enabled?
       return false unless Current.user&.merchant_user?
       PortalMerchant.find_for(Current.user.merchant_code)&.live_mode_enabled? || false
-    rescue
+    rescue StandardError
       false
     end
 
     def portal_sandbox_enabled?
       return false unless Current.user&.merchant_user?
       PortalMerchant.find_for(Current.user.merchant_code)&.sandbox_enabled? || false
-    rescue
+    rescue StandardError
       false
     end
 
@@ -400,7 +408,7 @@ module Layout
 
     def internal_staff?
       Current.user&.internal_staff?
-    rescue
+    rescue StandardError
       false
     end
   end

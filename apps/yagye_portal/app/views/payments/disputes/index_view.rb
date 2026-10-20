@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
-module Disputes
+module Payments
+  module Disputes
   class IndexView < ApplicationComponent
     include UI::Theme
 
@@ -188,5 +189,6 @@ module Disputes
       else             "No disputes have been raised yet."
       end
     end
+  end
   end
 end

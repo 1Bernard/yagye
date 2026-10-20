@@ -323,11 +323,11 @@ module Checkout
               td_cell(item["description"] || "—", style: "font-size:13px;color:#111827")
               td_cell(qty % 1 == 0 ? qty.to_i.to_s : ("%.2f" % qty),
                       align: "right", style: "color:#6b7280")
-              td_cell("#{currency} #{"%.2f" % (unit / 100.0)}",
+              td_cell(fmt_money(unit, currency: currency),
                       align: "right", style: "color:#6b7280;font-family:monospace")
               td_cell(bps > 0 ? "#{bps / 100.0}%" : "—",
                       align: "right", style: "color:#9ca3af")
-              td_cell("#{currency} #{"%.2f" % (amount / 100.0)}",
+              td_cell(fmt_money(amount, currency: currency),
                       align: "right", style: "font-weight:600;color:#111827;font-family:monospace")
             end
           end
@@ -428,7 +428,7 @@ module Checkout
 
       def print_script
         inv_path = helpers.invoice_path(@inv["id"]) rescue "#"
-        script do
+        script(nonce: content_security_policy_nonce) do
           raw safe(<<~JS)
             (function () {
               document.getElementById('pv-print-btn')?.addEventListener('click', function () {
@@ -450,7 +450,7 @@ module Checkout
       # ── Helpers ──────────────────────────────────────────────────────────────
 
       def fmt_money(minor_units, currency: @inv["currency"] || "GHS")
-        "#{currency} #{"%.2f" % (minor_units / 100.0)}"
+        format_money(minor_units.to_i, currency: currency)
       end
 
       def fmt_inv_date(val)

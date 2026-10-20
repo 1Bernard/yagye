@@ -68,11 +68,11 @@ module Checkout
             div do
               p(class: "#{TYPE_CAPTION} mb-1") { plain "Session total" }
               p(class: "#{TYPE_AMOUNT} text-gray-900") do
-                plain "#{currency} #{"%.2f" % (total / 100.0)}"
+                plain format_money(total, currency: currency)
               end
               if shipping > 0
                 p(class: "#{TYPE_CAPTION} mt-1") do
-                  plain "incl. #{currency} #{"%.2f" % (shipping / 100.0)} shipping"
+                  plain "incl. #{format_money(shipping, currency: currency)} shipping"
                 end
               end
             end
@@ -131,7 +131,7 @@ module Checkout
                         plain qty % 1 == 0 ? qty.to_i.to_s : "%.2f" % qty
                       end
                       td(class: "px-6 py-3 text-right font-semibold text-gray-800 tabular-nums") do
-                        plain "#{currency} #{"%.2f" % (amount / 100.0)}"
+                        plain format_money(amount, currency: currency)
                       end
                     end
                   end
@@ -140,14 +140,14 @@ module Checkout
 
               # Totals summary
               div(class: "border-t border-gray-100 px-6 py-4 space-y-[3px]") do
-                totals_row("Subtotal", "#{currency} #{"%.2f" % (@s["subtotal_amount"].to_i / 100.0)}")
-                totals_row("Tax",      "#{currency} #{"%.2f" % (@s["tax_amount"].to_i / 100.0)}")      if @s["tax_amount"].to_i > 0
-                totals_row("Shipping", "#{currency} #{"%.2f" % (@s["shipping_amount"].to_i / 100.0)}") if @s["shipping_amount"].to_i > 0
-                totals_row("Discount", "- #{currency} #{"%.2f" % (@s["discount_amount"].to_i / 100.0)}") if @s["discount_amount"].to_i > 0
+                totals_row("Subtotal", format_money(@s["subtotal_amount"].to_i, currency: currency))
+                totals_row("Tax",      format_money(@s["tax_amount"].to_i, currency: currency))      if @s["tax_amount"].to_i > 0
+                totals_row("Shipping", format_money(@s["shipping_amount"].to_i, currency: currency)) if @s["shipping_amount"].to_i > 0
+                totals_row("Discount", "- #{format_money(@s["discount_amount"].to_i, currency: currency)}") if @s["discount_amount"].to_i > 0
                 div(class: "flex justify-between pt-2 border-t border-gray-100 mt-1") do
                   p(class: "text-[12px] font-bold text-gray-900") { plain "Total" }
                   p(class: "text-[13px] font-bold text-gray-900 tabular-nums") do
-                    plain "#{currency} #{"%.2f" % (@s["total_amount"].to_i / 100.0)}"
+                    plain format_money(@s["total_amount"].to_i, currency: currency)
                   end
                 end
               end

@@ -56,7 +56,7 @@ module Shared
       cfg = REJECTED_STYLE
 
       div(
-        class: "w-full border-b kyb-banner-reveal",
+        class: "w-full border-b",
         style: "background: #{cfg[:bg]}; border-color: #{cfg[:border]}"
       ) do
         div(style: "display:flex;align-items:center;gap:12px;padding:9px 24px") do
@@ -102,7 +102,7 @@ module Shared
       cta    = urgent ? "Complete KYB" : "Continue"
 
       div(
-        class: "w-full border-b kyb-banner-reveal",
+        class: "w-full border-b",
         style: "background: #{cfg[:bg]}; border-color: #{cfg[:border]}"
       ) do
         div(style: "display:flex;align-items:center;gap:12px;padding:9px 24px") do

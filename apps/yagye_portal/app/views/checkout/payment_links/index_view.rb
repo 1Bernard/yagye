@@ -1,7 +1,8 @@
 # frozen_string_literal: true
 
 module Checkout
-  class PaymentLinksIndexView < ApplicationComponent
+  module PaymentLinks
+    class IndexView < ApplicationComponent
     include UI::Theme
 
     CURRENCY_SYMBOLS = { "GHS" => "GH₵", "USD" => "$", "EUR" => "€", "GBP" => "£", "NGN" => "₦" }.freeze
@@ -149,7 +150,7 @@ module Checkout
           if link["amount"]
             sym = CURRENCY_SYMBOLS.fetch(link["currency"].to_s, link["currency"].to_s)
             p(class: "text-[15px] font-semibold text-gray-900 tabular-nums") do
-              plain "#{sym}#{"%.2f" % (link["amount"] / 100.0)}"
+              plain "#{sym}#{fmt_num(link["amount"].to_i)}"
             end
           else
             p(class: TYPE_CAPTION) { plain "Customer sets amount" }
@@ -171,6 +172,8 @@ module Checkout
     # ── List view ─────────────────────────────────────────────────────────────
 
     def links_list_section
+      fmt_n = ->(m) { fmt_num(m) }
+
       render UI::Datatable.new(records: @links, empty_message: "No payment links found.") do |t|
         t.header { toolbar_content }
 
@@ -186,7 +189,7 @@ module Checkout
         t.column("Amount", class: "text-right tabular-nums") do |link|
           if link["amount"]
             sym = CURRENCY_SYMBOLS.fetch(link["currency"].to_s, link["currency"].to_s)
-            plain "#{sym}#{"%.2f" % (link["amount"] / 100.0)}"
+            plain "#{sym}#{fmt_n.call(link["amount"].to_i)}"
           else
             span(class: TYPE_CAPTION) { plain "Customer sets amount" }
           end
@@ -242,6 +245,7 @@ module Checkout
           plain "Create payment link"
         end
       end
+    end
     end
   end
 end

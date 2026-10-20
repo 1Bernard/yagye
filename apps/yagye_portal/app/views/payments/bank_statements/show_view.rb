@@ -1,15 +1,15 @@
 # frozen_string_literal: true
 
-module Ops
+module Payments
   module BankStatements
     class ShowView < ApplicationComponent
       include UI::Theme
 
       MATCH_LABELS = {
-        "matched"    => "Matched",
-        "unmatched"  => "Unmatched",
-        "duplicate"  => "Duplicate",
-        "ignored"    => "Ignored"
+        "unmatched"   => "Unmatched",
+        "matched"     => "Matched",
+        "disputed"    => "Disputed",
+        "written_off" => "Written off"
       }.freeze
 
       def initialize(statement:)
@@ -24,7 +24,7 @@ module Ops
           active_nav:  :bank_statements,
           title:       "Statement #{acct_ref}",
           breadcrumbs: [
-            { label: "Bank Statements", href: ops_bank_statements_path },
+            { label: "Bank Statements", href: payments_bank_statements_path },
             { label: acct_ref }
           ]
         ) do
@@ -59,7 +59,7 @@ module Ops
               end
               list.row("Statement date",  @statement["statement_date"].to_s)
               list.row("Imported",        fmt_datetime(parse_time(@statement["inserted_at"])))
-              list.row("Lines",           (@statement["lines"]&.size || 0).to_s)
+              list.row("Lines", (@statement["lines"]&.size || @statement["line_count"] || 0).to_s)
             end
           end
         end
@@ -77,18 +77,18 @@ module Ops
             else
               render UI::Datatable.new(records: lines, empty_message: "No lines.") do |t|
                 t.column("Date") do |l|
-                  plain l["date"].to_s
+                  plain l["value_date"].to_s
                 end
-                t.column("Description") do |l|
+                t.column("Narrative") do |l|
                   span(class: "text-[13px] text-gray-700 truncate max-w-xs block") do
-                    plain l["description"].to_s
+                    plain l["narrative"].to_s
                   end
                 end
                 t.column("Amount", class: "text-right tabular-nums") do |l|
                   amount = l["amount"].to_i
                   color  = amount < 0 ? "text-red-600" : "text-gray-900"
                   span(class: "text-[13px] font-medium #{color}") do
-                    plain format("GHS %.2f", amount / 100.0)
+                    plain format_money(amount)
                   end
                 end
                 t.column("Match state") do |l|
@@ -105,7 +105,7 @@ module Ops
       def parse_time(val)
         return nil if val.blank?
         Time.parse(val)
-      rescue
+      rescue ArgumentError, TypeError
         nil
       end
     end

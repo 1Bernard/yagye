@@ -6,15 +6,16 @@ module Payments
       include UI::Theme
 
       def initialize(payouts:, pagy:, state_filter: nil, query: nil, from: nil, to: nil,
-                     view: "list", stats: {})
+                     view: "list", stats: {}, pending_requests_count: 0)
         @payouts      = payouts
         @pagy         = pagy
         @state_filter = state_filter
         @query        = query
         @from         = from
         @to           = to
-        @view         = view
-        @stats        = stats
+        @view                   = view
+        @stats                  = stats
+        @pending_requests_count = pending_requests_count
       end
 
       def view_template
@@ -50,8 +51,8 @@ module Payments
         next_value_date = @stats[:next_value_date]
         failed_30d      = @stats[:failed_30d].to_i
 
-        paid_label      = "#{cur} #{"%.2f" % (paid_mtd / 100.0)}"
-        unsettled_label = unsettled.positive? ? "#{cur} #{"%.2f" % (unsettled / 100.0)}" : "—"
+        paid_label      = format_money(paid_mtd, currency: cur)
+        unsettled_label = unsettled.positive? ? format_money(unsettled, currency: cur) : "—"
         next_label      = next_value_date ? fmt_date(next_value_date) : "—"
 
         render UI::Grid.new(columns: 4) do
@@ -63,9 +64,7 @@ module Payments
       end
 
       def pending_requests_banner
-        pending = PortalPayoutRequest.pending_review
-        pending = pending.for_merchant(current_user.merchant_code) unless current_user.internal_staff?
-        count   = pending.count
+        count = @pending_requests_count
         return if count.zero?
 
         label = current_user.internal_staff? \

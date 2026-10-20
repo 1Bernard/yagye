@@ -96,7 +96,7 @@ module PricingPlans
         t.column("Active from") do |p|
           eff = begin
             fmt_date(Date.parse(p["effective_from"].to_s)) if p["effective_from"]
-          rescue
+          rescue ArgumentError, TypeError
             nil
           end
           plain(eff || "—")

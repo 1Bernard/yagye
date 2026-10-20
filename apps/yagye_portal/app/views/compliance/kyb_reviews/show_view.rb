@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
-module KybReviews
+module Compliance
+  module KybReviews
   class ShowView < ApplicationComponent
     include UI::Theme
 
@@ -33,11 +34,12 @@ module KybReviews
       "rejected"     => "Reject document"
     }.freeze
 
-    def initialize(application:, beneficial_owners: [], documents: [], screening: nil)
+    def initialize(application:, beneficial_owners: [], documents: [], screening: nil, portal_merchant: nil)
       @app               = application
       @beneficial_owners = beneficial_owners
       @documents         = documents
       @screening         = screening
+      @portal_merchant   = portal_merchant
     end
 
     def view_template
@@ -506,8 +508,7 @@ module KybReviews
     def sandbox_access_card
       return unless can?(:grant_sandbox?, :kyb_reviews)
 
-      merchant        = PortalMerchant.find_for(@app.merchant_code)
-      already_sandbox = merchant&.sandbox_enabled?
+      already_sandbox = @portal_merchant&.sandbox_enabled?
 
       render UI::Card.new do |c|
         c.header("Sandbox access", icon: :layers)
@@ -580,7 +581,7 @@ module KybReviews
     def live_mode_card
       return unless can?(:approve?, :kyb_reviews)
 
-      already_live = PortalMerchant.find_for(@app.merchant_code)&.live_mode_enabled?
+      already_live = @portal_merchant&.live_mode_enabled?
 
       render UI::Card.new do |c|
         c.header("Live mode", icon: :shield)
@@ -737,5 +738,6 @@ module KybReviews
     def submitted_label
       fmt_date(@app.last_applied_at)
     end
+  end
   end
 end

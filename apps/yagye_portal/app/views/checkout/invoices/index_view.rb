@@ -156,10 +156,6 @@ module Checkout
         end
       end
 
-      def format_money(amount_minor, currency = "GHS")
-        "#{currency} #{"%.2f" % (amount_minor / 100.0)}"
-      end
-
       def empty_message
         (@tab != "all") || @query.present? ? "No invoices match those filters." : "No invoices yet. Create your first invoice to get started."
       end

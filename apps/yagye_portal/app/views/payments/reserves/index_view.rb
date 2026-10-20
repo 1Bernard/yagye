@@ -63,7 +63,7 @@ module Payments
         when "awaiting_merchant_ack"
           auto_date = begin
                         Time.parse(@policy["auto_activates_at"].to_s).strftime("%-d %B %Y")
-                      rescue
+                      rescue ArgumentError, TypeError
                         "7 days from now"
                       end
           div(class: "bg-amber-50 border border-amber-200 rounded-xl px-5 py-5") do
@@ -298,8 +298,7 @@ module Payments
 
       def format_amount(pence, currency)
         return "—" if pence.nil?
-        value = pence.to_f / 100
-        "#{currency} #{sprintf('%.2f', value)}"
+        format_money(pence.to_i, currency: currency)
       end
 
       def format_date(iso)

@@ -41,7 +41,7 @@ module Developers
       merchant.kyb.approved merchant.kyb.rejected
     ].freeze
 
-    def initialize(tab: "api_keys", api_keys: [], webhooks: [], deliveries: nil, pagy: nil, reveal_key: nil, reveal_webhook_secret: nil, openapi_spec: {})
+    def initialize(tab: "api_keys", api_keys: [], webhooks: [], deliveries: nil, pagy: nil, reveal_key: nil, reveal_webhook_secret: nil, openapi_spec: {}, sandbox_enabled: false)
       @tab          = tab
       @api_keys     = api_keys
       @webhooks     = webhooks
@@ -50,6 +50,7 @@ module Developers
       @reveal_key            = reveal_key
       @reveal_webhook_secret = reveal_webhook_secret
       @openapi_spec          = openapi_spec || {}
+      @sandbox_enabled       = sandbox_enabled
     end
 
     def view_template
@@ -659,7 +660,7 @@ module Developers
             span(class: "flex w-[14px] h-[14px]") { render UI::Icon.new(icon_name, class: "w-full h-full") }
           end
           div(class: "flex items-center gap-2") do
-            span(class: "text-[10.5px] font-bold px-[7px] py-[2px] rounded-full badge-blue") { plain "Step #{number}" }
+            span(class: "#{BADGE_XS} #{STATUS_INFO}") { plain "Step #{number}" }
             p(class: "text-[13.5px] font-semibold text-gray-900") { plain title }
           end
         end
@@ -732,7 +733,7 @@ module Developers
           div do
             p(class: "text-[14px] font-semibold text-gray-900 mb-0.5") do
               plain "Yagye API "
-              span(class: "text-[11px] font-mono font-semibold px-2 py-[2px] rounded-full badge-blue ml-1") do
+              span(class: "#{BADGE_XS} #{STATUS_INFO} ml-1") do
                 plain version
               end
             end
@@ -762,7 +763,7 @@ module Developers
             span(class: "flex w-[13px] h-[13px]") { render UI::Icon.new(icon_name, class: "w-full h-full") }
           end
           p(class: "text-[13px] font-semibold text-gray-900") { plain tag }
-          span(class: "text-[10.5px] font-semibold px-[7px] py-[2px] rounded-full badge-blue ml-1") do
+          span(class: "#{BADGE_XS} #{STATUS_INFO} ml-1") do
             plain "#{operations.size}"
           end
         end
@@ -869,9 +870,7 @@ module Developers
     end
 
     def sandbox_enabled?
-      return @sandbox_enabled if defined?(@sandbox_enabled)
-      merchant       = PortalMerchant.find_for(Current.user.merchant_code) if Current.user&.merchant_user?
-      @sandbox_enabled = merchant&.sandbox_enabled? || false
+      @sandbox_enabled
     end
 
     def test_mode_notice

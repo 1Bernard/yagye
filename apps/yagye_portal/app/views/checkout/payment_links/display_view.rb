@@ -141,7 +141,7 @@ module Checkout
             div(class: "flex flex-col items-center gap-[6px]") do
               p(class: "text-[36px] font-extrabold text-gray-900 tabular-nums leading-none tracking-tight") do
                 span(class: "text-[20px] font-bold text-gray-400 mr-1") { plain sym }
-                plain "%.2f" % (amt / 100.0)
+                plain fmt_num(amt)
               end
               p(class: "text-[11px] text-gray-400") { plain "Scan to pay this amount" }
             end
@@ -185,7 +185,7 @@ module Checkout
       def qr_script
         url = @link["checkout_url"].to_s
         script(src: "https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js")
-        script do
+        script(nonce: content_security_policy_nonce) do
           raw safe(<<~JS)
             (function () {
               var el = document.getElementById('pl-display-qr');

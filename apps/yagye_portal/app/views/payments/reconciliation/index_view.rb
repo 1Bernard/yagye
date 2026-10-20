@@ -172,7 +172,7 @@ module Payments
       def sla_overdue?(b)
         return false unless b["sla_due_at"].present? && b["state"] != "resolved"
         Time.parse(b["sla_due_at"]) < Time.current
-      rescue
+      rescue ArgumentError, TypeError
         false
       end
     end

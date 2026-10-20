@@ -84,16 +84,16 @@ module Checkout
           end
 
           if @link["active"]
-            span(class: "badge-green #{BADGE_XS}") { plain "Active" }
+            span(class: "#{BADGE_XS} #{STATUS_SUCCESS}") { plain "Active" }
           else
-            span(class: "badge-gray #{BADGE_XS}") { plain "Inactive" }
+            span(class: "#{BADGE_XS} #{STATUS_NEUTRAL}") { plain "Inactive" }
           end
 
-          span(class: "badge-gray #{BADGE_XS}") do
+          span(class: "#{BADGE_XS} #{STATUS_NEUTRAL}") do
             plain (@link["mode"] || "simulation").capitalize
           end
 
-          span(class: "badge-gray #{BADGE_XS} flex items-center gap-[4px]") do
+          span(class: "#{BADGE_XS} #{STATUS_NEUTRAL} flex items-center gap-[4px]") do
             span(class: "flex w-[10px] h-[10px]") { render UI::Icon.new(:eye, class: "w-full h-full") }
             plain "Overview"
           end
@@ -306,7 +306,7 @@ module Checkout
             detail_row("Amount") do
               p(class: "text-[20px] font-extrabold text-gray-900 tabular-nums leading-tight") do
                 span(class: "text-[13px] font-bold text-gray-400 mr-0.5") { plain sym }
-                plain "%.2f" % (@link["amount"].to_i / 100.0)
+                plain fmt_num(@link["amount"].to_i)
               end
             end
           else
@@ -414,7 +414,7 @@ module Checkout
             detail_row("Expires") do
               val = begin
                 fmt_datetime_utc(Time.parse(@link["expires_at"]))
-              rescue
+              rescue ArgumentError, TypeError
                 @link["expires_at"]
               end
               plain val
@@ -493,7 +493,7 @@ module Checkout
               [
                 %w[collect_email Email\ address],
                 %w[collect_phone Phone\ number],
-                %w[collect_name  Full\ name]
+                %w[collect_name Full\ name]
               ].each do |name, label_text|
                 div(class: "flex items-center gap-2.5 px-3 py-2.5 rounded-[10px] " \
                            "border border-gray-100 hover:border-gray-200 transition-colors") do
@@ -532,7 +532,7 @@ module Checkout
                   label(class: "block text-[10px] font-semibold text-gray-500 mb-[5px]") { plain "Link expiry" }
                   expiry_val = begin
                     @link["expires_at"].present? ? Time.parse(@link["expires_at"]).strftime("%Y-%m-%dT%H:%M") : nil
-                  rescue
+                  rescue ArgumentError, TypeError
                     nil
                   end
                   input(type:  "datetime-local",
@@ -631,7 +631,7 @@ module Checkout
       # ── Copy / QR script ──────────────────────────────────────────────────────
 
       def copy_script(url)
-        script do
+        script(nonce: content_security_policy_nonce) do
           raw safe(<<~JS)
             (function () {
               var copyBtn = document.getElementById('pl-copy-btn');
@@ -698,7 +698,7 @@ module Checkout
                 p(class: "text-[9.5px] font-bold uppercase tracking-[0.12em] text-gray-400 mb-1") { plain "Total" }
                 p(class: "text-[32px] font-extrabold text-gray-900 leading-none tracking-tight tabular-nums mb-3") do
                   span(class: "text-[17px] font-bold text-gray-400 mr-1") { plain sym }
-                  plain "%.2f" % (amt / 100.0)
+                  plain fmt_num(amt)
                 end
               else
                 p(class: "text-[9.5px] font-bold uppercase tracking-[0.12em] text-gray-400 mb-2") { plain "Amount" }
@@ -738,7 +738,7 @@ module Checkout
             end
 
             div(class: "px-6 pb-6") do
-              pay_label = fixed && amt > 0 ? "Pay #{sym}#{"%.2f" % (amt / 100.0)}" : "Pay now"
+              pay_label = fixed && amt > 0 ? "Pay #{sym}#{fmt_num(amt)}" : "Pay now"
               div(class: "w-full py-3.5 rounded-[10px] bg-[#3D47F5] flex items-center justify-center " \
                          "text-[13.5px] font-bold text-white cursor-default select-none") { plain pay_label }
             end

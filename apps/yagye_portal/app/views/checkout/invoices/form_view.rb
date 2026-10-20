@@ -443,7 +443,7 @@ module Checkout
                   row[:qty].to_s,
                   "GH₵ #{sprintf('%.2f', row[:unit])}",
                   row[:tax] > 0 ? "#{row[:tax]}%" : "—",
-                  "GH₵ #{sprintf('%.2f', amount / 100.0)}"
+                  "GH₵ #{fmt_num(amount.to_i)}"
                 )
               end
             end
@@ -473,7 +473,7 @@ module Checkout
         div(class: "flex justify-end border-t border-gray-100 px-10 py-6") do
           div(class: "w-[260px] flex flex-col") do
             totals_row("Subtotal", :pvSubtotal,
-                       default: "GH₵ #{sprintf('%.2f', demo_subtotal / 100.0)}")
+                       default: "GH₵ #{fmt_num(demo_subtotal)}")
             div(class: "flex items-center justify-between py-[2px]",
                 hidden: true, data: { invoice_compose_target: "pvTaxRow" }) do
               p(class: "text-[12px] text-gray-400") { plain "Tax" }
@@ -482,7 +482,7 @@ module Checkout
             end
             div(class: "h-px bg-gray-100 my-2")
             totals_row("Total", :pvTotal, bold: true,
-                       default: "GH₵ #{sprintf('%.2f', demo_subtotal / 100.0)}")
+                       default: "GH₵ #{fmt_num(demo_subtotal)}")
 
             # Amount due
             div(class: "mt-3 flex items-center justify-between " \
@@ -490,7 +490,7 @@ module Checkout
               p(class: "text-[12px] font-bold text-[#3D47F5]") { plain "Amount due" }
               p(class: "text-[17px] font-extrabold text-[#3D47F5] tabular-nums tracking-tight",
                 data: { invoice_compose_target: "pvAmountDue" }) do
-                plain "GH₵ #{sprintf('%.2f', demo_subtotal / 100.0)}"
+                plain "GH₵ #{fmt_num(demo_subtotal)}"
               end
             end
           end
@@ -559,7 +559,7 @@ module Checkout
       # ── Back button script ────────────────────────────────────────────────────
 
       def back_btn_script
-        script do
+        script(nonce: content_security_policy_nonce) do
           raw safe(<<~JS)
             (function () {
               var btn = document.getElementById('form-back-btn');

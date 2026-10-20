@@ -31,7 +31,7 @@ module Payments
       def context_card
         return if @unsettled_amount.zero?
 
-        amount_label = "#{@unsettled_currency} #{"%.2f" % (@unsettled_amount / 100.0)}"
+        amount_label = format_money(@unsettled_amount, currency: @unsettled_currency)
 
         render UI::Notice.new(
           title:   "#{amount_label} available to request",
@@ -65,7 +65,7 @@ module Payments
                 end
                 input(
                   type:        "number",
-                  name:        "amount_cents",
+                  name:        "amount",
                   min:         "1",
                   step:        "0.01",
                   placeholder: "Leave blank for full balance",
@@ -74,7 +74,7 @@ module Payments
                 )
               end
               p(class: "#{TYPE_CAPTION} mt-2") do
-                plain "Maximum: #{@unsettled_currency} #{"%.2f" % (@unsettled_amount / 100.0)}"
+                plain "Maximum: #{format_money(@unsettled_amount, currency: @unsettled_currency)}"
               end
             end
 

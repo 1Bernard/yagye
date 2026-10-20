@@ -83,7 +83,7 @@ module Merchants
               end
             end
 
-            script do
+            script(nonce: content_security_policy_nonce) do
             raw safe(<<~JS)
               (function() {
                 var kind = document.getElementById("reserve_kind");

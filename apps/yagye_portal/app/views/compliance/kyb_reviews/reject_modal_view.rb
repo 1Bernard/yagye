@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
-module KybReviews
+module Compliance
+  module KybReviews
   class RejectModalView < ApplicationComponent
     include UI::Theme
 
@@ -43,5 +44,6 @@ module KybReviews
         end
       end
     end
+  end
   end
 end

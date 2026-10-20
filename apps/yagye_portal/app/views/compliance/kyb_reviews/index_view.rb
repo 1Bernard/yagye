@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
-module KybReviews
+module Compliance
+  module KybReviews
   class IndexView < ApplicationComponent
     include UI::Theme
 
@@ -307,5 +308,6 @@ module KybReviews
       else "No applications found."
       end
     end
+  end
   end
 end

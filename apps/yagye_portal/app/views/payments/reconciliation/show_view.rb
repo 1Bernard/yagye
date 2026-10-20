@@ -203,7 +203,7 @@ module Payments
       def format_dt(iso)
         return nil if iso.blank?
         fmt_datetime_utc(Time.parse(iso))
-      rescue
+      rescue ArgumentError, TypeError
         iso
       end
     end

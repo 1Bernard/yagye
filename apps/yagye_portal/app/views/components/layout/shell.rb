@@ -18,10 +18,8 @@ module Layout
         render Layout::Sidebar.new(active: @active_nav)
         div(class: "flex-1 flex flex-col min-w-0 overflow-hidden") do
           render Layout::Topbar.new(title: @title, subtitle: @subtitle, breadcrumbs: @breadcrumbs)
-          # Lazy-loaded KYB banner — fetched after page render so it never blocks load.
-          # The frame stays empty if KYB is complete or user is not a merchant.
-          if current_user&.merchant_user? && @show_kyb_banner
-            turbo_frame_tag("kyb-banner", src: kyb_banner_path)
+          if current_user&.merchant_user? && @show_kyb_banner && (progress = kyb_banner_progress)
+            render Shared::KybBanner.new(progress: progress)
           end
           main(class: "flex-1 min-h-0 #{@padded ? 'p-6 overflow-y-auto' : 'overflow-hidden'}") { yield }
         end

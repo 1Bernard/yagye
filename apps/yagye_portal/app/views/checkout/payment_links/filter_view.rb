@@ -1,7 +1,8 @@
 # frozen_string_literal: true
 
 module Checkout
-  class PaymentLinksFilterView < ApplicationComponent
+  module PaymentLinks
+    class FilterView < ApplicationComponent
     include UI::Theme
 
     STATUS_OPTIONS = [
@@ -71,6 +72,7 @@ module Checkout
         end
         p(class: "text-[12px] font-semibold text-gray-700") { plain text }
       end
+    end
     end
   end
 end
