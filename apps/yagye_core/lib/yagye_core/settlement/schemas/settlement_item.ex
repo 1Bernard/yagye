@@ -24,7 +24,7 @@ defmodule YagyeCore.Settlement.Schemas.SettlementItem do
 
     belongs_to :settlement, Settlement
 
-    field :inserted_at, :utc_datetime_usec, autogenerate: {DateTime, :utc_now, []}
+    timestamps(updated_at: false)
   end
 
   def create_changeset(item, attrs) do

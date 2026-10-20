@@ -22,7 +22,7 @@ defmodule YagyeCore.Merchants.Schemas.MerchantApplication do
     field :category, :string
     field :industry, :string
     field :employee_range, :string
-    field :annual_tpv_estimate_cents, :integer
+    field :annual_tpv_estimate, :integer
     field :website_url, :string
     field :use_case, :string
     field :expected_methods, {:array, :string}, default: []
@@ -42,7 +42,7 @@ defmodule YagyeCore.Merchants.Schemas.MerchantApplication do
   @required ~w[public_id first_name last_name email legal_name trading_name country default_currency]a
   @optional ~w[
     status phone_number job_title business_type registration_type category
-    industry employee_range annual_tpv_estimate_cents
+    industry employee_range annual_tpv_estimate
     website_url use_case expected_methods reviewed_by review_notes reviewed_at
     approved_by rejected_reason merchant_id
   ]a

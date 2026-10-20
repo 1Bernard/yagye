@@ -22,8 +22,7 @@ defmodule Simulator.Refunds.Schemas.Refund do
     belongs_to :charge, Charge
     belongs_to :account, Account
 
-    field :created_at, :utc_datetime_usec, autogenerate: {DateTime, :utc_now, []}
-    field :updated_at, :utc_datetime_usec, autogenerate: {DateTime, :utc_now, []}
+    timestamps(inserted_at: :created_at, updated_at: :updated_at)
   end
 
   def changeset(refund, attrs) do
@@ -51,7 +50,7 @@ defmodule Simulator.Refunds.Schemas.Refund do
 
   def complete_changeset(refund, attrs) do
     refund
-    |> cast(attrs, [:state, :refund_arn, :fee_minor, :failure_code, :updated_at])
+    |> cast(attrs, [:state, :refund_arn, :fee_minor, :failure_code])
     |> validate_inclusion(:state, @valid_states)
   end
 end

@@ -21,8 +21,7 @@ defmodule Simulator.Accounts.Schemas.Account do
 
     belongs_to :default_scenario, Scenario
 
-    # Suppress auto timestamps — schema uses created_at only
-    field :created_at, :utc_datetime_usec, autogenerate: {DateTime, :utc_now, []}
+    timestamps(inserted_at: :created_at, updated_at: false)
   end
 
   def changeset(account, attrs) do

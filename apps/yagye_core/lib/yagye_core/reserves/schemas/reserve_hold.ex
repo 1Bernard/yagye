@@ -27,7 +27,7 @@ defmodule YagyeCore.Reserves.Schemas.ReserveHold do
     belongs_to :reserve, MerchantReserve
     belongs_to :payment, Payment
 
-    field :inserted_at, :utc_datetime_usec, autogenerate: {DateTime, :utc_now, []}
+    timestamps(updated_at: false)
   end
 
   def create_changeset(hold, attrs) do

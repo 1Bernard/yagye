@@ -25,7 +25,7 @@ defmodule YagyeCore.Projections.Schemas.PaymentSummary do
     field :settlement_state, :string
     field :customer_reference, :string
     field :merchant_reference, :string
-    field :created_at, :utc_datetime_usec
+    field :payment_initiated_at, :utc_datetime_usec
     field :last_transition_at, :utc_datetime_usec
     field :last_event_id, :string
   end
@@ -49,7 +49,7 @@ defmodule YagyeCore.Projections.Schemas.PaymentSummary do
       :settlement_state,
       :customer_reference,
       :merchant_reference,
-      :created_at,
+      :payment_initiated_at,
       :last_transition_at,
       :last_event_id
     ])
@@ -62,7 +62,7 @@ defmodule YagyeCore.Projections.Schemas.PaymentSummary do
       :method,
       :amount,
       :currency,
-      :created_at,
+      :payment_initiated_at,
       :last_transition_at,
       :last_event_id
     ])

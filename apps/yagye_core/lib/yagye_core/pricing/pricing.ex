@@ -97,7 +97,9 @@ defmodule YagyeCore.Pricing do
         {:error, :no_pricing_plan}
 
       id ->
-        rules_q = from(r in PricingRule, order_by: [desc: r.specificity])
+        rules_q =
+          from(r in PricingRule, where: is_nil(r.deleted_at), order_by: [desc: r.specificity])
+
         plan = Repo.get!(PricingPlan, id) |> Repo.preload(rules: rules_q)
         {:ok, plan}
     end
@@ -178,7 +180,7 @@ defmodule YagyeCore.Pricing do
   end
 
   def get_plan(public_id) do
-    rules_q = from(r in PricingRule, order_by: [desc: r.specificity])
+    rules_q = from(r in PricingRule, where: is_nil(r.deleted_at), order_by: [desc: r.specificity])
 
     case Repo.get_by(PricingPlan, public_id: public_id) do
       nil -> {:error, :not_found}
@@ -189,7 +191,8 @@ defmodule YagyeCore.Pricing do
   def delete_rule(rule_id) do
     case Repo.get(PricingRule, rule_id) do
       nil -> {:error, :not_found}
-      rule -> Repo.delete(rule)
+      %PricingRule{deleted_at: deleted_at} when not is_nil(deleted_at) -> {:error, :not_found}
+      rule -> rule |> PricingRule.delete_changeset() |> Repo.update()
     end
   end
 
@@ -358,6 +361,7 @@ defmodule YagyeCore.Pricing do
     rule =
       from(r in PricingRule,
         where: r.plan_id == ^plan_id,
+        where: is_nil(r.deleted_at),
         where: is_nil(r.method) or r.method == ^(method || ""),
         where: is_nil(r.provider_code) or r.provider_code == ^(provider_code || ""),
         where: is_nil(r.amount_min) or r.amount_min <= ^amount,

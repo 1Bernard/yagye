@@ -14,7 +14,7 @@ defmodule Simulator.Accounts.Schemas.ApiKey do
 
     belongs_to :account, Account
 
-    field :created_at, :utc_datetime_usec, autogenerate: {DateTime, :utc_now, []}
+    timestamps(inserted_at: :created_at, updated_at: false)
   end
 
   def changeset(api_key, attrs) do

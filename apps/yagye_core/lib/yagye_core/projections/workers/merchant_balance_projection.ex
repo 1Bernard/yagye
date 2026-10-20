@@ -98,7 +98,7 @@ defmodule YagyeCore.Projections.Workers.MerchantBalanceProjection do
           currency: currency,
           mode: mode
         })
-        |> Repo.insert!(on_conflict: :nothing)
+        |> Repo.insert(on_conflict: :nothing)
 
         Repo.get_by!(MerchantBalance, merchant_id: merchant_id, currency: currency, mode: mode)
 

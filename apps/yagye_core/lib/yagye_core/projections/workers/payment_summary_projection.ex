@@ -39,7 +39,7 @@ defmodule YagyeCore.Projections.Workers.PaymentSummaryProjection do
       currency: p["currency"],
       merchant_reference: p["merchant_reference"],
       customer_reference: p["customer_reference"],
-      created_at: env.occurred_at,
+      payment_initiated_at: env.occurred_at,
       last_transition_at: env.occurred_at,
       last_event_id: env.event_id
     }

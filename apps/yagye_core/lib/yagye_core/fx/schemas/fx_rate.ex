@@ -15,7 +15,7 @@ defmodule YagyeCore.Fx.Schemas.FxRate do
     field :quoted_at, :utc_datetime_usec
     field :expires_at, :utc_datetime_usec
 
-    field :inserted_at, :utc_datetime_usec, autogenerate: {DateTime, :utc_now, []}
+    timestamps(updated_at: false)
   end
 
   def create_changeset(fx_rate, attrs) do

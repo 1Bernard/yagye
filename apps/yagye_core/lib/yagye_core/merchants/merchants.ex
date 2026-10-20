@@ -66,8 +66,7 @@ defmodule YagyeCore.Merchants do
       default_currency: Map.get(attrs, :default_currency, attrs["default_currency"]),
       industry: Map.get(attrs, :industry, attrs["industry"]),
       employee_range: Map.get(attrs, :employee_range, attrs["employee_range"]),
-      annual_tpv_estimate_cents:
-        Map.get(attrs, :annual_tpv_estimate_cents, attrs["annual_tpv_estimate_cents"]),
+      annual_tpv_estimate: Map.get(attrs, :annual_tpv_estimate, attrs["annual_tpv_estimate"]),
       website_url: Map.get(attrs, :website_url, attrs["website_url"]),
       use_case: Map.get(attrs, :use_case, attrs["use_case"]),
       expected_methods: Map.get(attrs, :expected_methods, attrs["expected_methods"]) || []
@@ -334,7 +333,7 @@ defmodule YagyeCore.Merchants do
       default_currency: cmd.default_currency && String.upcase(cmd.default_currency),
       industry: cmd.industry,
       employee_range: cmd.employee_range,
-      annual_tpv_estimate_cents: cmd.annual_tpv_estimate_cents,
+      annual_tpv_estimate: cmd.annual_tpv_estimate,
       website_url: cmd.website_url,
       use_case: cmd.use_case,
       expected_methods: cmd.expected_methods
@@ -413,7 +412,7 @@ defmodule YagyeCore.Merchants do
         default_currency: application.default_currency,
         industry: application.industry,
         employee_range: application.employee_range,
-        annual_tpv_estimate_cents: application.annual_tpv_estimate_cents,
+        annual_tpv_estimate: application.annual_tpv_estimate,
         website_url: application.website_url,
         api_version: "2026-01-01",
         metadata: %{}

@@ -29,7 +29,7 @@ defmodule YagyeCore.Merchants.Schemas.Merchant do
     field :tin, :string
     field :industry, :string
     field :employee_range, :string
-    field :annual_tpv_estimate_cents, :integer
+    field :annual_tpv_estimate, :integer
     field :website_url, :string
     field :entitlements, :map, default: %{}
     field :metadata, :map, default: %{}
@@ -49,7 +49,7 @@ defmodule YagyeCore.Merchants.Schemas.Merchant do
     tin
     industry
     employee_range
-    annual_tpv_estimate_cents
+    annual_tpv_estimate
     website_url
     risk_rating
     pricing_plan_id

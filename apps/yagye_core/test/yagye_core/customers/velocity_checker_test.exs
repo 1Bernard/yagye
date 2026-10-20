@@ -1,8 +1,8 @@
 defmodule YagyeCore.Customers.VelocityCheckerTest do
   use YagyeCore.DataCase, async: true
 
+  alias YagyeCore.Customers.Rules.VelocityChecker
   alias YagyeCore.Customers.Schemas.VelocityLimit
-  alias YagyeCore.Customers.VelocityChecker
   alias YagyeCore.Fixtures
   alias YagyeCore.Repo
 

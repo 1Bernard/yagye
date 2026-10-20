@@ -21,7 +21,7 @@ defmodule YagyeCore.Merchants.Commands.SubmitMerchantApplication do
     :default_currency,
     :industry,
     :employee_range,
-    :annual_tpv_estimate_cents,
+    :annual_tpv_estimate,
     :website_url,
     :use_case,
     expected_methods: []

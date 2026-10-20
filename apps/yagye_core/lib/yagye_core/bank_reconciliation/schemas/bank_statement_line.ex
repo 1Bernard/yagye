@@ -22,7 +22,7 @@ defmodule YagyeCore.BankReconciliation.Schemas.BankStatementLine do
 
     belongs_to :statement, BankStatement
 
-    field :inserted_at, :utc_datetime_usec, autogenerate: {DateTime, :utc_now, []}
+    timestamps(updated_at: false)
   end
 
   def create_changeset(line, attrs) do

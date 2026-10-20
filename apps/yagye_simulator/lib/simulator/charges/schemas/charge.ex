@@ -36,8 +36,7 @@ defmodule Simulator.Charges.Schemas.Charge do
     belongs_to :account, Account
     belongs_to :scenario, Scenario
 
-    field :created_at, :utc_datetime_usec, autogenerate: {DateTime, :utc_now, []}
-    field :updated_at, :utc_datetime_usec, autogenerate: {DateTime, :utc_now, []}
+    timestamps(inserted_at: :created_at, updated_at: :updated_at)
   end
 
   def changeset(charge, attrs) do
@@ -79,9 +78,8 @@ defmodule Simulator.Charges.Schemas.Charge do
 
   def transition_changeset(charge, to_state, extra \\ %{}) do
     charge
-    |> cast(Map.merge(%{state: to_state, updated_at: DateTime.utc_now()}, extra), [
+    |> cast(Map.merge(%{state: to_state}, extra), [
       :state,
-      :updated_at,
       :authorised_at,
       :authorised_amount_minor,
       :captured_amount_minor,

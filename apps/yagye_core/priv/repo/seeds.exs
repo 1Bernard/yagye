@@ -6,7 +6,7 @@
 #   mix run priv/repo/seeds.exs     (seeds only, after migrations)
 
 alias YagyeCore.Merchants
-alias YagyeCore.Merchants.Schemas.Merchant
+alias YagyeCore.Merchants.Schemas.{Merchant, MerchantMode}
 alias YagyeCore.Providers.Schemas.{Provider, ProviderCredential}
 alias YagyeCore.Shared.Vault
 alias YagyeCore.Customers
@@ -83,7 +83,9 @@ case Repo.get_by(Merchant, legal_name: "Yagye Admin") do
         default_currency: "GBP"
       })
 
-    {:ok, {m, _}} = Merchants.approve(m.public_id, m.id)
+    # Fast-track through KYB state machine — seeds bypass the self-serve steps
+    m = Repo.update!(Ecto.Changeset.change(m, onboarding_state: "under_review"))
+    {:ok, {m, _}} = Merchants.approve(m.public_id, "seed:ops")
 
     {:ok, {key, raw_key, _}} =
       Merchants.issue_api_key(m.public_id, %{
@@ -123,7 +125,8 @@ case Repo.get_by(Merchant, legal_name: "Dev Merchant") do
         default_currency: "GHS"
       })
 
-    {:ok, {m, _}} = Merchants.approve(m.public_id, m.id)
+    m = Repo.update!(Ecto.Changeset.change(m, onboarding_state: "under_review"))
+    {:ok, {m, _}} = Merchants.approve(m.public_id, "seed:ops")
 
     {:ok, {sk, raw_sk, _}} =
       Merchants.issue_api_key(m.public_id, %{
@@ -159,7 +162,69 @@ case Repo.get_by(Merchant, legal_name: "Dev Merchant") do
     """)
 end
 
-# ── 6. External PSP providers (Model B — no platform credentials) ─────────────
+# ── 6. Kofi Builds Ltd (MCH_DEMO_001) — portal demo merchant ─────────────────
+# Inserted directly with a fixed public_id so the portal's MCH_DEMO_001 merchant_code
+# resolves to this record when the portal calls /internal/merchants/MCH_DEMO_001/keys.
+# Uses Repo.insert! (not create_merchant) to control the public_id.
+# SoD: approved_by ≠ reviewed_by enforced by the changeset.
+
+case Repo.get_by(Merchant, public_id: "MCH_DEMO_001") do
+  %Merchant{} = m ->
+    IO.puts("Kofi Builds           : already exists (#{m.public_id})")
+    IO.puts("                        Create a new key from the portal Developers page.")
+
+  nil ->
+    {:ok, m} =
+      %Merchant{}
+      |> Merchant.changeset(%{
+        public_id: "MCH_DEMO_001",
+        legal_name: "Kofi Builds Ltd",
+        trading_name: "KofiBuild",
+        country: "GH",
+        default_currency: "GHS",
+        api_version: "2026-01-01"
+        # status/onboarding_state/kyb_tier left at schema defaults ("registered", "registered", 0)
+        # so the real KYB flow can proceed: merchant fills /verify → compliance approves → ops grants sandbox
+      })
+      |> Repo.insert()
+
+    # Grant simulation mode (mirrors what Merchants.create_merchant grants automatically)
+    %MerchantMode{}
+    |> MerchantMode.changeset(%{
+      merchant_id: m.id,
+      mode: :simulation,
+      enabled_at: DateTime.utc_now()
+    })
+    |> Repo.insert!()
+
+    # Issue a dev secret key for immediate use — copy it now, it never appears again
+    {:ok, {_sk, raw_sk, _}} =
+      Merchants.issue_api_key("MCH_DEMO_001", %{
+        kind: "secret",
+        mode: "simulation",
+        scopes: ["payments:write", "payments:read", "webhooks:write"],
+        created_by: "seed:system",
+        label: "Dev secret key"
+      })
+
+    IO.puts("Kofi Builds           : created (MCH_DEMO_001)")
+
+    IO.puts("""
+
+    ┌──────────────────────────────────────────────────────────────────┐
+    │  KOFI BUILDS DEV SECRET KEY — copy now, never shown again       │
+    ├──────────────────────────────────────────────────────────────────┤
+    │  Merchant  : MCH_DEMO_001                                       │
+    │  Secret key: #{String.pad_trailing(raw_sk, 50)}│
+    │  Scopes    : payments:write, payments:read, webhooks:write       │
+    │                                                                  │
+    │  Use for: POST /v1/checkout-sessions on Core API (port 4000)    │
+    │  Or create a fresh key from the portal Developers page.         │
+    └──────────────────────────────────────────────────────────────────┘
+    """)
+end
+
+# ── 7. External PSP providers (Model B — no platform credentials) ─────────────
 # These providers are used when enterprise merchants bring their own PSP accounts.
 # Credentials are merchant-level (provider_credentials.merchant_id IS NOT NULL).
 # Platform-level credentials are NOT seeded — Yagye does not hold Flutterwave
