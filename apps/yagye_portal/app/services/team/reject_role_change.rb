@@ -30,7 +30,7 @@ module Team
                 resource_code: @role_request.target_user_id, outcome: "succeeded",
                 metadata: { reason: @reason, rejected_by: @rejected_by.id })
       Result.new(success?: true)
-    rescue => e
+    rescue StandardError => e
       Result.new(success?: false, error: e.message)
     end
   end

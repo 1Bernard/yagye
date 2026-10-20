@@ -9,7 +9,7 @@ module Developers
 
     def create
       authorize :developers, :manage_webhooks?
-      result = CoreApiClient.new.add_webhook_endpoint(
+      result = CoreApiClient.new.create_webhook_endpoint(
         merchant_code:     current_user.merchant_code,
         url:               webhook_params[:url],
         subscribed_events: Array(webhook_params[:subscribed_events]),
@@ -120,7 +120,7 @@ module Developers
 
     def destroy
       authorize :developers, :manage_webhooks?
-      result = CoreApiClient.new.remove_webhook_endpoint(
+      result = CoreApiClient.new.deregister_webhook_endpoint(
         merchant_code: current_user.merchant_code,
         endpoint_id:   params[:endpoint_id]
       )

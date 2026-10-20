@@ -18,7 +18,7 @@ module Team
     end
 
     def show
-      user = decode_id(User)
+      user = find_owned!(User)
       authorize user
       roles           = user.user_roles.includes(:role).where(revoked_at: nil).order(:created_at)
       scope           = user.internal_staff? ? "internal" : "merchant"
@@ -54,7 +54,7 @@ module Team
     end
 
     def edit_roles
-      user = decode_id(User)
+      user = find_owned!(User)
       authorize user, :update?
       if user == current_user
         redirect_to team_user_path(user), alert: "You cannot modify your own roles."
@@ -95,7 +95,7 @@ module Team
     end
 
     def suspend_modal
-      user = decode_id(User)
+      user = find_owned!(User)
       authorize user, :suspend?
       render UI::ConfirmModal.new(
         title:         "Suspend #{user.full_name}",
@@ -107,7 +107,7 @@ module Team
     end
 
     def suspend
-      user = decode_id(User)
+      user = find_owned!(User)
       authorize user, :suspend?
       result = Team::SuspendUser.new(user: user, suspended_by: current_user, request: request).call
       if result.success?
@@ -118,7 +118,7 @@ module Team
     end
 
     def set_roles
-      user = decode_id(User)
+      user = find_owned!(User)
       authorize user, :update?
       if user == current_user
         redirect_to team_user_path(user), alert: "You cannot modify your own roles."
@@ -141,7 +141,7 @@ module Team
     end
 
     def assign_role
-      user = decode_id(User)
+      user = find_owned!(User)
       authorize user, :update?
       result = Team::AssignRole.new(
         user:          user,

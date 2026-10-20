@@ -7,13 +7,13 @@ module Developers
     end
 
     def show
-      delivery = decode_id(PortalWebhookDelivery)
+      delivery = find_owned!(PortalWebhookDelivery)
       authorize delivery, :show?
       render Developers::DeliveryDrawerView.new(delivery: delivery)
     end
 
     def retry
-      delivery = decode_id(PortalWebhookDelivery)
+      delivery = find_owned!(PortalWebhookDelivery)
       authorize delivery, :show?
       result = CoreApiClient.new.retry_webhook_delivery(
         endpoint_id: delivery.endpoint_id,

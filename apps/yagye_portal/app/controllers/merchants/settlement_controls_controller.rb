@@ -27,7 +27,7 @@ module Merchants
       when "monthly" then params[:settlement_day_monthly].to_i.clamp(1, 28)
       end
 
-      result = CoreApiClient.new.upsert_settlement_controls(
+      result = CoreApiClient.new.update_settlement_controls(
         @app.merchant_code,
         approval_threshold:   threshold,
         approver_user_codes:  approver_codes,
@@ -47,7 +47,7 @@ module Merchants
     private
 
     def load_application
-      @app = decode_id(PortalMerchantApplication)
+      @app = find_owned!(PortalMerchantApplication)
       unless @app.merchant_code.present?
         redirect_to merchant_path(@app),
                     alert: "Merchant account must be approved before configuring settlement controls."

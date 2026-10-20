@@ -33,14 +33,14 @@ class SsoConfigurationsController < ApplicationController
   end
 
   def destroy
-    @config.destroy
+    @config.deactivate!
     redirect_to settings_path(tab: "sso"), notice: "SSO configuration removed."
   end
 
   private
 
   def set_config
-    @config = SsoConfiguration.find(params[:id])
+    @config = SsoConfiguration.kept.find(params[:id])
   end
 
   def authorize_ops

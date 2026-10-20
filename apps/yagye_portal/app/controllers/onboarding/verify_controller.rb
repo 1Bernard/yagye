@@ -35,9 +35,9 @@ module Onboarding
 
     def update_contact
       authorize :onboarding, :update?
-      result = CoreApiClient.new.upsert_merchant_contact(merchant_code, contact_params)
+      result = CoreApiClient.new.update_merchant_contact(merchant_code, contact_params)
       if result.success? && address_params.any?
-        CoreApiClient.new.upsert_merchant_address(merchant_code, "office", address_params)
+        CoreApiClient.new.update_merchant_address(merchant_code, "office", address_params)
       end
       handle_step_result(result, current_step: "contact", next_step: "settlement")
     end
@@ -75,7 +75,7 @@ module Onboarding
       end
 
       # Step 1: request presigned upload URL from Core
-      intent = CoreApiClient.new.request_document_upload_intent(
+      intent = CoreApiClient.new.create_document_upload_intent(
         merchant_code,
         kind:         params[:kind].presence || "id",
         filename:     file.original_filename,
@@ -124,7 +124,7 @@ module Onboarding
       end
 
       # Step 3: confirm upload with Core
-      result = CoreApiClient.new.confirm_document_upload(document_id, checksum: checksum)
+      result = CoreApiClient.new.update_document_upload(document_id, checksum: checksum)
       handle_step_result(result, current_step: "documents", next_step: "documents")
     end
 
@@ -147,7 +147,7 @@ module Onboarding
                            alert: "Please complete all required steps before signing the agreement."
       end
 
-      result = CoreApiClient.new.accept_service_agreement(
+      result = CoreApiClient.new.create_service_agreement(
         merchant_code,
         {
           agreement_version:  "v1.0",
@@ -160,6 +160,7 @@ module Onboarding
         }.compact
       )
       if result.success?
+        invalidate_kyb_banner_cache
         redirect_to verify_step_path("agreement"),
                     notice: "Agreement accepted. Your account is under review — we'll be in touch within 1–3 business days."
       else
@@ -175,6 +176,7 @@ module Onboarding
         resubmitted_by: "merchant:#{current_user.id}"
       )
       if result.success?
+        invalidate_kyb_banner_cache
         redirect_to verify_step_path("documents"),
                     notice: "Application resubmitted. You can update your documents before we re-review."
       else
@@ -241,6 +243,7 @@ module Onboarding
 
     def handle_step_result(result, current_step:, next_step:)
       if result.success?
+        invalidate_kyb_banner_cache
         redirect_to verify_step_path(next_step), notice: "Saved successfully."
       else
         redirect_to verify_step_path(current_step),

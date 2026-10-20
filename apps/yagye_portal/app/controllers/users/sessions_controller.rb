@@ -72,8 +72,10 @@ class Users::SessionsController < Devise::SessionsController
   # Shown to internal_staff users who have no TOTP yet.
   # They must complete enrollment before being signed in.
   def totp_enrollment
+    redirect_to(authenticated_root_path) and return if user_signed_in?
     user = pending_totp_setup_user
     redirect_to(new_user_session_path) and return unless user
+    response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate"
 
     secret = session[:pending_otp_secret] ||= User.generate_otp_secret
     totp   = ROTP::TOTP.new(secret, issuer: "Yagye")

@@ -21,7 +21,7 @@ module Team
       result = call(role_key: "ops_analyst")
 
       refute result.success?
-      assert_equal "Merchant users cannot assign internal roles", result.error
+      assert_equal "Merchant users cannot assign internal roles.", result.error
     end
 
     test "creates User, UserRole, and MerchantMembership in one transaction" do

@@ -45,6 +45,9 @@ module YagyePortal
     config.eager_load_paths << Rails.root.join("app/views")
     Rails.autoloaders.main.collapse(Rails.root.join("app/views/components"))
 
+    # Rate limiting — must sit before auth so throttled requests never touch Devise.
+    config.middleware.use Rack::Attack
+
     # Correlation ID + structured logging middleware (runs before Devise/auth).
     # Explicit require because application.rb runs before Zeitwerk is active.
     require_relative "../app/middleware/correlation_id"

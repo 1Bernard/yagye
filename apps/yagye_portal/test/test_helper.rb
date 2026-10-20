@@ -8,6 +8,7 @@ ENV["CORE_PORTAL_SERVICE_SECRET"] ||= "test-service-secret"
 require_relative "../config/environment"
 require "rails/test_help"
 require "webmock/minitest"
+require "rotp"
 
 # Seed static reference data once before any test runs.
 # Roles, permissions, and the grant matrix must exist for UserRole validations

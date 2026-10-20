@@ -29,7 +29,7 @@ module Merchants
 
     def show
       authorize :merchants, :show?
-      application = decode_id(PortalMerchantApplication)
+      application = find_owned!(PortalMerchantApplication)
 
       beneficial_owners = []
       documents         = []
@@ -42,7 +42,7 @@ module Merchants
         client = CoreApiClient.new
         ubos_r      = client.list_beneficial_owners(mc)
         docs_r      = client.list_kyb_documents(mc)
-        screening_r = client.merchant_screening_status(mc)
+        screening_r = client.get_merchant_screening_status(mc)
         reserves_r  = client.list_merchant_reserves(mc)
         plan_r      = client.get_merchant_pricing_plan(mc)
         dests_r     = client.list_payout_destinations(mc)
@@ -71,15 +71,15 @@ module Merchants
 
     def assign_pricing_plan_modal
       authorize :merchants, :update?
-      application    = decode_id(PortalMerchantApplication)
+      application    = find_owned!(PortalMerchantApplication)
       plans_r        = CoreApiClient.new.list_pricing_plans
       available_plans = plans_r.success? ? (plans_r.body["data"] || []) : []
-      render Merchants::AssignPricingPlanModal.new(application: application, plans: available_plans)
+      render Merchants::AssignPricingPlanModalView.new(application: application, plans: available_plans)
     end
 
     def assign_pricing_plan
       authorize :merchants, :update?
-      application = decode_id(PortalMerchantApplication)
+      application = find_owned!(PortalMerchantApplication)
       plan_id     = params[:plan_id].to_s.strip
 
       if plan_id.blank?
@@ -97,7 +97,7 @@ module Merchants
 
     def update
       authorize :merchants, :update?
-      application = decode_id(PortalMerchantApplication)
+      application = find_owned!(PortalMerchantApplication)
       new_status  = params[:status].to_s.strip
       client      = CoreApiClient.new
 
@@ -132,7 +132,7 @@ module Merchants
 
     def kyb_approve
       authorize :merchants, :kyb_approve?
-      application = decode_id(PortalMerchantApplication)
+      application = find_owned!(PortalMerchantApplication)
       unless application.merchant_code.present?
         return redirect_to merchant_path(application),
                            alert: "No merchant account linked — approve the application first."
@@ -151,7 +151,7 @@ module Merchants
 
     def kyb_approve_modal
       authorize :merchants, :kyb_approve?
-      application = decode_id(PortalMerchantApplication)
+      application = find_owned!(PortalMerchantApplication)
       render UI::ConfirmModal.new(
         title:         "Complete KYB approval",
         body:          "#{application.legal_name} will go live and can process real payments immediately.",
@@ -164,7 +164,7 @@ module Merchants
 
     def approve_modal
       authorize :merchants, :update?
-      application = decode_id(PortalMerchantApplication)
+      application = find_owned!(PortalMerchantApplication)
       render UI::ConfirmModal.new(
         title:          "Approve application",
         body:           "A merchant account will be created for #{application.legal_name}.",
@@ -178,7 +178,7 @@ module Merchants
 
     def reject_modal
       authorize :merchants, :update?
-      application = decode_id(PortalMerchantApplication)
+      application = find_owned!(PortalMerchantApplication)
       render UI::ConfirmModal.new(
         title:          "Reject application",
         body:           "Reject the application for #{application.legal_name}? This action cannot be undone.",
@@ -192,7 +192,7 @@ module Merchants
 
     def suspend_modal
       authorize :merchants, :update?
-      application = decode_id(PortalMerchantApplication)
+      application = find_owned!(PortalMerchantApplication)
       render UI::ConfirmModal.new(
         title:          "Suspend merchant",
         body:           "#{application.legal_name} will immediately lose access to process payments.",
@@ -206,7 +206,7 @@ module Merchants
 
     def reactivate_modal
       authorize :merchants, :update?
-      application = decode_id(PortalMerchantApplication)
+      application = find_owned!(PortalMerchantApplication)
       render UI::ConfirmModal.new(
         title:          "Reactivate merchant",
         body:           "#{application.legal_name} will be able to process payments again.",

@@ -5,6 +5,7 @@ module Account
     skip_before_action :authenticate_user!
 
     def show
+      skip_authorization
       @membership = find_valid_membership
       return redirect_to new_user_session_path, alert: invitation_invalid_message unless @membership
 
@@ -17,6 +18,7 @@ module Account
     end
 
     def update
+      skip_authorization
       @membership = find_valid_membership
       return redirect_to new_user_session_path, alert: invitation_invalid_message unless @membership
 
@@ -27,7 +29,8 @@ module Account
       if user.update(password: password, password_confirmation: confirmation)
         @membership.accept!
         sign_in user
-        redirect_to root_path, notice: "Welcome to #{@membership.merchant_name}! Your account is ready."
+        redirect_to settings_totp_new_path,
+                    notice: "Welcome to #{@membership.merchant_name}! Set up two-factor authentication to secure your account."
       else
         render Invitations::AcceptView.new(
           user:       user,

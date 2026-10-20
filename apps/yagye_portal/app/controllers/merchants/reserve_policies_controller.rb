@@ -4,13 +4,13 @@ module Merchants
   class ReservePoliciesController < ApplicationController
     def new_modal
       authorize :reserve_policies, :manage?
-      application = decode_id(PortalMerchantApplication)
+      application = find_owned!(PortalMerchantApplication)
       render Merchants::ReservePolicies::NewModalView.new(application: application)
     end
 
     def create
       authorize :reserve_policies, :manage?
-      application = decode_id(PortalMerchantApplication)
+      application = find_owned!(PortalMerchantApplication)
 
       unless application.merchant_code.present?
         return redirect_to(merchant_path(application),
@@ -54,7 +54,7 @@ module Merchants
 
     def approve_modal
       authorize :reserve_policies, :approve?
-      application = decode_id(PortalMerchantApplication)
+      application = find_owned!(PortalMerchantApplication)
       policy_id   = params[:policy_id]
 
       if sod_violation?(application.merchant_code, policy_id)
@@ -75,7 +75,7 @@ module Merchants
 
     def approve
       authorize :reserve_policies, :approve?
-      application = decode_id(PortalMerchantApplication)
+      application = find_owned!(PortalMerchantApplication)
       policy_id   = params[:policy_id]
 
       if sod_violation?(application.merchant_code, policy_id)
@@ -92,7 +92,7 @@ module Merchants
         policy            = result.body
         auto_activates_at = begin
                               Time.parse(policy["auto_activates_at"].to_s)
-                            rescue
+                            rescue ArgumentError, TypeError
                               Time.now + 7.days
                             end
 
@@ -126,22 +126,9 @@ module Merchants
       end
     end
 
-    private
-
-    def sod_violation?(merchant_code, policy_id)
-      result = CoreApiClient.new.get_reserves(merchant_code)
-      return false unless result.success?
-
-      reserves = result.body["reserves"] || [result.body["policy"]].compact
-      policy   = reserves.find { |p| p.is_a?(Hash) && p["id"].to_s == policy_id.to_s }
-      policy&.fetch("created_by", nil) == current_user.user_code
-    end
-
-    public
-
     def deactivate_modal
       authorize :reserve_policies, :manage?
-      application = decode_id(PortalMerchantApplication)
+      application = find_owned!(PortalMerchantApplication)
       policy_id   = params[:policy_id]
       render Merchants::ReservePolicies::DeactivateModalView.new(
         application: application,
@@ -151,7 +138,7 @@ module Merchants
 
     def deactivate
       authorize :reserve_policies, :manage?
-      application = decode_id(PortalMerchantApplication)
+      application = find_owned!(PortalMerchantApplication)
       policy_id   = params[:policy_id]
 
       result = CoreApiClient.new.deactivate_reserve_policy(policy_id)
@@ -169,6 +156,17 @@ module Merchants
       else
         redirect_to merchant_path(application), alert: result.error_message
       end
+    end
+
+    private
+
+    def sod_violation?(merchant_code, policy_id)
+      result = CoreApiClient.new.get_reserves(merchant_code)
+      return false unless result.success?
+
+      reserves = result.body["reserves"] || [result.body["policy"]].compact
+      policy   = reserves.find { |p| p.is_a?(Hash) && p["id"].to_s == policy_id.to_s }
+      policy&.fetch("created_by", nil) == current_user.user_code
     end
   end
 end

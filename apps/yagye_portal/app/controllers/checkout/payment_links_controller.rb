@@ -7,7 +7,7 @@ module Checkout
       result = core.list_payment_links(merchant_code: current_user.merchant_code)
       links  = result.success? ? result.body["data"] : []
       links  = filter_links(links)
-      render Checkout::PaymentLinksIndexView.new(
+      render Checkout::PaymentLinks::IndexView.new(
         links:         links,
         query:         params[:q],
         view:          params[:view].presence_in(%w[list grid]) || "list",
@@ -17,7 +17,7 @@ module Checkout
 
     def filter
       authorize :checkout, :index?
-      render Checkout::PaymentLinksFilterView.new(
+      render Checkout::PaymentLinks::FilterView.new(
         query:         params[:q],
         active_filter: params[:active],
         view:          params[:view]
@@ -97,7 +97,7 @@ module Checkout
 
     def new
       authorize :checkout, :new?
-      render Checkout::PaymentLinkFormView.new(mode: Current.mode)
+      render Checkout::PaymentLinks::FormView.new(mode: Current.mode)
     end
 
     def create
@@ -105,13 +105,13 @@ module Checkout
 
       kind = params[:kind].presence || "fixed_amount"
       if kind == "fixed_amount" && params[:amount].blank?
-        return render Checkout::PaymentLinkFormView.new(errors: [ "Amount is required for fixed-amount links" ], mode: Current.mode),
+        return render Checkout::PaymentLinks::FormView.new(errors: [ "Amount is required for fixed-amount links" ], mode: Current.mode),
                       status: :unprocessable_entity
       end
 
       allowed_methods = Array(params[:allowed_methods]).reject(&:blank?)
       if allowed_methods.empty?
-        return render Checkout::PaymentLinkFormView.new(errors: [ "Select at least one accepted payment method" ], mode: Current.mode),
+        return render Checkout::PaymentLinks::FormView.new(errors: [ "Select at least one accepted payment method" ], mode: Current.mode),
                       status: :unprocessable_entity
       end
 
@@ -136,7 +136,7 @@ module Checkout
         redirect_to payment_link_layout_path(result.body["id"]),
                     notice: "Payment link created. Configure the checkout layout below."
       else
-        render Checkout::PaymentLinkFormView.new(errors: [ result.error_message ], mode: Current.mode),
+        render Checkout::PaymentLinks::FormView.new(errors: [ result.error_message ], mode: Current.mode),
                status: :unprocessable_entity
       end
     end

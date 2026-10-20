@@ -34,7 +34,7 @@ module Payments
     end
 
     def show
-      settlement = decode_id(PortalSettlement)
+      settlement = find_owned!(PortalSettlement)
       authorize settlement
       merchant = PortalMerchant.find_by(merchant_code: settlement.merchant_code)
       breaks = []

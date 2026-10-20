@@ -9,7 +9,7 @@ FactoryBot.define do
 
   factory :user do
     sequence(:email) { |n| "user#{n}@example.com" }
-    password              { "Password1!" }
+    password              { "Password1!xx" }
     first_name            { "Test" }
     last_name             { "User" }
     kind                  { "merchant_user" }

@@ -91,7 +91,8 @@ module Team
     def sync_permissions(role, keys)
       requested = Array(keys).reject(&:blank?)
       current   = role.role_permissions.pluck(:permission_key)
-      (current - requested).each { |k| role.role_permissions.find_by(permission_key: k)&.destroy }
+      removed = current - requested
+      role.role_permissions.where(permission_key: removed).delete_all if removed.any?
       (requested - current).each do |k|
         role.role_permissions.create!(permission_key: k, granted_at: Time.current)
       end

@@ -31,6 +31,7 @@ class MerchantMembership < ApplicationRecord
   end
 
   def accept!
-    update!(state: "active", accepted_at: Time.current, invitation_token_digest: nil)
+    update!(state: "active", accepted_at: Time.current,
+            invitation_token_digest: nil, invitation_expires_at: nil)
   end
 end

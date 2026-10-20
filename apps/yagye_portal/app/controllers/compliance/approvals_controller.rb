@@ -26,7 +26,7 @@ module Compliance
     end
 
     def approve_modal
-      record = decode_id(PortalAdjustmentApproval)
+      record = find_owned!(PortalAdjustmentApproval)
       authorize record, :approve?, policy_class: PortalAdjustmentApprovalPolicy
 
       if record.proposed_by == current_user.user_code
@@ -50,7 +50,7 @@ module Compliance
     end
 
     def approve
-      record = decode_id(PortalAdjustmentApproval)
+      record = find_owned!(PortalAdjustmentApproval)
       authorize record, :approve?, policy_class: PortalAdjustmentApprovalPolicy
 
       if record.proposed_by == current_user.user_code
@@ -70,13 +70,13 @@ module Compliance
     end
 
     def reject_modal
-      record = decode_id(PortalAdjustmentApproval)
+      record = find_owned!(PortalAdjustmentApproval)
       authorize record, :reject?, policy_class: PortalAdjustmentApprovalPolicy
       render Compliance::Approvals::RejectModalView.new(record: record)
     end
 
     def reject
-      record = decode_id(PortalAdjustmentApproval)
+      record = find_owned!(PortalAdjustmentApproval)
       authorize record, :reject?, policy_class: PortalAdjustmentApprovalPolicy
       reason = params[:reason].to_s.strip
       return redirect_to(compliance_approvals_path, alert: "Rejection reason is required.") if reason.blank?

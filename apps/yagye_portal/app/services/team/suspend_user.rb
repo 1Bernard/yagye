@@ -28,7 +28,7 @@ module Team
       audit_log(action: "team.user_suspended", resource_type: "User",
                 resource_code: @user.id, outcome: "succeeded")
       Result.new(success?: true)
-    rescue => e
+    rescue StandardError => e
       Result.new(success?: false, error: e.message)
     end
   end

@@ -20,7 +20,7 @@ module Account
 
     def set_default
       skip_authorization
-      result = CoreApiClient.new.set_default_payout_destination(
+      result = CoreApiClient.new.update_default_payout_destination(
         current_user.merchant_code,
         params[:id]
       )
@@ -76,7 +76,7 @@ module Account
     def verify
       authorize :payout_destinations, :verify?
       merchant_code = params[:merchant_code].presence || current_user.merchant_code
-      result = CoreApiClient.new.verify_payout_destination(
+      result = CoreApiClient.new.approve_payout_destination(
         merchant_code,
         params[:id],
         verified_by: current_user.user_code

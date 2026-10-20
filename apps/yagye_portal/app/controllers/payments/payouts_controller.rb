@@ -9,14 +9,15 @@ module Payments
       )
       pagy, payouts = pagy(filtered, limit: 25)
       render Payments::Payouts::IndexView.new(
-        payouts:      payouts,
-        pagy:         pagy,
-        state_filter: params[:state],
-        query:        params[:q],
-        from:         params[:from],
-        to:           params[:to],
-        view:         params[:view].presence_in(%w[list grid]) || "list",
-        stats:        payout_stats(policy_scope(PortalPayout))
+        payouts:                payouts,
+        pagy:                   pagy,
+        state_filter:           params[:state],
+        query:                  params[:q],
+        from:                   params[:from],
+        to:                     params[:to],
+        view:                   params[:view].presence_in(%w[list grid]) || "list",
+        stats:                  payout_stats(policy_scope(PortalPayout)),
+        pending_requests_count: pending_requests_count
       )
     end
 
@@ -31,49 +32,28 @@ module Payments
     end
 
     def show
-      payout = decode_id(PortalPayout)
+      payout = find_owned!(PortalPayout)
       authorize payout
       render Payments::Payouts::ShowView.new(payout: payout)
     end
 
     def statement
       authorize PortalPayout, :index?
-      payout = decode_id(PortalPayout)
+      payout = find_owned!(PortalPayout)
       render Payments::Payouts::StatementView.new(payout: payout), layout: false
     end
 
     private
 
     def payout_stats(scope)
-      now       = Time.current
-      mtd_start = now.beginning_of_month
+      merchant_code = current_user.internal_staff? ? nil : current_user.merchant_code
+      ::Payouts::PayoutStatsQuery.new(scope, merchant_code: merchant_code).call
+    end
 
-      paid_mtd   = scope.where(state: "paid")
-                        .where("last_applied_at >= ?", mtd_start)
-                        .sum(:amount)
-
-      failed_30d = scope.where(state: "failed")
-                        .where("last_applied_at >= ?", 30.days.ago)
-                        .count
-
-      currency   = scope.where(state: "paid").pick(:currency) || "GHS"
-
-      merchant_code  = current_user.internal_staff? ? nil : current_user.merchant_code
-      settlement_scope = merchant_code \
-        ? PortalSettlement.for_merchant(merchant_code) \
-        : PortalSettlement.all
-      pending_settlements = settlement_scope.where(state: %w[pending processing awaiting_approval])
-      unsettled      = pending_settlements.sum(:expected_net)
-      next_value_date = pending_settlements.where.not(value_date: nil)
-                                           .minimum(:value_date)
-
-      {
-        paid_mtd:        paid_mtd,
-        currency:        currency,
-        unsettled:       unsettled,
-        next_value_date: next_value_date,
-        failed_30d:      failed_30d
-      }
+    def pending_requests_count
+      base = PortalPayoutRequest.pending_review
+      base = base.for_merchant(current_user.merchant_code) unless current_user.internal_staff?
+      base.count
     end
   end
 end

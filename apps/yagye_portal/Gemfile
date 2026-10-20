@@ -51,6 +51,9 @@ gem "prawn-table"
 # Audit trail — WHAT CHANGED on portal-owned AR records
 gem "paper_trail"
 
+# Rate limiting — throttle login, invitation, and API endpoints
+gem "rack-attack"
+
 # Structured single-line JSON request logs
 gem "lograge"
 

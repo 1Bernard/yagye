@@ -55,7 +55,7 @@ class CoreApiClient
 
   # POST /internal/merchants/:code/keys
   # Uses service-token auth — safe to call before the merchant has any API keys.
-  def generate_api_key(merchant_code:, label:, mode:, scopes: [], created_by:)
+  def create_api_key(merchant_code:, label:, mode:, scopes: [], created_by:)
     post("/internal/merchants/#{merchant_code}/keys",
          { label: label, mode: mode, scopes: scopes, created_by: created_by })
   end
@@ -68,7 +68,7 @@ class CoreApiClient
   # ── Webhooks ───────────────────────────────────────────────────────────────
 
   # POST /internal/merchants/:merchant_code/webhook-endpoints
-  def add_webhook_endpoint(merchant_code:, url:, subscribed_events:, mode:)
+  def create_webhook_endpoint(merchant_code:, url:, subscribed_events:, mode:)
     post("/internal/merchants/#{merchant_code}/webhook-endpoints",
          { url: url, subscribed_events: subscribed_events, mode: mode })
   end
@@ -80,7 +80,7 @@ class CoreApiClient
   end
 
   # DELETE /internal/merchants/:merchant_code/webhook-endpoints/:endpoint_id
-  def remove_webhook_endpoint(merchant_code:, endpoint_id:)
+  def deregister_webhook_endpoint(merchant_code:, endpoint_id:)
     delete("/internal/merchants/#{merchant_code}/webhook-endpoints/#{endpoint_id}", {})
   end
 
@@ -116,7 +116,7 @@ class CoreApiClient
           { name: name, description: description, graph_payload: graph_payload })
   end
 
-  def publish_routing_configuration(id)
+  def activate_routing_configuration(id)
     post("/internal/routing-configurations/#{id}/publish", {})
   end
 
@@ -221,7 +221,7 @@ class CoreApiClient
   end
 
   # POST /internal/merchants/:code/enable-sandbox
-  def enable_sandbox_mode(merchant_code, granted_by:)
+  def update_sandbox_mode(merchant_code, granted_by:)
     post("/internal/merchants/#{merchant_code}/enable-sandbox",
          { granted_by: granted_by })
   end
@@ -251,23 +251,23 @@ class CoreApiClient
   end
 
   # PUT /internal/merchants/:code/contacts
-  def upsert_merchant_contact(merchant_code, attrs)
+  def update_merchant_contact(merchant_code, attrs)
     put("/internal/merchants/#{merchant_code}/contacts", attrs)
   end
 
   # PUT /internal/merchants/:code/addresses/:address_type
-  def upsert_merchant_address(merchant_code, address_type, attrs)
+  def update_merchant_address(merchant_code, address_type, attrs)
     put("/internal/merchants/#{merchant_code}/addresses/#{address_type}", attrs)
   end
 
   # POST /internal/merchants/:code/documents (merchant KYB doc upload — legacy single-call path)
-  def upload_kyb_document(merchant_code, attrs)
+  def create_kyb_document(merchant_code, attrs)
     post("/internal/merchants/#{merchant_code}/documents", attrs)
   end
 
   # POST /internal/merchants/:code/documents/upload-intent (P21 presigned URL flow — step 1)
-  def request_document_upload_intent(merchant_code, kind:, filename:, content_type:,
-                                     size_bytes:, uploaded_by:, label: nil)
+  def create_document_upload_intent(merchant_code, kind:, filename:, content_type:,
+                                    size_bytes:, uploaded_by:, label: nil)
     post("/internal/merchants/#{merchant_code}/documents/upload-intent", {
       kind:         kind,
       filename:     filename,
@@ -279,7 +279,7 @@ class CoreApiClient
   end
 
   # PATCH /internal/documents/:id/confirm-upload (P21 presigned URL flow — step 3)
-  def confirm_document_upload(document_id, checksum:)
+  def update_document_upload(document_id, checksum:)
     patch("/internal/documents/#{document_id}/confirm-upload", { checksum: checksum })
   end
 
@@ -294,7 +294,7 @@ class CoreApiClient
   end
 
   # POST /internal/merchants/:code/service-agreements
-  def accept_service_agreement(merchant_code, attrs)
+  def create_service_agreement(merchant_code, attrs)
     post("/internal/merchants/#{merchant_code}/service-agreements", attrs)
   end
 
@@ -316,7 +316,7 @@ class CoreApiClient
   end
 
   # POST /internal/merchants/:code/payout-destinations/:id/set-default
-  def set_default_payout_destination(merchant_code, destination_id)
+  def update_default_payout_destination(merchant_code, destination_id)
     post("/internal/merchants/#{merchant_code}/payout-destinations/#{destination_id}/set-default", {})
   end
 
@@ -326,7 +326,7 @@ class CoreApiClient
   end
 
   # POST /internal/merchants/:code/payout-destinations/:id/verify
-  def verify_payout_destination(merchant_code, destination_id, verified_by:)
+  def approve_payout_destination(merchant_code, destination_id, verified_by:)
     post("/internal/merchants/#{merchant_code}/payout-destinations/#{destination_id}/verify",
       { verified_by: verified_by })
   end
@@ -339,7 +339,7 @@ class CoreApiClient
   # ── Disputes (portal → core, service-token authenticated) ─────────────────
 
   # POST /internal/disputes/:id/evidence
-  def submit_dispute_evidence(dispute_core_id)
+  def create_dispute_evidence(dispute_core_id)
     post("/internal/disputes/#{dispute_core_id}/evidence", {})
   end
 
@@ -359,8 +359,8 @@ class CoreApiClient
   # subject_ref: UUID (caller generates; will point to PII vault when KMS is wired)
   # role: "director" | "ubo" | "both"
   # ownership_bps: integer 0-10000 (100 bps = 1%)
-  def add_beneficial_owner(merchant_code, subject_ref:, role:, ownership_bps:,
-                            subject_name: nil, subject_dob: nil)
+  def create_beneficial_owner(merchant_code, subject_ref:, role:, ownership_bps:,
+                              subject_name: nil, subject_dob: nil)
     post("/internal/merchants/#{merchant_code}/beneficial-owners", {
       subject_ref: subject_ref,
       role: role,
@@ -371,7 +371,7 @@ class CoreApiClient
   end
 
   # POST /internal/merchants/:code/kyb-start-review
-  def start_review(merchant_code, reviewed_by:)
+  def create_kyb_review(merchant_code, reviewed_by:)
     post("/internal/merchants/#{merchant_code}/kyb-start-review",
          { reviewed_by: reviewed_by })
   end
@@ -388,12 +388,12 @@ class CoreApiClient
   end
 
   # GET /internal/merchants/:code/screening-status
-  def merchant_screening_status(merchant_code)
+  def get_merchant_screening_status(merchant_code)
     get("/internal/merchants/#{merchant_code}/screening-status")
   end
 
   # PATCH /internal/merchants/:code/documents/:doc_id/review
-  def review_kyb_document(merchant_code, document_id, status:, reviewer_code:, reviewer_notes: nil)
+  def update_kyb_document(merchant_code, document_id, status:, reviewer_code:, reviewer_notes: nil)
     patch("/internal/merchants/#{merchant_code}/documents/#{document_id}/review",
           { status: status, reviewer_code: reviewer_code,
             reviewer_notes: reviewer_notes }.compact)
@@ -419,8 +419,8 @@ class CoreApiClient
   end
 
   # PUT /internal/merchants/:merchant_id/settlement-controls
-  def upsert_settlement_controls(merchant_id, approval_threshold:, approver_user_codes:,
-                                 settlement_frequency: nil, settlement_day: nil)
+  def update_settlement_controls(merchant_id, approval_threshold:, approver_user_codes:,
+                                settlement_frequency: nil, settlement_day: nil)
     put("/internal/merchants/#{merchant_id}/settlement-controls",
         {
           approval_threshold:   approval_threshold,
@@ -494,7 +494,7 @@ class CoreApiClient
   end
 
   # POST /internal/bank-statements
-  def import_bank_statement(attrs)
+  def create_bank_statement(attrs)
     post("/internal/bank-statements", attrs)
   end
 
@@ -661,38 +661,44 @@ class CoreApiClient
 
   private
 
+  NETWORK_ERRORS = [
+    Faraday::TimeoutError,
+    Faraday::ConnectionFailed,
+    Faraday::RetriableResponse
+  ].freeze
+
   def post(path, body)
     response = @conn.post(path, body, request_headers)
     handle(response)
-  rescue Faraday::TimeoutError, Faraday::ConnectionFailed => e
+  rescue *NETWORK_ERRORS => e
     Result.new(success?: false, error_code: "network_error", error_message: e.message)
   end
 
   def get(path, params = nil)
     response = @conn.get(path, params, request_headers)
     handle(response)
-  rescue Faraday::TimeoutError, Faraday::ConnectionFailed => e
+  rescue *NETWORK_ERRORS => e
     Result.new(success?: false, error_code: "network_error", error_message: e.message)
   end
 
   def delete(path, body)
     response = @conn.delete(path, body, request_headers)
     handle(response)
-  rescue Faraday::TimeoutError, Faraday::ConnectionFailed => e
+  rescue *NETWORK_ERRORS => e
     Result.new(success?: false, error_code: "network_error", error_message: e.message)
   end
 
   def patch(path, body)
     response = @conn.patch(path, body, request_headers)
     handle(response)
-  rescue Faraday::TimeoutError, Faraday::ConnectionFailed => e
+  rescue *NETWORK_ERRORS => e
     Result.new(success?: false, error_code: "network_error", error_message: e.message)
   end
 
   def put(path, body)
     response = @conn.put(path, body, request_headers)
     handle(response)
-  rescue Faraday::TimeoutError, Faraday::ConnectionFailed => e
+  rescue *NETWORK_ERRORS => e
     Result.new(success?: false, error_code: "network_error", error_message: e.message)
   end
 

@@ -54,7 +54,7 @@ module Payments
     private
 
     def set_settlement
-      @settlement = decode_id(PortalSettlement, params[:id])
+      @settlement = find_owned!(PortalSettlement, params[:id])
     end
   end
 end

@@ -13,7 +13,7 @@ module Payments
         ),
         limit: 25
       )
-      render Disputes::IndexView.new(
+      render Payments::Disputes::IndexView.new(
         tab: tab, disputes: disputes, pagy: pagy,
         query: params[:q], reason: params[:reason],
         date_from: params[:from], date_to: params[:to],
@@ -24,7 +24,7 @@ module Payments
     def filter
       authorize :disputes, :index?
       tab = params[:tab].presence_in(%w[all open won lost]) || "all"
-      render Disputes::FilterView.new(
+      render Payments::Disputes::FilterView.new(
         tab:       tab,
         query:     params[:q],
         reason:    params[:reason],
@@ -35,22 +35,42 @@ module Payments
 
     def show
       authorize :disputes, :show?
-      dispute = decode_id(Dispute)
-      can_submit = current_user.merchant_user? && dispute.open? && dispute.evidence_text.blank?
-
-      payment = dispute.core_payment_id.present? \
+      dispute  = find_owned!(Dispute)
+      payment  = dispute.core_payment_id.present? \
         ? policy_scope(Payment).find_by(core_payment_id: dispute.core_payment_id)
         : nil
 
-      render Disputes::ShowView.new(dispute: dispute, can_submit_evidence: can_submit, payment: payment)
+      deadline_passed = deadline_passed_for(dispute)
+      can_draft       = current_user.merchant_user? &&
+                        dispute.open? &&
+                        dispute.evidence_stage == :none &&
+                        !deadline_passed
+
+      can_approve     = policy(dispute).approve_evidence? &&
+                        dispute.evidence_stage == :draft &&
+                        dispute.evidence_draft_by != current_user.id.to_s &&
+                        !deadline_passed
+
+      render Payments::Disputes::ShowView.new(
+        dispute:         dispute,
+        payment:         payment,
+        can_draft:       can_draft,
+        can_approve:     can_approve,
+        deadline_passed: deadline_passed
+      )
     end
 
-    def submit_evidence
+    # Maker: save draft, no network call yet.
+    def save_evidence_draft
       authorize :disputes, :update?
-      dispute = decode_id(Dispute)
+      dispute = find_owned!(Dispute)
 
-      unless current_user.merchant_user? && dispute.open?
-        return redirect_to dispute_path(dispute), alert: "Evidence cannot be submitted for this dispute."
+      unless current_user.merchant_user? && dispute.open? && dispute.evidence_stage == :none
+        return redirect_to dispute_path(dispute), alert: "Evidence cannot be drafted for this dispute."
+      end
+
+      if deadline_passed_for(dispute)
+        return redirect_to dispute_path(dispute), alert: "The network deadline has passed."
       end
 
       text  = params[:evidence_text].to_s.strip
@@ -60,19 +80,71 @@ module Payments
         return redirect_to dispute_path(dispute), alert: "Provide evidence text or attach at least one file."
       end
 
-      result = CoreApiClient.new.submit_dispute_evidence(dispute.core_dispute_id)
-      if result.success?
-        dispute.evidence_files.attach(files) if files.any?
-        dispute.update!(evidence_text: text.presence, evidence_submitted_at: Time.current)
-        redirect_to dispute_path(dispute), notice: "Evidence submitted successfully."
-      else
-        redirect_to dispute_path(dispute), alert: "Could not submit evidence. Please try again."
+      dispute.evidence_draft_files.attach(files) if files.any?
+      dispute.update!(
+        evidence_draft_text: text.presence,
+        evidence_draft_by:   current_user.id.to_s,
+        evidence_draft_at:   Time.current
+      )
+
+      redirect_to dispute_path(dispute), notice: "Evidence draft saved. A merchant owner must approve before it is submitted."
+    end
+
+    # Checker: approve draft and send to network.
+    def approve_evidence
+      authorize :disputes, :approve_evidence?
+      dispute = find_owned!(Dispute)
+
+      unless dispute.evidence_stage == :draft
+        return redirect_to dispute_path(dispute), alert: "No draft evidence to approve."
       end
+
+      if dispute.evidence_draft_by == current_user.id.to_s
+        return redirect_to dispute_path(dispute), alert: "You cannot approve evidence you prepared."
+      end
+
+      if deadline_passed_for(dispute)
+        return redirect_to dispute_path(dispute), alert: "The network deadline has passed."
+      end
+
+      result = CoreApiClient.new.create_dispute_evidence(dispute.core_dispute_id)
+      unless result.success?
+        return redirect_to dispute_path(dispute), alert: "Could not submit evidence to the network. Please try again."
+      end
+
+      # Promote draft → final
+      dispute.evidence_draft_files.each { |f| dispute.evidence_files.attach(f.blob) }
+      dispute.update!(
+        evidence_text:         dispute.evidence_draft_text,
+        evidence_submitted_at: Time.current,
+        evidence_approved_by:  current_user.id.to_s,
+        evidence_draft_text:   nil,
+        evidence_draft_by:     nil,
+        evidence_draft_at:     nil
+      )
+      dispute.evidence_draft_files.purge
+
+      redirect_to dispute_path(dispute), notice: "Evidence submitted to the network."
+    end
+
+    # Checker or drafter can discard a draft and start over.
+    def discard_evidence_draft
+      authorize :disputes, :update?
+      dispute = find_owned!(Dispute)
+
+      unless dispute.evidence_stage == :draft
+        return redirect_to dispute_path(dispute), alert: "No draft to discard."
+      end
+
+      dispute.evidence_draft_files.purge
+      dispute.update!(evidence_draft_text: nil, evidence_draft_by: nil, evidence_draft_at: nil)
+
+      redirect_to dispute_path(dispute), notice: "Evidence draft discarded."
     end
 
     def resolve
       authorize :disputes, :resolve?
-      dispute = decode_id(Dispute)
+      dispute = find_owned!(Dispute)
       outcome = params[:outcome].presence_in(%w[won lost]) || "lost"
 
       result = CoreApiClient.new.resolve_dispute(dispute.core_dispute_id, outcome)
@@ -87,7 +159,7 @@ module Payments
 
     def resolve_confirm_modal
       authorize :disputes, :resolve?
-      @dispute = decode_id(Dispute)
+      @dispute = find_owned!(Dispute)
       outcome = params[:outcome].presence_in(%w[won lost])
       return head(:not_found) unless outcome
 
@@ -114,6 +186,12 @@ module Payments
         lost:         scope.lost.count,
         sla_breached: scope.open.where("network_deadline < ?", today).count
       }
+    end
+
+    def deadline_passed_for(dispute)
+      return false unless dispute.network_deadline.present?
+      deadline = Date.parse(dispute.network_deadline) rescue nil
+      deadline&.<(Date.current) || false
     end
   end
 end

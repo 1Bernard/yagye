@@ -39,7 +39,7 @@ module Team
                 metadata: { added: @role_request.added_keys, removed: @role_request.removed_keys,
                              approved_by: @approved_by.id })
       Result.new(success?: true)
-    rescue => e
+    rescue StandardError => e
       Result.new(success?: false, error: e.message)
     end
   end

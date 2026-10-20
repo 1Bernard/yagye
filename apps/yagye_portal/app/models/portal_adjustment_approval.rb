@@ -16,8 +16,16 @@ class PortalAdjustmentApproval < ApplicationRecord
     return "—" unless proposed_action.present?
     type = proposed_action["type"] || proposed_action["action"] || "adjustment"
     amount = proposed_action["amount"]
-    amount.present? ? "#{type.humanize} · #{Money.new(amount).format}" : type.humanize
-  rescue
+    amount.present? ? "#{type.humanize} · #{format_minor_units(amount.to_i)}" : type.humanize
+  rescue StandardError
     proposed_action.to_s.truncate(60)
+  end
+
+  private
+
+  def format_minor_units(minor_units)
+    n = minor_units / 100.0
+    whole, frac = format("%.2f", n).split(".")
+    "GHS #{whole.to_i.to_s.reverse.gsub(/(\d{3})(?=\d)/, '\1,').reverse}.#{frac}"
   end
 end

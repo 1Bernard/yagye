@@ -80,11 +80,11 @@ module Payments
       breaks = breaks.select { |b| b["state"]    == params[:state]    } if params[:state].present?
       breaks = breaks.select { |b| b["severity"] == params[:severity] } if params[:severity].present?
       if params[:from].present?
-        from = Date.parse(params[:from]) rescue nil
+        from = begin; Date.parse(params[:from]); rescue ArgumentError; nil; end
         breaks = breaks.select { |b| b["detected_at"] && Date.parse(b["detected_at"]) >= from } if from
       end
       if params[:to].present?
-        to = Date.parse(params[:to]) rescue nil
+        to = begin; Date.parse(params[:to]); rescue ArgumentError; nil; end
         breaks = breaks.select { |b| b["detected_at"] && Date.parse(b["detected_at"]) <= to } if to
       end
       breaks

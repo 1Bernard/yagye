@@ -23,19 +23,31 @@ module Team
       return Result.new(success?: false, error: "Role '#{@role_key}' not found") unless role
 
       if @invited_by.merchant_user? && role.scope == "internal"
-        return Result.new(success?: false, error: "Merchant users cannot assign internal roles")
+        return Result.new(success?: false, error: "Merchant users cannot assign internal roles.")
       end
+
+      if @merchant_code.blank?
+        return Result.new(success?: false, error: "No merchant context — internal staff invitations must be sent from within a merchant account.")
+      end
+
+      kind = role.scope == "internal" ? "internal_staff" : "merchant_user"
 
       raw_token, digest = MerchantMembership.generate_invitation_token!
 
       membership = nil
       user = nil
       User.transaction do
+        existing = User.find_by(email: @email)
+        if existing
+          return Result.new(success?: false,
+                            error: "#{@email} is already registered. Ask them to sign in or contact support.")
+        end
+
         user = User.create!(
           email:      @email,
           first_name: @first_name,
           last_name:  @last_name,
-          kind:       "merchant_user",
+          kind:       kind,
           password:   SecureRandom.hex(16)
         )
         UserRole.create!(

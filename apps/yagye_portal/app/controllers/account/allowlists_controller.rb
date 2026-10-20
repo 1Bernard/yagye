@@ -20,7 +20,7 @@ module Account
     end
 
     def destroy_ip
-      entry = decode_id(PortalIpAllowlist)
+      entry = find_owned!(PortalIpAllowlist)
       authorize entry, policy_class: PortalIpAllowlistPolicy
       cidr = entry.cidr
       entry.soft_delete!
@@ -47,7 +47,7 @@ module Account
     end
 
     def destroy_msisdn
-      entry = decode_id(PortalMsisdnAllowlist)
+      entry = find_owned!(PortalMsisdnAllowlist)
       authorize entry, policy_class: PortalMsisdnAllowlistPolicy
       msisdn = entry.msisdn
       entry.soft_delete!
@@ -75,7 +75,7 @@ module Account
     end
 
     def destroy_msisdn_block
-      entry = decode_id(PortalMsisdnBlocklist)
+      entry = find_owned!(PortalMsisdnBlocklist)
       authorize entry, policy_class: PortalMsisdnBlocklistPolicy
       msisdn = entry.msisdn
       entry.soft_delete!
@@ -103,7 +103,7 @@ module Account
     end
 
     def destroy_ip_block
-      entry = decode_id(PortalIpBlocklist)
+      entry = find_owned!(PortalIpBlocklist)
       authorize entry, policy_class: PortalIpBlocklistPolicy
       cidr = entry.cidr
       entry.soft_delete!
@@ -131,7 +131,7 @@ module Account
     end
 
     def destroy_email_block
-      entry = decode_id(PortalEmailBlocklist)
+      entry = find_owned!(PortalEmailBlocklist)
       authorize entry, policy_class: PortalEmailBlocklistPolicy
       email = entry.email
       entry.soft_delete!
@@ -141,7 +141,7 @@ module Account
     end
 
     def remove_ip_modal
-      entry = decode_id(PortalIpAllowlist)
+      entry = find_owned!(PortalIpAllowlist)
       authorize entry, policy_class: PortalIpAllowlistPolicy
       render UI::ConfirmModal.new(
         title:          "Remove IP from allowlist",
@@ -154,7 +154,7 @@ module Account
     end
 
     def remove_msisdn_modal
-      entry = decode_id(PortalMsisdnAllowlist)
+      entry = find_owned!(PortalMsisdnAllowlist)
       authorize entry, policy_class: PortalMsisdnAllowlistPolicy
       render UI::ConfirmModal.new(
         title:          "Remove MSISDN from allowlist",
@@ -167,7 +167,7 @@ module Account
     end
 
     def remove_msisdn_block_modal
-      entry = decode_id(PortalMsisdnBlocklist)
+      entry = find_owned!(PortalMsisdnBlocklist)
       authorize entry, policy_class: PortalMsisdnBlocklistPolicy
       render UI::ConfirmModal.new(
         title:          "Remove MSISDN from blocklist",
@@ -180,7 +180,7 @@ module Account
     end
 
     def remove_ip_block_modal
-      entry = decode_id(PortalIpBlocklist)
+      entry = find_owned!(PortalIpBlocklist)
       authorize entry, policy_class: PortalIpBlocklistPolicy
       render UI::ConfirmModal.new(
         title:          "Remove IP from blocklist",
@@ -193,7 +193,7 @@ module Account
     end
 
     def remove_email_block_modal
-      entry = decode_id(PortalEmailBlocklist)
+      entry = find_owned!(PortalEmailBlocklist)
       authorize entry, policy_class: PortalEmailBlocklistPolicy
       render UI::ConfirmModal.new(
         title:          "Remove email from blocklist",

@@ -6,6 +6,12 @@ class SsoConfiguration < ApplicationRecord
 
   before_save { self.email_domain = email_domain.downcase.strip }
 
+  scope :kept, -> { where(deactivated_at: nil) }
+
+  def deactivate!
+    update!(active: false, deactivated_at: Time.current)
+  end
+
   def self.active_for_email_domain?(email)
     domain = email.to_s.split("@").last.to_s.downcase.strip
     domain.present? && exists?(email_domain: domain, active: true)

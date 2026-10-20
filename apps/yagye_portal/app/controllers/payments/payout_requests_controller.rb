@@ -34,13 +34,13 @@ module Payments
         requested_by:  current_user.user_code,
         currency:      "GHS",
         reason:        params[:reason].to_s.strip,
-        amount_cents:  parse_amount(params[:amount_cents])
+        amount:        parse_amount(params[:amount])
       )
 
       if req.save
         audit(action: "payout_request.submitted", resource_type: "payout_request",
               outcome: "succeeded", resource_code: req.id.to_s,
-              metadata: { amount_cents: req.amount_cents, currency: req.currency })
+              metadata: { amount: req.amount, currency: req.currency })
         redirect_to payouts_path,
                     notice: "Payout request submitted. Our team will review within 1 business day."
       else
@@ -52,13 +52,13 @@ module Payments
     end
 
     def show
-      req = decode_id(PortalPayoutRequest)
+      req = find_owned!(PortalPayoutRequest)
       authorize req
       render Payments::PayoutRequests::ShowView.new(request: req)
     end
 
     def approve
-      req = decode_id(PortalPayoutRequest)
+      req = find_owned!(PortalPayoutRequest)
       authorize req, :review?
       if req.requested_by == current_user.user_code
         return redirect_to payout_request_path(req),
@@ -73,12 +73,12 @@ module Payments
       )
       audit(action: "payout_request.approved", resource_type: "payout_request",
             outcome: "succeeded", resource_code: req.id.to_s,
-            metadata: { merchant_code: req.merchant_code, amount_cents: req.amount_cents })
+            metadata: { merchant_code: req.merchant_code, amount: req.amount })
       redirect_to payout_request_path(req), notice: "Request approved."
     end
 
     def reject
-      req = decode_id(PortalPayoutRequest)
+      req = find_owned!(PortalPayoutRequest)
       authorize req, :review?
       if req.requested_by == current_user.user_code
         return redirect_to payout_request_path(req),
@@ -107,11 +107,7 @@ module Payments
     end
 
     def unsettled_balance(merchant_code)
-      scope = PortalSettlement.for_merchant(merchant_code)
-                              .where(state: %w[pending processing awaiting_approval])
-      total    = scope.sum(:expected_net)
-      currency = scope.pick(:currency) || "GHS"
-      { amount: total, currency: currency }
+      Payouts::PendingSettlementQuery.new(merchant_code).call.slice(:amount, :currency)
     end
   end
 end

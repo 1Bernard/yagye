@@ -1,4 +1,6 @@
 class Payment < ApplicationRecord
+  include MoneyDisplayable
+
   self.table_name = "portal_payments"
 
   STATUSES = %w[created processing requires_action paid failed cancelled indeterminate refunded disputed].freeze
@@ -34,20 +36,9 @@ class Payment < ApplicationRecord
     customer_email.presence || masked_msisdn || "—"
   end
 
-  def formatted_amount
-    major = amount / 100.0
-    format("%s %.2f", currency, major)
-  end
-
-  def formatted_fee_amount
-    return nil unless fee_amount.present?
-    format("%s %.2f", currency, fee_amount / 100.0)
-  end
-
-  def formatted_net_amount
-    return formatted_amount unless net_amount.present?
-    format("%s %.2f", currency, net_amount / 100.0)
-  end
+  def formatted_amount       = format_minor_units(amount, currency)
+  def formatted_fee_amount   = fee_amount.present? ? format_minor_units(fee_amount, currency) : nil
+  def formatted_net_amount   = net_amount.present? ? format_minor_units(net_amount, currency) : formatted_amount
 
   def has_fee? = fee_amount.present? && fee_amount.positive?
 

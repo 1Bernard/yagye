@@ -24,15 +24,26 @@ module Developers
         spec = CoreApiClient.new.openapi_spec
         if spec.empty?
           cache = Rails.root.join("config/openapi_spec_cache.json")
-          spec  = JSON.parse(File.read(cache)) rescue {}
+          spec  = begin
+            JSON.parse(File.read(cache))
+          rescue JSON::ParserError, Errno::ENOENT
+            {}
+          end
         end
+      end
+
+      sandbox_enabled = if current_user.merchant_user?
+        PortalMerchant.find_for(current_user.merchant_code)&.sandbox_enabled? || false
+      else
+        false
       end
 
       render Developers::IndexView.new(
         tab: tab, api_keys: api_keys, webhooks: webhooks,
         deliveries: deliveries, pagy: pagy, reveal_key: reveal_key,
         reveal_webhook_secret: reveal_webhook_secret,
-        openapi_spec: spec
+        openapi_spec: spec,
+        sandbox_enabled: sandbox_enabled
       )
     end
 
@@ -43,7 +54,7 @@ module Developers
 
     def create
       authorize :developers, :manage_keys?
-      result = CoreApiClient.new.generate_api_key(
+      result = CoreApiClient.new.create_api_key(
         merchant_code: current_user.merchant_code,
         label:         key_params[:label],
         mode:          key_params[:mode].presence_in(%w[live test]) || "test",

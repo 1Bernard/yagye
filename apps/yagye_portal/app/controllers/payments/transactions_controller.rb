@@ -63,7 +63,7 @@ module Payments
     end
 
     def show
-      payment = decode_id(Payment)
+      payment = find_owned!(Payment)
       authorize payment
 
       events = []
@@ -87,7 +87,7 @@ module Payments
     end
 
     def refund
-      payment = decode_id(Payment)
+      payment = find_owned!(Payment)
       authorize payment, :refund?
       amount = params[:amount].present? ? params[:amount].to_i : payment.amount
       result = CoreApiClient.new.create_refund(
@@ -99,7 +99,7 @@ module Payments
       if result.success?
         audit(action: "refund.initiated", resource_type: "payment",
               outcome: "succeeded", resource_code: payment.core_payment_id,
-              metadata: { amount_cents: amount, reason: params[:reason].to_s.strip.presence })
+              metadata: { amount: amount, reason: params[:reason].to_s.strip.presence })
         redirect_to payment_path(payment), notice: "Refund initiated."
       else
         audit(action: "refund.initiated", resource_type: "payment",
@@ -173,15 +173,7 @@ module Payments
     end
 
     def payment_stats(scope)
-      mtd_start = Time.current.beginning_of_month
-      paid_mtd  = scope.where(status: "paid").where("paid_at >= ?", mtd_start)
-      {
-        volume_mtd:       paid_mtd.sum(:amount),
-        volume_currency:  scope.pick(:currency) || "GHS",
-        transactions_mtd: paid_mtd.count,
-        pending:          scope.where(status: %w[created processing requires_action]).count,
-        failed:           scope.where(status: %w[failed cancelled]).count
-      }
+      Payments::TransactionStatsQuery.new(scope).call
     end
   end
 end

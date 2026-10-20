@@ -100,7 +100,7 @@ module Developers
 
     def publish
       authorize :developers, :manage_routing_rules?
-      result = core.publish_routing_configuration(params[:id])
+      result = core.activate_routing_configuration(params[:id])
 
       if result.success?
         audit(action: "routing_rule.published", resource_type: "routing_configuration",

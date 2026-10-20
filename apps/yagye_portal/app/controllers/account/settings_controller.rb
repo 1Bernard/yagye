@@ -5,29 +5,40 @@ module Account
     def index
       authorize :settings, :index?
       tab = params[:tab].presence_in(%w[profile security notifications allowlists sso verification payouts payment_methods]) || "profile"
-      ip_allowlists        = PortalIpAllowlist.kept.for_merchant(current_user.merchant_code).order(:created_at)
-      ip_blocklists        = PortalIpBlocklist.kept.for_merchant(current_user.merchant_code).order(:created_at)
-      msisdn_allowlists    = PortalMsisdnAllowlist.kept.for_merchant(current_user.merchant_code).order(:created_at)
-      msisdn_blocklists    = PortalMsisdnBlocklist.kept.for_merchant(current_user.merchant_code).order(:created_at)
-      email_blocklists     = PortalEmailBlocklist.kept.for_merchant(current_user.merchant_code).order(:created_at)
-      kyb_application      = tab == "verification" && current_user.merchant_user? ? PortalMerchantApplication.find_by(merchant_code: current_user.merchant_code) : nil
-      branding             = tab == "verification" && current_user.merchant_user? ? PortalMerchantBranding.find_or_initialize_for(current_user.merchant_code) : nil
-      audit_events         = current_user.user_audit_events.recent.limit(15)
-      sso_configs          = tab == "sso" ? SsoConfiguration.order(:name) : []
-      tier                 = current_user.merchant_tier || 1
-      payout_controls, payout_destinations = tab == "payouts" && current_user.merchant_user? ? load_payouts_data : [ {}, [] ]
-      allowed_methods = tab == "payment_methods" && current_user.merchant_user? ? load_allowed_methods : nil
-      render Settings::IndexView.new(tab: tab, current_user: current_user,
-                                     ip_allowlists: ip_allowlists, ip_blocklists: ip_blocklists,
-                                     msisdn_allowlists: msisdn_allowlists,
-                                     msisdn_blocklists: msisdn_blocklists,
-                                     email_blocklists: email_blocklists,
-                                     branding: branding,
-                                     kyb_application: kyb_application,
-                                     audit_events: audit_events, sso_configs: sso_configs, tier: tier,
-                                     payout_controls: payout_controls,
-                                     payout_destinations: payout_destinations,
-                                     allowed_methods: allowed_methods)
+      merchant_code = current_user.merchant_code
+      is_merchant   = current_user.merchant_user?
+
+      audit_events  = current_user.user_audit_events.recent.limit(15)
+      tier          = current_user.merchant_tier || 1
+
+      lists             = tab == "allowlists" ? Settings::AllowlistsQuery.new(merchant_code).call : {}
+      ip_allowlists     = lists.fetch(:ip_allowlists,     [])
+      ip_blocklists     = lists.fetch(:ip_blocklists,     [])
+      msisdn_allowlists = lists.fetch(:msisdn_allowlists, [])
+      msisdn_blocklists = lists.fetch(:msisdn_blocklists, [])
+      email_blocklists  = lists.fetch(:email_blocklists,  [])
+
+      kyb_application = tab == "verification" && is_merchant ? PortalMerchantApplication.find_by(merchant_code: merchant_code) : nil
+      branding        = tab == "verification" && is_merchant ? PortalMerchantBranding.find_or_initialize_for(merchant_code) : nil
+      merchant        = tab == "verification" && is_merchant ? PortalMerchant.find_for(merchant_code) : nil
+
+      sso_configs     = tab == "sso" ? SsoConfiguration.order(:name) : []
+      allowed_methods = tab == "payment_methods" && is_merchant ? load_allowed_methods : nil
+
+      payout_controls, payout_destinations, next_value_date, unsettled_amount, payout_currency =
+        tab == "payouts" && is_merchant ? load_payouts_data(merchant_code) : [ {}, [], nil, 0, "GHS" ]
+
+      render Settings::IndexView.new(
+        tab: tab, current_user: current_user,
+        ip_allowlists: ip_allowlists, ip_blocklists: ip_blocklists,
+        msisdn_allowlists: msisdn_allowlists, msisdn_blocklists: msisdn_blocklists,
+        email_blocklists: email_blocklists,
+        branding: branding, kyb_application: kyb_application, merchant: merchant,
+        audit_events: audit_events, sso_configs: sso_configs, tier: tier,
+        payout_controls: payout_controls, payout_destinations: payout_destinations,
+        next_value_date: next_value_date, unsettled_amount: unsettled_amount, payout_currency: payout_currency,
+        allowed_methods: allowed_methods
+      )
     end
 
     def update_profile
@@ -109,15 +120,18 @@ module Account
       %w[mobile_money card bank_transfer]
     end
 
-    def load_payouts_data
+    def load_payouts_data(merchant_code)
       client          = CoreApiClient.new
-      controls_result = client.get_settlement_controls(current_user.merchant_code)
+      controls_result = client.get_settlement_controls(merchant_code)
       controls        = controls_result.success? ? controls_result.body : {}
-      dest_result     = client.list_payout_destinations(current_user.merchant_code)
+      dest_result     = client.list_payout_destinations(merchant_code)
       destinations    = dest_result.success? ? (dest_result.body["data"] || []) : []
-      [ controls, destinations ]
+
+      settlement = Payouts::PendingSettlementQuery.new(merchant_code).call
+
+      [ controls, destinations, settlement[:next_value_date], settlement[:amount], settlement[:currency] ]
     rescue StandardError
-      [ {}, [] ]
+      [ {}, [], nil, 0, "GHS" ]
     end
 
     def render_password_error(message, field)
