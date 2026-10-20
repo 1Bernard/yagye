@@ -95,7 +95,7 @@ Table merchants [headercolor: #1A2B4C] {
   industry text [note: 'sector: tech|fintech|ecommerce|retail|healthcare|logistics|hospitality|nonprofit|services|other']
   category text [note: 'sub-sector within industry, e.g. industry=retail → category=fashion_retail. Free text, normalised by ops at review time.']
   employee_range text [note: '1-5|6-10|11-50|51-200|201-500|500+']
-  annual_tpv_estimate_cents bigint [note: 'self-reported projected annual sales volume in cents — drives initial reserve tier and risk review']
+  annual_tpv_estimate bigint [note: 'self-reported projected annual sales volume in pesewas — drives initial reserve tier and risk review']
   tin text [note: 'Ghana Tax Identification Number — format C0001234567. Required for all registered businesses; stored plain (not PII-vaulted, it is a public company identifier).']
 
   // Activity tracking
@@ -137,7 +137,7 @@ Table merchant_applications [headercolor: #1A2B4C] {
   industry text
   category text [note: 'sub-sector within industry']
   employee_range text [note: '1-5|6-10|11-50|51-200|201-500|500+']
-  annual_tpv_estimate_cents bigint
+  annual_tpv_estimate bigint
   website_url text
   use_case text [note: 'free-text: what do you plan to process? Used in risk underwriting.']
   expected_methods text[] [note: 'mtn_momo|stripe|paystack|flutterwave — rough intent, not a contract']
@@ -184,6 +184,7 @@ Table merchant_checkout_configs [headercolor: #1F6B4A] {
   terms_url text
   privacy_url text
   refund_policy_url text
+  allowed_methods "text[]" [not null, note: 'payment methods enabled for this merchant, e.g. [mobile_money, card, bank_transfer]. Drives checkout UI and routing validation.']
   default_locale text [not null]
   updated_at timestamptz [not null]
   Note: 'Branding and policy URLs rendered on hosted checkout. The terms shown are the MERCHANT s, never Yagye s.'
@@ -202,6 +203,7 @@ Table api_keys [headercolor: #1A2B4C] {
   last_used_at timestamptz
   revoked_at timestamptz
   expires_at timestamptz
+  label text [not null, default: '', note: 'human-readable name for this key, shown in portal']
   created_by text
   inserted_at timestamptz [not null]
   updated_at timestamptz [not null]
@@ -255,6 +257,9 @@ Table beneficial_owners [headercolor: #B4531F] {
   subject_ref uuid [not null, note: '[PII] → pii_vault. Name, DOB, nationality live there, not here.']
   ownership_bps integer [note: 'ownership stake in basis points (10000 = 100%). Required when role includes ubo; 25%+ (2500 bps) triggers enhanced due diligence.']
   role text [not null, note: 'director|ubo|both']
+  subject_name text [note: 'denormalised display name — cached from pii_vault for UI convenience. NULL until first screening completes.']
+  subject_dob date [note: 'date of birth — used for screening and EDD. NULL until provided.']
+  removed_at timestamptz [note: 'soft-delete: UBO removed from the merchant relationship. Required for audit trail — never hard-delete a beneficial owner record.']
   inserted_at timestamptz [not null]
 }
 
@@ -279,7 +284,7 @@ Table kyb_documents [headercolor: #B4531F] {
 // ─── KYB CONTACT, ADDRESS, SETTLEMENT CONTROLS, SERVICE AGREEMENT ─────────
 //
 //  These four tables complete the 5-step KYB funnel:
-//    Step 1 (Profile)   → merchants fields: business_type, registration_type, industry, category, tin, annual_tpv_estimate_cents
+//    Step 1 (Profile)   → merchants fields: business_type, registration_type, industry, category, tin, annual_tpv_estimate
 //    Step 2 (Contact)   → merchant_contacts + merchant_addresses
 //    Step 3 (Account)   → merchant_settlement_controls
 //    Step 4 (Documents) → kyb_documents + beneficial_owners
@@ -328,7 +333,8 @@ Table merchant_addresses [headercolor: #1A2B4C] {
 }
 
 Table merchant_settlement_controls [headercolor: #1A2B4C] {
-  merchant_id uuid [pk]
+  id uuid [pk]
+  merchant_id uuid [not null, unique]
 
   // Approval gate
   approval_threshold bigint [note: 'auto-approve settlement batches with gross_amount < threshold (in cents). NULL = always require manual approval before dispatch.']
@@ -343,6 +349,7 @@ Table merchant_settlement_controls [headercolor: #1A2B4C] {
   settlement_account_name text [note: 'name on the bank account — must match merchants.legal_name for verification. Shown to ops for manual confirmation.']
 
   updated_by text [note: 'portal user who last updated these controls']
+  inserted_at timestamptz [not null]
   updated_at timestamptz [not null]
   Note: 'Settlement destination and batch-approval policy per merchant. Created during KYB step 3 (Account). Either msisdn OR bank fields must be populated before live mode is granted — ops verifies at review time.'
 }
@@ -504,8 +511,9 @@ Table provider_credentials [headercolor: #9B3232] {
   merchant_id uuid [note: 'NULL = platform-level. In Model B these are the MERCHANT s own read credentials.']
   mode yagye_mode [not null]
   base_url text [not null]
-  encrypted_payload bytea [not null, note: '[SEC] KMS envelope encryption']
+  encrypted_payload bytea [note: '[SEC] KMS envelope encryption. NULL when secret_name is set (Secrets Manager path).']
   webhook_secret_encrypted bytea [not null, note: '[SEC]']
+  secret_name text [note: '[SEC] AWS Secrets Manager secret name. When set, encrypted_payload is NULL — credentials are fetched from Secrets Manager at runtime.']
   rotated_at timestamptz
   active boolean [not null]
   inserted_at timestamptz [not null]
@@ -541,6 +549,7 @@ Table routing_rules [headercolor: #2E4A73] {
   mode yagye_mode [not null]
   name text [not null, note: 'label shown in the Yagye ops portal (platform scope) or the enterprise merchant portal (merchant scope)']
   priority integer [not null, note: 'lower wins within scope. Platform rules are evaluated AFTER merchant-scope rules — a merchant override always wins.']
+  routing_configuration_id uuid [note: 'FK to routing_configurations. NULL for legacy rules not yet associated with a configuration. When set, this rule belongs to a versioned routing configuration graph.']
   active boolean [not null]
   inserted_at timestamptz [not null]
   updated_at timestamptz [not null]
@@ -569,6 +578,29 @@ Table routing_rule_actions [headercolor: #2E4A73] {
   inserted_at timestamptz [not null]
   indexes { (rule_id, priority) [unique] }
   Note: 'Every rule names at least one provider. If ALL named providers are degraded the charge fails — it does NOT fall through to the next rule. Design an explicit catch-all rule if you want a true fallback.'
+}
+
+Table routing_configurations [headercolor: #2E4A73] {
+  id uuid [pk]
+  public_id text [unique, not null, note: 'rcf_01J...']
+  merchant_id uuid [note: 'NULL = platform-scope; set = merchant-scope enterprise override']
+  scope text [not null, note: 'platform|merchant']
+  name text [not null]
+  description text
+  schema_version integer [not null, note: 'ReactFlow graph contract version. Increment when the graph_payload shape changes.']
+  graph_payload jsonb [not null, note: 'ReactFlow node/edge graph authored in the portal rule builder']
+  compiled_rules jsonb [note: 'compiled routing rule set derived from graph_payload at publish time. NULL while draft.']
+  state text [not null, note: 'draft|published|archived. At most one published configuration per scope+merchant.']
+  published_at timestamptz
+  archived_at timestamptz
+  inserted_at timestamptz [not null]
+  updated_at timestamptz [not null]
+  indexes {
+    public_id [unique]
+    (merchant_id, state)
+    (scope, state)
+  }
+  Note: 'A versioned, publishable routing graph authored in the portal ReactFlow builder. Published configurations are compiled into routing_rules rows. Archiving a configuration does not delete its routing_rules — they remain until explicitly removed.'
 }
 
 // ─── PAYMENTS ─────────────────────────────────────────────────────────────
@@ -630,6 +662,7 @@ Table payment_attempts [headercolor: #2E4A73] {
   latency_ms integer
   error_class text [note: 'definite_failure|retryable_error|indeterminate|invalid']
   auth_expires_at timestamptz [note: 'card auths expire — capture before the issuer releases the hold']
+  routing_configuration_id uuid [note: 'which routing configuration was active when this attempt was dispatched. NULL for attempts before routing_configurations was introduced.']
   dispatched_at timestamptz
   settled_at timestamptz
   inserted_at timestamptz [not null]
@@ -1026,6 +1059,10 @@ Table pricing_plans [headercolor: #2E4A73] {
   effective_from timestamptz [not null]
   effective_to timestamptz [note: 'half-open, non-overlapping. MIGRATION REQUIRED: EXCLUDE USING gist (tstzrange(effective_from, effective_to) WITH &&) per plan name — DBML cannot express exclusion constraints.']
   monthly_fee bigint [not null]
+  status text [not null, default: 'draft', note: 'draft|active|archived. SoD: created_by <> activated_by when both non-NULL.']
+  created_by text [note: 'SoD: ops actor who created the plan']
+  activated_by text [note: 'SoD: CHECK (activated_by IS NULL OR created_by IS DISTINCT FROM activated_by). Set by a second officer.']
+  activated_at timestamptz
   inserted_at timestamptz [not null]
   indexes { (name, version) [unique] }
 }
@@ -1047,6 +1084,7 @@ Table pricing_rules [headercolor: #2E4A73] {
   rounding text [not null, note: 'half_up|bankers']
   created_by text [note: 'SoD: opaque actor ref who created this rule. Must differ from approved_by when both non-NULL.']
   approved_by text [note: 'SoD: CHECK (approved_by IS NULL OR created_by IS NULL OR approved_by <> created_by). Set by a second ops officer at P13+.']
+  deleted_at timestamptz [note: 'soft-delete: archived pricing rules are kept for historical fee computation. NULL = active.']
   inserted_at timestamptz [not null]
   Note: 'SoD: created_by <> approved_by when both non-NULL — DB CHECK enforced, changeset guard in approve_changeset/2. NULL on both = system-managed rule, no human SoD required.'
 }
@@ -1064,6 +1102,7 @@ Table fee_records [headercolor: #B4531F] {
   pricing_plan_id uuid
   pricing_rule_id uuid [note: 'WHICH rule produced this number']
   computation jsonb [not null, note: 'the full arithmetic. A merchant will dispute a fee 18 months from now.']
+  reversal_of_id uuid [note: 'self-referential: set on a reversal row to point back to the original fee_record being reversed. NULL on original records.']
   inserted_at timestamptz [not null]
   indexes { (source_type, source_id, party) [unique] }
 }
@@ -1121,6 +1160,15 @@ Table settlement_batches [headercolor: #1A2B4C] {
   state text [not null, note: 'pending|processing|settled|failed']
   error text [note: 'set on state=failed']
   settled_at timestamptz
+  net_amount bigint [note: '[FIN] gross_amount minus platform_fees and provider fees. The amount actually disbursed to the merchant.']
+  platform_fees bigint [note: 'SUM of platform-side fee_records for payments in this batch']
+  bank_dispatch_ref text [note: 'bank transfer reference for the disbursement, from BankDispatchWorker']
+  bank_dispatched_at timestamptz [note: 'when the bank disbursement was submitted']
+  dispatch_approved_by text [note: 'SoD: ops actor who approved the batch for dispatch']
+  dispatch_approved_at timestamptz
+  dispatch_rejected_by text [note: 'SoD: ops actor who rejected the batch']
+  dispatch_rejected_at timestamptz
+  dispatch_rejection_reason text
   inserted_at timestamptz [not null]
   indexes {
     merchant_id
@@ -1220,6 +1268,11 @@ Table merchant_reserves [headercolor: #B4531F] {
   reason text
   created_by text [note: 'SoD: opaque actor ref who created this policy (NULL = system-created). Must differ from approved_by when both non-NULL.']
   approved_by text [note: 'SoD: CHECK (approved_by IS NULL OR created_by IS NULL OR approved_by <> created_by). Set by a second ops officer at P13+ when manual reserve management lands.']
+  status text [not null, default: 'pending_approval', note: 'pending_approval|awaiting_merchant_ack|active|released|cancelled']
+  acknowledged_by text [note: 'merchant user who acknowledged the reserve notice']
+  acknowledged_at timestamptz
+  notice_sent_at timestamptz [note: 'when the merchant was notified of the reserve']
+  auto_activates_at timestamptz [note: 'if set, the reserve auto-activates at this time without merchant ack (partial index drives scheduler)']
   inserted_at timestamptz [not null]
   updated_at timestamptz [not null]
   Note: 'Released FIFO by hold date. Drawn BEFORE payable on a chargeback. Derived from risk_rating. SoD: created_by <> approved_by when both non-NULL — DB CHECK enforced, changeset guard in approve_changeset/2.'
@@ -1373,6 +1426,8 @@ Table adjustment_approvals [headercolor: #9B3232] {
   approved_by text
   approved_at timestamptz
   rejected_reason text
+  rejected_by text [note: 'SoD: CHECK (rejected_by IS NULL OR proposed_by IS DISTINCT FROM rejected_by). Set when the proposed adjustment is rejected.']
+  rejected_at timestamptz
   inserted_at timestamptz [not null]
   Note: 'CORE-owned, not portal-owned: the SoD constraint only protects you if it lives in the database that the single writer uses. Rails renders the queue and stores free-text notes; the core owns the decision. CHECK (approved_by IS NULL OR approved_by <> proposed_by), plus the Pundit policy, plus the core command guard.'
 }
@@ -1428,6 +1483,7 @@ Table merchant_webhook_endpoints [headercolor: #1F6B4A] {
   active boolean [not null]
   consecutive_failures integer [not null]
   disabled_at timestamptz [note: 'auto-disabled after 50 consecutive failures, owners emailed']
+  deregistered_at timestamptz [note: 'soft-delete: endpoint deregistered by the merchant via portal or API. Deregistered endpoints still receive in-flight deliveries until the queue drains.']
   inserted_at timestamptz [not null]
   updated_at timestamptz [not null]
 }
@@ -1483,7 +1539,7 @@ Table proj_payment_summaries [headercolor: #1F6B4A] {
   settlement_state text
   customer_reference text
   merchant_reference text
-  created_at timestamptz [not null]
+  payment_initiated_at timestamptz [not null, note: 'When the payment domain event occurred; not the DB insertion timestamp']
   last_transition_at timestamptz [not null]
   last_event_id text [not null]
 }
@@ -1526,6 +1582,7 @@ Ref: merchant_provider_connections.provider_id > providers.id
 Ref: routing_rule_conditions.rule_id > routing_rules.id
 Ref: routing_rule_actions.rule_id > routing_rules.id
 Ref: routing_rule_actions.provider_id > providers.id
+// routing_configurations.merchant_id omitted: nullable many-to-one on a non-unique FK is not representable in DBML as `-`
 Ref: payments.merchant_id > merchants.id
 // payments.customer_id and payments.customer_subject_ref omitted: nullable many-to-one references are not representable in DBML as `-` when the child key is not unique
 Ref: payment_attempts.payment_id > payments.id
@@ -1605,6 +1662,7 @@ TableGroup providers_acl {
   providers
   provider_credentials
   merchant_provider_connections
+  routing_configurations
   routing_rules
   routing_rule_conditions
   routing_rule_actions
@@ -1859,6 +1917,7 @@ Table momo_network_config [headercolor: #1F6B4A] {
 //  DATA PROTECTION  —  described in Part XIX, was not in the schema
 // ═══════════════════════════════════════════════════════════════════════════
 
+// DEFERRED: data_subject_requests — P22+ data protection tooling. Table not yet migrated.
 Table data_subject_requests [headercolor: #9B3232] {
   id uuid [pk]
   public_id text [unique, not null, note: 'dsr_01J...']
@@ -1879,6 +1938,7 @@ Table data_subject_requests [headercolor: #9B3232] {
   updated_at timestamptz [not null]
 }
 
+// DEFERRED: retention_policies — P22+ data protection tooling. Table not yet migrated.
 Table retention_policies [headercolor: #6B7A8D] {
   data_class text [pk, note: 'PII|FIN|SEC|EVD|OPS, or a table name for an override']
   retention_period interval [not null]

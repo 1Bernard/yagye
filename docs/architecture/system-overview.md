@@ -1,6 +1,6 @@
 # System Overview
 
-**Last updated:** 2026-08-30
+**Last updated:** 2026-10-18
 
 This document describes the Yagye platform at the component level: what each
 service is, what it owns, and how the pieces connect. Read this before any
@@ -218,3 +218,20 @@ The DB also stores mode on every row, enabling auditors to query
 | Segregation of duties | DB CHECK constraints + changeset enforcement (SoD model doc) |
 | No hard deletes | ON DELETE RESTRICT on all domain FKs (ADR-0020) |
 | Idempotency | DB-backed idempotency state machine (ADR-0008) |
+
+---
+
+## Further reading
+
+| Document | What it covers |
+|---|---|
+| [engineering-concepts.md](engineering-concepts.md) | Deep dive into WHY: idempotency, exactly-once processing, double-entry ledger, transactional outbox, event-driven design, mode isolation, security, observability |
+| [payment-flow.md](payment-flow.md) | Step-by-step payment lifecycle from API call to ledger settlement |
+| [data-flow.md](data-flow.md) | How data moves between Core, the outbox, Portal projections, and webhooks |
+| [scaling-playbook.md](scaling-playbook.md) | How to scale each component under load |
+| [api-conventions.md](api-conventions.md) | API design rules, error envelopes, pagination, versioning |
+| [docs/data-engineering/README.md](../data-engineering/README.md) | The data platform: lakehouse architecture, Floci, DuckDB ETL, ingestion pipeline |
+| [docs/data-engineering/ml-architecture.md](../data-engineering/ml-architecture.md) | The four ML models: routing predictor, risk scorer, reserve recommender, churn predictor |
+| [docs/data-engineering/ai-layer.md](../data-engineering/ai-layer.md) | The AI layer: LLM enrichment at ingestion, ops RAG chatbot, merchant text-to-SQL |
+| [docs/roadmap/remaining-features.md](../roadmap/remaining-features.md) | Every deferred feature: what it is, why it matters, prerequisites, implementation approach |
+| [docs/adr/](../adr/README.md) | All 26 Architecture Decision Records |

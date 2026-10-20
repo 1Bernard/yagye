@@ -24,6 +24,11 @@ Project yagye_portal {
   Note: 'Rails 8 operator and merchant portal. Phlex components (ADR-0016), DB-backed RBAC (ADR-0017), UI::Theme design tokens (ADR-0018).'
 }
 
+// ─── FRAMEWORK TABLES (Rails Active Storage) ──────────────────────────────
+// active_storage_attachments, active_storage_blobs, active_storage_variant_records
+// These are Rails framework tables managed by Active Storage. Not documented here.
+// ─────────────────────────────────────────────────────────────────────────────
+
 // ─── HUMAN IDENTITY ───────────────────────────────────────────────────────
 
 Table users [headercolor: #1A2B4C] {
@@ -48,6 +53,14 @@ Table users [headercolor: #1A2B4C] {
   otp_secret text [note: '[SEC] Devise-two-factor TOTP seed — encrypted at rest via ActiveRecord encryption (not bytea; AR handles the envelope)']
   consumed_timestep integer
   otp_required_for_login boolean [not null, default: false, note: 'internal_staff cannot disable — BR-011; enforced in the settings controller']
+  phone_number text [note: '[PII] used for SMS OTP fallback where permitted']
+  language_preference text [not null, default: 'en', note: 'en|fr — portal display language']
+  theme_preference text [not null, default: 'system', note: 'light|dark|system']
+  notification_preferences jsonb [not null, default: '{}', note: 'channel toggles: {email: true, sms: false, in_app: true}']
+  otp_recovery_codes text [note: '[SEC] encrypted TOTP backup codes']
+  email_otp_digest text [note: '[SEC] hashed email OTP for passwordless step-up flows']
+  email_otp_expires_at timestamptz
+  email_otp_attempts integer [not null, default: 0]
   created_at timestamptz [not null]
   updated_at timestamptz [not null]
   Note: 'HUMAN credentials only. Machine credentials (API keys) live in yagye_core — see ADR-0011. kind determines which role scope is valid for this user. A merchant_user can never hold an internal role and vice versa — enforced by DB CHECK on user_roles.'
@@ -65,6 +78,7 @@ Table passkey_credentials [headercolor: #1A2B4C] {
   updated_at timestamptz [not null]
 }
 
+// DEFERRED: user_sessions — not yet migrated. Session management handled by Devise cookies for now.
 Table user_sessions [headercolor: #6B7A8D] {
   id bigserial [pk]
   user_id bigint [not null, ref: > users.id]
@@ -108,12 +122,14 @@ Table role_permissions [headercolor: #B4531F] {
 }
 
 Table user_roles [headercolor: #B4531F] {
-  id bigserial [pk]
-  user_id bigint [not null, ref: > users.id]
+  id uuid [pk]
+  user_id uuid [not null, ref: > users.id]
   role_key text [not null, ref: > roles.key]
   merchant_code text [note: 'mch_01J… for merchant-scoped roles; NULL for internal roles. CHECK: (scope=merchant AND merchant_code IS NOT NULL) OR (scope=internal AND merchant_code IS NULL)']
-  granted_by bigint [not null, ref: > users.id]
+  granted_by_id uuid [not null, ref: > users.id]
   granted_at timestamptz [not null]
+  created_at timestamptz [not null]
+  updated_at timestamptz [not null]
   expires_at timestamptz [note: 'time-boxed elevation — NULL means permanent; a scheduler sweeps expired rows nightly']
   revoked_at timestamptz
   indexes {
@@ -123,12 +139,12 @@ Table user_roles [headercolor: #B4531F] {
 }
 
 Table merchant_memberships [headercolor: #1F6B4A] {
-  id bigserial [pk]
-  user_id bigint [not null, ref: > users.id]
+  id uuid [pk]
+  user_id uuid [not null, ref: > users.id]
   merchant_code text [not null, note: 'mch_01J… — reference to yagye_core, not a FK across databases']
   merchant_name text [not null, note: 'denormalised from the Kafka merchants topic for display without a core HTTP call']
   state text [not null, note: 'invited|active|suspended|removed']
-  invited_by bigint
+  invited_by_id uuid
   invitation_token_digest text [note: '[SEC] single use; cleared after acceptance']
   invitation_expires_at timestamptz
   accepted_at timestamptz
@@ -172,6 +188,7 @@ Table versions [headercolor: #6B7A8D] {
   Note: 'PaperTrail. Portal-owned tables only. NEVER on portal_* read models — those are rebuilt from events, not versioned.'
 }
 
+// DEFERRED: break_notes — not yet migrated.
 Table break_notes [headercolor: #1F6B4A] {
   id bigserial [pk]
   break_code text [not null, note: 'brk_01J… — the break itself lives in yagye_core']
@@ -184,6 +201,7 @@ Table break_notes [headercolor: #1F6B4A] {
   Note: 'The human investigation workflow lives here; the break and its resolution live in the core. Phoenix is the reconciliation engine; Rails is the investigation interface.'
 }
 
+// DEFERRED: saved_filters — not yet migrated.
 Table saved_filters [headercolor: #6B7A8D] {
   id bigserial [pk]
   user_id bigint [not null, ref: > users.id]
@@ -195,18 +213,20 @@ Table saved_filters [headercolor: #6B7A8D] {
   updated_at timestamptz [not null]
 }
 
-Table notifications [headercolor: #6B7A8D] {
-  id bigserial [pk]
-  user_id bigint [not null, ref: > users.id]
-  kind text [not null]
+Table portal_notifications [headercolor: #6B7A8D] {
+  id uuid [pk]
+  user_id uuid [not null, ref: > users.id]
+  event_type text [not null, note: 'e.g. payment.succeeded|dispute.opened|kyb.approved']
   title text [not null]
   body text [not null]
-  link_path text
-  severity text [not null]
+  link text [note: 'URL the notification links to — optional']
+  metadata jsonb [not null, default: '{}']
   read_at timestamptz
   created_at timestamptz [not null]
+  updated_at timestamptz [not null]
 }
 
+// DEFERRED: impersonation_sessions — not yet migrated.
 Table impersonation_sessions [headercolor: #9B3232] {
   id bigserial [pk]
   staff_user_id bigint [not null, ref: > users.id]
@@ -222,31 +242,23 @@ Table impersonation_sessions [headercolor: #9B3232] {
 // ─── READ MODELS  (written ONLY by app/consumers/ — never by controllers) ─
 
 Table portal_payments [headercolor: #2E4A73] {
-  payment_code text [pk, note: 'pay_01J…']
+  id uuid [pk]
+  core_payment_id uuid [unique, not null, note: 'mirrors payments.id in yagye_core']
   merchant_code text [not null]
-  mode text [not null]
-  aggregate_version integer [not null, note: 'THE VERSION FENCE — apply only when incoming_version > stored; prevents out-of-order event application']
-  state text [not null, note: 'mirrors core aggregate state: initiated|processing|succeeded|failed|refunded|disputed|voided']
-  method text
-  provider_code text
+  status text [not null, note: 'mirrors core state: created|processing|succeeded|failed|cancelled|refunded|disputed']
   amount bigint [not null]
   currency char(3) [not null]
-  net_amount bigint
-  platform_fee bigint
-  provider_fee bigint
-  customer_code text
-  customer_email_masked text [note: '[PII] gate-3 controlled: masked unless the viewer holds permissions.key = customer_data.view_email']
-  customer_msisdn_masked text
-  merchant_reference text
-  settlement_code text
-  settlement_state text
-  risk_decision text
-  occurred_at timestamptz [not null]
-  last_transition_at timestamptz [not null]
-  last_event_id text [not null]
-  last_applied_at timestamptz [not null, note: 'shown as UI::Freshness — an operator who cannot tell whether a number is current will not trust any number']
-  indexes { (merchant_code, occurred_at) }
-  Note: 'NO has_paper_trail. NO soft delete. Rebuilt, not versioned. A model-level guard raises on any write from outside app/consumers/.'
+  mode text [not null, note: 'simulation|sandbox|live']
+  payment_method text [note: 'card|mobile_money|bank_transfer — denormalised from latest attempt']
+  provider_code text
+  merchant_reference text [note: 'the merchant\'s own order id']
+  customer_email text [note: '[PII] masked in UI — stored for ops search']
+  fee_amount bigint [note: 'platform fee in minor units']
+  net_amount bigint [note: 'amount minus fees']
+  inserted_at timestamptz [not null]
+  updated_at timestamptz [not null]
+  indexes { (merchant_code, inserted_at) }
+  Note: 'Read model written by Karafka consumer on payment.* events. NO has_paper_trail. NO soft delete. Rebuilt, not versioned.'
 }
 
 Table portal_settlements [headercolor: #2E4A73] {
@@ -254,7 +266,6 @@ Table portal_settlements [headercolor: #2E4A73] {
   merchant_code text [not null]
   provider_code text [not null]
   mode text [not null]
-  aggregate_version integer [not null]
   state text [not null, note: 'mirrors core: pending|processing|reconciling|reconciled|disputed|failed']
   currency char(3) [not null]
   period_start timestamptz [not null]
@@ -273,6 +284,7 @@ Table portal_settlements [headercolor: #2E4A73] {
   dispatch_rejection_reason text [note: 'free-text reason when dispatch is rejected']
 }
 
+// DEFERRED: portal_breaks — not yet migrated.
 Table portal_breaks [headercolor: #B4531F] {
   break_code text [pk]
   run_code text [not null]
@@ -295,6 +307,7 @@ Table portal_breaks [headercolor: #B4531F] {
   Note: 'The queue an ops analyst works all day. Turbo Stream broadcasts on insert so work appears without a refresh.'
 }
 
+// DEFERRED: portal_merchant_balances — not yet migrated.
 Table portal_merchant_balances [headercolor: #1F6B4A] {
   merchant_code text [pk]
   currency char(3) [pk]
@@ -308,6 +321,7 @@ Table portal_merchant_balances [headercolor: #1F6B4A] {
   Note: 'MONEY counter — deduped on event_id before incrementing. Version fencing does NOT make counters idempotent (§XVII.4).'
 }
 
+// DEFERRED: portal_daily_metrics — not yet migrated.
 Table portal_daily_metrics [headercolor: #1F6B4A] {
   merchant_code text [pk]
   day date [pk]
@@ -334,6 +348,7 @@ Table portal_merchants [headercolor: #1A2B4C] {
   risk_rating text
   activity_state text [not null]
   live_mode_enabled boolean [not null, default: false, note: 'Mirrors Core merchant_modes.live. Guards the portal mode toggle — merchant cannot switch to live until Core grants it.']
+  sandbox_enabled boolean [not null, default: false, note: 'Mirrors Core merchant_modes.sandbox. Ops grants sandbox access from the KYB Reviews page.']
   last_event_id text [not null]
   last_applied_at timestamptz [not null]
   Note: 'Ops onboarding triage and merchant status dashboard without a core API call per row.'
@@ -399,6 +414,7 @@ Table portal_payouts [headercolor: #1F6B4A] {
   indexes { (merchant_code, scheduled_for) }
 }
 
+// DEFERRED: portal_refunds — not yet migrated.
 Table portal_refunds [headercolor: #1F6B4A] {
   refund_code text [pk, note: 'rfd_01J…']
   payment_code text [not null]
@@ -417,6 +433,7 @@ Table portal_refunds [headercolor: #1F6B4A] {
 
 // ─── PLATFORM FINANCE (internal Yagye ops only — never merchant-visible) ──
 
+// DEFERRED: portal_platform_daily_metrics — not yet migrated.
 Table portal_platform_daily_metrics [headercolor: #9B3232] {
   day date [pk]
   currency char(3) [pk]
@@ -436,6 +453,7 @@ Table portal_platform_daily_metrics [headercolor: #9B3232] {
   Note: 'Internal Yagye finance dashboard only. NOT exposed to merchants. Recomputed hourly from fee_records.'
 }
 
+// DEFERRED: portal_platform_fee_invoices — not yet migrated.
 Table portal_platform_fee_invoices [headercolor: #9B3232] {
   invoice_id uuid [pk, note: 'mirrors platform_fee_invoices.id in core']
   merchant_code text [not null]
@@ -457,6 +475,7 @@ Table portal_platform_fee_invoices [headercolor: #9B3232] {
   }
 }
 
+// DEFERRED: portal_platform_provider_costs — not yet migrated.
 Table portal_platform_provider_costs [headercolor: #9B3232] {
   day date [pk]
   provider_code text [pk]
@@ -472,11 +491,12 @@ Table portal_platform_provider_costs [headercolor: #9B3232] {
 // ─── DEVELOPER CONSOLE ────────────────────────────────────────────────────
 
 Table portal_api_keys [headercolor: #2E4A73] {
-  key_id uuid [pk, note: 'mirrors api_keys.id in yagye_core — reference, not FK across databases']
+  key_id text [pk, note: 'text primary key — the key_prefix string from yagye_core api_keys']
   merchant_code text [not null]
   mode text [not null]
   kind text [not null, note: 'publishable|secret']
   key_prefix text [not null, note: 'first 24 chars shown in UI — never the raw key or its hash']
+  label text [not null, default: '', note: 'human-readable name set by the merchant, mirrors api_keys.label in core']
   scopes "text[]" [not null]
   last_used_at timestamptz
   revoked_at timestamptz
@@ -529,6 +549,7 @@ Table portal_webhook_deliveries [headercolor: #6B7A8D] {
 
 // ─── COMPLIANCE REVIEW ────────────────────────────────────────────────────
 
+// DEFERRED: portal_kyb_documents — not yet migrated. KYB document review UI deferred to P21b.
 Table portal_kyb_documents [headercolor: #B4531F] {
   doc_id uuid [pk, note: 'mirrors kyb_documents.id in yagye_core']
   merchant_code text [not null]
@@ -541,6 +562,7 @@ Table portal_kyb_documents [headercolor: #B4531F] {
   Note: 'Ops document review queue. Document body is in S3 — this is metadata only. Ops clicks through to a presigned URL issued by core.'
 }
 
+// DEFERRED: portal_screening_hits — not yet migrated. AML/screening queue deferred to P21b.
 Table portal_screening_hits [headercolor: #9B3232] {
   hit_id uuid [pk, note: 'mirrors screening_hits.id in yagye_core']
   merchant_code text [not null]
@@ -558,6 +580,7 @@ Table portal_screening_hits [headercolor: #9B3232] {
 
 // ─── ORCHESTRATION CONSOLE (enterprise merchants only) ────────────────────
 
+// DEFERRED: portal_provider_connections — not yet migrated. Orchestration console deferred to P14+.
 Table portal_provider_connections [headercolor: #6B7A8D] {
   connection_id uuid [pk, note: 'mirrors merchant_provider_connections.id in core']
   merchant_code text [not null]
@@ -579,6 +602,7 @@ Table portal_provider_connections [headercolor: #6B7A8D] {
 
 // ─── INFRASTRUCTURE ───────────────────────────────────────────────────────
 
+// DEFERRED: processed_events — not yet migrated. Consumer dedupe handled in-memory for now.
 Table processed_events [headercolor: #6B7A8D] {
   event_id text [pk]
   consumer text [pk]
@@ -611,7 +635,7 @@ TableGroup workflow_and_audit {
   versions
   break_notes
   saved_filters
-  notifications
+  portal_notifications
   impersonation_sessions
 }
 
@@ -651,6 +675,77 @@ TableGroup merchant_onboarding {
 TableGroup compliance_review {
   portal_kyb_documents
   portal_screening_hits
+}
+
+// ─── BLOCKLISTS ──────────────────────────────────────────────────────────────
+
+Table portal_email_blocklists [headercolor: #9B3232] {
+  id uuid [pk]
+  email text [not null]
+  merchant_code text [note: 'NULL = platform-wide block. Set = merchant-specific block.']
+  label text [not null, note: 'human-readable reason shown in portal']
+  reason text
+  created_by text [not null]
+  deleted_at timestamptz [note: 'soft-delete']
+  inserted_at timestamptz [not null]
+  updated_at timestamptz [not null]
+  Note: 'Soft-delete: deleted_at set rather than hard deletion. Shared blocklist infrastructure alongside portal_ip_blocklists and portal_msisdn_blocklists.'
+}
+
+Table portal_ip_blocklists [headercolor: #9B3232] {
+  id uuid [pk]
+  cidr inet [not null]
+  merchant_code text [note: 'NULL = platform-wide block. Set = merchant-specific block.']
+  label text [not null]
+  reason text
+  created_by text [not null]
+  deleted_at timestamptz [note: 'soft-delete']
+  inserted_at timestamptz [not null]
+  updated_at timestamptz [not null]
+}
+
+Table portal_msisdn_blocklists [headercolor: #9B3232] {
+  id uuid [pk]
+  msisdn text [not null]
+  merchant_code text [note: 'NULL = platform-wide block. Set = merchant-specific block.']
+  label text [not null]
+  reason text
+  created_by text [not null]
+  deleted_at timestamptz [note: 'soft-delete']
+  inserted_at timestamptz [not null]
+  updated_at timestamptz [not null]
+}
+
+// ─── MERCHANT BRANDING ───────────────────────────────────────────────────────
+
+Table portal_merchant_brandings [headercolor: #1F6B4A] {
+  id uuid [pk]
+  merchant_code text [unique, not null]
+  display_name text [not null]
+  support_email text
+  support_phone text
+  inserted_at timestamptz [not null]
+  updated_at timestamptz [not null]
+  Note: 'Read model: written by Karafka consumer from Core merchant_checkout_configs events. Drives portal display name and support contact shown to ops on merchant detail pages.'
+}
+
+// ─── PAYOUT REQUESTS ─────────────────────────────────────────────────────────
+
+Table portal_payout_requests [headercolor: #1F6B4A] {
+  id uuid [pk]
+  request_code text [unique, not null]
+  merchant_code text [not null]
+  amount bigint [not null]
+  currency char(3) [not null]
+  reason text [not null]
+  state text [not null, note: 'pending|approved|rejected|cancelled']
+  requested_by text [not null]
+  reviewed_by text
+  reviewed_at timestamptz
+  reviewer_note text
+  inserted_at timestamptz [not null]
+  updated_at timestamptz [not null]
+  Note: 'Human workflow: a merchant user requests an out-of-schedule payout. Ops reviews in portal then triggers the payout command against Core.'
 }
 
 // ─── ALLOWLISTS ──────────────────────────────────────────────────────────────
@@ -698,10 +793,12 @@ Table portal_adjustment_approvals [headercolor: #9B3232] {
   core_break_id    uuid      [not null, unique, note: 'FK to Core reconciliation_breaks.id — the break this adjustment targets']
   proposed_by      text      [not null, note: 'email of the Core ops officer who proposed the adjustment']
   proposed_at      timestamptz [not null]
-  proposed_action  jsonb     [not null, note: 'snapshot of the proposed adjustment: type, amount_cents, account, reason']
+  proposed_action  jsonb     [not null, note: 'snapshot of the proposed adjustment: type, amount, account, reason']
   approved_by      text      [note: 'SoD: must differ from proposed_by. Set by a second officer on approval.']
   approved_at      timestamptz
   rejected_reason  text      [note: 'free-text reason set when state → rejected']
+  rejected_by      text      [note: 'SoD: must differ from proposed_by. Set by the reviewing officer on rejection.']
+  rejected_at      timestamptz
   state            text      [not null, note: 'pending | approved | rejected']
   last_event_id    text      [note: 'idempotency guard — last Karafka event_id processed for this row']
   created_at       timestamptz [not null]
@@ -760,6 +857,14 @@ Table user_audit_events [headercolor: #9B3232] {
 TableGroup access_controls {
   portal_ip_allowlists
   portal_msisdn_allowlists
+  portal_email_blocklists
+  portal_ip_blocklists
+  portal_msisdn_blocklists
+}
+
+TableGroup merchant_support {
+  portal_merchant_brandings
+  portal_payout_requests
 }
 
 TableGroup approvals_queue {

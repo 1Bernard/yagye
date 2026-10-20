@@ -82,6 +82,167 @@ groups:
           summary: "Oban job discard rate > 1%"
           description: "{{ $value | humanizePercentage }} of jobs permanently failed in the last hour."
 
+      # ── PostgreSQL infrastructure ─────────────────────────────────────────
+      # Requires postgres_exporter sidecar (pg_exporter target in prometheus.yml)
+
+      - alert: PostgresConnectionsSaturated
+        expr: |
+          sum(pg_stat_activity_count) by (instance)
+          /
+          pg_settings_max_connections
+          > 0.80
+        for: 5m
+        labels:
+          severity: warning
+          team: engineering
+        annotations:
+          summary: "PostgreSQL connections > 80% of max_connections"
+          description: >
+            {{ $value | humanizePercentage }} of max_connections in use on {{ $labels.instance }}.
+            PgBouncer hides this until queries start refusing. Check for connection leaks or
+            saturated PgBouncer pool. max_connections is set at server start — fix requires restart.
+
+      - alert: PostgresConnectionsCritical
+        expr: |
+          sum(pg_stat_activity_count) by (instance)
+          /
+          pg_settings_max_connections
+          > 0.95
+        for: 2m
+        labels:
+          severity: critical
+          team: engineering
+        annotations:
+          summary: "PostgreSQL connections > 95% of max_connections — new connections will be refused"
+          description: >
+            {{ $value | humanizePercentage }} of max_connections in use on {{ $labels.instance }}.
+            New connections are being refused. Immediate action required.
+
+      - alert: PostgresDiskUsageHigh
+        expr: |
+          (
+            node_filesystem_size_bytes{mountpoint="/var/lib/postgresql"}
+            - node_filesystem_avail_bytes{mountpoint="/var/lib/postgresql"}
+          )
+          /
+          node_filesystem_size_bytes{mountpoint="/var/lib/postgresql"}
+          > 0.80
+        for: 5m
+        labels:
+          severity: warning
+          team: engineering
+        annotations:
+          summary: "PostgreSQL data directory disk usage > 80%"
+          description: >
+            Disk at {{ $value | humanizePercentage }} on {{ $labels.instance }}.
+            PostgreSQL crashes and refuses all writes when disk fills completely.
+            Investigate table bloat, WAL accumulation, or insufficient disk provisioning.
+
+      - alert: PostgresDiskUsageCritical
+        expr: |
+          (
+            node_filesystem_size_bytes{mountpoint="/var/lib/postgresql"}
+            - node_filesystem_avail_bytes{mountpoint="/var/lib/postgresql"}
+          )
+          /
+          node_filesystem_size_bytes{mountpoint="/var/lib/postgresql"}
+          > 0.90
+        for: 2m
+        labels:
+          severity: critical
+          team: engineering
+        annotations:
+          summary: "PostgreSQL data directory disk usage > 90% — imminent write failure"
+          description: >
+            Disk at {{ $value | humanizePercentage }} on {{ $labels.instance }}.
+            PostgreSQL will stop accepting writes when disk fills. Emergency action required.
+
+      - alert: PostgresLongRunningTransaction
+        expr: |
+          max(
+            pg_stat_activity_max_tx_duration{state!="idle"}
+          ) by (instance) > 1800
+        for: 5m
+        labels:
+          severity: warning
+          team: engineering
+        annotations:
+          summary: "PostgreSQL transaction open for > 30 minutes"
+          description: >
+            Longest active transaction on {{ $labels.instance }} has been running
+            {{ $value | humanizeDuration }}. Long transactions block autovacuum,
+            cause table bloat, hold WAL segments, and may block DDL migrations.
+            Find with: SELECT pid, now()-xact_start, query FROM pg_stat_activity
+            WHERE xact_start IS NOT NULL ORDER BY xact_start LIMIT 5;
+
+      - alert: PostgresDeadTuplesHigh
+        expr: |
+          pg_stat_user_tables_n_dead_tup
+          /
+          (pg_stat_user_tables_n_live_tup + pg_stat_user_tables_n_dead_tup + 1)
+          > 0.10
+        for: 15m
+        labels:
+          severity: warning
+          team: engineering
+        annotations:
+          summary: "PostgreSQL table bloat > 10% dead tuples on {{ $labels.relname }}"
+          description: >
+            Table {{ $labels.schemaname }}.{{ $labels.relname }} on {{ $labels.instance }}
+            has {{ $value | humanizePercentage }} dead tuples. Autovacuum may be blocked
+            by a long-running transaction or misconfigured. Bloat degrades index scans
+            and increases storage. Run: SELECT relname, n_dead_tup, last_autovacuum
+            FROM pg_stat_user_tables ORDER BY n_dead_tup DESC LIMIT 10;
+
+      - alert: PostgresBackupStale
+        expr: |
+          (time() - yagye:db:last_backup_completed_timestamp) > 90000
+          or absent(yagye:db:last_backup_completed_timestamp) == 1
+        for: 5m
+        labels:
+          severity: critical
+          team: engineering
+        annotations:
+          summary: "PostgreSQL backup not completed in > 25 hours"
+          description: >
+            Last confirmed backup on {{ $labels.instance }} was
+            {{ $value | humanizeDuration }} ago (threshold: 25 hours).
+            If the metric is absent, the backup job has never run or the metric
+            was never emitted. Verify pg_basebackup / WAL archiving is running.
+            Without a recent backup, point-in-time recovery is impossible.
+
+      - alert: PostgresReplicationLagHigh
+        expr: pg_replication_lag > 30
+        for: 5m
+        labels:
+          severity: warning
+          team: engineering
+        annotations:
+          summary: "PostgreSQL replication lag > 30 seconds"
+          description: >
+            Replica {{ $labels.instance }} is {{ $value | humanizeDuration }} behind
+            the primary. Read queries on the replica may return stale data.
+            High lag may indicate I/O pressure on the primary or network issues.
+
+      - alert: PostgresCheckpointSpreadLow
+        expr: |
+          rate(pg_stat_bgwriter_checkpoints_timed_total[30m])
+          /
+          (rate(pg_stat_bgwriter_checkpoints_timed_total[30m])
+           + rate(pg_stat_bgwriter_checkpoints_req_total[30m]) + 0.001)
+          < 0.80
+        for: 15m
+        labels:
+          severity: warning
+          team: engineering
+        annotations:
+          summary: "PostgreSQL checkpoint_completion_target may be too low — I/O pressure"
+          description: >
+            Less than 80% of checkpoints on {{ $labels.instance }} are scheduled
+            (timed) vs requested (forced). Forced checkpoints cause I/O spikes.
+            Consider increasing checkpoint_completion_target to 0.9 and
+            max_wal_size to spread I/O. Review pg_stat_bgwriter for confirmation.
+
       # ── Infra ─────────────────────────────────────────────────────────────
       - alert: HighDbQueueTime
         expr: |

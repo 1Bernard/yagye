@@ -1,6 +1,6 @@
 # Payment Lifecycle
 
-**Last updated:** 2026-08-30
+**Last updated:** 2026-10-18
 
 This document traces a mobile money payment from the merchant's API call through
 to settlement. It is the most important flow in the system — everything else
@@ -153,17 +153,58 @@ an Ecto changeset error, not a silent write.
 
 ## Retry and failure handling
 
-### Provider timeouts
+### Provider timeouts and the MTN-down scenario
 
-If the provider HTTP call times out, the attempt is marked `timeout`. Oban
-retries the worker with exponential backoff (default: 3 attempts, 5s / 30s / 5m
-delays). Each retry creates a new `payment_attempts` row — the attempt history
-is preserved.
+This is the most important failure mode for a West African PSP. MTN MoMo (the
+dominant payment rail) periodically experiences network degradation — maintenance
+windows, high load at peak hours, system incidents. When this happens:
+
+1. Core sends HTTP POST to MTN's API. MTN accepts the request (HTTP 202) and
+   sends the customer a USSD prompt.
+2. The customer approves the USSD prompt, but MTN's system fails to process
+   the confirmation or fails to call back Yagye.
+3. Core's HTTP request times out after 30 seconds.
+4. The `error_class` is `indeterminate` — we don't know if the charge was applied.
+
+**The resolution chain:**
+
+```
+Timeout detected
+  payment_attempt.state = 'resolution_pending'
+  payment_attempt.idempotency_token = "tok_abc"  ← OUR token sent TO MTN
+  ReconciliationWorker scheduled for +15 minutes
+      │
+      ▼
+ReconciliationWorker: query MTN GET /v1_0/requesttopay/tok_abc
+  A. MTN: SUCCESSFUL → write ledger, mark succeeded (late booking)
+  B. MTN: FAILED     → mark failed, safe to tell merchant
+  C. MTN: 404        → charge never applied, mark timed_out
+  D. MTN: 503        → reschedule +30 min, +2h, +8h, +24h...
+  E. No response after 7 days → mark abandoned, ops alert
+```
+
+The `payment_attempts.idempotency_token` is the token Core generated and sent
+to MTN as `X-Reference-Id` in the original charge request. It uniquely identifies
+the charge so MTN can look it up regardless of their internal state. Without this
+token, a post-timeout query to MTN would be impossible — amount + MSISDN alone
+are not unique enough.
+
+Oban retry backoff for `PaymentDispatchWorker`: default `attempt^4 + 15` seconds.
+Each retry creates a **new** `payment_attempts` row — the attempt history is preserved.
 
 ### Hard provider failures
 
-Failures with a `final: true` error code (e.g. `invalid_account`, `blocked`)
-do not retry. The payment transitions directly to `failed`.
+Failures with a `final: true` error code (e.g. `invalid_account`, `blocked`,
+`insufficient_funds`) do not retry. The `error_class` is `definite_failure` and
+the payment transitions directly to `failed`.
+
+### Circuit breaker protection
+
+After 5 consecutive `indeterminate` outcomes from the same provider in a
+15-minute window, Core's circuit breaker opens for that provider. New payments
+skip the degraded provider and route to the next eligible rule. The circuit
+enters `half-open` after 5 minutes and probes one payment through. See
+`docs/architecture/engineering-concepts.md` §26 for the full circuit breaker discussion.
 
 ### Idempotency on retry
 

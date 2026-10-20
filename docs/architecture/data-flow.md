@@ -1,6 +1,6 @@
 # Data Flow
 
-**Last updated:** 2026-09-22
+**Last updated:** 2026-10-18
 
 This document describes how data moves between the three applications and their
 databases. It covers the write path (merchant API → core DB), the event path
@@ -239,3 +239,46 @@ To reconstruct the full data flow for any transaction, filter logs by
 `trace_id`. This works across core, the outbox relay, projection workers, and
 webhook delivery workers because they all inherit the trace context from the
 originating request.
+
+---
+
+## Data platform flow (Bronze → Silver → Gold)
+
+The data platform is a separate pipeline from the operational flow above.
+It consumes from Redpanda (at P14+) and feeds the analytics lakehouse.
+
+```
+Core DB: outbox_messages (all domain events)
+    │ OutboxRelayWorker → Redpanda topic "payment.events"
+    ▼
+Redpanda Connect (S3 Sink connector)
+    │ Batches 500 events OR 30s window
+    │ Writes Parquet files
+    ▼
+Bronze layer (S3: yagye-lake-raw/)
+    │ Immutable, append-only, raw event payloads
+    │ Partitioned by ingestion date + event type
+    ▼
+Silver ETL (DuckDB, runs hourly)
+    │ Deduplication on event_id
+    │ Type casting, PII hashing, reference data joins
+    ▼
+Silver layer (S3: yagye-lake-silver/)
+    │ Validated, deduplicated, partitioned by effective_date
+    ▼
+Gold ETL (DuckDB, various cadences)
+    │ Aggregation: provider_health_hourly, merchant_features_weekly
+    │ ML feature computation, regulatory report datasets
+    ▼
+Gold layer (S3: yagye-lake-gold/)
+    │
+    ├── ML scoring service (FastAPI) reads provider_health_hourly
+    │   for real-time routing features
+    ├── Grafana dashboards (BI)
+    └── Regulatory reports (Bank of Ghana monthly submissions)
+```
+
+See `docs/data-engineering/README.md` for the full medallion architecture,
+CDC design, partitioning strategy, and DuckDB query patterns.
+See `docs/data-engineering/ml-architecture.md` for model training, evaluation,
+ONNX serving, and feedback loop design.

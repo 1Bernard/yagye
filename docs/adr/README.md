@@ -37,6 +37,7 @@ What did we decide? One clear statement.
 
 | # | Title | Status |
 |---|-------|--------|
+| [0000](0000-record-architecture-decisions.md) | Record architecture decisions | Accepted |
 | [0001](0001-poncho-monorepo.md) | Poncho monorepo over umbrella or separate repos | Accepted |
 | [0002](0002-integer-minor-units.md) | Integer minor units for monetary values | Accepted |
 | [0003](0003-phoenix-layered-architecture.md) | Phoenix two-layer architecture (core / web) | Accepted |
@@ -63,3 +64,16 @@ What did we decide? One clear statement.
 | [0024](0024-agentic-finance-api-surface.md) | Agentic finance API surface | Accepted |
 | [0025](0025-rabbitmq-broadway-webhook-delivery.md) | RabbitMQ + Broadway for outbound webhook delivery | Accepted |
 | [0026](0026-portal-read-model-soft-delete.md) | Soft-delete on portal read models for JOIN preservation | Accepted |
+
+## Related documentation
+
+These documents synthesise multiple ADRs into topic-oriented explanations
+for engineers who are onboarding or working across several decision areas:
+
+| Document | ADRs it covers |
+|---|---|
+| [engineering-concepts.md](../architecture/engineering-concepts.md) | 0005, 0006, 0007, 0008, 0011, 0012, 0013, 0014, 0015, 0019, 0020 |
+| [data-flow.md](../architecture/data-flow.md) | 0014, 0015, 0025 |
+| [data-engineering/README.md](../data-engineering/README.md) | 0022 |
+| [data-engineering/ml-architecture.md](../data-engineering/ml-architecture.md) | 0023, 0024 |
+| [roadmap/remaining-features.md](../roadmap/remaining-features.md) | 0024 (agentic gaps) |
