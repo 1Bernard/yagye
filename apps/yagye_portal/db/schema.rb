@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_10_13_174407) do
+ActiveRecord::Schema[8.1].define(version: 2026_10_20_120002) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pgcrypto"
@@ -75,6 +75,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_13_174407) do
     t.text "state", default: "invited", null: false
     t.datetime "updated_at", null: false
     t.uuid "user_id", null: false
+    t.index ["invitation_token_digest"], name: "index_merchant_memberships_on_invitation_token_digest", unique: true, where: "(invitation_token_digest IS NOT NULL)"
     t.index ["invited_by_id"], name: "index_merchant_memberships_on_invited_by_id"
     t.index ["user_id", "merchant_code"], name: "merchant_memberships_one_active_per_user", unique: true, where: "(state = 'active'::text)"
     t.index ["user_id"], name: "index_merchant_memberships_on_user_id"
@@ -116,6 +117,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_13_174407) do
     t.text "state", default: "pending", null: false
     t.datetime "updated_at", null: false
     t.index ["core_break_id"], name: "index_portal_adjustment_approvals_on_core_break_id", unique: true
+    t.index ["last_event_id"], name: "index_portal_adjustment_approvals_on_last_event_id"
     t.index ["state"], name: "index_portal_adjustment_approvals_on_state"
   end
 
@@ -133,6 +135,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_13_174407) do
     t.text "mode", null: false
     t.datetime "revoked_at"
     t.text "scopes", default: [], null: false, array: true
+    t.index ["key_id"], name: "index_portal_api_keys_on_key_id"
+    t.index ["last_event_id"], name: "index_portal_api_keys_on_last_event_id"
     t.index ["merchant_code", "mode", "created_at"], name: "index_portal_api_keys_on_merchant_code_mode_created_at", order: { created_at: :desc }
     t.index ["merchant_code"], name: "index_portal_api_keys_on_merchant_code"
     t.index ["revoked_at"], name: "index_portal_api_keys_on_revoked_at"
@@ -145,6 +149,10 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_13_174407) do
     t.datetime "created_at", null: false
     t.text "currency", default: "GHS", null: false
     t.text "customer_msisdn"
+    t.text "evidence_approved_by"
+    t.datetime "evidence_draft_at"
+    t.text "evidence_draft_by"
+    t.text "evidence_draft_text"
     t.datetime "evidence_submitted_at"
     t.text "evidence_text"
     t.datetime "last_applied_at", default: -> { "now()" }, null: false
@@ -159,6 +167,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_13_174407) do
     t.text "status", null: false
     t.datetime "updated_at", null: false
     t.index ["core_dispute_id"], name: "index_portal_disputes_on_core_dispute_id", unique: true
+    t.index ["core_payment_id"], name: "index_portal_disputes_on_core_payment_id"
+    t.index ["last_event_id"], name: "index_portal_disputes_on_last_event_id"
     t.index ["merchant_code", "created_at"], name: "index_portal_disputes_on_merchant_code_and_created_at"
     t.index ["merchant_code", "status"], name: "index_portal_disputes_on_merchant_code_and_status"
     t.index ["merchant_code"], name: "index_portal_disputes_on_merchant_code"
@@ -221,6 +231,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_13_174407) do
     t.text "status", null: false
     t.text "submitted_by_email"
     t.text "trading_name"
+    t.index ["last_event_id"], name: "index_portal_merchant_applications_on_last_event_id"
     t.index ["merchant_code"], name: "index_portal_merchant_applications_on_merchant_code"
     t.index ["status"], name: "index_portal_merchant_applications_on_status"
   end
@@ -250,6 +261,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_13_174407) do
     t.boolean "sandbox_enabled", default: false, null: false
     t.text "status", default: "registered", null: false
     t.text "trading_name", default: "", null: false
+    t.index ["last_event_id"], name: "index_portal_merchants_on_last_event_id"
+    t.index ["merchant_code"], name: "index_portal_merchants_on_merchant_code", unique: true
   end
 
   create_table "portal_msisdn_allowlists", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
@@ -286,11 +299,15 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_13_174407) do
     t.string "link"
     t.jsonb "metadata", default: {}, null: false
     t.datetime "read_at"
+    t.string "source_event_id"
     t.string "title", null: false
     t.datetime "updated_at", null: false
+    t.string "urgency", default: "info", null: false
     t.uuid "user_id", null: false
+    t.index ["urgency"], name: "index_portal_notifications_on_urgency"
     t.index ["user_id", "created_at"], name: "index_portal_notifications_on_user_id_and_created_at"
     t.index ["user_id", "read_at"], name: "index_portal_notifications_on_user_id_and_read_at"
+    t.index ["user_id", "source_event_id"], name: "idx_portal_notifs_on_user_source_event_id", unique: true, where: "(source_event_id IS NOT NULL)"
     t.index ["user_id"], name: "index_portal_notifications_on_user_id"
   end
 
@@ -328,11 +345,12 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_13_174407) do
   end
 
   create_table "portal_payout_requests", force: :cascade do |t|
-    t.bigint "amount_cents"
+    t.bigint "amount"
     t.datetime "created_at", null: false
     t.string "currency", limit: 3, default: "GHS", null: false
     t.text "merchant_code", null: false
     t.text "reason", null: false
+    t.string "request_code", null: false
     t.text "requested_by", null: false
     t.datetime "reviewed_at"
     t.text "reviewed_by"
@@ -341,6 +359,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_13_174407) do
     t.datetime "updated_at", null: false
     t.index ["merchant_code", "state"], name: "index_portal_payout_requests_on_merchant_code_and_state"
     t.index ["merchant_code"], name: "index_portal_payout_requests_on_merchant_code"
+    t.index ["request_code"], name: "index_portal_payout_requests_on_request_code", unique: true
     t.index ["state"], name: "index_portal_payout_requests_on_state"
   end
 
@@ -357,6 +376,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_13_174407) do
     t.text "mode", null: false
     t.date "scheduled_for", null: false
     t.text "state", null: false
+    t.index ["last_event_id"], name: "index_portal_payouts_on_last_event_id"
     t.index ["merchant_code", "scheduled_for"], name: "index_portal_payouts_on_merchant_code_and_scheduled_for"
     t.index ["merchant_code"], name: "index_portal_payouts_on_merchant_code"
   end
@@ -382,6 +402,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_13_174407) do
     t.text "state", null: false
     t.date "value_date"
     t.bigint "variance"
+    t.index ["last_event_id"], name: "index_portal_settlements_on_last_event_id"
     t.index ["merchant_code"], name: "index_portal_settlements_on_merchant_code"
   end
 
@@ -399,8 +420,10 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_13_174407) do
     t.text "response_body"
     t.integer "response_status"
     t.text "state", null: false
+    t.index ["delivery_id"], name: "index_portal_webhook_deliveries_on_delivery_id"
     t.index ["endpoint_id", "last_applied_at"], name: "idx_on_endpoint_id_last_applied_at_5426289cd1"
     t.index ["endpoint_id"], name: "index_portal_webhook_deliveries_on_endpoint_id"
+    t.index ["event_id"], name: "index_portal_webhook_deliveries_on_event_id"
     t.index ["merchant_code"], name: "index_portal_webhook_deliveries_on_merchant_code"
   end
 
@@ -417,6 +440,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_13_174407) do
     t.text "subscribed_events", default: [], null: false, array: true
     t.text "url", null: false
     t.index ["deleted_at"], name: "index_portal_webhook_endpoints_on_deleted_at"
+    t.index ["endpoint_id"], name: "index_portal_webhook_endpoints_on_endpoint_id"
+    t.index ["last_event_id"], name: "index_portal_webhook_endpoints_on_last_event_id"
     t.index ["merchant_code", "mode", "created_at"], name: "index_portal_webhook_endpoints_on_merchant_code_mode_created_at", order: { created_at: :desc }
     t.index ["merchant_code"], name: "index_portal_webhook_endpoints_on_merchant_code"
   end
@@ -438,7 +463,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_13_174407) do
     t.index ["target_user_id", "status"], name: "index_role_assignment_requests_on_target_user_id_and_status"
     t.index ["target_user_id"], name: "index_role_assignment_requests_on_target_user_id"
     t.check_constraint "reviewed_by_id IS NULL OR reviewed_by_id <> requested_by_id", name: "no_self_approve"
-    t.check_constraint "status::text = ANY (ARRAY['pending'::character varying, 'approved'::character varying, 'rejected'::character varying, 'cancelled'::character varying]::text[])", name: "valid_status"
+    t.check_constraint "status::text = ANY (ARRAY['pending'::character varying::text, 'approved'::character varying::text, 'rejected'::character varying::text, 'cancelled'::character varying::text])", name: "valid_status"
     t.check_constraint "target_user_id <> requested_by_id", name: "no_self_request"
   end
 
@@ -461,6 +486,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_13_174407) do
   create_table "sso_configurations", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
     t.boolean "active", default: true, null: false
     t.datetime "created_at", null: false
+    t.datetime "deactivated_at"
     t.string "email_domain", null: false
     t.text "idp_cert", null: false
     t.string "idp_entity_id"
@@ -468,6 +494,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_13_174407) do
     t.string "merchant_code", null: false
     t.string "name", null: false
     t.datetime "updated_at", null: false
+    t.index ["deactivated_at"], name: "index_sso_configurations_on_deactivated_at"
     t.index ["email_domain"], name: "index_sso_configurations_on_email_domain", unique: true
     t.index ["merchant_code"], name: "index_sso_configurations_on_merchant_code"
   end

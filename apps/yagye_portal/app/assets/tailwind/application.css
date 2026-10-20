@@ -33,19 +33,21 @@ html, body { height: 100%; overflow: hidden; }
 /* Consumed by UI::Theme Ruby constants as var(--*) in inline style attrs.
    Dark mode redefines these tokens; all components automatically adapt.   */
 :root {
-  --ink:         #111827;
-  --body-text:   #374151;
-  --prose-text:  #4B5563;
-  --muted-text:  #6B7280;
-  --subtle-text: #9CA3AF;
-  --faint-text:  #D1D5DB;
-  --surface:     #F9FAFB;
-  --border:      #F3F4F6;
-  --border-med:  #E5E7EB;
-  --card-bg:     #FFFFFF;
-  --page-bg:     #F9FAFB;
-  --tooltip-bg:  #111827;
-  --tooltip-fg:  #FFFFFF;
+  --ink:              #111827;
+  --body-text:        #374151;
+  --prose-text:       #4B5563;
+  --muted-text:       #6B7280;
+  --subtle-text:      #9CA3AF;
+  --faint-text:       #D1D5DB;
+  --surface:          #F9FAFB;
+  --border:           #F3F4F6;
+  --border-med:       #E5E7EB;
+  --card-bg:          #FFFFFF;
+  --page-bg:          #F9FAFB;
+  --tooltip-bg:       #111827;
+  --tooltip-fg:       #FFFFFF;
+  --brand:            #3D47F5;
+  --notif-unread-bg:  rgba(61, 71, 245, 0.05);
 }
 
 /* ── Dark mode — explicit choice ────────────────────────────────────────── */
@@ -65,19 +67,21 @@ body[data-theme="dark"] {
   --color-gray-800: #CDD9E5;   /* secondary headings                        */
   --color-gray-900: #E6EDF3;   /* primary text / ink                        */
 
-  --ink:         #E6EDF3;
-  --body-text:   #ADBAC7;
-  --prose-text:  #8B949E;
-  --muted-text:  #6E7681;
-  --subtle-text: #444C56;
-  --faint-text:  #30363D;
-  --surface:     #21262D;
-  --border:      #21262D;
-  --border-med:  #30363D;
-  --card-bg:     #161B22;
-  --page-bg:     #0D1117;
-  --tooltip-bg:  #E6EDF3;
-  --tooltip-fg:  #0D1117;
+  --ink:             #E6EDF3;
+  --body-text:       #ADBAC7;
+  --prose-text:      #8B949E;
+  --muted-text:      #6E7681;
+  --subtle-text:     #444C56;
+  --faint-text:      #30363D;
+  --surface:         #21262D;
+  --border:          #21262D;
+  --border-med:      #30363D;
+  --card-bg:         #161B22;
+  --page-bg:         #0D1117;
+  --tooltip-bg:      #E6EDF3;
+  --tooltip-fg:      #0D1117;
+  --brand:           #5B63F7;
+  --notif-unread-bg: rgba(91, 99, 247, 0.12);
 }
 
 /* ── Dark mode — system OS preference ──────────────────────────────────── */
@@ -94,19 +98,21 @@ body[data-theme="dark"] {
     --color-gray-800: #CDD9E5;
     --color-gray-900: #E6EDF3;
 
-    --ink:         #E6EDF3;
-    --body-text:   #ADBAC7;
-    --prose-text:  #8B949E;
-    --muted-text:  #6E7681;
-    --subtle-text: #444C56;
-    --faint-text:  #30363D;
-    --surface:     #21262D;
-    --border:      #21262D;
-    --border-med:  #30363D;
-    --card-bg:     #161B22;
-    --page-bg:     #0D1117;
-    --tooltip-bg:  #E6EDF3;
-    --tooltip-fg:  #0D1117;
+    --ink:             #E6EDF3;
+    --body-text:       #ADBAC7;
+    --prose-text:      #8B949E;
+    --muted-text:      #6E7681;
+    --subtle-text:     #444C56;
+    --faint-text:      #30363D;
+    --surface:         #21262D;
+    --border:          #21262D;
+    --border-med:      #30363D;
+    --card-bg:         #161B22;
+    --page-bg:         #0D1117;
+    --tooltip-bg:      #E6EDF3;
+    --tooltip-fg:      #0D1117;
+    --brand:           #5B63F7;
+    --notif-unread-bg: rgba(91, 99, 247, 0.12);
   }
 }
 
@@ -616,15 +622,3 @@ label:has(input[type="radio"]:checked) .role-card-check { opacity: 1; }
 
 /* ── KYB banner lazy-load reveal ────────────────────────────────────────── */
 /* The banner is a Turbo Frame loaded asynchronously. Without animation it  */
-/* hard-pops in and shoves content down. Slide-reveal expands height         */
-/* smoothly so the layout shift feels intentional, not glitchy.             */
-@media (prefers-reduced-motion: no-preference) {
-  .kyb-banner-reveal {
-    animation: kyb-banner-reveal 280ms cubic-bezier(0.4, 0, 0.2, 1) both;
-    overflow: hidden;
-  }
-}
-@keyframes kyb-banner-reveal {
-  from { max-height: 0; opacity: 0; }
-  to   { max-height: 80px; opacity: 1; }
-}

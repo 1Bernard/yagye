@@ -30,7 +30,7 @@ Rails.application.routes.draw do
   get  "up" => "rails/health#show", as: :rails_health_check
   post "session/keepalive", to: "sessions#keepalive", as: :session_keepalive
   get  "locale", to: "locale#set",         as: :locale
-  post "portal/mode", to: "portal/mode#update", as: :portal_mode
+  post "portal/mode", to: "portal_mode#update", as: :portal_mode
 
   # ── Payments domain ──────────────────────────────────────────────────────
   scope module: "payments" do
@@ -40,9 +40,11 @@ Rails.application.routes.draw do
     get   "disputes",          to: "disputes#index",  as: :disputes
     get   "disputes/filter",   to: "disputes#filter", as: :filter_disputes
     get   "disputes/:id",              to: "disputes#show",            as: :dispute
-    post  "disputes/:id/evidence",    to: "disputes#submit_evidence", as: :dispute_evidence
-    post  "disputes/:id/resolve",     to: "disputes#resolve",         as: :resolve_dispute
-    get   "disputes/:id/resolve/:outcome/confirm-modal", to: "disputes#resolve_confirm_modal", as: :resolve_confirm_modal_dispute
+    post   "disputes/:id/evidence/draft",   to: "disputes#save_evidence_draft",    as: :dispute_evidence_draft
+    delete "disputes/:id/evidence/draft",   to: "disputes#discard_evidence_draft", as: :discard_dispute_evidence_draft
+    post   "disputes/:id/evidence/approve", to: "disputes#approve_evidence",       as: :approve_dispute_evidence
+    post   "disputes/:id/resolve",          to: "disputes#resolve",                as: :resolve_dispute
+    get    "disputes/:id/resolve/:outcome/confirm-modal", to: "disputes#resolve_confirm_modal", as: :resolve_confirm_modal_dispute
 
     get "customers",        to: "customers#index", as: :customers
     get "customers/:id",    to: "customers#show",  as: :customer
@@ -116,12 +118,12 @@ Rails.application.routes.draw do
     get  "compliance/approvals/:id/reject-modal",  to: "approvals#reject_modal",  as: :reject_modal_compliance_approval
   end
 
-  # ── Ops — bank statements (internal_staff only) ─────────────────────────
-  scope module: "ops" do
-    get  "ops/bank-statements",      to: "bank_statements#index",  as: :ops_bank_statements
-    get  "ops/bank-statements/new",  to: "bank_statements#new",    as: :new_ops_bank_statement
+  # ── Bank statements (internal_staff only) ───────────────────────────────
+  scope module: "payments" do
+    get  "ops/bank-statements",      to: "bank_statements#index",  as: :payments_bank_statements
+    get  "ops/bank-statements/new",  to: "bank_statements#new",    as: :new_payments_bank_statement
     post "ops/bank-statements",      to: "bank_statements#create"
-    get  "ops/bank-statements/:id",  to: "bank_statements#show",   as: :ops_bank_statement
+    get  "ops/bank-statements/:id",  to: "bank_statements#show",   as: :payments_bank_statement
   end
 
   # ── Activity feed ────────────────────────────────────────────────────────
@@ -189,7 +191,7 @@ Rails.application.routes.draw do
 
   # ── Team domain ──────────────────────────────────────────────────────────
   scope module: "team" do
-    get  "team",                        to: "users#index",      as: :team
+    get  "team",                        to: redirect("/team/users")
     get  "team/activity-log",           to: "users#activity_log", as: :team_activity_log
     get  "team/users",                  to: "users#index",      as: :team_users
     get  "team/users/filter",            to: "users#filter",     as: :filter_team_users
@@ -322,6 +324,7 @@ Rails.application.routes.draw do
   end
 
   # ── Notifications ─────────────────────────────────────────────────────────
+  get   "notifications",          to: "notifications#index",    as: :notifications
   get   "notifications/:id/open", to: "notifications#open",    as: :notification_open
   patch "notifications/read-all", to: "notifications#read_all", as: :notifications_read_all
 

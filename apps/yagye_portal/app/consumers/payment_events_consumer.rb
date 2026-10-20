@@ -39,7 +39,7 @@ class PaymentEventsConsumer < ApplicationConsumer
       p.save!
       broadcast_to_feed(p)
       broadcast_status_update(p)
-      notify_payment(p)
+      notify_payment(p, event)
     end
   end
 
@@ -58,26 +58,32 @@ class PaymentEventsConsumer < ApplicationConsumer
     Rails.logger.warn("[PaymentEventsConsumer] feed broadcast failed: #{e.message}")
   end
 
-  def notify_payment(payment)
+  def notify_payment(payment, event)
     case payment.status
-    when "succeeded"
-      amt = payment.amount ? "#{payment.currency} #{sprintf('%.2f', payment.amount.to_f / 100)}" : ""
-      Notifications::DeliveryService.deliver(
-        merchant_code: payment.merchant_code,
-        event_type:    "payment_success",
-        title:         "Payment received",
-        body:          "#{amt} from #{payment.customer_msisdn || payment.customer_email || 'a customer'} · Ref: #{payment.reference}",
-        link:          "/payments/#{payment.id}",
-        metadata:      { payment_id: payment.id, reference: payment.reference }
+    when "paid"
+      amt = payment.amount ? format_minor_units(payment.amount, payment.currency) : ""
+      Notifications::DeliveryService.schedule(
+        merchant_code:   payment.merchant_code,
+        event_type:      "payment_success",
+        title:           "Payment received",
+        body:            "#{amt} from #{payment.customer_msisdn || payment.customer_email || 'a customer'} · Ref: #{payment.reference}",
+        link:            "/payments/#{payment.id}",
+        metadata:        { payment_id: payment.id, reference: payment.reference },
+        mode:            event.mode,
+        urgency:         "info",
+        source_event_id: "#{event.public_id}:payment_success"
       )
     when "failed"
-      Notifications::DeliveryService.deliver(
-        merchant_code: payment.merchant_code,
-        event_type:    "payment_failed",
-        title:         "Payment failed",
-        body:          "Ref: #{payment.reference} — #{payment.provider || 'unknown provider'}",
-        link:          "/payments/#{payment.id}",
-        metadata:      { payment_id: payment.id, reference: payment.reference }
+      Notifications::DeliveryService.schedule(
+        merchant_code:   payment.merchant_code,
+        event_type:      "payment_failed",
+        title:           "Payment failed",
+        body:            "Ref: #{payment.reference} — #{payment.provider || 'unknown provider'}",
+        link:            "/payments/#{payment.id}",
+        metadata:        { payment_id: payment.id, reference: payment.reference },
+        mode:            event.mode,
+        urgency:         "warning",
+        source_event_id: "#{event.public_id}:payment_failed"
       )
     end
   rescue StandardError => e
@@ -92,5 +98,12 @@ class PaymentEventsConsumer < ApplicationConsumer
     Turbo::StreamsChannel.broadcast_replace_to(stream, target: target, html: html)
   rescue StandardError => e
     Rails.logger.warn("[PaymentEventsConsumer] status broadcast failed: #{e.message}")
+  end
+
+  def format_minor_units(minor_units, currency_code = "GHS")
+    return "—" if minor_units.nil?
+    n = minor_units.to_f / 100
+    whole, frac = sprintf("%.2f", n).split(".")
+    "#{currency_code} #{whole.to_i.to_s.reverse.gsub(/(\d{3})(?=\d)/, '\1,').reverse}.#{frac}"
   end
 end
