@@ -6,8 +6,9 @@ module Settings
 
     def initialize(tab: "profile", current_user: nil, roles: [], ip_allowlists: [], ip_blocklists: [],
                    msisdn_allowlists: [], msisdn_blocklists: [], email_blocklists: [], branding: nil,
-                   kyb_application: nil, audit_events: [], sso_configs: [], tier: 1,
-                   payout_controls: {}, payout_destinations: [], allowed_methods: nil,
+                   kyb_application: nil, merchant: nil, audit_events: [], sso_configs: [], tier: 1,
+                   payout_controls: {}, payout_destinations: [], next_value_date: nil,
+                   unsettled_amount: 0, payout_currency: "GHS", allowed_methods: nil,
                    password_error: nil, password_error_field: nil)
       @tab                  = tab
       @current_user         = current_user
@@ -19,11 +20,15 @@ module Settings
       @email_blocklists     = email_blocklists
       @branding             = branding
       @kyb_application      = kyb_application
+      @merchant             = merchant
       @audit_events         = audit_events
       @sso_configs          = sso_configs
       @tier                 = tier
       @payout_controls      = payout_controls
       @payout_destinations  = payout_destinations
+      @next_value_date      = next_value_date
+      @unsettled_amount     = unsettled_amount
+      @payout_currency      = payout_currency
       @allowed_methods      = allowed_methods
       @password_error       = password_error
       @password_error_field = password_error_field
@@ -67,25 +72,18 @@ module Settings
                 tier:            @tier,
                 branding:        @branding,
                 kyb_application: @kyb_application,
-                merchant:        @current_user&.merchant_user? ? PortalMerchant.find_for(@current_user.merchant_code) : nil
+                merchant:        @merchant
               )
             when "payouts"
               if @current_user&.merchant_user?
-                merchant_code = @current_user.merchant_code
-                pending_settlements = PortalSettlement
-                  .for_merchant(merchant_code)
-                  .where(state: %w[pending processing awaiting_approval])
-                next_date  = pending_settlements.where.not(value_date: nil).minimum(:value_date)
-                unsettled  = pending_settlements.sum(:expected_net)
-                currency   = pending_settlements.pick(:currency) || "GHS"
                 render Settings::PayoutsPanel.new(
-                  controls:        @payout_controls,
-                  next_value_date: next_date,
-                  unsettled_amount: unsettled,
-                  currency:        currency,
-                  destinations:    @payout_destinations,
-                  current_user:    @current_user,
-                  merchant_code:   merchant_code
+                  controls:         @payout_controls,
+                  next_value_date:  @next_value_date,
+                  unsettled_amount: @unsettled_amount,
+                  currency:         @payout_currency,
+                  destinations:     @payout_destinations,
+                  current_user:     @current_user,
+                  merchant_code:    @current_user.merchant_code
                 )
               end
             when "payment_methods"

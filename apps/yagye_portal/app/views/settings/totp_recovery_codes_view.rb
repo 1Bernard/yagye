@@ -185,7 +185,7 @@ module Settings
       codes_json = @recovery_codes.to_json
       email      = @current_user.email.to_s
 
-      script do
+      script(nonce: content_security_policy_nonce) do
         raw safe(<<~JS)
           (function () {
             const CODES   = #{codes_json};

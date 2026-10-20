@@ -70,16 +70,18 @@ module Team
           end
 
           div(class: "flex flex-col gap-2") do
-            p(class: "#{TYPE_MICRO} text-gray-400 mb-1") { plain "Merchant" }
+            p(class: "#{TYPE_MICRO} text-gray-400 mb-1") { plain "Merchant" } if current_user.internal_staff?
             Portal::RoleMetadata::MERCHANT.each do |r|
               role_card(r[:label], r[:key], r[:hint], icon: r[:icon], palette: r[:palette])
             end
           end
 
-          div(class: "flex flex-col gap-2 mt-5") do
-            p(class: "#{TYPE_MICRO} text-gray-400 mb-1") { plain "Internal" }
-            Portal::RoleMetadata::INTERNAL.each do |r|
-              role_card(r[:label], r[:key], r[:hint], icon: r[:icon], palette: r[:palette])
+          if current_user.internal_staff?
+            div(class: "flex flex-col gap-2 mt-5") do
+              p(class: "#{TYPE_MICRO} text-gray-400 mb-1") { plain "Internal" }
+              Portal::RoleMetadata::INTERNAL.each do |r|
+                role_card(r[:label], r[:key], r[:hint], icon: r[:icon], palette: r[:palette])
+              end
             end
           end
         end

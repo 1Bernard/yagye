@@ -4,7 +4,7 @@ module Payments
   module Customers
     class IndexView < ApplicationComponent
       include UI::Theme
-      include CustomerHelpers
+      include Payments::CustomersHelper
 
       SEGMENT_CFG = {
         new:        { label: "New",        css: "bg-blue-50 text-blue-700" },

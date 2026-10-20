@@ -67,7 +67,7 @@ module Settings
                     plain "#{count} #{count == 1 ? 'entry' : 'entries'}"
                   end
                 else
-                  span(class: "badge-green text-[11px] font-semibold px-[9px] py-[2px] rounded-full") { plain "Open access" }
+                  span(class: "#{BADGE} #{STATUS_SUCCESS}") { plain "Open access" }
                 end
               end
               p(class: TYPE_CAPTION) { plain "Restrict portal and API access to specific IP addresses or CIDR ranges." }
@@ -177,7 +177,7 @@ module Settings
                     plain "#{count} #{count == 1 ? 'number' : 'numbers'}"
                   end
                 else
-                  span(class: "badge-green text-[11px] font-semibold px-[9px] py-[2px] rounded-full") { plain "Open" }
+                  span(class: "#{BADGE} #{STATUS_SUCCESS}") { plain "Open" }
                 end
               end
               p(class: TYPE_CAPTION) { plain "Restrict which phone numbers can initiate MoMo payments via your integration." }

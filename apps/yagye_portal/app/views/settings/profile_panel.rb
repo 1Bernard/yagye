@@ -49,9 +49,9 @@ module Settings
             end
             div(class: "flex items-center gap-2 flex-wrap") do
               if u&.internal_staff?
-                span(class: "badge-blue text-[11px] font-semibold px-[9px] py-[3px] rounded-full") { plain "Yagye Staff" }
+                span(class: "#{BADGE} #{STATUS_INFO}") { plain "Yagye Staff" }
               else
-                span(class: "badge-gray text-[11px] font-semibold px-[9px] py-[3px] rounded-full") { plain "Merchant user" }
+                span(class: "#{BADGE} #{STATUS_NEUTRAL}") { plain "Merchant user" }
               end
               unless @roles.empty?
                 span(class: TYPE_CAPTION) { plain "·" }
@@ -288,9 +288,9 @@ module Settings
               span(class: TYPE_BODY_MD) { plain "Two-factor auth" }
             end
             if totp
-              span(class: "badge-green text-[11px] font-semibold px-[9px] py-[3px] rounded-full") { plain "Enabled" }
+              span(class: "#{BADGE} #{STATUS_SUCCESS}") { plain "Enabled" }
             else
-              span(class: "badge-amber text-[11px] font-semibold px-[9px] py-[3px] rounded-full") { plain "Disabled" }
+              span(class: "#{BADGE} #{STATUS_WARNING}") { plain "Disabled" }
             end
           end
         end
@@ -303,7 +303,7 @@ module Settings
           else
             div(class: "flex flex-wrap gap-1.5") do
               @roles.each do |role|
-                span(class: "badge-gray text-[11px] font-semibold px-[9px] py-[3px] rounded-full") { plain role.name }
+                span(class: "#{BADGE} #{STATUS_NEUTRAL}") { plain role.name }
               end
             end
           end

@@ -15,59 +15,49 @@ class ApiKeyEventsConsumer < ApplicationConsumer
   private
 
   def upsert(payload)
-    key_id = payload["key_id"] || payload["public_id"]
-    return unless key_id.present?
+    evt = Acl::CoreApiKeyEvent.new(payload)
+    return unless evt.valid?
 
-    event_id = payload["event_id"].to_s
-    existing = PortalApiKey.find_by(key_id: key_id)
-    return if existing&.last_event_id == event_id && event_id.present?
-
-    # Core stores mode as "sandbox"/"simulation"/"live"; Portal uses "test"/"live".
-    portal_mode = case payload["mode"]
-    when "sandbox", "simulation" then "test"
-    when "live"                  then "live"
-    else payload["mode"].presence || "test"
-    end
+    existing = PortalApiKey.find_by(key_id: evt.key_id)
+    return if existing&.last_event_id == evt.event_id && evt.event_id.present?
 
     attrs = {
-      key_id:        key_id,
-      merchant_code: payload["merchant_code"],
-      label:         payload["label"] || "",
-      key_prefix:    payload["key_prefix"] || payload["prefix"] || "",
-      kind:          payload["kind"] || "secret",
-      mode:          portal_mode,
-      scopes:        Array(payload["scopes"]),
-      created_by:    payload["created_by"],
-      expires_at:    payload["expires_at"],
-      last_used_at:  payload["last_used_at"],
-      revoked_at:    payload["revoked_at"],
-      last_event_id: event_id,
+      key_id:          evt.key_id,
+      merchant_code:   evt.merchant_code,
+      label:           evt.label,
+      key_prefix:      evt.key_prefix,
+      kind:            evt.kind,
+      mode:            evt.mode,
+      scopes:          evt.scopes,
+      created_by:      evt.created_by,
+      expires_at:      evt.expires_at,
+      last_used_at:    evt.last_used_at,
+      revoked_at:      evt.revoked_at,
+      last_event_id:   evt.event_id,
       last_applied_at: Time.current
     }.compact
 
     PortalApiKey.upsert(attrs, unique_by: :key_id,
                                 update_only: attrs.keys - [ :key_id ])
 
-    if payload["revoked_at"].nil? && existing.nil?
-      notify_key_created(payload)
-    end
+    notify_key_created(evt) if evt.newly_created? && existing.nil?
   end
 
-  def notify_key_created(payload)
-    merchant_code = payload["merchant_code"]
-    return if merchant_code.blank?
+  def notify_key_created(evt)
+    return if evt.merchant_code.blank?
 
-    label  = payload["label"].presence || "API key"
-    prefix = payload["key_prefix"] || payload["prefix"]
-    body   = prefix.present? ? "#{label} (#{prefix}...)" : label
+    body = evt.key_prefix.present? ? "#{evt.label} (#{evt.key_prefix}...)" : evt.label
 
-    Notifications::DeliveryService.deliver(
-      merchant_code: merchant_code,
-      event_type:    "api_key_created",
-      title:         "New API key generated",
-      body:          body,
-      link:          "/developers",
-      metadata:      { key_id: payload["key_id"] || payload["public_id"] }
+    Notifications::DeliveryService.schedule(
+      merchant_code:   evt.merchant_code,
+      event_type:      "api_key_created",
+      title:           "New API key generated",
+      body:            body,
+      link:            "/developers",
+      metadata:        { key_id: evt.key_id },
+      mode:            evt.mode,
+      urgency:         "info",
+      source_event_id: evt.event_id.presence && "#{evt.event_id}:api_key_created"
     )
   rescue StandardError => e
     Rails.logger.warn("[ApiKeyEventsConsumer] notify failed: #{e.message}")

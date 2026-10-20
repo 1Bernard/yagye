@@ -96,7 +96,7 @@ module Settings
           div(class: "flex items-center gap-2") do
             p(class: TYPE_BODY_MD) { plain label_text }
             if coming_soon
-              span(class: "badge-gray text-[10px] font-semibold px-[7px] py-[2px] rounded-full") { plain "Coming soon" }
+              span(class: "#{BADGE} #{STATUS_NEUTRAL}") { plain "Coming soon" }
             end
           end
           p(class: TYPE_CAPTION) { plain desc }

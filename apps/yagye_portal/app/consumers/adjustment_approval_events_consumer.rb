@@ -12,28 +12,22 @@ class AdjustmentApprovalEventsConsumer < ApplicationConsumer
   private
 
   def upsert(payload)
-    break_id = payload["break_id"]
-    return unless break_id.present?
+    evt = Acl::CoreAdjustmentApprovalEvent.new(payload)
+    return unless evt.valid?
 
-    event_id = payload["event_id"].to_s
-    existing = PortalAdjustmentApproval.find_by(core_break_id: break_id)
-    return if existing&.last_event_id == event_id && event_id.present?
-
-    state = if payload["approved_by"].present? then "approved"
-    elsif payload["rejected_reason"].present? then "rejected"
-    else "pending"
-    end
+    existing = PortalAdjustmentApproval.find_by(core_break_id: evt.core_break_id)
+    return if existing&.last_event_id == evt.event_id && evt.event_id.present?
 
     attrs = {
-      core_break_id:   break_id,
-      proposed_by:     payload["proposed_by"],
-      proposed_at:     payload["proposed_at"],
-      proposed_action: payload["proposed_action"] || {},
-      approved_by:     payload["approved_by"],
-      approved_at:     payload["approved_at"],
-      rejected_reason: payload["rejected_reason"],
-      state:           state,
-      last_event_id:   event_id
+      core_break_id:   evt.core_break_id,
+      proposed_by:     evt.proposed_by,
+      proposed_at:     evt.proposed_at,
+      proposed_action: evt.proposed_action,
+      approved_by:     evt.approved_by,
+      approved_at:     evt.approved_at,
+      rejected_reason: evt.rejected_reason,
+      state:           evt.state,
+      last_event_id:   evt.event_id
     }.compact
 
     PortalAdjustmentApproval.upsert(attrs,

@@ -92,7 +92,7 @@ module Settings
             plain "Start verification →"
           end
         elsif @tier == 3
-          span(class: "badge-green text-[12px] font-semibold px-3 py-1.5 rounded-full flex-shrink-0") do
+          span(class: "#{BADGE} #{STATUS_SUCCESS} flex-shrink-0") do
             plain "Fully verified"
           end
         end
@@ -179,12 +179,12 @@ module Settings
             end
 
             if done
-              span(class: "badge-green text-[11px] font-semibold px-[9px] py-[3px] rounded-full flex-shrink-0") { plain "Done" }
+              span(class: "#{BADGE} #{STATUS_SUCCESS} flex-shrink-0") { plain "Done" }
             elsif current
               span(class: "text-[11px] font-semibold px-[9px] py-[3px] rounded-full flex-shrink-0",
                    style: "background:#{cfg[:badge_bg]};color:#{cfg[:accent]}") { plain "Current" }
             else
-              span(class: "badge-gray text-[11px] font-semibold px-[9px] py-[3px] rounded-full flex-shrink-0") { plain "Locked" }
+              span(class: "#{BADGE} #{STATUS_NEUTRAL} flex-shrink-0") { plain "Locked" }
             end
           end
         end
@@ -272,12 +272,12 @@ module Settings
               end
 
               if done
-                span(class: "badge-green text-[11px] font-semibold px-[9px] py-[3px] rounded-full flex-shrink-0") { plain "Done" }
+                span(class: "#{BADGE} #{STATUS_SUCCESS} flex-shrink-0") { plain "Done" }
               elsif active
                 span(class: "text-[11px] font-semibold px-[9px] py-[3px] rounded-full flex-shrink-0",
                      style: "background:#{cfg[:badge_bg]};color:#{cfg[:accent]}") { plain "In progress" }
               else
-                span(class: "badge-gray text-[11px] font-semibold px-[9px] py-[3px] rounded-full flex-shrink-0") { plain "Pending" }
+                span(class: "#{BADGE} #{STATUS_NEUTRAL} flex-shrink-0") { plain "Pending" }
               end
             end
           end

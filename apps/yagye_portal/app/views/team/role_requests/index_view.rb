@@ -125,9 +125,9 @@ module Team
                   p(class: "text-[14px] font-bold tracking-[-0.01em]", style: "color:var(--ink)") do
                     plain req.target_user.full_name
                   end
-                  span(class: "badge-amber #{BADGE}") { plain "Pending approval" }
+                  span(class: "#{BADGE} #{STATUS_WARNING}") { plain "Pending approval" }
                   if cat == :breach
-                    span(class: "badge-red #{BADGE}") { plain "SLA breach" }
+                    span(class: "#{BADGE} #{STATUS_FAILED}") { plain "SLA breach" }
                   end
                 end
                 age_row(req, cat)
@@ -161,9 +161,9 @@ module Team
       def role_diff_pill(key, direction)
         role  = @roles_by_key[key]
         label = role&.name || key.humanize
-        cls   = direction == :add ? "badge-green" : "badge-red"
+        cls   = direction == :add ? STATUS_SUCCESS : STATUS_FAILED
         icon  = direction == :add ? :plus : :minus
-        span(class: "#{cls} inline-flex items-center gap-[5px] #{BADGE}") do
+        span(class: "#{BADGE} #{cls} inline-flex items-center gap-[5px]") do
           span(class: "flex w-[9px] h-[9px]") { render UI::Icon.new(icon, class: "w-full h-full") }
           plain label
         end

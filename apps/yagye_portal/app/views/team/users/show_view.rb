@@ -92,17 +92,17 @@ module Team
             p(class: "#{TYPE_CAPTION} mb-3") { plain u.email }
             div(class: "flex items-center gap-[6px] flex-wrap") do
               if u.internal_staff?
-                span(class: "badge-blue #{BADGE}") { plain "Yagye Staff" }
+                span(class: "#{BADGE} #{STATUS_INFO}") { plain "Yagye Staff" }
               else
-                span(class: "badge-gray #{BADGE}") { plain "Merchant" }
+                span(class: "#{BADGE} #{STATUS_NEUTRAL}") { plain "Merchant" }
               end
               if suspended
-                span(class: "badge-amber #{BADGE}") { plain "Suspended" }
+                span(class: "#{BADGE} #{STATUS_WARNING}") { plain "Suspended" }
               else
-                span(class: "badge-green #{BADGE}") { plain "Active" }
+                span(class: "#{BADGE} #{STATUS_SUCCESS}") { plain "Active" }
               end
               if totp_on
-                span(class: "badge-green #{BADGE}") { plain "2FA on" }
+                span(class: "#{BADGE} #{STATUS_SUCCESS}") { plain "2FA on" }
               end
             end
           end
@@ -124,7 +124,7 @@ module Team
             if @pending_request
               a(href: team_role_requests_path,
                 class: "inline-flex items-center gap-[6px] text-[11.5px] font-semibold px-3 py-[5px] rounded-lg " \
-                       "badge-amber no-underline") do
+                       "#{STATUS_WARNING} no-underline") do
                 span(class: "flex w-[10px] h-[10px]") { render UI::Icon.new(:clock, class: "w-full h-full") }
                 plain "Change pending"
               end
@@ -151,11 +151,11 @@ module Team
 
       def role_row(user_role)
         r     = user_role.role
-        badge = r.scope == "internal" ? "badge-blue" : "badge-gray"
+        badge = r.scope == "internal" ? STATUS_INFO : STATUS_NEUTRAL
 
         div(class: "flex items-center justify-between px-[14px] py-3 bg-gray-100 rounded-xl border border-gray-100") do
           div(class: "flex items-center gap-[10px]") do
-            span(class: "#{badge} #{BADGE}") { plain r.scope.capitalize }
+            span(class: "#{BADGE} #{badge}") { plain r.scope.capitalize }
             p(class: TYPE_BODY_MD) { plain r.name }
           end
           p(class: TYPE_CAPTION) { plain "#{r.permissions.size} permissions" }

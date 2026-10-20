@@ -4,7 +4,7 @@ module Payments
   module Customers
     class ShowView < ApplicationComponent
       include UI::Theme
-      include CustomerHelpers
+      include Payments::CustomersHelper
 
       SEGMENT_CFG = {
         new:        { label: "New",        css: "bg-blue-50 text-blue-700 border-blue-200" },
@@ -166,29 +166,65 @@ module Payments
         end
       end
 
+      KYC_TIERS = [
+        { n: 1, label: "Tier 1", desc: "Mobile number verified by network" },
+        { n: 2, label: "Tier 2", desc: "Name and national ID verified" },
+        { n: 3, label: "Tier 3", desc: "Address and liveness confirmed" }
+      ].freeze
+
+      KYC_CFG = {
+        accent:      "#16a34a",
+        icon_bg:     "rgba(22,163,74,0.08)",
+        icon_border: "rgba(22,163,74,0.20)",
+        badge_bg:    "rgba(22,163,74,0.10)"
+      }.freeze
+
       def kyc_card
         tier = { "tier_1" => 1, "tier_2" => 2, "tier_3" => 3 }.fetch(@c["kyc_tier"], 0)
 
-        render UI::Card.new do |card|
-          card.header("KYC Status")
-          card.body do
-            div(class: "flex flex-col gap-3") do
-              [ 1, 2, 3 ].each do |t|
-                done  = tier >= t
-                color = done ? GREEN : SUBTLE_TEXT
-                div(class: "flex items-center gap-3") do
-                  div(class: "w-[10px] h-[10px] rounded-full flex-shrink-0", style: "background:#{color}")
-                  div do
-                    p(class: done ? TYPE_BODY_MD : TYPE_CAPTION) { plain "Tier #{t}" }
-                    p(class: TYPE_MICRO) do
-                      plain case t
-                      when 1 then "Basic — MSISDN collected"
-                      when 2 then "Identity — name + ID verified"
-                      when 3 then "Enhanced — address + liveness"
-                      end
-                    end
+        div(class: "bg-white border border-gray-100 rounded-2xl overflow-hidden") do
+          div(class: "px-6 py-5 border-b border-gray-100") do
+            p(class: TYPE_TITLE) { plain "KYC Status" }
+          end
+
+          KYC_TIERS.each do |t|
+            done    = t[:n] < tier
+            current = t[:n] == tier
+            cfg     = KYC_CFG
+
+            div(class: "flex items-center gap-4 px-6 py-[15px] border-b border-gray-50 last:border-0") do
+              if done
+                div(class: "w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0",
+                    style: "background:#{cfg[:icon_bg]};border:1px solid #{cfg[:icon_border]}") do
+                  span(class: "flex w-[14px] h-[14px]", style: "color:#{cfg[:accent]}") do
+                    render UI::Icon.new(:check, class: "w-full h-full")
                   end
                 end
+              elsif current
+                div(class: "w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0",
+                    style: "background:#{cfg[:icon_bg]};border:1.5px solid #{cfg[:accent]}") do
+                  div(style: "width:7px;height:7px;border-radius:50%;background:#{cfg[:accent]}")
+                end
+              else
+                div(class: "w-8 h-8 rounded-xl bg-gray-100 border border-gray-200 flex items-center justify-center flex-shrink-0") do
+                  span(class: "text-[11px] font-bold text-gray-300") { plain t[:n].to_s }
+                end
+              end
+
+              div(class: "flex-1 min-w-0") do
+                p(class: "text-[13px] #{done || current ? 'font-semibold text-gray-900' : 'font-medium text-gray-400'}") do
+                  plain t[:label]
+                end
+                p(class: TYPE_CAPTION) { plain t[:desc] }
+              end
+
+              if done
+                span(class: "#{BADGE} #{STATUS_SUCCESS} flex-shrink-0") { plain "Done" }
+              elsif current
+                span(class: "text-[11px] font-semibold px-[9px] py-[3px] rounded-full flex-shrink-0",
+                     style: "background:#{cfg[:badge_bg]};color:#{cfg[:accent]}") { plain "Current" }
+              else
+                span(class: "#{BADGE} #{STATUS_NEUTRAL} flex-shrink-0") { plain "Locked" }
               end
             end
           end

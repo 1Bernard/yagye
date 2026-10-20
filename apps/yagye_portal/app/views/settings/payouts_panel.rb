@@ -353,7 +353,7 @@ module Settings
         div(class: "px-6 py-6 flex items-end gap-3") do
           p(class: "text-[32px] font-extrabold tabular-nums tracking-tight leading-none",
             style: "color:#{@unsettled.positive? ? AMBER : GREEN}") do
-            plain "#{@currency} #{"%.2f" % (@unsettled / 100.0)}"
+            plain format_money(@unsettled, currency: @currency)
           end
           p(class: "#{TYPE_CAPTION} pb-1") { plain "awaiting next settlement" }
         end

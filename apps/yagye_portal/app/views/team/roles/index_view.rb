@@ -5,9 +5,9 @@ module Team
     class IndexView < ApplicationComponent
       include UI::Theme
 
-      SCOPE_ICON  = { "merchant" => :building, "internal" => :users }.freeze
-      SCOPE_COLOR = { "merchant" => "icon-green", "internal" => "icon-purple" }.freeze
-      SCOPE_BADGE = { "merchant" => "badge-green", "internal" => "badge-purple" }.freeze
+      SCOPE_ICON   = { "merchant" => :building, "internal" => :users }.freeze
+      SCOPE_COLOR  = { "merchant" => "icon-green", "internal" => "icon-purple" }.freeze
+      SCOPE_STATUS = { "merchant" => STATUS_SUCCESS, "internal" => STATUS_INTERNAL }.freeze
 
       def initialize(roles: [], can_manage: false)
         @roles      = roles
@@ -86,7 +86,7 @@ module Team
       def scope_section(title, roles, scope)
         icon_name  = SCOPE_ICON.fetch(scope, :key)
         color_cls  = SCOPE_COLOR.fetch(scope, "icon-brand")
-        badge_cls  = SCOPE_BADGE.fetch(scope, "badge-gray")
+        badge_cls  = SCOPE_STATUS.fetch(scope, STATUS_NEUTRAL)
 
         div(class: "bg-white border border-gray-100 rounded-2xl overflow-hidden") do
           div(class: "flex items-center justify-between px-6 py-4 border-b border-gray-100") do
@@ -96,7 +96,7 @@ module Team
               end
               p(class: "text-[14px] font-semibold text-gray-900") { plain title }
             end
-            span(class: "#{badge_cls} #{BADGE}") do
+            span(class: "#{BADGE} #{badge_cls}") do
               plain "#{roles.size} role#{roles.size == 1 ? '' : 's'}"
             end
           end
@@ -127,7 +127,7 @@ module Team
             div(class: "flex items-center gap-[7px] mb-[3px]") do
               p(class: "text-[13px] font-semibold text-gray-900") { plain role.name }
               if role.system_role?
-                span(class: "badge-blue #{BADGE_XS}") do
+                span(class: "#{BADGE_XS} #{STATUS_INFO}") do
                   plain "System"
                 end
               end

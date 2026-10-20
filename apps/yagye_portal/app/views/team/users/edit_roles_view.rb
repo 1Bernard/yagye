@@ -81,7 +81,7 @@ module Team
       def drawer_footer
         div(class: "sticky bottom-0 bg-white border-t border-gray-100 px-6 py-4") do
           div(class: "flex items-center gap-3 mb-3") do
-            span(class: "badge-blue inline-flex items-center gap-[5px] #{BADGE}") do
+            span(class: "#{BADGE} #{STATUS_INFO} inline-flex items-center gap-[5px]") do
               span(class: "flex w-[9px] h-[9px]") { render UI::Icon.new(:shield, class: "w-full h-full") }
               plain "Maker / Checker required"
             end
@@ -155,7 +155,7 @@ module Team
                 plain role.name
               end
               if perm_count > 0
-                span(class: "badge-gray text-[9.5px] font-bold px-[6px] py-[2px] rounded-full leading-tight flex-shrink-0") do
+                span(class: "#{BADGE_XS} #{STATUS_NEUTRAL} flex-shrink-0") do
                   plain "#{perm_count} perms"
                 end
               end
