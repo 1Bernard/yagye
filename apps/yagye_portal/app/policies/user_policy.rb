@@ -10,7 +10,7 @@ class UserPolicy < ApplicationPolicy
   end
 
   def invite?
-    permitted?("team.manage") || internal_staff?
+    permitted?("team.manage")
   end
 
   def update?

@@ -1,10 +1,11 @@
 # frozen_string_literal: true
 
 class DisputesPolicy < ApplicationPolicy
-  def index?   = permitted?("payments.view")
-  def show?    = permitted?("payments.view")
-  def update?  = permitted?("disputes.submit_evidence")
-  def resolve? = user.internal_staff?
+  def index?            = permitted?("payments.view")
+  def show?             = permitted?("payments.view")
+  def update?           = permitted?("disputes.submit_evidence")
+  def approve_evidence? = permitted?("disputes.approve_evidence")
+  def resolve?          = user.internal_staff?
 
   class Scope < ApplicationPolicy::Scope
     def resolve

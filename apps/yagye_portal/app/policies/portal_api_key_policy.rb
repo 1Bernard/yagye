@@ -3,21 +3,12 @@
 class PortalApiKeyPolicy < ApplicationPolicy
   class Scope < ApplicationPolicy::Scope
     def resolve
-      if user.internal_staff?
-        scope.all
-      else
-        scope.where(merchant_code: user.merchant_code)
-      end
+      scope.where(merchant_code: user.merchant_code)
     end
   end
 
-  def index?  = user.present?
-  def create? = user.present?
-  def destroy? = own_record?
-
-  private
-
-  def own_record?
-    user.internal_staff? || record.merchant_code == user.merchant_code
-  end
+  def index?   = merchant_user? && permitted?("developers.view_api_keys")
+  def create?  = merchant_user? && permitted?("developers.manage_api_keys")
+  def destroy? = merchant_user? && permitted?("developers.manage_api_keys") &&
+                 record.merchant_code == user.merchant_code
 end

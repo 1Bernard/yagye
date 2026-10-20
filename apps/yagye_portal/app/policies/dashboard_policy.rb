@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 class DashboardPolicy < ApplicationPolicy
   # All authenticated users may view the dashboard.
   # The content adapts based on their permission set.
