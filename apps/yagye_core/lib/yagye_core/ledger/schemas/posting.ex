@@ -20,7 +20,8 @@ defmodule YagyeCore.Ledger.Schemas.Posting do
 
   def changeset(posting, attrs) do
     posting
-    |> cast(attrs, [:entry_id, :account_id, :direction, :amount, :currency, :merchant_id])
+    |> cast(attrs, [:entry_id, :account_id, :direction, :amount, :currency])
+    |> put_change(:merchant_id, attrs[:merchant_id])
     |> validate_required([:entry_id, :account_id, :direction, :amount, :currency])
     |> validate_inclusion(:direction, @valid_directions)
     |> validate_number(:amount, greater_than: 0)

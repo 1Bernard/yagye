@@ -32,25 +32,25 @@ defmodule YagyeCore.Compliance.Workers.ScreeningWorker do
            %ScreeningRequest{}
            |> ScreeningRequest.changeset(request_attrs)
            |> Repo.insert(),
-         {:ok, result} <- adapter.screen(subject) do
-      request
-      |> ScreeningRequest.complete_changeset(%{
-        status: "completed",
-        search_ref: result.provider_search_ref,
-        match_count: result.match_count,
-        hit_count: 0,
-        completed_at: DateTime.utc_now()
-      })
-      |> Repo.update!()
-
-      subject
-      |> ScreeningSubject.update_changeset(%{
-        screening_status: "clean",
-        last_screened_at: DateTime.utc_now(),
-        next_screening_at: DateTime.add(DateTime.utc_now(), 365, :day)
-      })
-      |> Repo.update!()
-
+         {:ok, result} <- adapter.screen(subject),
+         {:ok, _} <-
+           request
+           |> ScreeningRequest.complete_changeset(%{
+             status: "completed",
+             search_ref: result.provider_search_ref,
+             match_count: result.match_count,
+             hit_count: 0,
+             completed_at: DateTime.utc_now()
+           })
+           |> Repo.update(),
+         {:ok, _} <-
+           subject
+           |> ScreeningSubject.update_changeset(%{
+             screening_status: "clean",
+             last_screened_at: DateTime.utc_now(),
+             next_screening_at: DateTime.add(DateTime.utc_now(), 365, :day)
+           })
+           |> Repo.update() do
       :ok
     else
       {:error, reason} -> {:error, reason}

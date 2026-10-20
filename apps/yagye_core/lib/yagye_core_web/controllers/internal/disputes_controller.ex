@@ -3,6 +3,8 @@ defmodule YagyeCoreWeb.Controllers.Internal.DisputesController do
 
   use YagyeCoreWeb, :controller
 
+  action_fallback YagyeCoreWeb.FallbackController
+
   alias YagyeCore.Disputes
 
   def submit_evidence(conn, %{"id" => public_id}) do

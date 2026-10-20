@@ -8,7 +8,7 @@ defmodule YagyeCore.Payments do
 
   alias Ecto.Multi
   alias YagyeCore.Customers
-  alias YagyeCore.Customers.VelocityChecker
+  alias YagyeCore.Customers.Rules.VelocityChecker
   alias YagyeCore.Ledger
   alias YagyeCore.Merchants.Schemas.Merchant
   alias YagyeCore.Outbox

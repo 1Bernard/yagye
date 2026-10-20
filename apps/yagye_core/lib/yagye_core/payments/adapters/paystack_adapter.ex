@@ -35,7 +35,7 @@ defmodule YagyeCore.Payments.Adapters.PaystackAdapter do
   - "airteltigo" → AirtelTigo Money
   """
 
-  @behaviour YagyeCore.Payments.ProviderAdapter
+  @behaviour YagyeCore.Payments.Providers.ProviderAdapter
 
   alias YagyeCore.Payments.Schemas.{Payment, PaymentAttempt}
 

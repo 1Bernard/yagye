@@ -3,6 +3,8 @@ defmodule YagyeCore.Settlement do
 
   import Ecto.Query
 
+  @succeeded "succeeded"
+
   alias Ecto.Multi
   alias YagyeCore.Merchants.Schemas.Merchant
   alias YagyeCore.Outbox
@@ -322,7 +324,7 @@ defmodule YagyeCore.Settlement do
       from(pa in PaymentAttempt,
         join: p in Payment,
         on: p.id == pa.payment_id,
-        where: p.settlement_batch_id == ^batch.id and pa.state == "succeeded",
+        where: p.settlement_batch_id == ^batch.id and pa.state == @succeeded,
         select: {pa, p}
       )
       |> Repo.all()
@@ -388,31 +390,35 @@ defmodule YagyeCore.Settlement do
       |> Repo.all()
       |> Map.new()
 
-    items =
-      Enum.map(attempt_payment_pairs, fn {attempt, payment} ->
-        platform_fee = Map.get(fee_map, attempt.id, 0)
+    Enum.reduce_while(attempt_payment_pairs, {:ok, []}, fn {attempt, payment}, {:ok, acc} ->
+      platform_fee = Map.get(fee_map, attempt.id, 0)
 
-        attrs = %{
-          settlement_id: settlement.id,
-          source_type: "payment_attempt",
-          source_id: attempt.id,
-          gross_amount: payment.amount,
-          provider_fee: 0,
-          platform_fee: platform_fee,
-          net_amount: payment.amount - platform_fee,
-          currency: payment.currency
-        }
+      attrs = %{
+        settlement_id: settlement.id,
+        source_type: "payment_attempt",
+        source_id: attempt.id,
+        gross_amount: payment.amount,
+        provider_fee: 0,
+        platform_fee: platform_fee,
+        net_amount: payment.amount - platform_fee,
+        currency: payment.currency
+      }
 
-        %SettlementItem{}
-        |> SettlementItem.create_changeset(attrs)
-        |> Repo.insert!(
-          on_conflict: {:replace_all_except, [:id, :inserted_at]},
-          conflict_target: [:settlement_id, :source_type, :source_id],
-          returning: true
-        )
-      end)
-
-    {:ok, items}
+      case %SettlementItem{}
+           |> SettlementItem.create_changeset(attrs)
+           |> Repo.insert(
+             on_conflict: {:replace_all_except, [:id, :inserted_at]},
+             conflict_target: [:settlement_id, :source_type, :source_id],
+             returning: true
+           ) do
+        {:ok, item} -> {:cont, {:ok, [item | acc]}}
+        {:error, cs} -> {:halt, {:error, cs}}
+      end
+    end)
+    |> case do
+      {:ok, items} -> {:ok, Enum.reverse(items)}
+      error -> error
+    end
   end
 
   # Returns payments that succeeded via the given provider and have no batch yet.
@@ -428,12 +434,12 @@ defmodule YagyeCore.Settlement do
       join: prov in Provider,
       on: prov.id == pa.provider_id,
       where: prov.kind == "native_rail",
-      where: pa.state == "succeeded",
+      where: pa.state == @succeeded,
       where: pa.provider_id == ^provider_id,
       where: p.merchant_id == ^merchant_id,
       where: p.currency == ^currency,
       where: p.mode == ^mode,
-      where: p.state == "succeeded",
+      where: p.state == @succeeded,
       where: is_nil(p.settlement_batch_id),
       distinct: true,
       select: p

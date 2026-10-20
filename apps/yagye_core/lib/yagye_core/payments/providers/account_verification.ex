@@ -1,8 +1,8 @@
-defmodule YagyeCore.Payments.AccountVerification do
+defmodule YagyeCore.Payments.Providers.AccountVerification do
   @moduledoc false
 
   alias YagyeCore.Customers
-  alias YagyeCore.Payments.ProviderAdapter
+  alias YagyeCore.Payments.Providers.ProviderAdapter
   alias YagyeCore.Payments.Schemas.AccountVerification
   alias YagyeCore.Repo
 

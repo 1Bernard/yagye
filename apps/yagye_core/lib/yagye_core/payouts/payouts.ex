@@ -212,23 +212,27 @@ defmodule YagyeCore.Payouts do
   """
   def set_default_destination(merchant_id, destination_id) do
     Repo.transaction(fn ->
-      dest =
-        Repo.get_by(PayoutDestination, id: destination_id, merchant_id: merchant_id, active: true)
-
-      if is_nil(dest) do
-        Repo.rollback(:not_found)
-      else
-        from(d in PayoutDestination,
-          where:
-            d.merchant_id == ^merchant_id and d.id != ^destination_id and d.is_default == true
-        )
-        |> Repo.update_all(set: [is_default: false])
-
-        dest
-        |> Ecto.Changeset.change(is_default: true)
-        |> Repo.update!()
+      case Repo.get_by(PayoutDestination,
+             id: destination_id,
+             merchant_id: merchant_id,
+             active: true
+           ) do
+        nil -> Repo.rollback(:not_found)
+        dest -> do_set_default(dest, merchant_id, destination_id)
       end
     end)
+  end
+
+  defp do_set_default(dest, merchant_id, destination_id) do
+    from(d in PayoutDestination,
+      where: d.merchant_id == ^merchant_id and d.id != ^destination_id and d.is_default == true
+    )
+    |> Repo.update_all(set: [is_default: false])
+
+    case dest |> Ecto.Changeset.change(is_default: true) |> Repo.update() do
+      {:ok, updated} -> updated
+      {:error, cs} -> Repo.rollback(cs)
+    end
   end
 
   def get_destination_by_public_id(public_id) do

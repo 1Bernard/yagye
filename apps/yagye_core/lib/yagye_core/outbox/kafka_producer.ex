@@ -15,6 +15,12 @@ defmodule YagyeCore.Outbox.KafkaProducer do
 
   @client :yagye_kafka_client
 
+  # Event type prefixes intentionally NOT published to Redpanda:
+  #   compliance.*       — KYC/AML events are internal-only; no external consumer planned
+  #   checkout_session.* — Portal projects these via OutboxRelayWorker directly; no Karafka consumer
+  #   payment_link.*     — same as checkout_session.*
+  #   reconciliation.*   — internal ops events; P19 data platform will add a topic entry here
+  # All four still reach Portal projection workers via OutboxRelayWorker's internal dispatch.
   @topics [
     {"payment.", "yagye.payments.v1"},
     {"merchant.", "yagye.applications.v1"},

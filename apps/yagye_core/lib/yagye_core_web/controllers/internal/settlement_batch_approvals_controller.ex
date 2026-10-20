@@ -3,6 +3,8 @@ defmodule YagyeCoreWeb.Controllers.Internal.SettlementBatchApprovalsController d
 
   use YagyeCoreWeb, :controller
 
+  action_fallback YagyeCoreWeb.FallbackController
+
   alias YagyeCore.Settlement
 
   def approve(conn, %{"batch_id" => batch_id, "approved_by" => approver_code}) do

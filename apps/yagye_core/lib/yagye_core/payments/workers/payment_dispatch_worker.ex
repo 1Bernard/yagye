@@ -6,7 +6,7 @@ defmodule YagyeCore.Payments.Workers.PaymentDispatchWorker do
   use Oban.Worker, queue: :payments, max_attempts: 3
 
   alias YagyeCore.Payments
-  alias YagyeCore.Payments.ProviderAdapter
+  alias YagyeCore.Payments.Providers.ProviderAdapter
   alias YagyeCore.Providers
 
   @impl Oban.Worker

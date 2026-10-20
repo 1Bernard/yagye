@@ -12,6 +12,7 @@ defmodule YagyeCore.Compliance.Schemas.BeneficialOwner do
     # subject_name/subject_dob stored here until KMS vault is wired at P21.
     field :subject_name, :string
     field :subject_dob, :date
+    field :removed_at, :utc_datetime_usec
 
     timestamps(updated_at: false)
   end
@@ -39,5 +40,9 @@ defmodule YagyeCore.Compliance.Schemas.BeneficialOwner do
     |> cast(attrs, [:ownership_bps, :role])
     |> validate_inclusion(:role, @valid_roles)
     |> validate_number(:ownership_bps, greater_than_or_equal_to: 0, less_than_or_equal_to: 10_000)
+  end
+
+  def remove_changeset(owner) do
+    change(owner, removed_at: DateTime.utc_now())
   end
 end

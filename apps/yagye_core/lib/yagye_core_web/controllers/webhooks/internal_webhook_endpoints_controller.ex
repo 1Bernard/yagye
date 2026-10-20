@@ -192,12 +192,4 @@ defmodule YagyeCoreWeb.Controllers.Webhooks.InternalWebhookEndpointsController d
         conn |> put_status(404) |> json(%{error: %{code: "not_found"}})
     end
   end
-
-  defp format_errors(%Ecto.Changeset{} = cs) do
-    Ecto.Changeset.traverse_errors(cs, fn {msg, opts} ->
-      Enum.reduce(opts, msg, fn {k, v}, acc ->
-        String.replace(acc, "%{#{k}}", to_string(v))
-      end)
-    end)
-  end
 end

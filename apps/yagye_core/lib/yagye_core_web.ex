@@ -44,6 +44,7 @@ defmodule YagyeCoreWeb do
       use Gettext, backend: YagyeCoreWeb.Gettext
 
       import Plug.Conn
+      import YagyeCoreWeb.ControllerHelpers
 
       unquote(verified_routes())
     end

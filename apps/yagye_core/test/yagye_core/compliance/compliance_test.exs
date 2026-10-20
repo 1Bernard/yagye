@@ -339,14 +339,14 @@ defmodule YagyeCore.Compliance.ComplianceTest do
   # ──────────────────────────────────────────────────────────────────────────
   # screening_status/1
   # ──────────────────────────────────────────────────────────────────────────
-  describe "screening_status/1" do
+  describe "get_screening_status/1" do
     setup do
       %{merchant: Fixtures.merchant_fixture()}
     end
 
     test "returns empty subjects and hits when no owners", %{merchant: merchant} do
       assert {:ok, %{subjects: [], open_hits: []}} =
-               Compliance.screening_status(merchant.public_id)
+               Compliance.get_screening_status(merchant.public_id)
     end
 
     test "includes screening subject after adding a beneficial owner", %{merchant: merchant} do
@@ -360,14 +360,14 @@ defmodule YagyeCore.Compliance.ComplianceTest do
         })
 
       assert {:ok, %{subjects: subjects, open_hits: []}} =
-               Compliance.screening_status(merchant.public_id)
+               Compliance.get_screening_status(merchant.public_id)
 
       assert length(subjects) == 1
       assert hd(subjects).screening_status == "pending"
     end
 
     test "returns not_found for unknown merchant" do
-      assert {:error, :not_found} = Compliance.screening_status("mch_unknown")
+      assert {:error, :not_found} = Compliance.get_screening_status("mch_unknown")
     end
   end
 

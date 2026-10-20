@@ -1,6 +1,8 @@
 defmodule YagyeCoreWeb.Controllers.Internal.InvoiceViewController do
   use YagyeCoreWeb, :controller
 
+  action_fallback YagyeCoreWeb.FallbackController
+
   alias YagyeCore.Invoices
   alias YagyeCore.Merchants.Schemas.Merchant
   alias YagyeCore.PaymentLinks.Schemas.PaymentLink

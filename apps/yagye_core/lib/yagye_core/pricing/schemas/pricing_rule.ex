@@ -26,6 +26,7 @@ defmodule YagyeCore.Pricing.Schemas.PricingRule do
 
     field(:created_by, :string)
     field(:approved_by, :string)
+    field(:deleted_at, :utc_datetime_usec)
 
     belongs_to(:plan, PricingPlan)
 
@@ -56,6 +57,10 @@ defmodule YagyeCore.Pricing.Schemas.PricingRule do
     |> validate_inclusion(:rounding, @valid_roundings)
     |> foreign_key_constraint(:plan_id)
     |> put_specificity()
+  end
+
+  def delete_changeset(rule) do
+    change(rule, deleted_at: DateTime.utc_now())
   end
 
   def approve_changeset(rule, approved_by) do

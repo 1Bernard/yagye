@@ -44,7 +44,7 @@ defmodule YagyeCore.Payments.Adapters.MTNMomoAdapter do
   Both products can share the same API user UUID in sandbox (optional).
   """
 
-  @behaviour YagyeCore.Payments.ProviderAdapter
+  @behaviour YagyeCore.Payments.Providers.ProviderAdapter
 
   alias YagyeCore.Payments.Schemas.{Payment, PaymentAttempt}
 

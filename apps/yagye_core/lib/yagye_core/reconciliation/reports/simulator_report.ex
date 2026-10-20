@@ -1,4 +1,4 @@
-defmodule YagyeCore.Reconciliation.SimulatorReport do
+defmodule YagyeCore.Reconciliation.Reports.SimulatorReport do
   @moduledoc """
   Fetches a settlement report from the simulator HTTP API.
 

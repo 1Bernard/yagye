@@ -21,7 +21,8 @@ defmodule YagyeCore.Providers.Schemas.MerchantProviderConnection do
 
   def changeset(conn, attrs) do
     conn
-    |> cast(attrs, [:merchant_id, :provider_id, :mode, :priority, :enabled_methods, :status])
+    |> cast(attrs, [:provider_id, :mode, :priority, :enabled_methods, :status])
+    |> put_change(:merchant_id, attrs[:merchant_id])
     |> validate_required([:merchant_id, :provider_id, :mode])
     |> validate_inclusion(:mode, @valid_modes)
     |> validate_inclusion(:status, @valid_statuses)

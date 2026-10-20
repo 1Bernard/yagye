@@ -71,7 +71,7 @@ defmodule YagyeCoreWeb.Controllers.Internal.PricingController do
   end
 
   # POST /internal/pricing-plans/:plan_id/rules
-  def add_rule(conn, %{"plan_id" => plan_id} = params) do
+  def create_rule(conn, %{"plan_id" => plan_id} = params) do
     actor = get_req_header(conn, "x-actor-code") |> List.first("system")
 
     with {:ok, plan} <- Pricing.get_plan(plan_id),
@@ -105,7 +105,7 @@ defmodule YagyeCoreWeb.Controllers.Internal.PricingController do
   end
 
   # GET /internal/merchants/:merchant_code/pricing-plan
-  def show_plan(conn, %{"merchant_code" => merchant_code}) do
+  def get_merchant_plan(conn, %{"merchant_code" => merchant_code}) do
     with {:ok, merchant} <- Merchants.get_merchant(merchant_code),
          {:ok, plan} <- Pricing.get_merchant_plan(merchant.id) do
       Response.ok(conn, plan_data(plan))

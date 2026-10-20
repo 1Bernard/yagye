@@ -45,7 +45,7 @@ defmodule YagyeCoreWeb.Controllers.Internal.ComplianceController do
   end
 
   def screening_status(conn, %{"merchant_id" => merchant_id}) do
-    with {:ok, status} <- Compliance.screening_status(merchant_id) do
+    with {:ok, status} <- Compliance.get_screening_status(merchant_id) do
       Response.ok(conn, ComplianceJSON.screening_status_data(status))
     end
   end

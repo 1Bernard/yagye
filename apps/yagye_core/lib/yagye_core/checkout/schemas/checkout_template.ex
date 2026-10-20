@@ -26,7 +26,8 @@ defmodule YagyeCore.Checkout.Schemas.CheckoutTemplate do
 
   def changeset(template, attrs) do
     template
-    |> cast(attrs, [:merchant_id, :mode, :name, :status, :theme])
+    |> cast(attrs, [:mode, :name, :status, :theme])
+    |> put_change(:merchant_id, attrs[:merchant_id])
     |> validate_required(@required)
     |> validate_inclusion(:mode, @valid_modes)
     |> validate_inclusion(:status, @valid_statuses)

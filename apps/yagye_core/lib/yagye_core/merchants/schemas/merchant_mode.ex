@@ -13,7 +13,8 @@ defmodule YagyeCore.Merchants.Schemas.MerchantMode do
 
   def changeset(mode, attrs) do
     mode
-    |> cast(attrs, [:merchant_id, :mode, :enabled_at])
+    |> cast(attrs, [:mode, :enabled_at])
+    |> put_change(:merchant_id, attrs[:merchant_id])
     |> validate_required([:merchant_id, :mode, :enabled_at])
     |> foreign_key_constraint(:merchant_id)
   end

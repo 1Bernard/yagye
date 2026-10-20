@@ -1,6 +1,8 @@
 defmodule YagyeCoreWeb.Controllers.Internal.CheckoutController do
   use YagyeCoreWeb, :controller
 
+  action_fallback YagyeCoreWeb.FallbackController
+
   require Logger
 
   alias YagyeCore.Checkout.Schemas.CheckoutSession

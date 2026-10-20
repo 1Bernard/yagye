@@ -150,10 +150,4 @@ defmodule YagyeCoreWeb.Controllers.Internal.PayoutDestinationsController do
   end
 
   defp mask_account_number(number), do: number
-
-  defp format_errors(cs) do
-    Ecto.Changeset.traverse_errors(cs, fn {msg, opts} ->
-      Enum.reduce(opts, msg, fn {k, v}, acc -> String.replace(acc, "%{#{k}}", to_string(v)) end)
-    end)
-  end
 end

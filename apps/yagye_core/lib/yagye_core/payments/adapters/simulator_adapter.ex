@@ -6,7 +6,7 @@ defmodule YagyeCore.Payments.Adapters.SimulatorAdapter do
   (AUTHORISED, DECLINED, PENDING_AUTH) into the core's result types.
   """
 
-  @behaviour YagyeCore.Payments.ProviderAdapter
+  @behaviour YagyeCore.Payments.Providers.ProviderAdapter
 
   alias YagyeCore.Payments.Schemas.{Payment, PaymentAttempt}
 

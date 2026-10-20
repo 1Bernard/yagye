@@ -12,7 +12,7 @@ defmodule YagyeCore.Reconciliation.ReconciliationE2ETest do
     ReconciliationRun
   }
 
-  alias YagyeCore.Reconciliation.SimulatorReport
+  alias YagyeCore.Reconciliation.Reports.SimulatorReport
   alias YagyeCore.Reconciliation.Workers.ReconciliationRunWorker
   alias YagyeCore.Repo
   alias YagyeCore.Shared.Vault

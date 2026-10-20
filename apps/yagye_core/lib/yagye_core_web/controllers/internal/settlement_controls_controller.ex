@@ -3,6 +3,8 @@ defmodule YagyeCoreWeb.Controllers.Internal.SettlementControlsController do
 
   use YagyeCoreWeb, :controller
 
+  action_fallback YagyeCoreWeb.FallbackController
+
   alias YagyeCore.Settlement
 
   def show(conn, %{"merchant_id" => merchant_id}) do
@@ -49,11 +51,5 @@ defmodule YagyeCoreWeb.Controllers.Internal.SettlementControlsController do
         |> put_status(422)
         |> json(%{errors: format_errors(cs)})
     end
-  end
-
-  defp format_errors(cs) do
-    Ecto.Changeset.traverse_errors(cs, fn {msg, opts} ->
-      Enum.reduce(opts, msg, fn {k, v}, acc -> String.replace(acc, "%{#{k}}", to_string(v)) end)
-    end)
   end
 end

@@ -24,7 +24,8 @@ defmodule YagyeCore.Routing.Schemas.RoutingConfiguration do
 
   def create_changeset(config, attrs) do
     config
-    |> cast(attrs, [:merchant_id, :scope, :name, :description, :graph_payload])
+    |> cast(attrs, [:scope, :name, :description, :graph_payload])
+    |> put_change(:merchant_id, attrs[:merchant_id])
     |> validate_required([:scope, :name, :graph_payload])
     |> validate_inclusion(:scope, @valid_scopes)
     |> put_change(:public_id, generate_public_id())

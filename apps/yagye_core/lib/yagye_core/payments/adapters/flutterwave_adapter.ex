@@ -29,7 +29,7 @@ defmodule YagyeCore.Payments.Adapters.FlutterwaveAdapter do
   - "ATL"   → AirtelTigo Money
   """
 
-  @behaviour YagyeCore.Payments.ProviderAdapter
+  @behaviour YagyeCore.Payments.Providers.ProviderAdapter
 
   alias YagyeCore.Payments.Schemas.{Payment, PaymentAttempt}
 

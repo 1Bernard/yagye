@@ -1,4 +1,4 @@
-defmodule YagyeCore.Customers.VelocityChecker do
+defmodule YagyeCore.Customers.Rules.VelocityChecker do
   @moduledoc false
 
   import Ecto.Query

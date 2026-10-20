@@ -21,7 +21,7 @@ defmodule YagyeCore.Settlement.Workers.BankDispatchWorker do
   alias YagyeCore.Ledger
   alias YagyeCore.Merchants
   alias YagyeCore.Outbox
-  alias YagyeCore.Payments.ProviderAdapter
+  alias YagyeCore.Payments.Providers.ProviderAdapter
   alias YagyeCore.Providers
   alias YagyeCore.Repo
   alias YagyeCore.Settlement

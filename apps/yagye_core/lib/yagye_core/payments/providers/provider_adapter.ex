@@ -1,4 +1,4 @@
-defmodule YagyeCore.Payments.ProviderAdapter do
+defmodule YagyeCore.Payments.Providers.ProviderAdapter do
   @moduledoc """
   Behaviour every payment provider adapter must implement.
 

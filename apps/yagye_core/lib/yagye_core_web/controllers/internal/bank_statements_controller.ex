@@ -45,19 +45,8 @@ defmodule YagyeCoreWeb.Controllers.Internal.BankStatementsController do
       closing_balance: params["closing_balance"]
     }
 
-    lines =
-      (params["lines"] || [])
-      |> Enum.map(fn l ->
-        %{
-          line_number: l["line_number"],
-          value_date: l["value_date"],
-          description: l["description"],
-          amount: l["amount"],
-          direction: l["direction"],
-          provider_reference: l["provider_reference"],
-          match_state: "unmatched"
-        }
-      end)
+    default_currency = params["currency"] || "GHS"
+    lines = Enum.map(params["lines"] || [], &normalize_line(&1, default_currency))
 
     case BankReconciliation.ingest_statement(statement_attrs, lines) do
       {:ok, %{statement: stmt, line_count: count}} ->
@@ -83,7 +72,8 @@ defmodule YagyeCoreWeb.Controllers.Internal.BankStatementsController do
     end
   end
 
-  def index(conn, %{"account_reference" => ref} = params) do
+  def index(conn, params) do
+    ref = params["account_reference"]
     limit = min(String.to_integer(params["limit"] || "50"), 200)
     statements = BankReconciliation.list_statements(ref, limit: limit)
 
@@ -97,8 +87,17 @@ defmodule YagyeCoreWeb.Controllers.Internal.BankStatementsController do
   def show(conn, %{"id" => id}) do
     with {:ok, stmt} <- BankReconciliation.get_statement(id) do
       summary = BankReconciliation.line_match_summary(stmt)
+      lines = BankReconciliation.list_lines(stmt)
 
-      Response.ok(conn, Map.merge(statement_json(stmt), %{match_summary: summary}))
+      resp =
+        stmt
+        |> statement_json()
+        |> Map.merge(%{
+          match_summary: summary,
+          lines: Enum.map(lines, &line_json/1)
+        })
+
+      Response.ok(conn, resp)
     end
   end
 
@@ -117,11 +116,30 @@ defmodule YagyeCoreWeb.Controllers.Internal.BankStatementsController do
     }
   end
 
-  defp format_errors(%Ecto.Changeset{} = cs) do
-    Ecto.Changeset.traverse_errors(cs, fn {msg, opts} ->
-      Enum.reduce(opts, msg, fn {key, val}, acc ->
-        String.replace(acc, "%{#{key}}", to_string(val))
-      end)
-    end)
+  defp line_json(line) do
+    %{
+      id: line.id,
+      line_number: line.line_number,
+      value_date: line.value_date,
+      amount: line.amount,
+      currency: line.currency,
+      narrative: line.narrative,
+      bank_reference: line.bank_reference,
+      counterparty: line.counterparty,
+      match_state: line.match_state,
+      inserted_at: line.inserted_at
+    }
+  end
+
+  defp normalize_line(l, default_currency) do
+    %{
+      line_number: l["line_number"],
+      value_date: l["value_date"],
+      narrative: l["narrative"] || l["description"],
+      amount: l["amount"],
+      currency: l["currency"] || default_currency,
+      bank_reference: l["bank_reference"],
+      counterparty: l["counterparty"]
+    }
   end
 end

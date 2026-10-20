@@ -78,7 +78,7 @@ defmodule YagyeCore.MerchantWebhooks do
       )
 
     Multi.new()
-    |> Multi.delete(:endpoint, endpoint)
+    |> Multi.update(:endpoint, MerchantWebhookEndpoint.deregister_changeset(endpoint))
     |> Multi.insert(:outbox_msg, outbox_cs)
     |> Repo.transaction()
     |> case do
@@ -90,13 +90,14 @@ defmodule YagyeCore.MerchantWebhooks do
   def list_endpoints(merchant_id, mode \\ nil) do
     MerchantWebhookEndpoint
     |> where([e], e.merchant_id == ^merchant_id)
+    |> where([e], is_nil(e.deregistered_at))
     |> then(fn q -> if mode, do: where(q, [e], e.mode == ^mode), else: q end)
     |> order_by([e], desc: e.inserted_at)
     |> Repo.all()
   end
 
   def get_endpoint_by_public_id(public_id) do
-    case Repo.get_by(MerchantWebhookEndpoint, public_id: public_id) do
+    case Repo.get_by(MerchantWebhookEndpoint, public_id: public_id, deregistered_at: nil) do
       nil -> {:error, :not_found}
       ep -> {:ok, ep}
     end
@@ -193,6 +194,7 @@ defmodule YagyeCore.MerchantWebhooks do
       |> where([e], e.merchant_id == ^merchant_id)
       |> where([e], e.mode == ^endpoint_mode)
       |> where([e], e.active == true)
+      |> where([e], is_nil(e.deregistered_at))
       |> where([e], ^event_type in e.subscribed_events or [] == e.subscribed_events)
       |> Repo.all()
 

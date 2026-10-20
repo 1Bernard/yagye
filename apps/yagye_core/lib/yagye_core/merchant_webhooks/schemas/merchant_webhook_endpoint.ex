@@ -16,12 +16,13 @@ defmodule YagyeCore.MerchantWebhooks.Schemas.MerchantWebhookEndpoint do
     field :active, :boolean, default: true
     field :consecutive_failures, :integer, default: 0
     field :disabled_at, :utc_datetime_usec
+    field :deregistered_at, :utc_datetime_usec
 
     timestamps(type: :utc_datetime_usec)
   end
 
   @required ~w[public_id merchant_id mode url secret_encrypted]a
-  @optional ~w[subscribed_events active consecutive_failures disabled_at]a
+  @optional ~w[subscribed_events active consecutive_failures disabled_at deregistered_at]a
 
   def changeset(endpoint, attrs) do
     endpoint
@@ -31,6 +32,10 @@ defmodule YagyeCore.MerchantWebhooks.Schemas.MerchantWebhookEndpoint do
     |> validate_inclusion(:mode, ~w[live test])
     |> validate_format(:url, ~r/\Ahttps?:\/\//i, message: "must be a valid HTTP/S URL")
     |> unique_constraint(:public_id)
+  end
+
+  def deregister_changeset(endpoint) do
+    change(endpoint, active: false, deregistered_at: DateTime.utc_now())
   end
 
   def disable_changeset(endpoint) do

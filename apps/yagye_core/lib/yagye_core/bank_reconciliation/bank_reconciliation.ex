@@ -47,12 +47,18 @@ defmodule YagyeCore.BankReconciliation do
   def list_statements(account_reference, opts \\ []) do
     limit = Keyword.get(opts, :limit, 50)
 
-    from(s in BankStatement,
-      where: s.account_reference == ^account_reference,
-      order_by: [desc: s.statement_date],
-      limit: ^limit
-    )
-    |> Repo.all()
+    query =
+      from(s in BankStatement,
+        order_by: [desc: s.statement_date],
+        limit: ^limit
+      )
+
+    query =
+      if account_reference,
+        do: where(query, [s], s.account_reference == ^account_reference),
+        else: query
+
+    Repo.all(query)
   end
 
   # ── Lines ─────────────────────────────────────────────────────────────────────
@@ -98,15 +104,14 @@ defmodule YagyeCore.BankReconciliation do
   # ── Private ──────────────────────────────────────────────────────────────────
 
   defp insert_lines(%BankStatement{id: statement_id}, lines) do
-    inserted =
-      Enum.each(lines, fn line_attrs ->
-        %BankStatementLine{}
-        |> BankStatementLine.create_changeset(Map.put(line_attrs, :statement_id, statement_id))
-        |> Repo.insert!()
-      end)
-
-    _ = inserted
-    {:ok, length(lines)}
+    Enum.reduce_while(lines, {:ok, 0}, fn line_attrs, {:ok, count} ->
+      case %BankStatementLine{}
+           |> BankStatementLine.create_changeset(Map.put(line_attrs, :statement_id, statement_id))
+           |> Repo.insert() do
+        {:ok, _} -> {:cont, {:ok, count + 1}}
+        {:error, cs} -> {:halt, {:error, cs}}
+      end
+    end)
   end
 
   defp unique_constraint_violated?(%Ecto.Changeset{} = cs, fields) do

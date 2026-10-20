@@ -1,1 +1,1 @@
-Mox.defmock(YagyeCore.MockProviderAdapter, for: YagyeCore.Payments.ProviderAdapter)
+Mox.defmock(YagyeCore.MockProviderAdapter, for: YagyeCore.Payments.Providers.ProviderAdapter)

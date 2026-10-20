@@ -17,7 +17,7 @@ defmodule YagyeCore.Merchants.MerchantApplicationsTest do
     default_currency: "GHS",
     industry: "fintech",
     employee_range: "11-50",
-    annual_tpv_estimate_cents: 500_000_000,
+    annual_tpv_estimate: 500_000_000,
     website_url: "https://astech.gh",
     use_case: "Mobile money collection for SaaS subscriptions",
     expected_methods: ["mtn_momo", "airtel_tigo"]

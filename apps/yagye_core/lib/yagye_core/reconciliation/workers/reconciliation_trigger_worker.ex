@@ -12,7 +12,7 @@ defmodule YagyeCore.Reconciliation.Workers.ReconciliationTriggerWorker do
 
   alias YagyeCore.Providers.Schemas.Provider
   alias YagyeCore.Reconciliation
-  alias YagyeCore.Reconciliation.SimulatorReport
+  alias YagyeCore.Reconciliation.Reports.SimulatorReport
   alias YagyeCore.Repo
   alias YagyeCore.Settlement.Schemas.SettlementBatch
 

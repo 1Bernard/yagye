@@ -248,7 +248,7 @@ defmodule YagyeCore.Compliance do
     with {:ok, merchant} <- resolve_merchant(merchant_id),
          {:ok, owner} <- fetch_owner(merchant.id, owner_id) do
       Multi.new()
-      |> Multi.delete(:owner, owner)
+      |> Multi.update(:owner, BeneficialOwner.remove_changeset(owner))
       |> Multi.insert(:outbox, fn %{owner: o} ->
         Outbox.build_changeset(o, "compliance.beneficial_owner_removed", %{
           beneficial_owner_id: o.id,
@@ -267,7 +267,7 @@ defmodule YagyeCore.Compliance do
     with {:ok, merchant} <- resolve_merchant(merchant_id) do
       owners =
         from(b in BeneficialOwner,
-          where: b.merchant_id == ^merchant.id,
+          where: b.merchant_id == ^merchant.id and is_nil(b.removed_at),
           order_by: [asc: b.inserted_at]
         )
         |> Repo.all()
@@ -290,7 +290,7 @@ defmodule YagyeCore.Compliance do
   end
 
   # Returns the merchant's screening subjects and any open hits across them.
-  def screening_status(merchant_id) do
+  def get_screening_status(merchant_id) do
     with {:ok, merchant} <- resolve_merchant(merchant_id) do
       subjects =
         from(s in ScreeningSubject,
@@ -338,7 +338,7 @@ defmodule YagyeCore.Compliance do
   def ubo_threshold_cleared?(merchant_id) do
     qualifying_ids =
       from(b in BeneficialOwner,
-        where: b.merchant_id == ^merchant_id and b.ownership_bps >= 2500,
+        where: b.merchant_id == ^merchant_id and b.ownership_bps >= 2500 and is_nil(b.removed_at),
         select: b.id
       )
       |> Repo.all()
@@ -577,7 +577,7 @@ defmodule YagyeCore.Compliance do
   end
 
   defp fetch_owner(merchant_id, owner_id) do
-    case Repo.get_by(BeneficialOwner, id: owner_id, merchant_id: merchant_id) do
+    case Repo.get_by(BeneficialOwner, id: owner_id, merchant_id: merchant_id, removed_at: nil) do
       nil -> {:error, :not_found}
       owner -> {:ok, owner}
     end

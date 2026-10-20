@@ -16,7 +16,7 @@ defmodule YagyeCore.Payments.Workers.PaymentStatusCheckWorker do
   require Logger
 
   alias YagyeCore.Payments
-  alias YagyeCore.Payments.ProviderAdapter
+  alias YagyeCore.Payments.Providers.ProviderAdapter
   alias YagyeCore.Payments.Schemas.{MomoNetworkConfig, PaymentAttempt}
   alias YagyeCore.Providers
   alias YagyeCore.Repo
