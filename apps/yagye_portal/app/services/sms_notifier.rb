@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-# Composes and delivers transactional SMS messages via Brevo.
+# Composes and delivers transactional SMS messages.
 # All sends are fire-and-forget (enqueued via SmsNotifierJob).
 #
 # Usage:
@@ -46,7 +46,7 @@ class SmsNotifier
   # Caller is responsible for generating and storing the code before calling this.
   # Note: SMS OTP for auth is deferred; this exists for future wiring.
   def self.otp_code(to:, code:)
-    Brevo::SmsClient.send_sms(
+    Sms::Client.send_sms(
       to:      to,
       content: "#{code} is your Yagye sign-in code. It expires in 10 minutes. Do not share it.",
       tag:     "otp"

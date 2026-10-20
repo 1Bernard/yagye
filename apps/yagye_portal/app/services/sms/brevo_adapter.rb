@@ -1,20 +1,16 @@
 # frozen_string_literal: true
 
-module Brevo
-  # Thin wrapper around the Brevo Transactional SMS API.
+module Sms
+  # Brevo Transactional SMS adapter.
   # Docs: https://developers.brevo.com/reference/sendtransacsms
   #
-  # Usage:
-  #   result = Brevo::SmsClient.send_sms(
-  #     to:      "+233201234567",
-  #     content: "Your Yagye payment of GHS 100.00 was successful. Ref: PAY-XXXXXX"
-  #   )
-  #   result.success? # => true
-  #   result.message_id # => "1511882900100020"
-  class SmsClient
+  # To swap providers: implement a new adapter with .send_sms(to:, content:, tag:)
+  # returning an Sms::Result, then set Rails.application.config.sms_adapter in
+  # config/initializers/sms.rb.
+  class BrevoAdapter
     ENDPOINT    = "https://api.brevo.com/v3/transactionalSMS/send"
-    SENDER_NAME = "Yagye"   # Max 11 alphanumeric chars; must be registered with Brevo
-    MAX_CONTENT = 160        # SMS segment limit; Brevo auto-splits longer messages
+    SENDER_NAME = "Yagye"
+    MAX_CONTENT = 160
 
     Result = Data.define(:success, :message_id, :error)
 
@@ -31,7 +27,7 @@ module Brevo
     def send
       api_key = ENV["BREVO_API_KEY"]
       unless api_key.present?
-        Rails.logger.error("[Brevo::SmsClient] BREVO_API_KEY not set")
+        Rails.logger.error("[Sms::BrevoAdapter] BREVO_API_KEY not set")
         return Result.new(success: false, message_id: nil, error: "BREVO_API_KEY not configured")
       end
 
@@ -42,27 +38,26 @@ module Brevo
         f.adapter  Faraday.default_adapter
       end
 
-      payload = build_payload
-      Rails.logger.info("[Brevo::SmsClient] Sending SMS to #{masked_number} tag=#{@tag}")
+      Rails.logger.info("[Sms::BrevoAdapter] Sending SMS to #{masked_number} tag=#{@tag}")
 
       response = conn.post do |req|
-        req.headers["api-key"]       = api_key
-        req.headers["accept"]        = "application/json"
-        req.headers["content-type"]  = "application/json"
-        req.body = payload
+        req.headers["api-key"]      = api_key
+        req.headers["accept"]       = "application/json"
+        req.headers["content-type"] = "application/json"
+        req.body = build_payload
       end
 
       if response.status == 201
         mid = response.body["messageId"].to_s
-        Rails.logger.info("[Brevo::SmsClient] SMS sent messageId=#{mid}")
+        Rails.logger.info("[Sms::BrevoAdapter] SMS sent messageId=#{mid}")
         Result.new(success: true, message_id: mid, error: nil)
       else
         err = response.body["message"] || response.body.to_s
-        Rails.logger.error("[Brevo::SmsClient] Failed status=#{response.status} error=#{err}")
+        Rails.logger.error("[Sms::BrevoAdapter] Failed status=#{response.status} error=#{err}")
         Result.new(success: false, message_id: nil, error: err)
       end
     rescue Faraday::Error => e
-      Rails.logger.error("[Brevo::SmsClient] Network error: #{e.class} #{e.message}")
+      Rails.logger.error("[Sms::BrevoAdapter] Network error: #{e.class} #{e.message}")
       Result.new(success: false, message_id: nil, error: e.message)
     end
 
@@ -79,8 +74,6 @@ module Brevo
       payload
     end
 
-    # Strips leading +, spaces, dashes — Brevo expects digits only with country code.
-    # e.g. "+233 20 123 4567" → "233201234567"
     def normalize_number(number)
       number.to_s.gsub(/\D/, "")
     end
