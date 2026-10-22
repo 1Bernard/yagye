@@ -18,11 +18,21 @@ defmodule Mix.Tasks.Yagye.S3.Setup do
     Application.ensure_all_started(:ex_aws)
     Application.ensure_all_started(:hackney)
 
-    bucket =
+    kyb_bucket =
       Application.get_env(:yagye_core, :document_store, [])
       |> Keyword.get(:bucket, "yagye-kyb-documents")
 
-    buckets = [bucket]
+    bronze_bucket =
+      Application.get_env(:yagye_core, :data_lake, [])
+      |> Keyword.get(:bronze_bucket, "yagye-lake-raw")
+
+    buckets = [
+      kyb_bucket,
+      bronze_bucket,
+      System.get_env("DATA_LAKE_SILVER_BUCKET", "yagye-lake-silver"),
+      System.get_env("DATA_LAKE_GOLD_BUCKET", "yagye-lake-gold"),
+      System.get_env("ML_MODELS_BUCKET", "yagye-ml-models")
+    ]
 
     Mix.shell().info("Setting up S3 buckets...")
 

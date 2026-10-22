@@ -74,7 +74,9 @@ config :yagye_core, Oban,
        # Fetch FX rates daily at 06:00 UTC (06:00 WAT — Ghana does not observe DST)
        {"0 6 * * *", YagyeCore.FX.Workers.FetchFxRatesWorker},
        # Escalate disputes past their evidence_due_at deadline daily at 03:00 UTC
-       {"0 3 * * *", YagyeCore.Disputes.Workers.DisputeEscalationWorker}
+       {"0 3 * * *", YagyeCore.Disputes.Workers.DisputeEscalationWorker},
+       # Bronze ingestion: poll outbox every minute and write NDJSON to S3
+       {"* * * * *", YagyeCore.DataLake.Workers.DataLakeIngestionWorker}
      ]}
   ],
   queues: [
@@ -86,13 +88,18 @@ config :yagye_core, Oban,
     reconciliation: 3,
     reserves: 3,
     payouts: 5,
-    compliance: 5
+    compliance: 5,
+    data_lake: 2
   ]
 
 config :opentelemetry,
   span_processor: :batch,
   traces_exporter: :otlp,
   resource: [service: [name: "yagye_core", version: "0.1.0"]]
+
+# Data lake — Bronze bucket (Silver/Gold written by yagye_data Python ETL)
+config :yagye_core, :data_lake,
+  bronze_bucket: System.get_env("DATA_LAKE_BRONZE_BUCKET", "yagye-lake-raw")
 
 # P21 — Document storage (KYB documents in S3 + KMS)
 config :yagye_core, :document_store,
