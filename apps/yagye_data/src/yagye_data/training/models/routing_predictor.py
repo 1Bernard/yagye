@@ -70,9 +70,11 @@ def train() -> None:
     val_auc = model.get_booster().eval(xgb.DMatrix(X_val, label=y_val), name="val")
     logger.info("training.routing_predictor.eval", metrics=val_auc)
 
-    onnx_model = to_onnx(model, X_train[:1].values, initial_types=[
-        ("X", FloatTensorType([None, len(_FEATURE_COLS)]))
-    ])
+    onnx_model = to_onnx(
+        model,
+        X_train[:1].values,
+        initial_types=[("X", FloatTensorType([None, len(_FEATURE_COLS)]))],
+    )
 
     if should_promote("routing_predictor", onnx_model, X_val, y_val):
         _upload_onnx(onnx_model)

@@ -1,7 +1,7 @@
 """ML training entry point: train all models and export ONNX artefacts.
 
-    from yagye_data.training import main
-    main()
+from yagye_data.training import main
+main()
 """
 
 import sys

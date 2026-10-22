@@ -66,9 +66,11 @@ def train() -> None:
     from skl2onnx import to_onnx
     from skl2onnx.common.data_types import FloatTensorType
 
-    onnx_model = to_onnx(model, X_train[:1].values, initial_types=[
-        ("X", FloatTensorType([None, len(_FEATURE_COLS)]))
-    ])
+    onnx_model = to_onnx(
+        model,
+        X_train[:1].values,
+        initial_types=[("X", FloatTensorType([None, len(_FEATURE_COLS)]))],
+    )
 
     _upload_onnx(onnx_model)
     logger.info("training.reserve_recommender.promoted")

@@ -64,6 +64,7 @@ def run(window_start: datetime, window_end: datetime) -> None:
                 occurred_at::TIMESTAMPTZ                            AS occurred_at,
                 merchant_id::UUID                                   AS merchant_id,
                 aggregate_id::UUID                                  AS payment_id,
+                correlation_id                                      AS correlation_id,
                 TRY_CAST(json_extract(payload, '$.amount') AS BIGINT)
                                                                     AS amount_minor,
                 json_extract_string(payload, '$.currency')          AS currency,

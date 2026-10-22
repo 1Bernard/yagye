@@ -1,7 +1,7 @@
 .DEFAULT_GOAL := help
 
 .PHONY: help install install-dev lint format typecheck test test-unit test-cov \
-        silver gold train clean
+        precommit silver gold train clean
 
 help:
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | \
@@ -31,6 +31,12 @@ test-unit: ## Run tests excluding integration (no S3/DB required)
 test-cov: ## Run tests with HTML coverage report
 	uv run pytest --cov-report=html
 	@echo "Open htmlcov/index.html to view coverage"
+
+precommit: ## Run format + lint + typecheck + tests (mirrors CI gate)
+	uv run ruff format src tests scripts
+	uv run ruff check src tests scripts
+	uv run mypy src
+	uv run pytest
 
 silver: ## Run Silver ETL (reads from Bronze, writes Silver Parquet)
 	uv run python scripts/run_silver_etl.py

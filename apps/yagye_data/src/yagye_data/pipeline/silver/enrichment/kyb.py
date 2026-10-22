@@ -62,11 +62,13 @@ def enrich_batch(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
         except Exception:
             logger.exception("enrichment.kyb.batch_failed", batch_index=i)
             for row in batch:
-                enriched.append({
-                    **row,
-                    "industry_category": None,
-                    "risk_flag": None,
-                    "description_quality": None,
-                })
+                enriched.append(
+                    {
+                        **row,
+                        "industry_category": None,
+                        "risk_flag": None,
+                        "description_quality": None,
+                    }
+                )
 
     return enriched

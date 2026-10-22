@@ -25,7 +25,8 @@ _MODEL = "claude-haiku-4-5"
 
 _SYSTEM_PROMPT = """You are a PSP dispute classification system. Given dispute reason text,
 return a JSON array where each element has:
-  - "dispute_category": one of [duplicate, fraud, not_received, quality, subscription_cancelled, other]
+  - "dispute_category": one of
+    [duplicate, fraud, not_received, quality, subscription_cancelled, other]
   - "dispute_sentiment": one of [high_urgency, standard, unclear]
   - "contains_pii": boolean (true if the text contains names, phone numbers, or IDs)
 
@@ -65,11 +66,13 @@ def enrich_batch(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
             logger.exception("enrichment.disputes.batch_failed", batch_index=i)
             # Fall back: pass rows through without enrichment rather than dropping
             for row in batch:
-                enriched.append({
-                    **row,
-                    "dispute_category": None,
-                    "dispute_sentiment": None,
-                    "contains_pii": None,
-                })
+                enriched.append(
+                    {
+                        **row,
+                        "dispute_category": None,
+                        "dispute_sentiment": None,
+                        "contains_pii": None,
+                    }
+                )
 
     return enriched

@@ -7,10 +7,9 @@ at least `min_improvement` in ROC-AUC.
 This prevents a bad weekly retrain from silently degrading the routing predictor.
 """
 
-from typing import Any
-
 import numpy as np
 import onnxruntime as ort
+from sklearn.metrics import roc_auc_score
 
 from yagye_data.config import settings
 from yagye_data.shared.logging import get_logger
@@ -23,15 +22,17 @@ _MIN_IMPROVEMENT = 0.005  # challenger must beat champion by at least 0.5% AUC
 
 def should_promote(
     model_name: str,
-    challenger_onnx: Any,
+    challenger_onnx: object,
     X_val: "np.ndarray",  # type: ignore[type-arg]
     y_val: "np.ndarray",  # type: ignore[type-arg]
     min_improvement: float = _MIN_IMPROVEMENT,
 ) -> bool:
     """Return True if challenger beats champion on the validation set."""
-    from sklearn.metrics import roc_auc_score
-
-    challenger_score = _score_onnx_bytes(challenger_onnx.SerializeToString(), X_val, y_val)
+    challenger_score = _score_onnx_bytes(
+        challenger_onnx.SerializeToString(),  # type: ignore[union-attr]
+        X_val,
+        y_val,
+    )
 
     champion_bytes = _fetch_champion(model_name)
     if champion_bytes is None:
@@ -58,8 +59,6 @@ def _score_onnx_bytes(
     X_val: "np.ndarray",  # type: ignore[type-arg]
     y_val: "np.ndarray",  # type: ignore[type-arg]
 ) -> float:
-    from sklearn.metrics import roc_auc_score
-
     sess = ort.InferenceSession(model_bytes)
     input_name = sess.get_inputs()[0].name
     probs = sess.run(None, {input_name: X_val.astype(np.float32)})[1]

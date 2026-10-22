@@ -63,9 +63,7 @@ def train() -> None:
     # the max failure_rate for any MSISDN transacting with that merchant.
     if not customer_df.empty and "merchant_id" in customer_df.columns:
         customer_agg = (
-            customer_df.groupby("merchant_id")[_CUSTOMER_FEATURE_COLS]
-            .max()
-            .reset_index()
+            customer_df.groupby("merchant_id")[_CUSTOMER_FEATURE_COLS].max().reset_index()
         )
         merged = merchant_df.merge(customer_agg, on="merchant_id", how="left")
     else:
@@ -100,6 +98,7 @@ def train() -> None:
     try:
         import onnxmltools
         from onnxmltools.convert.common.data_types import FloatTensorType as OnnxFloat
+
         onnx_model = onnxmltools.convert_lightgbm(
             model,
             initial_types=[("X", OnnxFloat([None, len(all_feature_cols)]))],
