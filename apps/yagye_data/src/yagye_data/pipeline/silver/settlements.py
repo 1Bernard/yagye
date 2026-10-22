@@ -1,4 +1,16 @@
-"""Silver ETL: settlement events."""
+"""Silver ETL: settlement events.
+
+Core emits:
+  settlement.batch.created     — batch_id, merchant_code, provider_code,
+                                  currency, payment_count, gross_amount
+  settlement.batch.dispatched  — settlement_code, merchant_code, provider_code,
+                                  mode, state, currency, gross_amount,
+                                  platform_fees, net_amount, bank_dispatch_ref,
+                                  bank_dispatched_at, period_start, period_end
+
+No 'completed' or 'failed' event types exist — lifecycle ends at dispatched.
+Fee field is `platform_fees` (not `fee_amount`) in the dispatched event.
+"""
 
 from datetime import datetime
 
@@ -26,10 +38,8 @@ def run(window_start: datetime, window_end: datetime) -> None:
                 WHERE occurred_at::TIMESTAMPTZ >= TIMESTAMPTZ '{window_start.isoformat()}'
                   AND occurred_at::TIMESTAMPTZ <  TIMESTAMPTZ '{window_end.isoformat()}'
                   AND event_type IN (
-                        'settlement_batch.created',
-                        'settlement_batch.dispatched',
-                        'settlement_batch.completed',
-                        'settlement_batch.failed'
+                        'settlement.batch.created',
+                        'settlement.batch.dispatched'
                       )
             ),
             deduped AS (
@@ -45,7 +55,7 @@ def run(window_start: datetime, window_end: datetime) -> None:
                 json_extract_string(payload, '$.batch_id')::UUID        AS batch_id,
                 TRY_CAST(json_extract(payload, '$.gross_amount') AS BIGINT)
                                                                         AS gross_amount_minor,
-                TRY_CAST(json_extract(payload, '$.fee_amount')   AS BIGINT)
+                TRY_CAST(json_extract(payload, '$.platform_fees') AS BIGINT)
                                                                         AS fee_amount_minor,
                 TRY_CAST(json_extract(payload, '$.net_amount')   AS BIGINT)
                                                                         AS net_amount_minor,

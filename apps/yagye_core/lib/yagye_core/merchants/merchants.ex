@@ -442,6 +442,7 @@ defmodule YagyeCore.Merchants do
     end)
     |> Multi.insert(:outbox, fn %{merchant: merchant} ->
       Outbox.build_changeset(merchant, "merchant.registered", %{
+        merchant_code: merchant.public_id,
         legal_name: merchant.legal_name,
         trading_name: merchant.trading_name,
         country: merchant.country,
@@ -516,6 +517,7 @@ defmodule YagyeCore.Merchants do
     end)
     |> Multi.insert(:outbox, fn %{merchant: merchant} ->
       Outbox.build_changeset(merchant, "merchant.registered", %{
+        merchant_code: merchant.public_id,
         legal_name: merchant.legal_name,
         trading_name: merchant.trading_name,
         country: merchant.country,

@@ -51,17 +51,33 @@ def train() -> None:
     merchant_df = merchant_risk.build_features(con).df()
     customer_df = customer_risk.build_features(con).df()
 
-    if merchant_df.empty or customer_df.empty:
-        logger.warning("training.risk_scorer.skipped", reason="insufficient_data")
+    if merchant_df.empty:
+        logger.warning("training.risk_scorer.skipped", reason="insufficient_merchant_data")
         return
 
     # Placeholder label: failure_rate > 0.3 as a training proxy
     merchant_df["label"] = (merchant_df["rolling_7d_failure_rate"] > 0.3).astype(int)
 
-    X_m = merchant_df[_MERCHANT_FEATURE_COLS].fillna(0).astype("float32")
-    y = merchant_df["label"]
+    # Join customer risk features onto merchant rows where MSISDN data exists.
+    # customer_df is keyed by msisdn — aggregate to merchant-level by taking
+    # the max failure_rate for any MSISDN transacting with that merchant.
+    if not customer_df.empty and "merchant_id" in customer_df.columns:
+        customer_agg = (
+            customer_df.groupby("merchant_id")[_CUSTOMER_FEATURE_COLS]
+            .max()
+            .reset_index()
+        )
+        merged = merchant_df.merge(customer_agg, on="merchant_id", how="left")
+    else:
+        merged = merchant_df.copy()
+        for col in _CUSTOMER_FEATURE_COLS:
+            merged[col] = 0.0
 
-    X_train, X_val, y_train, y_val = train_test_split(X_m, y, test_size=0.2, random_state=42)
+    all_feature_cols = _MERCHANT_FEATURE_COLS + _CUSTOMER_FEATURE_COLS
+    X = merged[all_feature_cols].fillna(0).astype("float32")
+    y = merged["label"]
+
+    X_train, X_val, y_train, y_val = train_test_split(X, y, test_size=0.2, random_state=42)
 
     model = lgb.LGBMClassifier(
         n_estimators=300,
@@ -86,7 +102,7 @@ def train() -> None:
         from onnxmltools.convert.common.data_types import FloatTensorType as OnnxFloat
         onnx_model = onnxmltools.convert_lightgbm(
             model,
-            initial_types=[("X", OnnxFloat([None, len(_MERCHANT_FEATURE_COLS)]))],
+            initial_types=[("X", OnnxFloat([None, len(all_feature_cols)]))],
         )
         _upload_onnx(onnx_model)
         logger.info("training.risk_scorer.promoted")

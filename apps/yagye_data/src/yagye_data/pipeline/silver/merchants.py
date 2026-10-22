@@ -1,7 +1,16 @@
 """Silver ETL: merchant lifecycle events.
 
-Includes merchant.registered, merchant.approved, merchant.suspended,
-merchant.reinstated — used to build the SCD Type 2 merchant dimension in Gold.
+Core emits these merchant event types and their payload fields:
+
+  merchant.registered   merchant_code, legal_name, trading_name,
+                        country, default_currency
+  merchant.approved     merchant_code, approved_by
+  merchant.suspended    merchant_code, suspended_by
+  merchant.reinstated   merchant_code, reinstated_by
+
+Note: kyb_tier and activity_state are NOT present in any published merchant
+event. Gold's merchant dimension derives activity_state from the sequence of
+suspended/reinstated events, not from a point-in-time field.
 """
 
 from datetime import datetime
@@ -47,14 +56,25 @@ def run(window_start: datetime, window_end: datetime) -> None:
             SELECT
                 event_id,
                 event_type,
-                occurred_at::TIMESTAMPTZ                          AS occurred_at,
-                merchant_id::UUID                                 AS merchant_id,
-                json_extract_string(payload, '$.merchant_code')   AS merchant_code,
-                TRY_CAST(json_extract(payload, '$.kyb_tier') AS INT)
-                                                                  AS kyb_tier,
-                json_extract_string(payload, '$.activity_state')  AS activity_state,
-                payload::VARCHAR                                  AS raw_payload,
-                '{ds}'::DATE                                      AS dt
+                occurred_at::TIMESTAMPTZ                        AS occurred_at,
+                merchant_id::UUID                               AS merchant_id,
+
+                -- Present in all merchant events
+                json_extract_string(payload, '$.merchant_code') AS merchant_code,
+
+                -- merchant.registered only
+                json_extract_string(payload, '$.legal_name')    AS legal_name,
+                json_extract_string(payload, '$.trading_name')  AS trading_name,
+                json_extract_string(payload, '$.country')       AS country,
+                json_extract_string(payload, '$.default_currency') AS default_currency,
+
+                -- Actor fields (present only in specific event types, NULL otherwise)
+                json_extract_string(payload, '$.approved_by')   AS approved_by,
+                json_extract_string(payload, '$.suspended_by')  AS suspended_by,
+                json_extract_string(payload, '$.reinstated_by') AS reinstated_by,
+
+                payload::VARCHAR                                AS raw_payload,
+                '{ds}'::DATE                                    AS dt
             FROM deduped
             WHERE _rn = 1
         )

@@ -1,8 +1,15 @@
 """Silver ETL: payment_attempt events.
 
-Reads Bronze Parquet (raw outbox JSON) for the given time window, validates
-schema, deduplicates on (event_id), casts types, and writes partitioned Silver
-Parquet to s3://yagye-lake-silver/payments/dt=YYYY-MM-DD/.
+Reads Bronze NDJSON for the given time window, deduplicates on (event_id),
+casts types, and writes partitioned Silver Parquet.
+
+Field notes:
+  - payment_id comes from the envelope top-level `aggregate_id` (the internal
+    payment UUID). The payload has `public_id` (customer-facing code) which is
+    a different identifier. We use aggregate_id so joins to other event types
+    on the same aggregate work cleanly.
+  - method / provider_code / network / latency_ms come from payload fields.
+  - customer_msisdn is the payload field name (not 'msisdn').
 """
 
 from datetime import datetime
@@ -14,17 +21,8 @@ from yagye_data.shared.s3_client import s3_uri
 
 logger = get_logger(__name__)
 
-# Required fields in the Bronze outbox payload for payment events
-_REQUIRED_COLUMNS = {
-    "event_id",
-    "event_type",
-    "occurred_at",
-    "merchant_id",
-    "payment_id",
-    "amount",
-    "currency",
-    "method",
-}
+# Envelope top-level fields present in every Bronze NDJSON row:
+#   event_id, event_type, merchant_id, aggregate_id, occurred_at, payload, mode
 
 
 def run(window_start: datetime, window_end: datetime) -> None:
@@ -65,7 +63,7 @@ def run(window_start: datetime, window_end: datetime) -> None:
                 event_type,
                 occurred_at::TIMESTAMPTZ                            AS occurred_at,
                 merchant_id::UUID                                   AS merchant_id,
-                json_extract_string(payload, '$.payment_id')::UUID  AS payment_id,
+                aggregate_id::UUID                                  AS payment_id,
                 TRY_CAST(json_extract(payload, '$.amount') AS BIGINT)
                                                                     AS amount_minor,
                 json_extract_string(payload, '$.currency')          AS currency,

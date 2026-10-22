@@ -51,7 +51,7 @@ def run(window_start: datetime, window_end: datetime) -> None:
     """)
 
     # ── Customer risk (cross-merchant hourly MSISDN signal) ───────────────────
-    # raw_payload->'msisdn' is extracted as a cross-merchant fraud signal.
+    # The payment.succeeded payload field is `customer_msisdn` (not `msisdn`).
     # This is the foundation for §15.5 (cross-merchant MSISDN fraud).
     customer_risk_out = s3_uri(
         settings.gold_bucket, f"customer_risk_global_hourly/dt={ds}/part.parquet"
@@ -60,7 +60,7 @@ def run(window_start: datetime, window_end: datetime) -> None:
         COPY (
             SELECT
                 DATE_TRUNC('hour', occurred_at)               AS hour_bucket,
-                json_extract_string(raw_payload, '$.msisdn')  AS msisdn,
+                json_extract_string(raw_payload, '$.customer_msisdn') AS msisdn,
                 COUNT(DISTINCT merchant_id)                   AS merchant_count,
                 COUNT(*)                                      AS attempt_count,
                 SUM(CASE WHEN event_type = 'payment.failed' THEN 1 ELSE 0 END)
@@ -71,7 +71,7 @@ def run(window_start: datetime, window_end: datetime) -> None:
             FROM read_parquet('{silver_glob}')
             WHERE occurred_at >= TIMESTAMPTZ '{window_start.isoformat()}'
               AND occurred_at <  TIMESTAMPTZ '{window_end.isoformat()}'
-              AND json_extract_string(raw_payload, '$.msisdn') IS NOT NULL
+              AND json_extract_string(raw_payload, '$.customer_msisdn') IS NOT NULL
             GROUP BY 1, 2
             HAVING COUNT(*) >= 3
         )
