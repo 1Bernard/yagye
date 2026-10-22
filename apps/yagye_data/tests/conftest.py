@@ -29,7 +29,7 @@ def patch_settings(monkeypatch: pytest.MonkeyPatch, tmp_lake: Path) -> None:
     monkeypatch.setenv("S3_ENDPOINT_URL", "")
     monkeypatch.setenv("BRONZE_BUCKET", str(tmp_lake / "raw"))
     monkeypatch.setenv("SILVER_BUCKET", str(tmp_lake / "silver"))
-    monkeypatch.setenv("GOLD_BUCKET",   str(tmp_lake / "gold"))
+    monkeypatch.setenv("GOLD_BUCKET", str(tmp_lake / "gold"))
     monkeypatch.setenv("ML_MODELS_BUCKET", str(tmp_lake / "models"))
     monkeypatch.setenv("ANTHROPIC_API_KEY", "test-key")
     monkeypatch.setenv("DATABASE_URL", "postgresql://localhost/test")
@@ -39,6 +39,7 @@ def patch_settings(monkeypatch: pytest.MonkeyPatch, tmp_lake: Path) -> None:
 def duckdb_con():
     """A plain in-memory DuckDB connection (no S3 config needed for local tests)."""
     import duckdb
+
     con = duckdb.connect()
     con.execute("INSTALL parquet; LOAD parquet;")
     yield con

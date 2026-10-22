@@ -55,7 +55,7 @@ def test_provider_health_success_rate(
         _make_silver_row("payment.succeeded", latency_ms=200),
         _make_silver_row("payment.succeeded", latency_ms=300),
         _make_silver_row("payment.succeeded", latency_ms=400),
-        _make_silver_row("payment.failed",    latency_ms=500),
+        _make_silver_row("payment.failed", latency_ms=500),
     ]
     silver_path = str(_write_silver_payments(tmp_lake, rows))
 

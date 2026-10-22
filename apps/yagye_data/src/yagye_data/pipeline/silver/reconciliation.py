@@ -82,7 +82,8 @@ def run(window_start: datetime, window_end: datetime) -> None:
                 json_extract_string(payload, '$.report_id')::UUID            AS report_id,
                 TRY_CAST(json_extract(payload, '$.line_count') AS INT)       AS line_count,
                 TRY_CAST(json_extract(payload, '$.quarantined_count') AS INT) AS quarantined_count,
-                TRY_CAST(json_extract(payload, '$.reported_total') AS BIGINT) AS reported_total_minor,
+                TRY_CAST(json_extract(payload, '$.reported_total') AS BIGINT)
+                    AS reported_total_minor,
                 json_extract_string(payload, '$.currency')                   AS currency,
 
                 -- reconciliation.adjustment.* fields

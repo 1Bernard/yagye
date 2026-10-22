@@ -47,7 +47,9 @@ def _write_bronze(tmp_lake: Path, rows: list[dict], date: str = "2026-10-21") ->
 
 
 @pytest.mark.integration
-def test_payments_silver_deduplicates(tmp_lake: Path, duckdb_con: duckdb.DuckDBPyConnection) -> None:
+def test_payments_silver_deduplicates(
+    tmp_lake: Path, duckdb_con: duckdb.DuckDBPyConnection
+) -> None:
     """Duplicate event_ids must produce only one output row."""
     shared_id = str(uuid.uuid4())
     ts = datetime.now(UTC)
@@ -73,7 +75,9 @@ def test_payments_silver_deduplicates(tmp_lake: Path, duckdb_con: duckdb.DuckDBP
     assert result[0] == 2, f"Expected 2 unique events, got {result[0]}"
 
 
-def test_payments_silver_filters_event_types(tmp_lake: Path, duckdb_con: duckdb.DuckDBPyConnection) -> None:
+def test_payments_silver_filters_event_types(
+    tmp_lake: Path, duckdb_con: duckdb.DuckDBPyConnection
+) -> None:
     """Only payment.succeeded / failed / indeterminate events should pass through."""
     rows = [
         _make_bronze_row(event_type="payment.succeeded"),

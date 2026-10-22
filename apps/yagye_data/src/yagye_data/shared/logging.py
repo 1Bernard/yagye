@@ -5,6 +5,8 @@ that use the logger.
 """
 
 import logging
+import os
+import socket
 
 import structlog
 
@@ -51,6 +53,16 @@ def configure_logging(use_json: bool = False) -> None:
         context_class=dict,
         logger_factory=structlog.stdlib.LoggerFactory(),
         cache_logger_on_first_use=True,
+    )
+
+    # Bind static fields that appear on every log line — mirrors Core's Erlang
+    # primary metadata (runtime.exs) and Portal's lograge custom_options so
+    # Loki queries like {service="yagye_data"} work consistently across apps.
+    structlog.contextvars.bind_contextvars(
+        service="yagye_data",
+        environment=os.getenv("APP_ENV", "dev"),
+        release=os.getenv("RELEASE_SHA", "local"),
+        host=socket.gethostname(),
     )
 
 
