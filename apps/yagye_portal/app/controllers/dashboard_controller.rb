@@ -29,6 +29,8 @@ class DashboardController < ApplicationController
     fx_corridor  = fetch_corridor_rates
     cookies[:fx_currency] = fx_currency
 
+    chart = merchant_chart_data || { dates: summary[:chart_dates], values: summary[:chart_values] }
+
     render Dashboard::IndexView.new(
       volume:             summary[:volume],
       net_volume:         summary[:net_volume],
@@ -44,8 +46,8 @@ class DashboardController < ApplicationController
       disputes_count:     disputes_count,
       kyb_pending_count:  current_user.internal_staff? ? kyb_pending_count : nil,
       active_merchant_count: current_user.internal_staff? ? active_merchant_count : nil,
-      chart_dates:        summary[:chart_dates],
-      chart_values:       summary[:chart_values],
+      chart_dates:        chart[:dates],
+      chart_values:       chart[:values],
       provider_data:      summary[:provider_data],
       method_data:        summary[:method_data],
       recent_payments:    scope.recent.limit(8),
@@ -56,6 +58,7 @@ class DashboardController < ApplicationController
       network_health:     network_health_data(scope),
       upcoming_payout:    upcoming_payout_data,
       payout_balance:     payout_balance_data,
+      wallet_balance:     wallet_balance_data,
       feed_stream_key:    merchant_feed_stream_key
     )
   end
@@ -141,4 +144,46 @@ class DashboardController < ApplicationController
     "dashboard_feed_#{current_user.merchant_code}_#{mode}"
   end
 
+  # Returns pre-aggregated chart data from portal_daily_metrics when available.
+  # Falls back to nil so the caller uses VolumeSummaryQuery's live aggregation.
+  def merchant_chart_data
+    return nil if current_user.internal_staff?
+
+    code  = current_user.merchant_code
+    mode  = Current.mode.presence || "live"
+    from  = Payments::VolumeSummaryQuery::CHART_DAYS.days.ago.to_date
+    rows  = PortalDailyMetric.where(merchant_code: code, mode: mode)
+                              .where(day: from..)
+                              .order(:day)
+    return nil unless rows.any?
+
+    by_day = rows.group_by(&:day)
+    days   = Payments::VolumeSummaryQuery::CHART_DAYS
+    dates  = (0...days).map { |i| (from + i).strftime("%-d %b") }
+    values = (0...days).map { |i| (by_day[from + i]&.first&.gross_volume || 0) / 100.0 }
+    { dates: dates, values: values }
+  rescue StandardError
+    nil
+  end
+
+  def wallet_balance_data
+    return nil if current_user.internal_staff?
+
+    code = current_user.merchant_code
+    mode = Current.mode.presence || "live"
+    rows = PortalMerchantBalance.for_merchant(code, mode: mode).to_a
+    return nil if rows.empty?
+
+    currency  = rows.first.currency
+    available = rows.sum(&:available)
+    pending   = rows.sum(&:pending)
+    in_transit = rows.sum(&:in_transit)
+    reserved  = rows.sum(&:reserved)
+    return nil if (available + pending + in_transit + reserved).zero?
+
+    { available: available, pending: pending, in_transit: in_transit,
+      reserved: reserved, currency: currency }
+  rescue StandardError
+    nil
+  end
 end

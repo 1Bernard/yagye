@@ -8,6 +8,7 @@ class ApplicationController < ActionController::Base
   stale_when_importmap_changes
 
   before_action :authenticate_user!
+  before_action :verify_user_session
   before_action :set_current_user
   before_action :set_portal_mode
   before_action :set_locale
@@ -20,6 +21,23 @@ class ApplicationController < ActionController::Base
 
   rescue_from Pundit::NotAuthorizedError,          with: :user_not_authorized
   rescue_from ActionController::InvalidAuthenticityToken, with: :handle_csrf_expiry
+
+  # Enforces DB-backed session validity. A revoked or expired session token
+  # results in an immediate sign-out, even if Devise's cookie is still valid.
+  # Skipped for Devise controllers (sign-in, OTP challenge, etc.).
+  def verify_user_session
+    return unless user_signed_in? && !devise_controller?
+
+    raw_token = session[:user_session_token]
+    return unless raw_token.present?
+
+    unless UserSession.find_active_by_token(raw_token)
+      session.delete(:user_session_token)
+      sign_out current_user
+      redirect_to new_user_session_path, alert: "Your session has expired or been revoked. Please sign in again.",
+                  status: :see_other
+    end
+  end
 
   private
 

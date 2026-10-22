@@ -4,11 +4,13 @@ module Settings
   class SecurityPanel < ApplicationComponent
     include UI::Theme
 
-    def initialize(current_user:, audit_events: [], password_error: nil, password_error_field: nil)
-      @current_user         = current_user
-      @audit_events         = audit_events
-      @password_error       = password_error
-      @password_error_field = password_error_field
+    def initialize(current_user:, audit_events: [], active_sessions: [], current_session_digest: nil, password_error: nil, password_error_field: nil)
+      @current_user          = current_user
+      @audit_events          = audit_events
+      @active_sessions       = active_sessions
+      @current_session_digest = current_session_digest
+      @password_error        = password_error
+      @password_error_field  = password_error_field
     end
 
     def view_template
@@ -293,40 +295,49 @@ module Settings
     # ── Sessions ──────────────────────────────────────────────────────────────
 
     def sessions_card
-      sign_ins = @audit_events.select { |e| e.event_type == "signed_in" }
+      sessions = @active_sessions.presence || []
+      other_sessions = sessions.reject { |s| s.session_token_digest == @current_session_digest }
 
       div(class: "bg-white border border-gray-100 rounded-2xl overflow-hidden") do
         div(class: "px-6 py-5 border-b border-gray-100 flex items-center justify-between") do
           div do
             p(class: TYPE_TITLE) { plain "Browsers & devices" }
             p(class: "#{TYPE_CAPTION} mt-[3px]") do
-              plain "Recent sign-ins to your account. Remove any you don't recognise."
+              plain "Active sessions on your account. Remove any you don't recognise."
             end
           end
-          render UI::Button.new(variant: :danger) do
-            render UI::Icon.new(:logout, class: ICON_SM)
-            plain "Sign out all"
+          if other_sessions.any?
+            form(action: settings_revoke_all_sessions_path, method: "post",
+                 data: { turbo_method: "delete", turbo_confirm: "Sign out all other sessions?" }) do
+              input(type: "hidden", name: "authenticity_token", value: form_authenticity_token)
+              render UI::Button.new(variant: :danger, type: "submit") do
+                render UI::Icon.new(:logout, class: ICON_SM)
+                plain "Sign out others"
+              end
+            end
           end
         end
 
-        if sign_ins.empty?
-          session_row(label: "Current browser",
+        if sessions.empty?
+          session_row(label: "Current session",
                       sub: "This device · #{fmt_date(Time.current)}",
-                      current: true)
+                      current: true,
+                      session: nil)
         else
-          sign_ins.first(5).each_with_index do |evt, i|
+          sessions.first(8).each do |s|
+            is_current = s.session_token_digest == @current_session_digest
             session_row(
-              label:   evt.user_agent.to_s.split("/").first.presence || "Browser",
-              sub:     "#{evt.ip_address.presence || 'Unknown location'} · #{fmt_datetime(evt.created_at)}",
-              current: i == 0,
-              ago:     i.positive? ? evt.created_at.strftime("%d %b, %H:%M") : nil
+              label:   s.ip.presence || "Unknown device",
+              sub:     "Last active #{fmt_datetime(s.created_at)}",
+              current: is_current,
+              session: s
             )
           end
         end
       end
     end
 
-    def session_row(label:, sub:, current: false, ago: nil)
+    def session_row(label:, sub:, current: false, session: nil)
       div(class: "group flex items-center gap-4 px-6 py-[14px] border-b border-gray-50 last:border-0 hover:bg-gray-50/60 transition-colors") do
         div(class: "w-9 h-9 rounded-xl bg-gray-100 border border-gray-200 flex items-center justify-center flex-shrink-0") do
           span(class: "flex w-[15px] h-[15px] text-gray-400") do
@@ -339,14 +350,17 @@ module Settings
         end
         if current
           span(class: "#{BADGE} #{STATUS_SUCCESS} flex-shrink-0") { plain "Current session" }
-        else
-          span(class: "#{TYPE_CAPTION} flex-shrink-0") { plain ago }
-        end
-        button(type: "button",
-               class: "flex w-7 h-7 rounded-lg items-center justify-center text-gray-300 " \
-                      "hover:text-red-500 hover:bg-red-50 transition-colors border-0 bg-transparent " \
-                      "cursor-pointer ml-1 opacity-0 group-hover:opacity-100") do
-          span(class: "flex w-[14px] h-[14px]") { render UI::Icon.new(:x, class: "w-full h-full") }
+        elsif session
+          form(action: settings_revoke_session_path(session.id), method: "post",
+               data: { turbo_method: "delete" }) do
+            input(type: "hidden", name: "authenticity_token", value: form_authenticity_token)
+            button(type: "submit",
+                   class: "flex w-7 h-7 rounded-lg items-center justify-center text-gray-300 " \
+                          "hover:text-red-500 hover:bg-red-50 transition-colors border-0 bg-transparent " \
+                          "cursor-pointer ml-1 opacity-0 group-hover:opacity-100") do
+              span(class: "flex w-[14px] h-[14px]") { render UI::Icon.new(:x, class: "w-full h-full") }
+            end
+          end
         end
       end
     end

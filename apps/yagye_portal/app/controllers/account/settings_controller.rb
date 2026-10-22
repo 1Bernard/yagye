@@ -8,8 +8,13 @@ module Account
       merchant_code = current_user.merchant_code
       is_merchant   = current_user.merchant_user?
 
-      audit_events  = current_user.user_audit_events.recent.limit(15)
-      tier          = current_user.merchant_tier || 1
+      audit_events    = current_user.user_audit_events.recent.limit(15)
+      tier            = current_user.merchant_tier || 1
+      active_sessions = tab == "security" ? current_user.user_sessions.active.order(created_at: :desc).limit(8).to_a : []
+      current_session_digest = begin
+        raw = session[:user_session_token]
+        raw.present? ? Digest::SHA256.hexdigest(raw) : nil
+      end
 
       lists             = tab == "allowlists" ? Settings::AllowlistsQuery.new(merchant_code).call : {}
       ip_allowlists     = lists.fetch(:ip_allowlists,     [])
@@ -35,6 +40,7 @@ module Account
         email_blocklists: email_blocklists,
         branding: branding, kyb_application: kyb_application, merchant: merchant,
         audit_events: audit_events, sso_configs: sso_configs, tier: tier,
+        active_sessions: active_sessions, current_session_digest: current_session_digest,
         payout_controls: payout_controls, payout_destinations: payout_destinations,
         next_value_date: next_value_date, unsettled_amount: unsettled_amount, payout_currency: payout_currency,
         allowed_methods: allowed_methods

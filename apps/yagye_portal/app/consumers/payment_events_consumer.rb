@@ -1,6 +1,8 @@
 # frozen_string_literal: true
 
 class PaymentEventsConsumer < ApplicationConsumer
+  include IdempotentConsumer
+
   def consume
     messages.each do |message|
       event = Acl::CorePaymentEvent.new(message.payload)
@@ -40,7 +42,24 @@ class PaymentEventsConsumer < ApplicationConsumer
       broadcast_to_feed(p)
       broadcast_status_update(p)
       notify_payment(p, event)
+      update_balance(event) if event.status == "paid"
     end
+  end
+
+  def update_balance(event)
+    return unless event.net_amount.to_i.positive?
+
+    with_idempotency(event_id: "#{event.public_id}:balance", consumer: self.class.name) do
+      PortalMerchantBalance.apply_delta!(
+        merchant_code: event.merchant_code,
+        currency:      event.currency,
+        mode:          event.mode,
+        delta:         { available: event.net_amount.to_i },
+        event_id:      "#{event.public_id}:balance"
+      )
+    end
+  rescue StandardError => e
+    Rails.logger.warn("[PaymentEventsConsumer] balance update failed: #{e.message}")
   end
 
   def broadcast_to_feed(payment)

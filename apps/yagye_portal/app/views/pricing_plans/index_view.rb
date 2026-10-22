@@ -22,7 +22,7 @@ module PricingPlans
       render Layout::Shell.new(
         active_nav:  :pricing_plans,
         title:       "Pricing Plans",
-        breadcrumbs: [{ label: "Pricing Plans" }]
+        breadcrumbs: [ { label: "Pricing Plans" } ]
       ) do
         render UI::PageHeader.new(
           title:    "Pricing Plans",

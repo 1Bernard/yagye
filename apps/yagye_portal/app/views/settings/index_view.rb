@@ -7,31 +7,34 @@ module Settings
     def initialize(tab: "profile", current_user: nil, roles: [], ip_allowlists: [], ip_blocklists: [],
                    msisdn_allowlists: [], msisdn_blocklists: [], email_blocklists: [], branding: nil,
                    kyb_application: nil, merchant: nil, audit_events: [], sso_configs: [], tier: 1,
+                   active_sessions: [], current_session_digest: nil,
                    payout_controls: {}, payout_destinations: [], next_value_date: nil,
                    unsettled_amount: 0, payout_currency: "GHS", allowed_methods: nil,
                    password_error: nil, password_error_field: nil)
-      @tab                  = tab
-      @current_user         = current_user
-      @roles                = roles
-      @ip_allowlists        = ip_allowlists
-      @ip_blocklists        = ip_blocklists
-      @msisdn_allowlists    = msisdn_allowlists
-      @msisdn_blocklists    = msisdn_blocklists
-      @email_blocklists     = email_blocklists
-      @branding             = branding
-      @kyb_application      = kyb_application
-      @merchant             = merchant
-      @audit_events         = audit_events
-      @sso_configs          = sso_configs
-      @tier                 = tier
-      @payout_controls      = payout_controls
-      @payout_destinations  = payout_destinations
-      @next_value_date      = next_value_date
-      @unsettled_amount     = unsettled_amount
-      @payout_currency      = payout_currency
-      @allowed_methods      = allowed_methods
-      @password_error       = password_error
-      @password_error_field = password_error_field
+      @tab                    = tab
+      @current_user           = current_user
+      @roles                  = roles
+      @ip_allowlists          = ip_allowlists
+      @ip_blocklists          = ip_blocklists
+      @msisdn_allowlists      = msisdn_allowlists
+      @msisdn_blocklists      = msisdn_blocklists
+      @email_blocklists       = email_blocklists
+      @branding               = branding
+      @kyb_application        = kyb_application
+      @merchant               = merchant
+      @audit_events           = audit_events
+      @sso_configs            = sso_configs
+      @tier                   = tier
+      @active_sessions        = active_sessions
+      @current_session_digest = current_session_digest
+      @payout_controls        = payout_controls
+      @payout_destinations    = payout_destinations
+      @next_value_date        = next_value_date
+      @unsettled_amount       = unsettled_amount
+      @payout_currency        = payout_currency
+      @allowed_methods        = allowed_methods
+      @password_error         = password_error
+      @password_error_field   = password_error_field
     end
 
     def view_template
@@ -54,6 +57,8 @@ module Settings
               )
             when "security"
               render Settings::SecurityPanel.new(current_user: @current_user, audit_events: @audit_events,
+                                                 active_sessions: @active_sessions,
+                                                 current_session_digest: @current_session_digest,
                                                  password_error: @password_error, password_error_field: @password_error_field)
             when "notifications"
               render Settings::NotificationsPanel.new(current_user: @current_user)

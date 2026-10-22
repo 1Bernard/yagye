@@ -52,13 +52,15 @@ module Payments
 
     def filter
       authorize Payment, :index?
+      saved = current_user.saved_filters.where(namespace: "Payments").order(created_at: :desc).to_a
       render Payments::FilterView.new(
-        query:    params[:q],
-        status:   params[:status],
-        method:   params[:method],
-        provider: params[:provider],
-        from:     params[:from],
-        to:       params[:to]
+        query:         params[:q],
+        status:        params[:status],
+        method:        params[:method],
+        provider:      params[:provider],
+        from:          params[:from],
+        to:            params[:to],
+        saved_filters: saved
       )
     end
 

@@ -48,6 +48,7 @@ class Users::SessionsController < Devise::SessionsController
       session.delete(:otp_user_id)
       session.delete(:otp_via_email)
       sign_in(:user, user)
+      establish_user_session!(user)
       if via_email
         UserAuditEvents::Record.call(user: user, event_type: :email_otp_verified, request: request)
         OtpMailer.sign_in_alert(user: user, ip: request.remote_ip, time: Time.current).deliver_later
@@ -120,6 +121,7 @@ class Users::SessionsController < Devise::SessionsController
 
     UserAuditEvents::Record.call(user: user, event_type: :totp_enabled, request: request)
     sign_in(:user, user)
+    establish_user_session!(user)
 
     # Store codes in session briefly so we can show them once after sign-in
     session[:totp_just_enrolled_codes] = plain_codes
@@ -153,11 +155,45 @@ class Users::SessionsController < Devise::SessionsController
   end
 
   def destroy
+    revoke_current_user_session!
     UserAuditEvents::Record.call(user: current_user, event_type: :signed_out, request: request)
     super
   end
 
   private
+
+  # Creates a DB-backed UserSession and stores the raw token in the Rails session.
+  # Called immediately after Devise signs the user in so every session has a DB record.
+  def establish_user_session!(user)
+    raw_token   = SecureRandom.hex(32)
+    fingerprint = Digest::SHA256.hexdigest("#{request.user_agent}|#{request.remote_ip}")
+
+    # Alert when signing in from a device not seen in the last 30 days.
+    known_fingerprints = UserSession.active.where(user: user).pluck(:device_fingerprint)
+    new_device = known_fingerprints.none? { |f| f == fingerprint }
+
+    db_session = UserSession.create_for(user: user, raw_token: raw_token, request: request)
+    session[:user_session_token] = raw_token
+
+    if new_device && known_fingerprints.any?
+      Rails.logger.info("[UserSession] new device sign-in user=#{user.id} ip=#{request.remote_ip}")
+      # TODO P18: deliver new-device alert email
+    end
+
+    db_session
+  rescue StandardError => e
+    # Never block sign-in due to session tracking failure — log and continue.
+    Rails.logger.error("[UserSession] create failed: #{e.message}")
+  end
+
+  def revoke_current_user_session!
+    raw_token = session[:user_session_token]
+    return unless raw_token.present?
+
+    UserSession.find_active_by_token(raw_token)&.revoke!
+  rescue StandardError => e
+    Rails.logger.error("[UserSession] revoke failed: #{e.message}")
+  end
 
   def handle_two_factor_challenge
     user = User.find_by(email: sign_in_params[:email]&.strip&.downcase)

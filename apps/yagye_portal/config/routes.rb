@@ -282,6 +282,14 @@ Rails.application.routes.draw do
     post   "settings/passkeys",                    to: "passkeys#create",             as: :settings_passkeys
     delete "settings/passkeys/:id",                    to: "passkeys#destroy",              as: :settings_remove_passkey
     get    "settings/passkeys/:id/remove-modal",       to: "passkeys#remove_modal",          as: :remove_modal_settings_passkey
+
+    # Active sessions management
+    delete "settings/sessions/:id",  to: "user_sessions#revoke",      as: :settings_revoke_session
+    delete "settings/sessions",      to: "user_sessions#revoke_all",  as: :settings_revoke_all_sessions
+
+    # Saved filters
+    post   "settings/saved-filters",     to: "saved_filters#create",  as: :settings_saved_filters
+    delete "settings/saved-filters/:id", to: "saved_filters#destroy", as: :settings_remove_saved_filter
   end
 
   devise_scope :user do

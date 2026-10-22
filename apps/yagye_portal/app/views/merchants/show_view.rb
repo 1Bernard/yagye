@@ -503,7 +503,6 @@ module Merchants
           reserve_detail_row("Active since", (fmt_date(Time.parse(eff.to_s)) rescue "—"))
         end
       end
-
     end
 
     def reserve_policy_card

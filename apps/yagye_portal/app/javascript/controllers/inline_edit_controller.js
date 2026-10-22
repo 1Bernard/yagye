@@ -6,13 +6,13 @@ export default class extends Controller {
   edit() {
     this.displayTarget.hidden = true
     this.formTarget.hidden = false
-    this.triggerTarget.hidden = true
+    if (this.hasTriggerTarget) this.triggerTarget.hidden = true
     this.formTarget.querySelector("textarea, input:not([type=hidden])")?.focus()
   }
 
   cancel() {
     this.formTarget.hidden = true
     this.displayTarget.hidden = false
-    this.triggerTarget.hidden = false
+    if (this.hasTriggerTarget) this.triggerTarget.hidden = false
   }
 }

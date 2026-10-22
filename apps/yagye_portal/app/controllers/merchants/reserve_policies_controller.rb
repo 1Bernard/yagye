@@ -164,7 +164,7 @@ module Merchants
       result = CoreApiClient.new.get_reserves(merchant_code)
       return false unless result.success?
 
-      reserves = result.body["reserves"] || [result.body["policy"]].compact
+      reserves = result.body["reserves"] || [ result.body["policy"] ].compact
       policy   = reserves.find { |p| p.is_a?(Hash) && p["id"].to_s == policy_id.to_s }
       policy&.fetch("created_by", nil) == current_user.user_code
     end

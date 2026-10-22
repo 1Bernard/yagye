@@ -1,6 +1,8 @@
 # frozen_string_literal: true
 
 class SettlementEventsConsumer < ApplicationConsumer
+  include IdempotentConsumer
+
   def consume
     messages.each do |message|
       upsert(message.payload)
@@ -43,5 +45,37 @@ class SettlementEventsConsumer < ApplicationConsumer
     }.compact
 
     PortalSettlement.upsert(attrs, unique_by: :settlement_code, update_only: attrs.keys - [ :settlement_code ])
+    update_balance(evt)
+  end
+
+  # When a settlement is dispatched, funds move from available → in_transit.
+  # When reconciled (bank confirms receipt), in_transit is cleared.
+  def update_balance(evt)
+    return unless evt.expected_net.to_i.positive?
+
+    case evt.state
+    when "dispatched"
+      with_idempotency(event_id: "#{evt.settlement_code}:dispatched", consumer: self.class.name) do
+        PortalMerchantBalance.apply_delta!(
+          merchant_code: evt.merchant_code,
+          currency:      evt.currency,
+          mode:          evt.mode,
+          delta:         { available: -evt.expected_net.to_i, in_transit: evt.expected_net.to_i },
+          event_id:      "#{evt.settlement_code}:dispatched"
+        )
+      end
+    when "reconciled"
+      with_idempotency(event_id: "#{evt.settlement_code}:reconciled", consumer: self.class.name) do
+        PortalMerchantBalance.apply_delta!(
+          merchant_code: evt.merchant_code,
+          currency:      evt.currency,
+          mode:          evt.mode,
+          delta:         { in_transit: -evt.expected_net.to_i },
+          event_id:      "#{evt.settlement_code}:reconciled"
+        )
+      end
+    end
+  rescue StandardError => e
+    Rails.logger.warn("[SettlementEventsConsumer] balance update failed: #{e.message}")
   end
 end

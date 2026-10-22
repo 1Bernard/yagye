@@ -5,21 +5,21 @@ module PricingPlans
     include UI::Theme
 
     METHOD_OPTIONS = [
-      ["— All methods (catch-all)", ""],
-      ["Mobile Money",  "mobile_money"],
-      ["Card",          "card"],
-      ["Bank Transfer", "bank_transfer"]
+      [ "— All methods (catch-all)", "" ],
+      [ "Mobile Money",  "mobile_money" ],
+      [ "Card",          "card" ],
+      [ "Bank Transfer", "bank_transfer" ]
     ].freeze
 
     PROVIDER_OPTIONS = {
       "mobile_money" => [
-        ["MTN MoMo",         "MTN_MOMO_GH"],
-        ["Telecel Cash",     "TELECEL_GH"],
-        ["AirtelTigo Money", "AIRTELTIGO_GH"]
+        [ "MTN MoMo",         "MTN_MOMO_GH" ],
+        [ "Telecel Cash",     "TELECEL_GH" ],
+        [ "AirtelTigo Money", "AIRTELTIGO_GH" ]
       ],
       "card" => [
-        ["Visa",       "VISA"],
-        ["Mastercard", "MASTERCARD"]
+        [ "Visa",       "VISA" ],
+        [ "Mastercard", "MASTERCARD" ]
       ]
     }.freeze
 
@@ -180,7 +180,7 @@ module PricingPlans
         div(class: "flex-1 min-w-0") do
           p(class: TYPE_BODY_MD) { plain "#{method_label} · #{prov_label}" }
           p(class: TYPE_CAPTION) do
-            parts = [pct_label]
+            parts = [ pct_label ]
             parts << "#{format_money(r["fixed_amount"].to_i, currency: cur)} fixed" if r["fixed_amount"].to_i > 0
             plain parts.join(" + ")
           end

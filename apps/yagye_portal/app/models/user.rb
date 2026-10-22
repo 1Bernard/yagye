@@ -27,6 +27,8 @@ class User < ApplicationRecord
   has_one :active_membership, -> { active }, class_name: "MerchantMembership"
   has_many :passkey_credentials, dependent: :destroy
   has_many :portal_notifications, dependent: :destroy
+  has_many :user_sessions, dependent: :destroy
+  has_many :saved_filters, dependent: :destroy
 
   attribute :notification_preferences, :json, default: {}
 

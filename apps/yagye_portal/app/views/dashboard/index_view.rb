@@ -14,7 +14,7 @@ module Dashboard
                    recent_payments: [],
                    fx_currency: "GHS", fx_rate: nil, fx_corridor: [],
                    is_ops: false, network_health: [],
-                   upcoming_payout: nil, payout_balance: nil,
+                   upcoming_payout: nil, payout_balance: nil, wallet_balance: nil,
                    feed_stream_key: nil)
       @volume                = volume
       @net_volume            = net_volume.nil? ? volume : net_volume
@@ -42,6 +42,7 @@ module Dashboard
       @network_health        = network_health
       @upcoming_payout       = upcoming_payout
       @payout_balance        = payout_balance
+      @wallet_balance        = wallet_balance
       @feed_stream_key       = feed_stream_key
     end
 
@@ -56,6 +57,7 @@ module Dashboard
           refresh_bar
           kpi_row
           payout_actions_bar
+          wallet_balance_strip
           upcoming_payout_card
           chart_card
           breakdown_row
@@ -344,6 +346,54 @@ module Dashboard
     def kyb_sub_label
       return nil if @kyb_pending_count.to_i.zero?
       "#{number_with_delimiter(@kyb_pending_count)} KYB pending review"
+    end
+
+    # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    # WALLET BALANCE STRIP (event-driven projection from portal_merchant_balances)
+    # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+    def wallet_balance_strip
+      return unless @wallet_balance
+      wb = @wallet_balance
+      cur = wb[:currency]
+
+      div(class: "flex items-center gap-0 mb-4 bg-white border border-gray-100 rounded-xl overflow-hidden") do
+        wallet_balance_cell(label: "Available",  amount: wb[:available],  currency: cur, highlight: true)
+        wallet_divider
+        wallet_balance_cell(label: "Pending",    amount: wb[:pending],    currency: cur)
+        wallet_divider
+        wallet_balance_cell(label: "In transit", amount: wb[:in_transit], currency: cur)
+        if wb[:reserved].to_i > 0
+          wallet_divider
+          wallet_balance_cell(label: "Reserved", amount: wb[:reserved],   currency: cur)
+        end
+        div(class: "flex-1")
+        div(class: "px-5 py-3 flex-shrink-0") do
+          a(href: payouts_path,
+            class: "text-[12px] font-semibold no-underline hover:opacity-70 transition-opacity",
+            style: "color:#{BRAND}") do
+            plain "View payouts"
+            span(class: "inline-flex w-[11px] h-[11px] ml-1 align-middle") do
+              render UI::Icon.new(:arrow_right, class: "w-full h-full")
+            end
+          end
+        end
+      end
+    end
+
+    def wallet_balance_cell(label:, amount:, currency:, highlight: false)
+      value_cls = highlight \
+        ? "text-[15px] font-extrabold tabular-nums tracking-tight text-gray-900 mt-[3px] leading-none"
+        : "text-[13.5px] font-bold tabular-nums text-gray-700 mt-[3px] leading-none"
+
+      div(class: "flex flex-col justify-center px-5 py-3 flex-shrink-0") do
+        p(class: "#{TYPE_CAPTION} whitespace-nowrap") { plain label }
+        p(class: value_cls) { plain format_money(amount.to_i, currency: currency) }
+      end
+    end
+
+    def wallet_divider
+      div(class: "w-px self-stretch bg-gray-100 flex-shrink-0")
     end
 
     # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
