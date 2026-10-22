@@ -279,6 +279,58 @@ services:
     networks:
       - data
 
+  # ---------------------------------------------------------------------------
+  # Data lake ETL — Bronze → Silver → Gold
+  #
+  # Reads NDJSON files written to Floci by yagye_core's DataLakeIngestionWorker,
+  # runs DuckDB ETL to produce typed Silver Parquet, then aggregates to Gold.
+  # LLM enrichment (Anthropic) runs as part of Silver for disputes and KYB text.
+  #
+  # Bronze ingestion itself is handled by yagye_core (Oban DataLakeIngestionWorker).
+  # This service only handles Silver and Gold — it never touches PostgreSQL.
+  # ---------------------------------------------------------------------------
+
+  yagye_data:
+    build:
+      context: ../../apps/yagye_data
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    environment:
+      APP_ENV: development
+      # S3 / Floci
+      S3_ENDPOINT_URL: http://floci:4566
+      S3_ACCESS_KEY_ID: test
+      S3_SECRET_ACCESS_KEY: test
+      S3_REGION: us-east-1
+      BRONZE_BUCKET: yagye-lake-raw
+      SILVER_BUCKET: yagye-lake-silver
+      GOLD_BUCKET: yagye-lake-gold
+      ML_MODELS_BUCKET: yagye-ml-models
+      # LLM enrichment (set ANTHROPIC_API_KEY in a .env file at the compose root)
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+    # Silver runs every hour; Gold runs every 6 hours.
+    # In production these are separate ECS scheduled tasks with distinct schedules.
+    command: >
+      /bin/sh -c "
+        i=0;
+        while true; do
+          python scripts/run_silver_etl.py;
+          if [ $$((i % 6)) -eq 0 ]; then
+            python scripts/run_gold_etl.py;
+          fi;
+          i=$$((i + 1));
+          sleep 3600;
+        done
+      "
+    depends_on:
+      floci:
+        condition: service_started
+      yagye_core:
+        condition: service_healthy  # core must be writing Bronze before ETL starts
+    networks:
+      - data  # Floci S3 access only; no DB, no core_mesh, no edge
+    # NOT on core_mesh or edge — ETL reads from S3, never calls other services
+
   # Karafka consumer — separate process, scales independently from the web tier.
   # Reads events from Redpanda and writes to portal_* read model tables.
   yagye_portal_karafka:
