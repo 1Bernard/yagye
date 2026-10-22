@@ -18,3 +18,13 @@ production:
     class: Notifications::PruneNotificationsJob
     queue: background
     schedule: at 3am every day
+
+  recompute_portal_daily_metrics:
+    class: PortalDailyMetricsRecomputeJob
+    queue: background
+    schedule: every hour at minute 30
+
+  sweep_processed_events:
+    class: ProcessedEventSweepJob
+    queue: background
+    schedule: at 4am every day

@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_10_20_120002) do
+ActiveRecord::Schema[8.1].define(version: 2026_10_20_130005) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pgcrypto"
@@ -142,6 +142,20 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_20_120002) do
     t.index ["revoked_at"], name: "index_portal_api_keys_on_revoked_at"
   end
 
+  create_table "portal_daily_metrics", primary_key: ["merchant_code", "day", "currency", "mode"], force: :cascade do |t|
+    t.integer "chargeback_count", default: 0, null: false
+    t.string "currency", limit: 3, null: false
+    t.date "day", null: false
+    t.integer "failed_count", default: 0, null: false
+    t.bigint "gross_volume", default: 0, null: false
+    t.text "merchant_code", null: false
+    t.text "mode", null: false
+    t.integer "payment_count", default: 0, null: false
+    t.bigint "refund_volume", default: 0, null: false
+    t.integer "succeeded_count", default: 0, null: false
+    t.index ["merchant_code", "day"], name: "index_portal_daily_metrics_on_merchant_code_and_day"
+  end
+
   create_table "portal_disputes", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
     t.bigint "amount", null: false
     t.text "core_dispute_id", null: false
@@ -234,6 +248,19 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_20_120002) do
     t.index ["last_event_id"], name: "index_portal_merchant_applications_on_last_event_id"
     t.index ["merchant_code"], name: "index_portal_merchant_applications_on_merchant_code"
     t.index ["status"], name: "index_portal_merchant_applications_on_status"
+  end
+
+  create_table "portal_merchant_balances", primary_key: ["merchant_code", "currency", "mode"], force: :cascade do |t|
+    t.bigint "available", default: 0, null: false
+    t.string "currency", limit: 3, null: false
+    t.bigint "in_transit", default: 0, null: false
+    t.datetime "last_applied_at", null: false
+    t.text "last_event_id"
+    t.text "merchant_code", null: false
+    t.text "mode", null: false
+    t.bigint "pending", default: 0, null: false
+    t.bigint "reserved", default: 0, null: false
+    t.index ["merchant_code"], name: "index_portal_merchant_balances_on_merchant_code"
   end
 
   create_table "portal_merchant_brandings", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
@@ -446,6 +473,13 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_20_120002) do
     t.index ["merchant_code"], name: "index_portal_webhook_endpoints_on_merchant_code"
   end
 
+  create_table "processed_events", primary_key: ["event_id", "consumer"], force: :cascade do |t|
+    t.text "consumer", null: false
+    t.text "event_id", null: false
+    t.datetime "processed_at", null: false
+    t.index ["processed_at"], name: "index_processed_events_on_processed_at"
+  end
+
   create_table "role_assignment_requests", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
     t.datetime "created_at", null: false
     t.string "current_role_keys", default: [], null: false, array: true
@@ -481,6 +515,18 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_20_120002) do
     t.boolean "system_role", default: true, null: false
     t.datetime "updated_at", null: false
     t.check_constraint "scope = ANY (ARRAY['merchant'::text, 'internal'::text])", name: "valid_role_scope"
+  end
+
+  create_table "saved_filters", force: :cascade do |t|
+    t.datetime "created_at", null: false
+    t.jsonb "filters", default: {}, null: false
+    t.text "name", null: false
+    t.text "namespace", null: false
+    t.boolean "shared_with_merchant", default: false, null: false
+    t.datetime "updated_at", null: false
+    t.uuid "user_id", null: false
+    t.index ["user_id", "namespace"], name: "index_saved_filters_on_user_id_and_namespace"
+    t.index ["user_id"], name: "index_saved_filters_on_user_id"
   end
 
   create_table "sso_configurations", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
@@ -522,6 +568,22 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_20_120002) do
     t.index ["granted_by_id"], name: "index_user_roles_on_granted_by_id"
     t.index ["user_id", "role_key", "merchant_code"], name: "user_roles_active_unique", unique: true, where: "(revoked_at IS NULL)"
     t.index ["user_id"], name: "index_user_roles_on_user_id"
+  end
+
+  create_table "user_sessions", force: :cascade do |t|
+    t.datetime "created_at", null: false
+    t.text "device_fingerprint", null: false
+    t.datetime "expires_at", null: false
+    t.text "ip"
+    t.datetime "mfa_satisfied_at"
+    t.datetime "revoked_at"
+    t.text "session_token_digest", null: false
+    t.text "user_agent_hash"
+    t.uuid "user_id", null: false
+    t.index ["expires_at"], name: "index_user_sessions_on_expires_at"
+    t.index ["session_token_digest"], name: "index_user_sessions_on_session_token_digest", unique: true
+    t.index ["user_id", "revoked_at"], name: "index_user_sessions_on_user_id_and_revoked_at"
+    t.index ["user_id"], name: "index_user_sessions_on_user_id"
   end
 
   create_table "users", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
@@ -587,8 +649,10 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_20_120002) do
   add_foreign_key "role_assignment_requests", "users", column: "target_user_id"
   add_foreign_key "role_permissions", "permissions", column: "permission_key", primary_key: "key"
   add_foreign_key "role_permissions", "roles", column: "role_key", primary_key: "key"
+  add_foreign_key "saved_filters", "users"
   add_foreign_key "user_audit_events", "users"
   add_foreign_key "user_roles", "roles", column: "role_key", primary_key: "key"
   add_foreign_key "user_roles", "users"
   add_foreign_key "user_roles", "users", column: "granted_by_id"
+  add_foreign_key "user_sessions", "users"
 end
