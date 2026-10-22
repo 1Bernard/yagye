@@ -1,0 +1,107 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "yagye-data"
+version = "0.1.0"
+description = "Data engineering pipeline, ML training, and AI enrichment for Yagye PSP"
+requires-python = ">=3.12"
+dependencies = [
+    # Storage & compute
+    "duckdb>=1.1.0",
+    "pyarrow>=17.0.0",
+    "s3fs>=2024.10.0",
+    "boto3>=1.35.0",
+    # Config & observability
+    "pydantic-settings>=2.5.0",
+    "structlog>=24.4.0",
+    # Network resilience
+    "tenacity>=9.0.0",
+    # LLM enrichment
+    "anthropic>=0.40.0",
+]
+
+[project.optional-dependencies]
+training = [
+    "xgboost>=2.1.0",
+    "lightgbm>=4.5.0",
+    "scikit-learn>=1.5.0",
+    "skl2onnx>=1.17.0",
+    "onnxmltools>=1.12.0",
+    "onnxruntime>=1.19.0",
+    "pandas>=2.2.0",
+    "numpy>=2.0.0",
+    # Drift detection & evaluation
+    "evidently>=0.4.0",
+]
+dev = [
+    "pytest>=8.3.0",
+    "pytest-cov>=5.0.0",
+    "pytest-asyncio>=0.24.0",
+    "ruff>=0.7.0",
+    "mypy>=1.12.0",
+    "boto3-stubs[s3]>=1.35.0",
+    # Type stubs
+    "pandas-stubs>=2.2.0",
+]
+
+[project.scripts]
+yagye-silver = "yagye_data.pipeline.silver:main"
+yagye-gold   = "yagye_data.pipeline.gold:main"
+yagye-train  = "yagye_data.training:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/yagye_data"]
+
+# ── Ruff (lint + format) ──────────────────────────────────────────────────────
+
+[tool.ruff]
+src = ["src"]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = [
+    "E", "W",   # pycodestyle
+    "F",         # pyflakes
+    "I",         # isort
+    "UP",        # pyupgrade
+    "B",         # flake8-bugbear
+    "SIM",       # flake8-simplify
+    "TCH",       # flake8-type-checking
+    "ANN",       # flake8-annotations
+    "RUF",       # ruff-specific
+]
+ignore = [
+    "ANN101",  # missing self annotation
+    "ANN102",  # missing cls annotation
+]
+
+[tool.ruff.lint.isort]
+known-first-party = ["yagye_data"]
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+
+# ── Mypy ─────────────────────────────────────────────────────────────────────
+
+[tool.mypy]
+python_version = "3.12"
+strict = true
+warn_return_any = true
+warn_unused_configs = true
+exclude = ["tests/"]
+
+[[tool.mypy.overrides]]
+module = ["duckdb.*", "s3fs.*", "xgboost.*", "lightgbm.*", "skl2onnx.*", "onnxmltools.*", "onnxruntime.*", "evidently.*"]
+ignore_missing_imports = true
+
+# ── Pytest ────────────────────────────────────────────────────────────────────
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]
+asyncio_mode = "auto"
+addopts = "--cov=yagye_data --cov-report=term-missing --cov-fail-under=70"

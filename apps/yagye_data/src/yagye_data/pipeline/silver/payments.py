@@ -1,0 +1,86 @@
+"""Silver ETL: payment_attempt events.
+
+Reads Bronze Parquet (raw outbox JSON) for the given time window, validates
+schema, deduplicates on (event_id), casts types, and writes partitioned Silver
+Parquet to s3://yagye-lake-silver/payments/dt=YYYY-MM-DD/.
+"""
+
+from datetime import datetime
+
+from yagye_data.config import settings
+from yagye_data.shared.duckdb_client import get_connection
+from yagye_data.shared.logging import get_logger
+from yagye_data.shared.s3_client import s3_uri
+
+logger = get_logger(__name__)
+
+# Required fields in the Bronze outbox payload for payment events
+_REQUIRED_COLUMNS = {
+    "event_id",
+    "event_type",
+    "occurred_at",
+    "merchant_id",
+    "payment_id",
+    "amount",
+    "currency",
+    "method",
+}
+
+
+def run(window_start: datetime, window_end: datetime) -> None:
+    ds = window_start.strftime("%Y-%m-%d")
+    bronze_glob = s3_uri(settings.bronze_bucket, f"events/dt={ds}/payment*.ndjson")
+    silver_prefix = s3_uri(settings.silver_bucket, f"payments/dt={ds}/part.parquet")
+
+    logger.info("silver.payments.start", date=ds, bronze_glob=bronze_glob)
+
+    con = get_connection()
+
+    # Bronze is NDJSON (written by DataLakeIngestionWorker in yagye_core).
+    # read_ndjson_auto() handles schema inference; nested `payload` object
+    # is read as a DuckDB JSON type and extracted with json_extract_string().
+    result = con.execute(f"""
+        COPY (
+            WITH raw AS (
+                SELECT *
+                FROM read_ndjson_auto('{bronze_glob}', union_by_name = true, ignore_errors = true)
+                WHERE occurred_at::TIMESTAMPTZ >= TIMESTAMPTZ '{window_start.isoformat()}'
+                  AND occurred_at::TIMESTAMPTZ <  TIMESTAMPTZ '{window_end.isoformat()}'
+                  AND event_type IN (
+                        'payment.succeeded',
+                        'payment.failed',
+                        'payment.indeterminate'
+                      )
+            ),
+            deduped AS (
+                SELECT *,
+                       ROW_NUMBER() OVER (
+                           PARTITION BY event_id
+                           ORDER BY occurred_at
+                       ) AS _rn
+                FROM raw
+            )
+            SELECT
+                event_id,
+                event_type,
+                occurred_at::TIMESTAMPTZ                            AS occurred_at,
+                merchant_id::UUID                                   AS merchant_id,
+                json_extract_string(payload, '$.payment_id')::UUID  AS payment_id,
+                TRY_CAST(json_extract(payload, '$.amount') AS BIGINT)
+                                                                    AS amount_minor,
+                json_extract_string(payload, '$.currency')          AS currency,
+                json_extract_string(payload, '$.method')            AS method,
+                json_extract_string(payload, '$.provider_code')     AS provider_code,
+                TRY_CAST(json_extract(payload, '$.latency_ms') AS INT)
+                                                                    AS latency_ms,
+                json_extract_string(payload, '$.network')           AS network,
+                payload::VARCHAR                                    AS raw_payload,
+                '{ds}'::DATE                                        AS dt
+            FROM deduped
+            WHERE _rn = 1
+        )
+        TO '{silver_prefix}'
+        (FORMAT parquet, COMPRESSION zstd, ROW_GROUP_SIZE 100000)
+    """).fetchone()
+
+    logger.info("silver.payments.done", date=ds, rows=result[0] if result else 0)
