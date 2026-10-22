@@ -1,6 +1,6 @@
 # The AI Layer — LLM Enrichment, RAG Analytics, and Natural Language Queries
 
-**Last updated:** 2026-10-18
+**Last updated:** 2026-10-21
 
 The ML layer (`ml-architecture.md`) handles structured prediction from tabular
 features: routing scores, risk scores, reserve recommendations, churn
@@ -16,6 +16,82 @@ apply to each.
 Read `docs/data-engineering/README.md` (the lakehouse architecture) and
 `docs/data-engineering/ml-architecture.md` (the ML models these AI products
 feed and depend on) before this document.
+
+---
+
+## AI vs ML — What Each Solves
+
+These terms are often used interchangeably. In Yagye's architecture they are
+distinct tools that solve different classes of problem. Neither can replace
+the other.
+
+### ML (machine learning) — tabular prediction
+
+Yagye's ML models (XGBoost, LightGBM) take **structured, numerical inputs**
+and produce a **score or recommendation**:
+
+- "Given this provider's recent success rate, this amount, and this hour of
+  day — what is the probability this payment succeeds?" → `0.83`
+- "Given this customer's velocity, their KYC tier, and the merchant's
+  chargeback rate — what is the fraud risk of this transaction?" → `0.12`
+
+The inputs are numbers and categories (integers, floats, encoded categoricals).
+The model is trained on Yagye's own historical payment data. Inference runs
+locally inside `yagye_scoring` via ONNX Runtime. No external API call.
+Latency: < 1ms per prediction.
+
+**Tabular ML cannot process free text.** An XGBoost model cannot read
+"I did not authorise this transaction" and extract meaning from it. That string
+must first be converted to a category (`unauthorised`) before the model can use
+it as a feature.
+
+### LLM / AI — language understanding
+
+The Anthropic API (Claude) takes **free text** and produces **structured
+interpretation or generated text**:
+
+- "Given this dispute reason string — which category does it belong to?" →
+  `unauthorised`
+- "Given this natural language question and the Gold schema — write a SQL
+  query that answers it" → a DuckDB SELECT statement
+
+LLMs are trained on language, not on Yagye's payment data. They cannot be
+retrained with transaction history. They cannot score a payment in < 1ms.
+They cost money per token and require an external API call (300–2000ms latency).
+
+**LLMs cannot replace tabular ML.** Claude cannot be asked to "score the
+fraud risk of this transaction" in production — it has no knowledge of
+Yagye's merchant chargeback history, no model of MoMo network behaviour, and
+no SLA compatible with the payment critical path.
+
+### How they work together
+
+The dependency runs in one direction:
+
+```
+Free-text fields (dispute reasons, KYB notes, invoice descriptions)
+    │
+    │  Claude (LLM enrichment — Silver ETL step)
+    ▼
+Structured categories (dispute_category, gmv_category, kyb_flag)
+    │
+    │  These become features in the ML training dataset
+    ▼
+ML models (risk scorer, reserve recommender)
+    │
+    ▼
+Scores served at inference time via yagye_scoring
+```
+
+Claude enriches unstructured text into structured columns. Those columns flow
+into Gold as features. The ML models consume those features. If the Anthropic
+API is unavailable, enrichment is skipped and the ML models receive a null
+value for those features — they degrade gracefully, but they keep running.
+Removing the Anthropic API does not stop ML inference; it removes one source
+of signal. Removing Yagye's ML models does not stop enrichment; it removes
+the scoring capability entirely.
+
+---
 
 ---
 

@@ -1,6 +1,6 @@
 # Data Engineering Architecture
 
-**Last updated:** 2026-10-18
+**Last updated:** 2026-10-21
 
 This document describes Yagye's full data platform architecture: how operational
 data is extracted from transactional databases, ingested into the lakehouse,
@@ -181,6 +181,30 @@ The lakehouse approach means:
 3. No warehouse bill. No network hop for analytics.
 4. Easy local development (Floci emulates S3 perfectly).
 
+### The lakehouse is Bronze + Silver + Gold — not just Bronze
+
+A common misread: "Bronze is the lakehouse." Bronze alone is a **data lake** —
+raw, cheap, append-only, and unstructured. It is not directly queryable for
+analytics: files are small (500 rows each), duplicates exist, PII is present,
+and there is no pre-aggregation.
+
+The **lakehouse** is the entire three-layer system:
+
+```
+Bronze (yagye-lake-raw/)    ← the "lake" part: raw, immutable, open
+        ↓ DuckDB ETL
+Silver (yagye-lake-silver/) ← validated, typed, deduplicated
+        ↓ DuckDB ETL
+Gold   (yagye-lake-gold/)   ← pre-aggregated, business-ready
+        ↓ DuckDB queries
+ML training / BI / Reports  ← the "house" part: structured, queryable
+```
+
+What makes it a *lakehouse* rather than just a data lake is that Silver and
+Gold impose warehouse-like structure (typed schemas, star schema, SCD Type 2)
+on top of lake-like storage (open Parquet files on S3). The query engine
+(DuckDB) reads across all three layers without a separate warehouse service.
+
 When Yagye reaches a scale where DuckDB's single-node performance is a
 bottleneck (hundreds of analysts running concurrent complex queries), migrating
 to Trino or AWS Athena is straightforward — they read the same Parquet files.
@@ -191,9 +215,21 @@ to Trino or AWS Athena is straightforward — they read the same Parquet files.
 
 ### What CDC is and why it matters
 
-Change Data Capture is the process of detecting and extracting changes from
-a database's write-ahead log (WAL) and delivering them to downstream systems.
-It is the foundation of Yagye's ingestion pipeline.
+Change Data Capture (CDC) is the process of detecting database changes and
+delivering them to downstream systems as they happen — rather than as periodic
+batch extracts. It is the foundation of Yagye's ingestion pipeline.
+
+There are two main mechanisms for CDC. The first reads changes from the
+database's write-ahead log (WAL), making it transparent to application code —
+tools like Debezium work this way. The second is the **transactional outbox**:
+the application explicitly writes an event row in the same database transaction
+as the state change it is recording. Yagye uses the outbox approach, not WAL.
+
+**Why this distinction matters:** WAL-based CDC captures every column change
+on every row in every table — it is a generic row-level diff of the database.
+Outbox-as-CDC captures only the events the application explicitly emits, with
+a curated, domain-meaningful payload. The two approaches produce very different
+data at the destination — see §4's CDC section for the comparison.
 
 **Alternative: bulk export (nightly batch):**
 
@@ -236,6 +272,48 @@ Benefits of outbox-as-CDC over WAL-based CDC:
 - The schema is stable (an event schema is versioned; a WAL diff is not)
 - Sensitive columns are never emitted (the event payload is curated, not a full row dump)
 - No dependency on PostgreSQL's logical replication slot (which can block vacuuming)
+
+### The data lake is an event journal, not a database replica
+
+This is a critical distinction. **Not every database table has data in the
+Bronze layer.** Only domain events that pass through the outbox do. Tables like
+`fee_records`, `ledger_postings`, `users`, `api_keys`, `roles`, `pricing_rules`,
+and `processed_events` are never in the lake — no event is emitted for them.
+If analytical data from those tables is needed, it must be included in an
+event's payload at the point of emission.
+
+WAL-based CDC tools like Debezium would give you a row-level diff for every
+table automatically. The outbox approach gives you semantic events for the
+domains you instrument. The benefit is a curated, meaningful event stream. The
+responsibility is making sure every event carries the payload fields downstream
+analytics actually needs.
+
+### Event catalogue: what enters the Bronze layer
+
+The following domain events are currently emitted to the outbox and flow into
+the Bronze layer. This table is the authoritative list — if an event type is
+not here, it is not in the lake.
+
+| Domain | Event types |
+|---|---|
+| Payments | `payment.created`, `payment.processing`, `payment.authorised`, `payment.succeeded`, `payment.failed`, `payment.refunded`, `payment.requires_action`, `payment.indeterminate` |
+| Settlement | `settlement.batch.created`, `settlement.batch.awaiting_approval`, `settlement.batch.dispatch_approved`, `settlement.batch.dispatch_rejected`, `settlement.batch.dispatched`, `settlement.batch.settled` |
+| Disputes | `dispute.resolved` |
+| Reconciliation | `reconciliation.run.completed`, `reconciliation.report.ingested`, `reconciliation.adjustment.proposed`, `reconciliation.adjustment.approved`, `reconciliation.adjustment.rejected` |
+| Compliance / KYB | `compliance.onboarding_submitted`, `compliance.beneficial_owner_added`, `compliance.beneficial_owner_updated`, `compliance.beneficial_owner_removed`, `compliance.kyb_document_uploaded`, `compliance.screening_hit_raised`, `compliance.screening_hit_dispositioned` |
+| Merchants | `merchant.registered`, `merchant.approved`, `merchant.sandbox_enabled`, `merchant.application.resubmitted` |
+| Checkout | `checkout_session.completed` |
+| Payment Links | `payment_link.created`, `payment_link.deactivated` |
+| Webhooks | `webhook.delivery.attempted` |
+
+Reference data (current merchant profiles, provider configurations) does not
+travel as events — it is periodically snapshotted into Silver as static Parquet
+files (`merchants_latest.parquet`, `providers_latest.parquet`) and joined in
+at ETL time.
+
+**Adding a new domain to the lake** means two things: (1) emit an outbox event
+from the application at the right state transition, and (2) write a Silver ETL
+script to transform that Bronze event into a typed Silver table.
 
 The outbox feeds Redpanda (at P14). Redpanda Connect (the streaming ETL layer)
 consumes from Redpanda topics and writes to the Bronze layer.
@@ -368,11 +446,15 @@ yagye-lake-raw/
       batch_20261018T121004Z_0002.parquet   ← 500 events
   payment.failed/
     ...
-  settlement_batch.dispatched/
+  settlement.batch.dispatched/
     ...
-  merchant.kyb_approved/
+  merchant.approved/
+    ...
+  compliance.screening_hit_raised/
     ...
 ```
+(Event type names map directly to S3 prefix names — see the event catalogue
+in §4 for the full list.)
 
 The partition key is the **ingestion timestamp** (when the event was written to
 S3), not the event's `effective_at` timestamp. This is intentional: late-arriving
@@ -986,6 +1068,28 @@ for row in provider_health_data:
     })
     redis.expire(f"features:provider:{row.provider_code}:h{row.hour}", 3600)
 ```
+
+### Beyond the four P20 models
+
+The four models above (routing predictor, risk scorer, reserve recommender,
+churn predictor) are the P20 foundation. `ml-architecture.md` §15 documents
+seven additional ML opportunities planned for P22+, in priority order:
+
+1. **Smart retry prediction** — classify MoMo failure modes and predict optimal
+   retry timing. Highest conversion rate impact given MoMo's diverse failure
+   modes.
+2. **Volume forecasting** — predict daily/weekly payment volume for treasury
+   and float management. Fully buildable from existing Gold data.
+3. **AML transaction monitoring** — detect structuring, velocity layering, and
+   round-tripping patterns. Required for BOG STR compliance at scale.
+4. **Network health forecasting** — predict MoMo network degradation before it
+   starts, feeding the routing predictor as a forward-looking signal.
+5. **Cross-merchant MSISDN fraud signal** — aggregate risk features across all
+   merchants to catch fraud rings that stay below per-merchant velocity limits.
+6. **KYB risk scoring** — automate low-risk merchant onboarding approvals to
+   reduce compliance review bottleneck at scale.
+7. **Settlement anomaly detection** — detect systematic provider under-reporting
+   across settlement batches using unsupervised methods.
 
 ---
 

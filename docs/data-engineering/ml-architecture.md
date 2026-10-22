@@ -1,6 +1,6 @@
 # ML Architecture
 
-**Last updated:** 2026-10-18
+**Last updated:** 2026-10-21
 
 Yagye's ML layer (planned for P20) adds four models to the payment processing
 pipeline. This document is the definitive reference for what each model does,
@@ -29,6 +29,7 @@ decision.
 12. [Graceful Degradation](#12-graceful-degradation)
 13. [The Elixir Migration Path](#13-the-elixir-migration-path)
 14. [Monitoring and Model Health](#14-monitoring-and-model-health)
+15. [Additional ML Opportunities (P22+)](#15-additional-ml-opportunities-p22)
 
 ---
 
@@ -1213,3 +1214,267 @@ def should_promote(champion_metrics, challenger_metrics):
 Subgroup evaluation is critical for fairness: a model that improves overall
 accuracy by routing away from a specific network (e.g. always avoiding
 AirtelTigo) is a business failure, even if overall AUC-PR improves.
+
+---
+
+## 15. Additional ML Opportunities (P22+)
+
+The four models in §2 are the P20 foundation. They solve the most direct
+business problems with the clearest training signals. The opportunities below
+are the next wave — higher build cost, longer data accumulation required, or
+dependent on the foundation models being stable first.
+
+They are listed in priority order for Yagye's MoMo-first, Ghana market context.
+None are in scope before P22.
+
+---
+
+### 15.1 Smart Retry Prediction
+
+**Why this is the highest-priority gap**
+
+MoMo failure modes are not uniform, and retrying a terminal failure wastes a
+USSD prompt (which confuses the customer) and adds latency. The current system
+retries based on static rules. A model can predict:
+
+- Is this failure transient (worth retrying) or terminal (pointless)?
+- If transient: how long to wait before retrying?
+
+| Failure class | Example codes | Retry behaviour |
+|---|---|---|
+| Terminal | `insufficient_funds`, `account_blocked` | Do not retry — outcome is deterministic |
+| Transient — network | `network_timeout`, `provider_unavailable` | Retry after 15 min |
+| Transient — user | `ussd_session_timeout`, `no_response` | Retry at a different time of day |
+
+**Model type:** Two-stage. Stage 1: binary classifier (`should_retry`).
+Stage 2: regression (`optimal_retry_delay_minutes`) applied only when
+Stage 1 outputs retry=true.
+
+**Input features:**
+- `error_class`, `response_code` (already on `payment.failed`)
+- `provider_code`, `network_code`
+- `hour_of_day`, `day_of_week`
+- `customer_attempt_count_1h` (velocity)
+- `provider_error_rate_1h` (is this a provider-wide issue?)
+- `amount_minor`
+
+**Label:**
+- Stage 1: did a retry within 2 hours succeed? (1 = yes, retry was worth it)
+- Stage 2: how many minutes after failure did the successful retry occur?
+
+**Data dependency:** Requires `latency_ms` in `payment.failed` events (known
+gap — see the data engineering feasibility notes). Otherwise buildable from
+existing data.
+
+**Retraining:** Weekly.
+
+---
+
+### 15.2 Volume Forecasting
+
+**Why this matters for a float-holding PSP**
+
+Yagye holds float (pre-funded balances at banks/telcos to cover same-day
+settlements). Predicting daily and weekly payment volume determines how much
+to pre-fund. Under-funding causes settlement delays. Over-funding locks up
+working capital unnecessarily.
+
+**Model type:** Time-series forecasting. Facebook Prophet or a simple LSTM.
+Prophet is preferred for interpretability and its native handling of Ghanaian
+public holiday effects and payroll seasonality (last working day of month =
+volume spike).
+
+**Input features:**
+- Historical daily volume (from `fact_payments` Gold)
+- Day of week, month, public holiday flag (Ghana calendar)
+- End-of-month payroll flag (salary transfer rush)
+- Major event flag (football match days → elevated consumer MoMo traffic)
+- Trailing 7-day and 30-day volume trends
+
+**Output:** Predicted total volume for next 7 days and 30 days with 80%
+and 95% confidence intervals per network/currency.
+
+**Data dependency:** None — fully buildable from existing `fact_payments` Gold
+data. The historical signal exists from day one of live transactions.
+
+**Retraining:** Monthly (volume patterns are stable; weekly retraining is
+unnecessary cost).
+
+---
+
+### 15.3 AML Transaction Monitoring
+
+**Why this is a regulatory requirement, not a product feature**
+
+Bank of Ghana's AML/CFT framework (aligned with FATF Recommendation 16) requires
+PSPs to file Suspicious Transaction Reports (STRs). Manual review does not scale.
+At volume, ML-based pattern detection is necessary to catch:
+
+- **Structuring:** A customer splits a GHS 5,200 payment into three transactions
+  (GHS 1,800 + GHS 1,700 + GHS 1,700) to stay below reporting thresholds.
+- **Velocity layering:** Funds enter via one merchant and exit via unrelated
+  merchants in rapid succession — consistent with money mule patterns.
+- **Round-tripping:** A merchant receives payments and makes payments back to
+  the same MSISDN set — funds cycling.
+
+**Model type:** Two-layer:
+1. **Unsupervised anomaly detector** (Isolation Forest) — flags transactions
+   statistically unlike the population. Handles the cold-start problem: works
+   even with few labelled fraud examples.
+2. **Supervised classifier** (LightGBM) — trained on labelled STR outcomes
+   (compliance team's historical review decisions). Improves over time as labels
+   accumulate.
+
+**Training label:** `1` if compliance filed an STR on this transaction/customer
+within 30 days of the activity, else `0`. Requires a `compliance.str_filed`
+event (not yet emitted — must be added when building this).
+
+**Key features:**
+- `customer_distinct_merchants_1h` (already in risk_features_hourly)
+- `customer_amount_total_24h` (same)
+- Transaction round-number flag (`amount_minor % 100_000 == 0`)
+- Structural similarity score to known STR patterns
+
+**Output:** Suspicion score 0–1. Scores above threshold surface in the
+compliance team's review queue (portal). Filing remains a human decision —
+ML flags, compliance decides.
+
+---
+
+### 15.4 Network Health Forecasting (Proactive)
+
+**Current limitation:** The routing predictor uses `recent_success_rate_1h` —
+a backward-looking signal. The circuit breaker opens *after* failures occur.
+The system is reactive.
+
+**What this adds:** A forward-looking degradation forecast. MTN MoMo degrades
+predictably:
+- Weekday afternoons 13:00–16:00 UTC+0 (peak consumer traffic)
+- Last working day of the month (payroll settlement rush)
+- Major football match events
+
+A time-series model trained on historical degradation windows can warn:
+"MTN is 73% likely to degrade between 14:00–16:00 today — advise merchants
+and pre-position ops."
+
+**Model type:** Binary classifier on hourly buckets (will provider success rate
+drop below 80% in this hour?). Features: hour of day, day of week, end-of-month
+flag, trailing 7-day rolling degradation rate for this provider/hour combination.
+
+**Integration:** The forecast feeds the routing predictor as an additional
+input feature (`predicted_degradation_score`) — making the routing predictor
+itself forward-looking, not just reactive.
+
+**Data dependency:** None — historical `provider_health_hourly` Gold data is
+the training set. Buildable as soon as 6+ months of Gold history exists.
+
+---
+
+### 15.5 Cross-Merchant MSISDN Fraud Signal
+
+**The gap in the current risk scorer**
+
+The risk scorer computes `customer_fail_count_1h` and similar features *within
+a single merchant's context*. A fraud ring that hits three different merchants
+with the same MSISDN — each below individual velocity thresholds — is invisible
+to per-merchant velocity checking.
+
+A platform-level feature aggregates across all merchants:
+
+```sql
+-- Gold: customer_risk_global_hourly
+SELECT
+  customer_msisdn_hash,
+  COUNT(DISTINCT merchant_code) AS distinct_merchants_global_1h,
+  SUM(CASE WHEN status = 'failed' THEN 1 ELSE 0 END) AS fail_count_global_1h,
+  SUM(amount_minor) AS amount_total_global_1h
+FROM silver_payments
+WHERE mode = 'live'
+  AND effective_at >= NOW() - INTERVAL '1 hour'
+GROUP BY customer_msisdn_hash
+```
+
+This is a new Gold table (`customer_risk_global_hourly`) added to the Risk Mart.
+Once built, `distinct_merchants_global_1h` becomes a high-signal feature for the
+risk scorer's next retraining cycle.
+
+**Data dependency:** None — all payment data is already in Silver. Requires
+adding this Gold table and exposing it via the feature store (Redis cache).
+
+---
+
+### 15.6 KYB Risk Scoring (Onboarding Automation)
+
+**The manual review bottleneck**
+
+Every merchant onboarding today requires a compliance analyst review. At scale
+this is the binding constraint on merchant acquisition. An ML model that
+auto-approves low-risk applications reduces manual review to edge cases.
+
+**Model type:** XGBoost binary classifier (auto-approve vs requires-review).
+
+**Input features:**
+- Business sector (encoded)
+- Registration age in days
+- Beneficial owner count
+- Country of registration
+- Business description embedding (from LLM enrichment — a Silver column)
+- KYB document completeness score (% of required documents submitted)
+
+**Label:** Historical compliance outcome (approved / approved-with-restrictions /
+rejected → binary: auto-approve candidate vs not). Requires 12+ months of
+labelled KYB decisions to produce a reliable training set.
+
+**Output:** `{recommended_tier: int, auto_approve: bool, review_flags: [str]}`.
+The model advises; a compliance analyst makes the final call. Auto-approval
+is only enabled once the model achieves > 98% precision on the auto-approve
+class (very few false approvals).
+
+**Data dependency:** `compliance.onboarding_submitted` and subsequent
+`merchant.approved` / rejection events provide the labels. The LLM enrichment
+step (from `ai-layer.md` §1) provides the business description embedding.
+
+---
+
+### 15.7 Settlement Anomaly Detection
+
+**The problem**
+
+Yagye reconciles settlement reports from MoMo networks against its own ledger.
+Rule-based reconciliation catches exact mismatches. ML detects *systematic
+drift*:
+
+- "MTN's settlement reports have included 0.3% fewer transactions than Yagye's
+  records for the last 3 weeks — this is a pattern, not noise."
+- "AirtelTigo settlement amounts have higher variance than expected for the
+  GMV reported — possible fee calculation discrepancy."
+
+**Model type:** Unsupervised — Isolation Forest on settlement delta features
+(expected vs received transaction count, expected vs received gross amount,
+fee rate variance from pricing rules). No labelled fraud examples required.
+
+**Input features** (from `fact_settlement_items` Gold):
+- `delta_transaction_count = yagye_count - provider_reported_count`
+- `delta_gross_amount = yagye_gross - provider_reported_gross`
+- `fee_rate_variance = actual_fee_rate - contracted_fee_rate`
+- Rolling 30-day mean and std of the above per provider
+
+**Output:** Anomaly score per settlement batch. Batches above threshold surface
+in the reconciliation review queue in the ops portal.
+
+**Data dependency:** `fact_settlement_items` Gold table (already planned).
+Requires 3+ months of settlement history for the Isolation Forest baseline.
+
+---
+
+### Priority summary
+
+| Priority | Model | Business driver | New data needed |
+|---|---|---|---|
+| 1 | Smart retry prediction | Direct conversion rate lift on MoMo flakiness | `latency_ms` in `payment.failed` |
+| 2 | Volume forecasting | Treasury / float management | None |
+| 3 | AML transaction monitoring | BOG regulatory compliance | `compliance.str_filed` event |
+| 4 | Network health forecasting | Proactive ops vs reactive circuit breaking | None (6 months Gold history) |
+| 5 | Cross-merchant MSISDN signal | Platform-level fraud moat | New Gold table |
+| 6 | KYB risk scoring | Onboarding scale / ops cost | 12 months labelled KYB outcomes |
+| 7 | Settlement anomaly detection | Systematic provider under-reporting | 3 months settlement Gold history |
