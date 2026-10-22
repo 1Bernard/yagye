@@ -123,6 +123,18 @@ defmodule YagyeCore.Merchants do
     })
   end
 
+  def suspend_merchant(merchant_id, suspended_by) do
+    with {:ok, merchant} <- get_merchant_by_id(merchant_id) do
+      do_suspend(merchant, suspended_by)
+    end
+  end
+
+  def unsuspend_merchant(merchant_id, reinstated_by) do
+    with {:ok, merchant} <- get_merchant_by_id(merchant_id) do
+      do_unsuspend(merchant, reinstated_by)
+    end
+  end
+
   def enable_sandbox_mode(merchant_id, granted_by) do
     with {:ok, merchant} <- get_merchant_by_id(merchant_id) do
       Multi.new()
@@ -801,6 +813,47 @@ defmodule YagyeCore.Merchants do
   end
 
   # ── Private helpers ──────────────────────────────────────────────────────────
+
+  defp do_suspend(%Merchant{activity_state: "suspended"} = merchant, _suspended_by) do
+    {:ok, merchant}
+  end
+
+  defp do_suspend(merchant, suspended_by) do
+    Multi.new()
+    |> Multi.update(:merchant, Merchant.suspend_changeset(merchant))
+    |> Multi.insert(:outbox, fn %{merchant: m} ->
+      Outbox.build_changeset(m, "merchant.suspended", %{
+        merchant_code: m.public_id,
+        suspended_by: suspended_by
+      })
+    end)
+    |> Repo.transaction()
+    |> case do
+      {:ok, %{merchant: m}} -> {:ok, m}
+      {:error, _step, reason, _} -> {:error, reason}
+    end
+  end
+
+  defp do_unsuspend(%Merchant{activity_state: state} = merchant, _reinstated_by)
+       when state != "suspended" do
+    {:ok, merchant}
+  end
+
+  defp do_unsuspend(merchant, reinstated_by) do
+    Multi.new()
+    |> Multi.update(:merchant, Merchant.unsuspend_changeset(merchant))
+    |> Multi.insert(:outbox, fn %{merchant: m} ->
+      Outbox.build_changeset(m, "merchant.reinstated", %{
+        merchant_code: m.public_id,
+        reinstated_by: reinstated_by
+      })
+    end)
+    |> Repo.transaction()
+    |> case do
+      {:ok, %{merchant: m}} -> {:ok, m}
+      {:error, _step, reason, _} -> {:error, reason}
+    end
+  end
 
   def grant_sandbox_mode(merchant_id) do
     grant_mode(merchant_id, :sandbox)

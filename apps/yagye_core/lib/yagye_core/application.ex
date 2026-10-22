@@ -16,6 +16,7 @@ defmodule YagyeCore.Application do
         YagyeCore.Repo,
         {Redix, {redis_url(), [name: :yagye_redix]}},
         YagyeCore.Shared.RateLimiter,
+        YagyeCore.Routing.CircuitBreaker,
         {DNSCluster, query: Application.get_env(:yagye_core, :dns_cluster_query) || :ignore},
         {Phoenix.PubSub, name: YagyeCore.PubSub},
         {Oban, Application.fetch_env!(:yagye_core, Oban)},

@@ -153,6 +153,7 @@ defmodule YagyeCore.Payments do
           merchant_reference: p.merchant_reference,
           description: p.description,
           provider_code: result[:provider_code],
+          network: get_in(p.metadata, ["network"]),
           provider: network_to_provider(get_in(p.metadata, ["network"])),
           amount: p.amount,
           currency: p.currency,
@@ -160,6 +161,7 @@ defmodule YagyeCore.Payments do
           checkout_session_id: get_in(p.metadata, ["checkout_session_id"]),
           customer_msisdn: get_in(p.metadata, ["msisdn"]),
           customer_email: get_in(p.metadata, ["customer_email"]),
+          latency_ms: attempt.latency_ms,
           paid_at: DateTime.utc_now() |> DateTime.to_iso8601()
         },
         correlation_id: p.public_id
@@ -218,7 +220,9 @@ defmodule YagyeCore.Payments do
           amount: p.amount,
           currency: p.currency,
           method: p.method,
-          mode: p.mode
+          mode: p.mode,
+          provider_code: provider_code_from_attempt(attempt),
+          latency_ms: attempt.latency_ms
         },
         correlation_id: p.public_id
       )
@@ -256,7 +260,9 @@ defmodule YagyeCore.Payments do
           amount: p.amount,
           currency: p.currency,
           method: p.method,
-          mode: p.mode
+          mode: p.mode,
+          provider_code: provider_code_from_attempt(attempt),
+          latency_ms: attempt.latency_ms
         },
         correlation_id: p.public_id
       )
@@ -611,6 +617,12 @@ defmodule YagyeCore.Payments do
   defp network_to_provider("VODAFONE"), do: "telecel_cash"
   defp network_to_provider("AIRTELTIGO"), do: "airteltigo"
   defp network_to_provider(_), do: nil
+
+  # Safe provider code extraction — the provider association may or may not be preloaded.
+  # The dispatch worker injects the loaded provider struct before calling handle_provider_response,
+  # so in normal flow this always returns the code. Falls back to nil in tests or edge cases.
+  defp provider_code_from_attempt(%{provider: %{code: code}}), do: code
+  defp provider_code_from_attempt(_attempt), do: nil
 
   defp current_mode(merchant) do
     cond do

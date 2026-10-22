@@ -73,6 +73,16 @@ defmodule YagyeCore.Merchants.Schemas.Merchant do
     |> validate_sod_actors()
   end
 
+  def suspend_changeset(merchant) do
+    merchant
+    |> change(activity_state: "suspended")
+    |> validate_inclusion(:status, ["approved"])
+  end
+
+  def unsuspend_changeset(merchant) do
+    change(merchant, activity_state: "active")
+  end
+
   defp validate_sod_actors(changeset) do
     approved_by = get_field(changeset, :approved_by)
     reviewed_by = get_field(changeset, :reviewed_by)

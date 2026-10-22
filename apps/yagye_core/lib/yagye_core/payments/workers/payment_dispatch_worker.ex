@@ -8,6 +8,7 @@ defmodule YagyeCore.Payments.Workers.PaymentDispatchWorker do
   alias YagyeCore.Payments
   alias YagyeCore.Payments.Providers.ProviderAdapter
   alias YagyeCore.Providers
+  alias YagyeCore.Routing.CircuitBreaker
 
   @impl Oban.Worker
   def perform(%Oban.Job{args: %{"payment_id" => payment_id}, attempt: job_attempt}) do
@@ -33,14 +34,27 @@ defmodule YagyeCore.Payments.Workers.PaymentDispatchWorker do
           "provider.code" => provider.code
         })
 
+        # Inject the preloaded provider struct into the attempt so that outbox event
+        # payloads in Payments can access provider.code without an extra DB query.
+        attempt = %{attempt | provider: provider}
+
         result = ProviderAdapter.for_provider(provider).charge(payment, attempt, credential)
 
         case result do
           {:pending, pending_data} ->
             Payments.handle_pending_auth(payment, attempt, pending_data)
 
-          _ ->
+          {:ok, _} ->
+            CircuitBreaker.record_success(provider.id)
             Payments.handle_provider_response(payment, attempt, result)
+
+          {:error, %{error_class: class}} = error
+          when class in [:definite_failure, :retryable_error] ->
+            CircuitBreaker.record_failure(provider.id)
+            Payments.handle_provider_response(payment, attempt, error)
+
+          other ->
+            Payments.handle_provider_response(payment, attempt, other)
         end
       end
     end

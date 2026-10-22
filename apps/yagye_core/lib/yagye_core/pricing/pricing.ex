@@ -5,7 +5,9 @@ defmodule YagyeCore.Pricing do
 
   import Ecto.Query
 
+  alias Ecto.Multi
   alias YagyeCore.Merchants.Schemas.Merchant
+  alias YagyeCore.Outbox
   alias YagyeCore.Pricing.Schemas.{FeeRecord, PlatformFeeInvoice, PricingPlan, PricingRule}
   alias YagyeCore.Repo
 
@@ -173,9 +175,19 @@ defmodule YagyeCore.Pricing do
         {:ok, plan}
 
       plan ->
-        plan
-        |> PricingPlan.activate_changeset(actor)
-        |> Repo.update()
+        Multi.new()
+        |> Multi.update(:plan, PricingPlan.activate_changeset(plan, actor))
+        |> Multi.insert(:outbox, fn %{plan: p} ->
+          Outbox.build_changeset(p, "pricing_plan.activated", %{
+            plan_code: p.public_id,
+            activated_by: actor
+          })
+        end)
+        |> Repo.transaction()
+        |> case do
+          {:ok, %{plan: p}} -> {:ok, p}
+          {:error, _step, reason, _} -> {:error, reason}
+        end
     end
   end
 

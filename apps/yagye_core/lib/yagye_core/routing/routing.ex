@@ -10,6 +10,8 @@ defmodule YagyeCore.Routing do
 
   alias YagyeCore.Providers.Schemas.Provider
 
+  alias YagyeCore.Routing.CircuitBreaker
+
   alias YagyeCore.Routing.Schemas.{
     RoutingConfiguration,
     RoutingRule,
@@ -92,13 +94,19 @@ defmodule YagyeCore.Routing do
   def evaluate(merchant_id, mode, payment_attrs, excluded_provider_ids \\ []) do
     {:ok, rules} = list_rules(mode: mode, merchant_id: merchant_id)
 
+    # Merge manually-excluded providers (already-tried retries) with providers whose
+    # circuit breakers are open. Half-open providers are intentionally kept — the next
+    # payment to them acts as the probe that decides whether to close or re-open.
+    open_circuit_ids = CircuitBreaker.open_provider_ids()
+    all_excluded = Enum.uniq(excluded_provider_ids ++ open_circuit_ids)
+
     ordered =
       Enum.sort_by(rules, fn r -> {if(r.scope == "merchant", do: 0, else: 1), r.priority} end)
 
     matching_rule =
       Enum.find(ordered, fn rule ->
         rule_matches?(rule, payment_attrs) and
-          not rule_excluded?(rule, excluded_provider_ids)
+          not rule_excluded?(rule, all_excluded)
       end)
 
     case matching_rule do
@@ -109,7 +117,7 @@ defmodule YagyeCore.Routing do
         action =
           rule.actions
           |> Enum.sort_by(& &1.priority)
-          |> Enum.find(fn a -> a.provider_id not in excluded_provider_ids end)
+          |> Enum.find(fn a -> a.provider_id not in all_excluded end)
 
         if action do
           {:ok, {action.provider_id, rule.id, rule.routing_configuration_id}}
