@@ -333,6 +333,13 @@ Redpanda config: `localhost:19092` (dev), `KAFKA_BOOTSTRAP_SERVERS` env (prod), 
 - [ ] **DuckDB feature extraction layer** — Python notebook + scripts querying Floci S3
       directly (`SET s3_endpoint='floci:4566'`). Computes: inter-arrival times,
       provider success rates by 15-min window, merchant baseline deviation, T+1 drift stats.
+- [ ] **Schema registry for Bronze events** — Enable the Redpanda schema registry
+      (already running on :8081 in docker-compose) and register Avro schemas for each
+      outbox event type (`payment.succeeded`, `settlement.completed`, etc.). Wire
+      `DataLakeIngestionWorker` to validate envelopes against the registry before writing
+      to Bronze. Without this, a field rename in an event payload produces silent nulls in
+      Silver with no error. See `docs/data-engineering/README.md §Maturity Roadmap` for
+      context; Level 3 item.
 - [ ] See ADR-0022 for architecture decisions.
 
 ---
@@ -374,6 +381,21 @@ Redpanda config: `localhost:19092` (dev), `KAFKA_BOOTSTRAP_SERVERS` env (prod), 
       directors, good standing via RGD API.
 - [ ] Full AML provider integration (ComplyAdvantage or LexisNexis) — replace screening stubs
       with real API calls.
+
+---
+
+### P22 — Going Live
+
+- [ ] **Production ETL orchestration** — Replace the docker-compose shell loop
+      (`while true; sleep 3600`) in `yagye_data` with AWS EventBridge Scheduler rules
+      triggering ECS Fargate tasks: Silver every hour, Gold every 6 hours, model training
+      weekly. Gives retry logic, CloudWatch alerting on failure, and run history. In
+      production these are separate ECS task definitions with distinct schedules — no
+      shared container. The docker-compose loop is dev scaffolding only and must not reach
+      production. See `infra/docker/docker-compose.yml` yagye_data service for current
+      dev setup.
+- [ ] Real AWS — swap Floci for real S3 + KMS across all services.
+- [ ] Budget alarm (AWS cost guard).
 
 ---
 
