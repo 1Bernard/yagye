@@ -321,18 +321,22 @@ Redpanda config: `localhost:19092` (dev), `KAFKA_BOOTSTRAP_SERVERS` env (prod), 
 
 ### P19 — The Data Platform
 
-- [ ] **Floci in docker-compose** — local AWS S3 + KMS emulator; add to `data` network.
-      Provision `yagye-lake-raw` and `yagye-lake-curated` buckets on startup.
+- [x] **Floci in docker-compose (2026-10-22)** — added to `data` network; `mix yagye.s3.setup`
+      now creates all 5 buckets: KYB documents, Bronze (yagye-lake-raw), Silver
+      (yagye-lake-silver), Gold (yagye-lake-gold), ML models (yagye-ml-models).
+- [x] **Bronze ingestion — DataLakeIngestionWorker (2026-10-22)** — Oban cron (every minute)
+      polls `outbox_messages` in a 150 s sliding window and writes NDJSON to Bronze S3.
+      Chose NDJSON over Redpanda Connect Parquet sink — simpler (Jason.encode!/1), zero
+      new infrastructure, DuckDB reads natively. Silver handles Parquet conversion + dedup.
+      `S3Writer` in `yagye_core/data_lake/`; Bronze key: `events/dt=YYYY-MM-DD/<prefix>_<us>.ndjson`.
+- [x] **yagye_data Python app + Silver/Gold ETL (2026-10-22)** — `apps/yagye_data/`:
+      DuckDB-based Silver ETL (payments, settlements, merchants, reconciliation), Gold ETL
+      (payments_mart, risk_mart, ops_mart), ML training scaffold (XGBoost, LightGBM, ONNX).
+      Runs as `yagye_data` docker-compose service (Silver hourly, Gold every 6 h).
 - [ ] **Synthetic data generator** — `mix simulator.generate_load` Mix task in
       `gateway_simulator`. Fires N payments at Core API using deterministic MSISDN
       prefixes to produce labeled outcome classes (success / insufficient_funds /
       timeout / fraud-burst). Target: 50k events in < 2 minutes locally.
-- [ ] **Redpanda → Parquet sink** — Redpanda Connect pipeline consuming outbox topics
-      (`payment.*`, `dispute.*`, `reconciliation.*`) and writing partitioned Parquet to
-      Floci S3: `s3://yagye-lake-raw/events/year=YYYY/month=MM/day=DD/`.
-- [ ] **DuckDB feature extraction layer** — Python notebook + scripts querying Floci S3
-      directly (`SET s3_endpoint='floci:4566'`). Computes: inter-arrival times,
-      provider success rates by 15-min window, merchant baseline deviation, T+1 drift stats.
 - [ ] **Schema registry for Bronze events** — Enable the Redpanda schema registry
       (already running on :8081 in docker-compose) and register Avro schemas for each
       outbox event type (`payment.succeeded`, `settlement.completed`, etc.). Wire
