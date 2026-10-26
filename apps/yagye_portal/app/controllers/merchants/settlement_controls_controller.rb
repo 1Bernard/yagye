@@ -26,13 +26,27 @@ module Merchants
       when "weekly"  then params[:settlement_day_weekly].to_i.clamp(1, 5)
       when "monthly" then params[:settlement_day_monthly].to_i.clamp(1, 28)
       end
+      delay_days          = params[:settlement_delay_days].presence&.to_i
+      minimum_payout_ghs  = params[:minimum_payout_ghs].presence&.to_f
+      minimum_payout_pesewas = minimum_payout_ghs ? (minimum_payout_ghs * 100).round : nil
+      reserve_rate_pct    = params[:reserve_rate_pct].presence&.to_f
+      reserve_rate_bps    = reserve_rate_pct ? (reserve_rate_pct * 100).round : nil
+      reserve_release_days = params[:reserve_release_days].presence&.to_i
+      on_hold             = params[:on_hold] == "1"
+      hold_reason         = params[:hold_reason].presence
 
       result = CoreApiClient.new.update_settlement_controls(
         @app.merchant_code,
-        approval_threshold:   threshold,
-        approver_user_codes:  approver_codes,
-        settlement_frequency: frequency,
-        settlement_day:       day
+        approval_threshold:    threshold,
+        approver_user_codes:   approver_codes,
+        settlement_frequency:  frequency,
+        settlement_day:        day,
+        settlement_delay_days: delay_days,
+        minimum_payout_pesewas: minimum_payout_pesewas,
+        reserve_rate_bps:      reserve_rate_bps,
+        reserve_release_days:  reserve_release_days,
+        on_hold:               on_hold,
+        hold_reason:           hold_reason
       )
 
       if result.success?
