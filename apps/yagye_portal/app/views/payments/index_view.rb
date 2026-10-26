@@ -6,7 +6,8 @@ module Payments
 
     def initialize(payments:, pagy:, stats: {}, show_merchant: false,
                    can_view_pii: false, can_export: false,
-                   status_filter: nil, method_filter: nil, from: nil, to: nil, query: nil,
+                   status_filter: nil, method_filter: nil, provider_filter: nil,
+                   mode_filter: nil, from: nil, to: nil, query: nil,
                    payments_stream_key: nil)
       @payments            = payments
       @pagy                = pagy
@@ -16,6 +17,8 @@ module Payments
       @can_export          = can_export
       @status_filter       = status_filter
       @method_filter       = method_filter
+      @provider_filter     = provider_filter
+      @mode_filter         = mode_filter
       @from                = from
       @to                  = to
       @query               = query
@@ -33,6 +36,7 @@ module Payments
           subtitle: "All transactions processed through your account."
         )
         stat_band
+        mode_tabs if @show_merchant
         payments_table
       end
     end
@@ -222,7 +226,8 @@ module Payments
 
     def filter_btn(filter_count)
       a(href: filter_payments_path(q: @query, status: @status_filter,
-                                   method: @method_filter, from: @from, to: @to),
+                                   method: @method_filter, provider: @provider_filter,
+                                   from: @from, to: @to),
         class: "inline-flex items-center gap-[5px] px-3 h-8 border rounded-[9px] " \
                "text-[12.5px] font-medium bg-white cursor-pointer transition-colors no-underline " \
                "#{filter_count > 0 ? 'border-gray-400 text-gray-900' : 'border-gray-200 text-gray-600'} " \
@@ -237,6 +242,13 @@ module Payments
             plain filter_count.to_s
           end
         end
+      end
+    end
+
+    def mode_tabs
+      render UI::Tabs.new do |t|
+        t.tab "Live", href: payments_path(q: @query),              active: @mode_filter == "live"
+        t.tab "Test", href: payments_path(q: @query, mode: "test"), active: @mode_filter == "test"
       end
     end
 

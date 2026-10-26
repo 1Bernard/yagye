@@ -58,13 +58,15 @@ module Payments
           t.header { toolbar }
 
           t.column("Customer", class: "min-w-[180px]") do |c|
-            ref      = c["merchant_customer_ref"] || c["id"]&.first(12) || "—"
-            msisdn   = c["msisdn"]
-            s        = stats[msisdn]
-            segs     = seg_fn.call(s)
+            ref    = c["merchant_customer_ref"] || c["id"]&.first(12) || "—"
+            name   = c["name"].presence
+            email  = c["email"].presence
+            phone  = c["msisdn"].presence
+            s      = stats[ref]
+            segs   = seg_fn.call(s)
             div do
               div(class: "flex items-center gap-1.5 flex-wrap") do
-                p(class: "text-[13px] font-medium text-gray-900 font-mono") { plain ref }
+                p(class: "text-[13px] font-medium text-gray-900 #{name ? '' : 'font-mono'}") { plain(name || ref) }
                 segs.each do |seg|
                   cfg = SEGMENT_CFG[seg]
                   span(class: "inline-flex items-center px-1.5 py-px rounded text-[10px] font-semibold #{cfg[:css]}") do
@@ -72,12 +74,15 @@ module Payments
                   end
                 end
               end
-              p(class: "text-[11px] text-gray-400 font-mono mt-0.5") { plain(msisdn) } if msisdn
+              div(class: "flex flex-col gap-px mt-0.5") do
+                p(class: "text-[11px] text-gray-400 font-mono") { plain ref } if name
+                p(class: "text-[11px] text-gray-400") { plain email } if email
+              end
             end
           end
 
           t.column("Network") do |c|
-            msisdn  = c["msisdn"]
+            msisdn  = c["merchant_customer_ref"]
             network = networks[msisdn]
             logo    = Payment::PROVIDER_LOGOS[network.to_s]
             if logo && msisdn
@@ -105,27 +110,36 @@ module Payments
           end
 
           t.column("Velocity") do |c|
-            msisdn = c["msisdn"]
+            msisdn = c["merchant_customer_ref"]
             s      = stats[msisdn]
             status = vel_fn.call(s, c["kyc_tier"])
-            cfg    = VELOCITY_CFG[status]
-            span(class: "inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium #{cfg[:css]}") do
-              plain cfg[:label]
+            if %i[near_limit at_limit].include?(status)
+              cfg = VELOCITY_CFG[status]
+              span(class: "inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium #{cfg[:css]}") do
+                plain cfg[:label]
+              end
+            else
+              span(class: "text-gray-400 text-[12px]") { plain "—" }
             end
           end
 
           t.column("Total Spent", class: "text-right tabular-nums") do |c|
-            msisdn = c["msisdn"]
+            msisdn = c["merchant_customer_ref"]
             s      = stats[msisdn]
             if s && s[:total_volume].to_i.positive?
-              span(class: "text-[13px] font-semibold text-gray-900") { plain fmt_ghs.call(s[:total_volume]) }
+              div(class: "text-right") do
+                p(class: "text-[13px] font-semibold text-gray-900 tabular-nums") { plain fmt_ghs.call(s[:total_volume]) }
+                if s[:mtd_volume].to_i.positive? && s[:mtd_volume] != s[:total_volume]
+                  p(class: "text-[11px] text-gray-400 mt-0.5") { plain "#{fmt_ghs.call(s[:mtd_volume])} this month" }
+                end
+              end
             else
               span(class: "text-gray-400 text-[12px]") { plain "—" }
             end
           end
 
           t.column("Transactions", class: "text-right tabular-nums") do |c|
-            msisdn = c["msisdn"]
+            msisdn = c["merchant_customer_ref"]
             s      = stats[msisdn]
             if s
               div(class: "text-right") do
@@ -140,7 +154,7 @@ module Payments
           end
 
           t.column("Last Payment") do |c|
-            msisdn = c["msisdn"]
+            msisdn = c["merchant_customer_ref"]
             s      = stats[msisdn]
             ts     = s&.dig(:last_payment_at)
             if ts

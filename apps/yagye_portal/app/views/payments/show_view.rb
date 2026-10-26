@@ -4,13 +4,14 @@ module Payments
   class ShowView < ApplicationComponent
     include UI::Theme
 
-    def initialize(payment:, events: [], can_refund: false, can_view_pii: false, other_payments: [], dispute: nil)
+    def initialize(payment:, events: [], can_refund: false, can_view_pii: false, other_payments: [], dispute: nil, reserve_hold: nil)
       @payment        = payment
       @events         = events
       @can_refund     = can_refund
       @can_view_pii   = can_view_pii
       @other_payments = other_payments
       @dispute        = dispute
+      @reserve_hold   = reserve_hold
     end
 
     def view_template
@@ -36,6 +37,7 @@ module Payments
         dispute_banner if @dispute
         amount_card
         details_card
+        customer_card if @payment.customer_msisdn.present?
         metadata_card
         core_events_card if @events.any?
       end
@@ -69,10 +71,47 @@ module Payments
           end
         end
 
+        if @reserve_hold&.dig("state") == "pending"
+          hold_amount    = @reserve_hold["amount"].to_i
+          net_minor      = @payment.net_amount || @payment.amount
+          available      = net_minor - hold_amount
+          currency       = @reserve_hold["currency"] || @payment.currency
+          release_date   = begin
+                             Time.parse(@reserve_hold["release_at"].to_s).strftime("%-d %b %Y")
+                           rescue ArgumentError, TypeError
+                             "—"
+                           end
+          div(class: "grid grid-cols-2 gap-[1px] bg-amber-100 rounded-xl overflow-hidden mb-3") do
+            meta_cell("Reserved") do
+              div do
+                p(class: "text-[12.5px] font-semibold tabular-nums", style: "color:#{AMBER}") do
+                  plain format_money(hold_amount, currency: currency)
+                end
+                p(class: "#{TYPE_CAPTION} mt-[2px]") { plain "Releases #{release_date}" }
+              end
+            end
+            meta_cell("Available to settle") do
+              p(class: "text-[12.5px] font-semibold tabular-nums text-gray-900") do
+                plain format_money([ available, 0 ].max, currency: currency)
+              end
+            end
+          end
+        end
+
         div(class: "grid grid-cols-3 gap-[1px] bg-gray-100 rounded-xl overflow-hidden") do
           meta_cell("Reference") { copyable_mono(@payment.reference) }
-          meta_cell("Provider") { network_logo_label(@payment) }
-          meta_cell("Date",      fmt_datetime(@payment.created_at))
+          meta_cell("Method") do
+            div(class: "flex items-center gap-2") do
+              if (logo = @payment.method_logo)
+                div(class: "w-11 h-6 rounded border border-gray-200 dark:border-white/10 bg-white " \
+                           "flex items-center justify-center flex-shrink-0 px-1 overflow-hidden") do
+                  img(src: asset_path(logo), alt: "", class: "max-h-full max-w-full object-contain")
+                end
+              end
+              span(class: UI::Theme::TYPE_BODY_MD) { plain @payment.payment_method&.humanize || "—" }
+            end
+          end
+          meta_cell("Date",      fmt_date(@payment.created_at))
         end
       end
     end
@@ -84,9 +123,9 @@ module Payments
         c.header("Payment details")
         c.body(padding: false) do
           render UI::DetailList.new do |list|
-            list.row("Customer",        customer_value)
-            list.row("Core payment ID") { copyable_mono(@payment.core_payment_id) }
-            list.row("Payment method") { network_logo_label(@payment) }
+            list.row("Payment ID", stacked: true) { copyable_mono(@payment.core_payment_id) }
+            list.row("Type",           @payment.payment_method&.humanize || "—")
+            list.row("Network")        { network_logo_label(@payment) }
             list.row("Status")         { render UI::StatusBadge.new(@payment.status) }
             list.row("Created",        fmt_datetime_utc(@payment.created_at))
             list.row("Settled",        settled_label)
@@ -113,14 +152,57 @@ module Payments
       end
     end
 
+    # ── Customer card ─────────────────────────────────────────────────────────
+
+    def customer_card
+      msisdn  = @can_view_pii ? @payment.customer_msisdn : @payment.masked_msisdn
+      email   = @can_view_pii ? @payment.customer_email  : nil
+      logo    = Payment::PROVIDER_LOGOS[@payment.provider.to_s]
+      label   = Payment::PROVIDERS.fetch(@payment.provider.to_s, nil)
+
+      render UI::Card.new do |c|
+        c.header("Customer")
+        c.body do
+          div(class: "flex items-center justify-between gap-3") do
+            div(class: "flex items-center gap-3 min-w-0") do
+              if logo
+                div(class: "w-8 h-8 rounded-xl bg-white border border-gray-100 flex items-center justify-center flex-shrink-0 overflow-hidden p-0.5") do
+                  img(src: asset_path(logo), alt: label.to_s, class: "w-full h-full object-contain")
+                end
+              else
+                div(class: "w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0",
+                    style: "background:#{TINT_GRAY}") do
+                  span(class: "flex w-4 h-4 text-gray-500") { render UI::Icon.new(:user, class: "w-full h-full") }
+                end
+              end
+              div(class: "min-w-0") do
+                p(class: "#{TYPE_BODY_MD} font-mono truncate") { plain msisdn || "—" }
+                p(class: TYPE_CAPTION) { plain email } if email.present?
+                p(class: TYPE_CAPTION) { plain label } if label.present?
+              end
+            end
+            a(href: customers_path(q: @payment.customer_msisdn),
+              class: "inline-flex items-center gap-[5px] px-3 h-8 border border-gray-200 " \
+                     "rounded-[9px] text-[12.5px] font-medium text-gray-600 bg-white " \
+                     "no-underline hover:border-gray-400 transition-colors flex-shrink-0") do
+              render UI::Icon.new(:eye, class: "w-3 h-3")
+              plain "View"
+            end
+          end
+        end
+      end
+    end
+
     # ── Metadata card ─────────────────────────────────────────────────────────
 
     def metadata_card
+      return if @payment.metadata.blank?
+
       render UI::Card.new do |c|
         c.header("Metadata")
         c.body do
           pre(class: "#{TYPE_MONO} text-[11.5px] bg-gray-50 rounded-xl p-[14px] overflow-x-auto leading-relaxed whitespace-pre-wrap break-all") do
-            plain JSON.pretty_generate(@payment.metadata.presence || {})
+            plain JSON.pretty_generate(@payment.metadata)
           end
         end
       end
@@ -148,60 +230,14 @@ module Payments
         c.header("Actions")
         c.body do
           div(class: "flex flex-col gap-2") do
-            render UI::Button.new(variant: :danger,
-                   data: { action: "click->dialog#open", dialog_target_param: "refund-dialog-#{@payment.id}" },
-                   style: "width:100%;justify-content:center") do
+            a(href: refund_modal_payment_path(@payment),
+              class: "#{BTN_DANGER} w-full justify-center",
+              data: { turbo_frame: "modal-frame" }) do
               render UI::Icon.new(:refresh, class: ICON_SM)
               plain "Issue refund"
             end
-            refund_dialog
             p(class: "#{TYPE_CAPTION} text-center mt-1") do
               plain "Refunds are processed within 5–10 business days."
-            end
-          end
-        end
-      end
-    end
-
-    def refund_dialog
-      dialog(id: "refund-dialog-#{@payment.id}",
-             class: "border-0 rounded-2xl p-0 shadow-2xl w-full max-w-[420px] bg-white") do
-        div(class: "px-6 py-[22px] border-b border-gray-100") do
-          p(class: TYPE_TITLE) { plain "Issue refund" }
-          p(class: "#{TYPE_CAPTION} mt-[3px]") do
-            plain "Refund up to #{@payment.formatted_amount} to the original payment method."
-          end
-        end
-        form(action: payment_refund_path(@payment), method: "post",
-             class: "px-6 py-5 flex flex-col gap-[14px]") do
-          input(type: "hidden", name: "authenticity_token", value: form_authenticity_token)
-          div do
-            p(class: "#{TYPE_MICRO} mb-1.5") { plain "Refund amount (#{@payment.currency})" }
-            input(type: "number", name: "amount", value: @payment.amount,
-                  min: 1, max: @payment.amount, step: 1,
-                  class: "w-full h-9 border border-gray-200 rounded-[9px] px-3 text-[13px] " \
-                         "text-gray-700 bg-white outline-none focus:ring-1 focus:ring-[#{BRAND}] tabular-nums")
-            p(class: "#{TYPE_CAPTION} mt-1") do
-              plain "Amount in pesewas (100 = GHS 1.00). Max: #{@payment.amount}."
-            end
-          end
-          div do
-            p(class: "#{TYPE_MICRO} mb-1.5") { plain "Reason" }
-            select(name: "reason", class: "#{SELECT_FIELD} cursor-pointer") do
-              option(value: "requested_by_merchant") { plain "Requested by merchant" }
-              option(value: "duplicate")             { plain "Duplicate charge" }
-              option(value: "fraudulent")            { plain "Fraudulent transaction" }
-              option(value: "customer_request")      { plain "Customer request" }
-            end
-          end
-          div(class: "flex gap-[10px] justify-end mt-1") do
-            render UI::Button.new(variant: :secondary,
-                   data: { action: "click->dialog#close", dialog_target_param: "refund-dialog-#{@payment.id}" }) do
-              plain "Cancel"
-            end
-            render UI::Button.new(variant: :danger, type: "submit") do
-              render UI::Icon.new(:refresh, class: ICON_SM)
-              plain "Confirm refund"
             end
           end
         end
@@ -291,12 +327,35 @@ module Payments
       end
     end
 
+    EVENT_TIMELINE_MAP = {
+      "payment.initiated"  => [ "Payment initiated", BRAND  ],
+      "payment.processing" => [ "Processing",        AMBER  ],
+      "payment.succeeded"  => [ "Payment settled",   GREEN  ],
+      "payment.failed"     => [ "Payment failed",    RED    ],
+      "payment.refunded"   => [ "Refunded",          AMBER  ],
+      "payment.captured"   => [ "Captured",          GREEN  ],
+      "payment.cancelled"  => [ "Cancelled",         "#9CA3AF" ]
+    }.freeze
+
     def timeline_events
+      if @events.any?
+        @events.filter_map { |ev|
+          cfg = EVENT_TIMELINE_MAP[(ev["event_type"] || ev["type"]).to_s]
+          next unless cfg
+          raw = ev["occurred_at"] || ev["inserted_at"]
+          ts  = raw ? Time.parse(raw) : nil
+          [ cfg[0], ts, cfg[1] ]
+        }.sort_by { |_, ts, _| ts || Time.at(0) }
+      else
+        fallback_timeline
+      end
+    end
+
+    def fallback_timeline
       events = [ [ "Payment initiated", @payment.created_at, BRAND ] ]
-      events << [ "Processing",         @payment.updated_at, AMBER ] if @payment.status.in?(%w[processing paid failed])
-      events << [ "Payment settled",    @payment.paid_at,    GREEN ] if @payment.paid_at.present?
-      events << [ "Payment failed",     @payment.updated_at, RED   ] if @payment.status == "failed"
-      events << [ "Refunded",           @payment.updated_at, AMBER ] if @payment.status == "refunded"
+      events << [ "Payment settled",  @payment.paid_at,    GREEN ] if @payment.paid_at.present?
+      events << [ "Payment failed",   @payment.updated_at, RED   ] if @payment.status == "failed"
+      events << [ "Refunded",         @payment.updated_at, AMBER ] if @payment.status == "refunded"
       events
     end
 
@@ -311,12 +370,8 @@ module Payments
       end
     end
 
-    def customer_value
-      @can_view_pii ? (@payment.customer_msisdn || "—") : @payment.masked_msisdn
-    end
-
     def settled_label
-      fmt_datetime(@payment.paid_at)
+      fmt_datetime_utc(@payment.paid_at)
     end
   end
 end

@@ -19,13 +19,13 @@ module Payments
       end
 
       def view_template
-        ref = @c["merchant_customer_ref"] || @c["id"]&.first(12) || "Customer"
+        label = @c["name"].presence || @c["merchant_customer_ref"] || @c["id"]&.first(12) || "Customer"
         render Layout::Shell.new(
           active_nav:  :customers,
-          title:       ref,
+          title:       label,
           breadcrumbs: [
             { label: "Customers", href: customers_path },
-            { label: ref }
+            { label: label }
           ]
         ) do
           render UI::Grid.new(columns: :sidebar) do
@@ -41,7 +41,7 @@ module Payments
         div(class: "flex flex-col gap-5") do
           hero_card
           details_card
-          payments_link_card if @c["msisdn"].present?
+          payments_link_card if @c["merchant_customer_ref"].present?
         end
       end
 
@@ -62,8 +62,9 @@ module Payments
         div(class: "#{SURFACE_CARD} px-8 py-7") do
           div(class: "flex items-start justify-between mb-5") do
             div do
-              p(class: "#{TYPE_CAPTION} mb-1") { plain "Merchant reference" }
-              p(class: "#{TYPE_TITLE} text-gray-900 font-mono") { plain ref }
+              p(class: "#{TYPE_CAPTION} mb-1") { plain @c["name"].present? ? "Name" : "Merchant reference" }
+              p(class: "#{TYPE_TITLE} text-gray-900 #{@c['name'].present? ? '' : 'font-mono'}") { plain(@c["name"].presence || ref) }
+              p(class: "#{TYPE_CAPTION} font-mono mt-0.5") { plain ref } if @c["name"].present?
               if segs.any?
                 div(class: "flex items-center gap-1.5 mt-2 flex-wrap") do
                   segs.each do |seg|
@@ -79,7 +80,7 @@ module Payments
               if logo
                 div(class: "w-7 h-7 rounded-full bg-white border border-gray-100 flex items-center justify-center overflow-hidden p-0.5",
                     title: Payment::PROVIDERS.fetch(@network.to_s, "")) do
-                  img(src: helpers.asset_path(logo), alt: @network.to_s, class: "w-full h-full object-contain")
+                  img(src: helpers.asset_path(logo), alt: Payment::PROVIDERS.fetch(@network.to_s, @network.to_s), class: "w-full h-full object-contain")
                 end
               end
               span(class: "inline-flex items-center px-2.5 py-1 rounded-full text-[12px] font-semibold #{css}") do
@@ -90,7 +91,7 @@ module Payments
 
           div(class: "grid grid-cols-3 gap-[1px] bg-gray-100 rounded-xl overflow-hidden") do
             meta_cell("ID",     @c["id"]&.first(16) || "—", mono: true)
-            meta_cell("MSISDN", @c["msisdn"] || "—", mono: true)
+            meta_cell("MoMo",   @c["merchant_customer_ref"] || "—", mono: true)
             meta_cell("Email",  @c["email"] || "—")
           end
 
@@ -125,11 +126,11 @@ module Payments
           card.header("Customer details")
           card.body(padding: false) do
             render UI::DetailList.new do |list|
-              list.row("Customer ID",   @c["id"] || "—", mono: true)
-              list.row("Merchant ref",  @c["merchant_customer_ref"] || "—", mono: true)
-              list.row("MSISDN",        @c["msisdn"] || "—", mono: true)
-              list.row("Email",         @c["email"] || "—")
+              list.row("Customer ID",   @c["id"] || "—", mono: true, stacked: true)
               list.row("Name",          @c["name"] || "—")
+              list.row("Email",         @c["email"] || "—")
+              list.row("MoMo MSISDN",   @c["merchant_customer_ref"] || "—", mono: true)
+              list.row("Contact phone", @c["msisdn"] || "—", mono: true) if @c["msisdn"].present? && @c["msisdn"] != @c["merchant_customer_ref"]
               ts = @c["inserted_at"] || @c["created_at"]
               list.row("Created", fmt_datetime_utc(ts ? Time.parse(ts) : nil))
             end
@@ -154,7 +155,7 @@ module Payments
                   p(class: "#{TYPE_CAPTION} mt-[2px]") { plain "Total: #{format_ghs(@stat[:total_volume])}" }
                 end
               end
-              a(href: payments_path(q: @c["msisdn"]),
+              a(href: payments_path(q: @c["merchant_customer_ref"]),
                 class: "inline-flex items-center gap-[5px] px-3 h-8 border border-gray-200 rounded-[9px] " \
                        "text-[12.5px] font-medium text-gray-600 bg-white no-underline hover:border-gray-400 " \
                        "transition-colors flex-shrink-0") do

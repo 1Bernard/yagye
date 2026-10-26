@@ -5,12 +5,15 @@ module Payments
     class IndexView < ApplicationComponent
       include UI::Theme
 
+      # left = PSP payment attempts, right = bank/provider report lines.
+      # missing_on_right: PSP has it, bank doesn't → bank statement is missing the entry.
+      # missing_on_left:  bank has it, PSP doesn't → PSP ledger has no matching record.
       CLASSIFICATION_LABELS = {
-        "missing_on_right"    => "Missing on PSP",
-        "missing_on_left"     => "Missing on ledger",
+        "missing_on_right"    => "Missing on bank",
+        "missing_on_left"     => "Missing on PSP",
         "amount_mismatch"     => "Amount mismatch",
-        "duplicate_on_left"   => "Duplicate on ledger",
-        "duplicate_on_right"  => "Duplicate on PSP",
+        "duplicate_on_left"   => "Duplicate on PSP",
+        "duplicate_on_right"  => "Duplicate on bank",
         "timing_difference"   => "Timing difference",
         "fee_discrepancy"     => "Fee discrepancy",
         "currency_mismatch"   => "Currency mismatch",
@@ -67,7 +70,7 @@ module Payments
           end
 
           t.column("Break ID") do |b|
-            code(class: TYPE_MONO) { plain b["id"].to_s.first(16) }
+            code(class: TYPE_MONO) { plain b["id"].to_s }
           end
 
           t.column("Classification") do |b|

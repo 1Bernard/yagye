@@ -32,22 +32,24 @@ module Payments
       prev_start = mtd_start.prev_month
       prev_end   = prev_start + now.day.days
 
-      paid          = @relation.where(status: "paid")
-      mtd_paid      = paid.where(paid_at: mtd_start..now)
+      # "ever_paid" = payments that reached paid state, whether later refunded or not.
+      # Gross volume is always computed over this set; net = gross − refunded.
+      ever_paid     = @relation.where(status: %w[paid refunded])
+      mtd_paid      = ever_paid.where(paid_at: mtd_start..now)
       mtd_all       = @relation.where(created_at: mtd_start..now)
-      prev_paid     = paid.where(paid_at: prev_start...prev_end)
+      prev_paid     = ever_paid.where(paid_at: prev_start...prev_end)
       prev_all      = @relation.where(created_at: prev_start...prev_end)
       mtd_refunded  = @relation.where(status: "refunded", updated_at: mtd_start..now)
 
       window_start = CHART_DAYS.days.ago.to_date
-      daily_sums   = paid
+      daily_sums   = ever_paid
                        .where("paid_at >= ?", window_start.beginning_of_day)
                        .group("DATE(paid_at)")
                        .order("DATE(paid_at)")
                        .sum(:amount)
 
-      provider_totals = mtd_paid.group(:provider).sum(:amount)
-      method_totals   = mtd_paid.group(:payment_method).sum(:amount)
+      provider_totals = ever_paid.where(paid_at: mtd_start..now).group(:provider).sum(:amount)
+      method_totals   = ever_paid.where(paid_at: mtd_start..now).group(:payment_method).sum(:amount)
       total_vol       = provider_totals.values.sum.to_f
 
       success_count    = mtd_paid.count

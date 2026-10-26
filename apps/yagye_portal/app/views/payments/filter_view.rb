@@ -14,10 +14,10 @@ module Payments
     ].freeze
 
     METHODS = [
-      [ "All methods",   "",               :layers       ],
-      [ "Mobile Money",  "mobile_money",   :phone        ],
-      [ "Card",          "card",           :credit_card  ],
-      [ "Bank Transfer", "bank_transfer",  :bank         ]
+      [ "All methods",   "",              :layers,      "All payment channels" ],
+      [ "Mobile Money",  "mobile_money",  :phone,       "MTN MoMo, Telecel, AirtelTigo" ],
+      [ "Card",          "card",          :credit_card, "Visa, Mastercard debit & credit" ],
+      [ "Bank Transfer", "bank_transfer", :bank,        "Direct bank rail & wire transfer" ]
     ].freeze
 
     PROVIDERS = [
@@ -38,171 +38,149 @@ module Payments
     end
 
     def view_template
-      turbo_frame_tag "drawer-frame" do
-        div(class: DRAWER_HEAD) do
-          div do
-            p(class: TYPE_TITLE) { plain "Filter payments" }
-            p(class: "#{TYPE_CAPTION} mt-[3px]") { plain "Narrow by status, method or date." }
-          end
-          button(type: "button", class: XBTN,
-                 data: { action: "click->drawer#close" }) { plain "✕" }
-        end
+      turbo_frame_tag "drawer-frame", class: "flex flex-col h-full overflow-hidden" do
+        render UI::Drawer::Header.new(
+          title: "Filter payments",
+          subtitle: "Narrow by status, method or date.",
+          category: "Payments",
+          icon: :filter,
+          palette: "brand",
+          active_count: active_count
+        )
+
+        # ── Saved filters utility bar (outside form to prevent invalid nested forms) ─
+        saved_filters_section if @saved_filters.any?
 
         # ── Filter form (GET /payments) ─────────────────────────────────────
-        # The save form is a sibling below — NOT nested here — to avoid invalid
-        # nested <form> HTML that browsers silently discard the inner form for.
         form(action: payments_path, method: "get",
              id: "payments-filter-form",
-             class: "flex flex-col flex-1 overflow-hidden") do
+             class: "flex-1 overflow-y-auto") do
           input(type: "hidden", name: "q", value: @query) if @query.present?
 
-          div(class: "flex-1 overflow-y-auto") do
-            saved_filters_section if @saved_filters.any?
+          # Status (Chips with semantic colored dots)
+          render UI::Drawer::Section.new(title: "Status", icon: :check_circle, palette: "brand", border: true) do
+            render UI::Filter::ChipGroup.new(
+              name: "status",
+              options: STATUSES,
+              selected: @status,
+              status_dots: true
+            )
+          end
 
-            # Status
-            div(class: "px-6 py-5 border-b border-gray-100") do
-              section_label("Status", :check_circle, "brand")
-              div(class: "flex flex-wrap gap-2 mt-3") do
-                STATUSES.each do |(lbl, val)|
-                  label(class: "cursor-pointer") do
-                    input(type: "radio", name: "status", value: val,
-                          checked: (val == @status.to_s || (val == "" && @status.blank?)),
-                          class: "sr-only peer")
-                    span(class: CHIP) { plain lbl }
-                  end
-                end
-              end
-            end
+          # Payment Method (Interactive Cards) & Progressive Provider Disclosure
+          render UI::Drawer::Section.new(title: "Payment method", icon: :credit_card, palette: "purple", border: true) do
+            div(data: {
+              controller: "filter-disclosure",
+              filter_disclosure_reveal_value: "mobile_money"
+            }) do
+              render UI::Filter::OptionList.new(
+                name: "method",
+                options: METHODS,
+                selected: @method,
+                icon_palette: "purple",
+                variant: :cards,
+                data: {
+                  filter_disclosure_target: "source",
+                  action: "change->filter-disclosure#change"
+                }
+              )
 
-            # Method
-            div(class: "px-6 py-5 border-b border-gray-100") do
-              section_label("Payment method", :credit_card, "purple")
-              div(class: "mt-3 flex flex-col gap-[2px]") do
-                METHODS.each do |(lbl, val, icon)|
-                  label(class: "flex items-center gap-3 px-2 py-[8px] rounded-xl hover:bg-gray-50 cursor-pointer transition-colors -mx-2") do
-                    input(type: "radio", name: "method", value: val,
-                          checked: (val == @method.to_s || (val == "" && @method.blank?)),
-                          class: "w-[13px] h-[13px] accent-[#3D47F5] flex-shrink-0 cursor-pointer")
-                    div(class: "w-6 h-6 rounded-[7px] flex items-center justify-center flex-shrink-0 icon-purple") do
-                      span(class: "flex w-[11px] h-[11px]") { render UI::Icon.new(icon, class: "w-full h-full") }
-                    end
-                    span(class: TYPE_BODY_MD) { plain lbl }
-                  end
-                end
-              end
-            end
-
-            # Provider
-            div(class: "px-6 py-5 border-b border-gray-100") do
-              section_label("Provider", :layers, "green")
-              div(class: "flex flex-wrap gap-2 mt-3") do
-                PROVIDERS.each do |(lbl, val)|
-                  label(class: "cursor-pointer") do
-                    input(type: "radio", name: "provider", value: val,
-                          checked: (val == @provider.to_s || (val == "" && @provider.blank?)),
-                          class: "sr-only peer")
-                    span(class: CHIP) { plain lbl }
-                  end
-                end
-              end
-            end
-
-            # Date range
-            div(class: "px-6 py-5") do
-              section_label("Date range", :calendar, "amber")
-              div(class: "mt-3 grid grid-cols-2 gap-3") do
-                div do
-                  label(class: "#{TYPE_CAPTION} block mb-1") { plain "From" }
-                  input(type: "date", name: "from", value: @from,
-                        class: "w-full h-8 border border-gray-200 rounded-[9px] px-3 text-[12.5px] " \
-                               "text-gray-700 bg-white outline-none focus:border-gray-400")
-                end
-                div do
-                  label(class: "#{TYPE_CAPTION} block mb-1") { plain "To" }
-                  input(type: "date", name: "to", value: @to,
-                        class: "w-full h-8 border border-gray-200 rounded-[9px] px-3 text-[12.5px] " \
-                               "text-gray-700 bg-white outline-none focus:border-gray-400")
-                end
+              # Progressive disclosure: Provider chips revealed only for Mobile Money
+              div(data: { filter_disclosure_target: "panel" },
+                  class: "mt-3.5 pl-3.5 border-l-2 border-indigo-200 #{'hidden' unless @method == 'mobile_money'}") do
+                p(class: "#{TYPE_MICRO} mb-2 text-indigo-500 font-semibold") { plain "Select Provider" }
+                render UI::Filter::ChipGroup.new(
+                  name: "provider",
+                  options: PROVIDERS,
+                  selected: @provider
+                )
               end
             end
           end
 
-          div(class: "flex-shrink-0 border-t border-gray-100 bg-white") do
-            div(class: "flex items-center justify-between px-6 py-4") do
-              a(href: payments_path(@query.present? ? { q: @query } : {}),
-                class: "text-[12.5px] text-gray-400 hover:text-gray-700 transition-colors no-underline") do
-                plain "Clear all"
-              end
-              button(type: "submit", class: BTN_PRIMARY) { plain "Apply filters" }
-            end
+          # Date range with presets (kept from current design)
+          render UI::Drawer::Section.new(title: "Date range", icon: :calendar, palette: "amber", border: false) do
+            render UI::Filter::DateRange.new(from: @from, to: @to)
           end
         end
 
-        # ── Save filter section (POST /settings/saved-filters) ──────────────
-        # Separate form — never nested inside the filter form above.
-        # filter-saver Stimulus controller reads #payments-filter-form's live
-        # values on submit so this captures what the user has selected, not
-        # just what was in the URL when the drawer opened.
-        save_filter_section
+        # Sticky footer pinned at the bottom of the drawer
+        render UI::Drawer::Footer.new(
+          clear_url: payments_path(@query.present? ? { q: @query } : {}),
+          apply_label: active_count > 0 ? "Apply filters (#{active_count})" : "Apply filters",
+          form: "payments-filter-form",
+          extra_slot: -> { save_filter_section }
+        )
       end
     end
 
     private
 
+    def active_count
+      [
+        @status.presence,
+        @method.presence,
+        @provider.presence,
+        (@from.presence || @to.presence)
+      ].compact.count
+    end
+
     def saved_filters_section
-      div(class: "px-6 py-4 border-b border-gray-100") do
-        div(class: "flex items-center gap-2 mb-3") do
-          div(class: "w-5 h-5 rounded-md bg-indigo-50 flex items-center justify-center flex-shrink-0") do
-            span(class: "flex w-[10px] h-[10px] text-indigo-500") do
+      div(class: "flex-shrink-0 px-6 py-2.5 border-b border-gray-100 bg-gray-50/70") do
+        div(class: "flex items-center gap-2.5 flex-wrap") do
+          div(class: "flex items-center gap-1.5 flex-shrink-0") do
+            span(class: "flex w-3 h-3 text-indigo-500") do
               render UI::Icon.new(:bookmark, class: "w-full h-full")
             end
+            span(class: "text-[10px] font-bold text-gray-400 uppercase tracking-wider") { plain "Saved views" }
           end
-          p(class: "text-[11.5px] font-semibold text-gray-600") { plain "Saved filters" }
-        end
-        div(class: "flex flex-col gap-[3px]") do
-          @saved_filters.each do |sf|
-            saved_filter_row(sf)
+          div(class: "h-3.5 w-px bg-gray-200 flex-shrink-0")
+          div(class: "flex items-center gap-1.5 flex-wrap flex-1 min-w-0") do
+            @saved_filters.each do |sf|
+              saved_filter_chip(sf)
+            end
           end
         end
       end
     end
 
-    def saved_filter_row(sf)
+    def saved_filter_chip(sf)
       filter_params = sf.filters.symbolize_keys.merge(@query.present? ? { q: @query } : {})
-      div(class: "group flex items-center gap-2 rounded-xl hover:bg-gray-50 -mx-2 px-2 py-[6px] transition-colors") do
+      is_active = sf.filters.present? && sf.filters.all? { |k, v| params[k].to_s == v.to_s }
+
+      div(class: "group inline-flex items-center gap-1.5 pl-2.5 pr-1.5 py-0.5 rounded-md border " \
+                 "#{is_active ? 'border-indigo-300 bg-indigo-50 text-indigo-700 font-semibold shadow-xs' : 'border-gray-200/90 bg-white hover:border-gray-300 text-gray-700 hover:text-gray-900'} " \
+                 "transition-all") do
         a(href: payments_path(filter_params),
-          class: "flex-1 text-[12.5px] text-gray-700 font-medium no-underline truncate",
+          class: "text-[11.5px] font-medium no-underline truncate max-w-[150px] text-inherit",
           data: { turbo_frame: "_top" }) do
           plain sf.name
         end
-        form(action: settings_remove_saved_filter_path(sf.id), method: "post",
-             data: { turbo_method: "delete", turbo_frame: "_top",
-                     turbo_confirm: "Remove \"#{sf.name}\"?" }) do
-          input(type: "hidden", name: "authenticity_token", value: form_authenticity_token)
-          button(type: "submit",
-                 class: "opacity-0 group-hover:opacity-100 transition-opacity flex w-5 h-5 rounded-md " \
-                        "items-center justify-center text-gray-300 hover:text-red-500 hover:bg-red-50 " \
-                        "border-0 bg-transparent cursor-pointer") do
-            span(class: "flex w-[10px] h-[10px]") { render UI::Icon.new(:x, class: "w-full h-full") }
-          end
+        a(href: settings_remove_saved_filter_path(sf.id),
+          data: { turbo_method: "delete", turbo_frame: "_top",
+                  turbo_confirm: "Remove \"#{sf.name}\"?" },
+          title: "Delete saved view",
+          class: "w-3.5 h-3.5 rounded flex items-center justify-center text-gray-300 hover:text-red-500 hover:bg-red-50 cursor-pointer transition-colors p-0 no-underline") do
+          span(class: "flex w-2 h-2") { render UI::Icon.new(:x, class: "w-full h-full") }
         end
       end
     end
 
     def save_filter_section
-      div(class: "border-t border-gray-100 bg-white px-6 py-3",
+      div(class: "border-b border-gray-100/70 bg-white px-6 py-3",
           data: { controller: "inline-edit" }) do
-        # Collapsed: "＋ Save this filter" link
+        # Collapsed: "Save this view" link
         div(data: { inline_edit_target: "display" }) do
           button(type: "button",
                  class: "text-[12px] text-indigo-500 hover:text-indigo-700 transition-colors " \
-                        "bg-transparent border-0 cursor-pointer p-0 font-medium",
+                        "bg-transparent border-0 cursor-pointer p-0 font-medium inline-flex items-center gap-1.5",
                  data: { action: "click->inline-edit#edit" }) do
-            plain "＋ Save this filter"
+            span(class: "flex w-3.5 h-3.5") { render UI::Icon.new(:bookmark, class: "w-full h-full") }
+            plain "Save this view"
           end
         end
 
-        # Expanded: name input + submit — filter-saver captures live form values on submit
+        # Expanded: name input + submit
         div(hidden: true, data: { inline_edit_target: "form" }) do
           form(action: settings_saved_filters_path, method: "post",
                class: "flex items-center gap-2",
@@ -212,7 +190,6 @@ module Payments
             input(type: "hidden", name: "authenticity_token", value: form_authenticity_token)
             input(type: "hidden", name: "saved_filter[namespace]", value: "Payments")
             input(type: "hidden", name: "saved_filter[shared_with_merchant]", value: "false")
-            # Placeholder — filter-saver populates this at submit time with live values
             div(data: { filter_saver_target: "inputs" })
             input(type: "text", name: "saved_filter[name]", placeholder: "Name this filter…",
                   required: true, autofocus: true,
@@ -231,15 +208,6 @@ module Payments
             end
           end
         end
-      end
-    end
-
-    def section_label(text, icon, palette)
-      div(class: "flex items-center gap-2") do
-        div(class: "w-6 h-6 rounded-[7px] flex items-center justify-center flex-shrink-0 icon-#{palette}") do
-          span(class: "flex w-[11px] h-[11px]") { render UI::Icon.new(icon, class: "w-full h-full") }
-        end
-        p(class: "text-[12px] font-semibold text-gray-700") { plain text }
       end
     end
   end

@@ -107,7 +107,7 @@ module Payments
     end
 
     def unsettled_balance(merchant_code)
-      Payouts::PendingSettlementQuery.new(merchant_code).call.slice(:amount, :currency)
+      ::Payouts::PendingSettlementQuery.new(merchant_code).call.slice(:amount, :currency)
     end
   end
 end

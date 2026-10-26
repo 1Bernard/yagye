@@ -8,11 +8,11 @@ module Payments
 
     def call
       mtd_start = Time.current.beginning_of_month
-      paid_mtd  = @scope.where(status: "paid").where("paid_at >= ?", mtd_start)
+      ever_paid_mtd = @scope.where(status: %w[paid refunded]).where("paid_at >= ?", mtd_start)
       {
-        volume_mtd:       paid_mtd.sum(:amount),
+        volume_mtd:       ever_paid_mtd.sum(:amount),
         volume_currency:  @scope.pick(:currency) || "GHS",
-        transactions_mtd: paid_mtd.count,
+        transactions_mtd: ever_paid_mtd.count,
         pending:          @scope.where(status: %w[created processing requires_action]).count,
         failed:           @scope.where(status: %w[failed cancelled]).count
       }

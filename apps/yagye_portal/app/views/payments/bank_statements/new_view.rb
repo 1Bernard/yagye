@@ -4,6 +4,7 @@ module Payments
   module BankStatements
     class NewView < ApplicationComponent
       include UI::Theme
+      include Phlex::Rails::Helpers::LabelTag
 
       def view_template
         render Layout::Shell.new(

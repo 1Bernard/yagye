@@ -21,7 +21,11 @@ module Payments
 
     def call(filters = {})
       scoped = @relation
-      scoped = scoped.where(mode: Current.mode)            if Current.mode.present?
+      if Current.mode.present?
+        scoped = scoped.where(mode: Current.mode)
+      else
+        scoped = scoped.where(mode: filters[:mode].presence_in(%w[live test]) || "live")
+      end
       scoped = scoped.by_status(filters[:status])         if filters[:status].present?
       scoped = scoped.search_ref(filters[:q])             if filters[:q].present?
       scoped = scoped.where(provider: filters[:provider])              if filters[:provider].present?
