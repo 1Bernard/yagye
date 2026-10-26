@@ -29,13 +29,14 @@ module Payments
         ) do
           render UI::PageHeader.new(title: "Settlements", subtitle: subtitle)
           ops_strip if @ops_dashboard.any?
+          state_tabs
           settlements_table
         end
       end
 
       private
 
-      # ── Ops KPI strip (internal only) ─────────────────────────────────────────
+      # ── Ops KPI cards (internal only) ─────────────────────────────────────────
 
       def ops_strip
         float_balances    = Array(@ops_dashboard["float_balances"])
@@ -52,44 +53,60 @@ module Payments
           .transform_values { |fs| fs.sum { |f| f["balance"].to_i } }
           .select { |_, v| v > 0 }
 
-        div(class: "#{SURFACE_CARD} overflow-hidden mb-6") do
-          div(class: "grid grid-cols-3 gap-[1px] bg-gray-100") do
-            ops_payable_cell(payable_by_ccy)
-            ops_float_cell(float_by_ccy)
-            ops_failed_cell(failed_count)
-          end
+        div(class: "grid grid-cols-3 gap-4 mb-6") do
+          ops_payable_card(payable_by_ccy)
+          ops_float_card(float_by_ccy)
+          ops_failed_card(failed_count)
         end
       end
 
-      def ops_payable_cell(by_ccy)
+      def ops_payable_card(by_ccy)
         primary_ccy, primary_amt = by_ccy.max_by { |_, v| v }
         others = by_ccy.size - 1
-        val = primary_amt ? format_money(primary_amt, currency: primary_ccy) : "—"
-        hint = if primary_amt && others > 0
+        val  = primary_amt ? format_money(primary_amt, currency: primary_ccy) : "—"
+        sub  = if primary_amt && others > 0
           "+ #{others} more #{others == 1 ? 'currency' : 'currencies'}"
         elsif !primary_amt
           "No outstanding payables"
         end
-        stat_cell("Merchant Payables", val, mono: primary_amt.present?, hint: hint)
+        ops_kpi_card(label: "Merchant Payables", value: val, icon: :wallet,
+                     color: BRAND, tint: TINT_BRAND, sub: sub)
       end
 
-      def ops_float_cell(by_ccy)
+      def ops_float_card(by_ccy)
         primary_ccy, primary_amt = by_ccy.max_by { |_, v| v }
         others = by_ccy.size - 1
-        val = primary_amt ? format_money(primary_amt, currency: primary_ccy) : "—"
-        hint = if primary_amt && others > 0
+        val  = primary_amt ? format_money(primary_amt, currency: primary_ccy) : "—"
+        sub  = if primary_amt && others > 0
           "+ #{others} more #{others == 1 ? 'currency' : 'currencies'}"
         elsif !primary_amt
           "No positive float"
         end
-        stat_cell("Provider Float", val, mono: primary_amt.present?, hint: hint)
+        ops_kpi_card(label: "Provider Float", value: val, icon: :bank,
+                     color: GREEN, tint: TINT_GREEN, sub: sub)
       end
 
-      def ops_failed_cell(count)
-        color = count > 0 ? "color:#{RED}" : nil
-        stat_cell("Failed Disbursements", count.to_s,
-                  hint: count > 0 ? "Requires attention" : "All clear",
-                  value_style: color)
+      def ops_failed_card(count)
+        alert = count > 0
+        ops_kpi_card(label: "Failed Disbursements", value: count.to_s, icon: :alert_triangle,
+                     color: alert ? RED : GREEN, tint: alert ? TINT_RED : TINT_GREEN,
+                     sub: alert ? "Requires attention" : "All clear")
+      end
+
+      def ops_kpi_card(label:, value:, icon:, color:, tint:, sub: nil)
+        div(class: "bg-white border border-gray-100 rounded-2xl p-[22px]") do
+          div(class: "flex items-start justify-between mb-4") do
+            div(class: "w-9 h-9 rounded-xl flex items-center justify-center",
+                style: "background:#{tint}") do
+              span(class: "flex w-[17px] h-[17px]", style: "color:#{color}") do
+                render UI::Icon.new(icon, class: "w-full h-full")
+              end
+            end
+          end
+          p(class: TYPE_HEADING) { plain label }
+          p(class: "#{TYPE_STAT} mt-2", style: "color:#{color}") { plain value }
+          p(class: "#{TYPE_MICRO} mt-1.5 text-gray-400") { plain sub } if sub
+        end
       end
 
       def settlements_table
@@ -165,65 +182,43 @@ module Payments
       # ── Toolbar ───────────────────────────────────────────────────────────────
 
       def toolbar_content
-        filter_count = [ @from.present?, @to.present? ].count(true)
+        filter_count = [ @state_filter.present?, @from.present?, @to.present? ].count(true)
 
-        div(class: "flex flex-col gap-2.5 w-full") do
-          state_tabs
-
-          div(class: "flex items-center justify-between w-full") do
-            form(action: settlements_path, method: "get",
-                 data: { controller: "filter-form", filter_form_target: "form" }) do
-              div(class: FILTER_SEARCH_WRAP) do
-                span(class: "flex w-[13px] h-[13px] text-gray-400 flex-shrink-0") do
-                  render UI::Icon.new(:search, class: "w-full h-full")
-                end
-                input(type: "search", name: "q", value: @query,
-                      placeholder: "Search settlement code…",
-                      class: FILTER_SEARCH_INPUT)
-              end
+        form(action: settlements_path, method: "get",
+             data: { controller: "filter-form", filter_form_target: "form" }) do
+          div(class: FILTER_SEARCH_WRAP) do
+            span(class: "flex w-[13px] h-[13px] text-gray-400 flex-shrink-0") do
+              render UI::Icon.new(:search, class: "w-full h-full")
             end
-
-            div(class: "flex items-center gap-2") do
-              export_dropdown
-              filter_btn(filter_count)
-            end
+            input(type: "search", name: "q", value: @query,
+                  placeholder: "Search settlement code…",
+                  class: FILTER_SEARCH_INPUT)
           end
+        end
+
+        div(class: "flex items-center gap-2") do
+          export_dropdown
+          filter_btn(filter_count)
         end
       end
 
       def state_tabs
-        tabs = [
-          { label: "All",        state: nil },
-          { label: "Pending",    state: "pending",    count: @stats[:pending].to_i },
-          { label: "Reconciled", state: "reconciled", count: @stats[:reconciled].to_i },
-          { label: "Disputed",   state: "disputed",   count: @stats[:disputed].to_i }
-        ]
+        pending    = @stats[:pending].to_i
+        reconciled = @stats[:reconciled].to_i
+        disputed   = @stats[:disputed].to_i
 
-        div(class: "flex items-center gap-0.5") do
-          tabs.each do |tab|
-            active = @state_filter == tab[:state]
-            href   = tab[:state] ? settlements_path(state: tab[:state], q: @query) \
-                                 : settlements_path(q: @query)
-
-            base = "inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg " \
-                   "text-[12.5px] no-underline transition-colors"
-            cls  = active \
-              ? "#{base} font-semibold text-[#3D47F5] bg-indigo-50" \
-              : "#{base} text-gray-600 hover:bg-gray-100"
-
-            a(href: href, class: cls) do
-              plain tab[:label]
-              if tab[:count] && tab[:count] > 0
-                badge_cls = active \
-                  ? "bg-[#3D47F5] text-white" \
-                  : "bg-gray-100 text-gray-500"
-                span(class: "inline-flex items-center justify-center min-w-[18px] h-[18px] " \
-                             "px-1 rounded-full text-[10px] font-bold #{badge_cls}") do
-                  plain tab[:count].to_s
-                end
-              end
-            end
-          end
+        render UI::Tabs.new do |t|
+          t.tab "All",        href: settlements_path(q: @query),
+                              active: @state_filter.nil?
+          t.tab "Pending",    href: settlements_path(state: "pending",    q: @query),
+                              active: @state_filter == "pending",
+                              count: pending > 0 ? pending : nil
+          t.tab "Reconciled", href: settlements_path(state: "reconciled", q: @query),
+                              active: @state_filter == "reconciled",
+                              count: reconciled > 0 ? reconciled : nil
+          t.tab "Disputed",   href: settlements_path(state: "disputed",   q: @query),
+                              active: @state_filter == "disputed",
+                              count: disputed > 0 ? disputed : nil
         end
       end
 
@@ -274,14 +269,6 @@ module Payments
               plain filter_count.to_s
             end
           end
-        end
-      end
-
-      def stat_cell(label, value, mono: false, hint: nil, value_style: nil)
-        div(class: "flex flex-col px-5 py-3.5 bg-white") do
-          p(class: TYPE_MICRO) { plain label }
-          p(class: "#{mono ? TYPE_MONO : TYPE_BODY_MD} mt-0.5", style: value_style) { plain value }
-          p(class: "#{TYPE_MICRO} mt-0.5 text-gray-400") { plain hint } if hint
         end
       end
 
