@@ -32,6 +32,7 @@ defmodule YagyeCoreWeb.Contracts.CheckoutSessions.CheckoutSession do
       payment_id: %Schema{type: :string, nullable: true},
       success_url: %Schema{type: :string, nullable: true},
       cancel_url: %Schema{type: :string, nullable: true},
+      logo_url: %Schema{type: :string, nullable: true},
       metadata: %Schema{type: :object, nullable: true},
       expires_at: %Schema{type: :string, format: :"date-time"},
       completed_at: %Schema{type: :string, format: :"date-time", nullable: true},

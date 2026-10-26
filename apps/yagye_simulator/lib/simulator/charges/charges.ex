@@ -289,10 +289,12 @@ defmodule Simulator.Charges do
         :not_registered -> {"DECLINED", "NOT_REGISTERED"}
       end
 
+    network = (attrs[:network] || "MTN") |> String.upcase()
+
     %WalletPrompt{}
     |> WalletPrompt.changeset(%{
       charge_id: charge.id,
-      network: attrs[:network] || "MTN",
+      network: network,
       msisdn: attrs[:msisdn] || "0240000001",
       prompt_state: prompt_state,
       decline_code: decline_code,

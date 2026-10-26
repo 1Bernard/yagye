@@ -74,6 +74,11 @@ defmodule YagyeCoreWeb.Contracts.CheckoutSessions.CreateCheckoutSessionRequest d
           required: [:kind, :description, :quantity, :unit_amount, :total_amount]
         }
       },
+      logo_url: %Schema{
+        type: :string,
+        description: "Absolute URL of the merchant logo shown on the checkout page",
+        nullable: true
+      },
       metadata: %Schema{type: :object, nullable: true}
     },
     required: [:currency, :subtotal_amount, :total_amount, :success_url, :cancel_url],

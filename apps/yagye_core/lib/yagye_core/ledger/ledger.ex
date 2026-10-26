@@ -302,6 +302,27 @@ defmodule YagyeCore.Ledger do
     end
   end
 
+  @doc """
+  Returns the current ledger balance of a merchant's payable account.
+  Returns {:ok, 0} if the merchant has never received a payment (no account yet).
+  """
+  def merchant_payable_balance(merchant_id, currency, mode) do
+    query =
+      from(a in Account,
+        join: b in Balance,
+        on: b.account_id == a.id,
+        where:
+          a.account_type == "merchant_payable" and
+            a.scope_type == "merchant" and
+            a.scope_id == ^merchant_id and
+            a.currency == ^currency and
+            a.mode == ^mode,
+        select: b.balance
+      )
+
+    {:ok, Repo.one(query)}
+  end
+
   def get_account(code) do
     case Repo.get_by(Account, code: code) do
       nil -> {:error, :not_found}

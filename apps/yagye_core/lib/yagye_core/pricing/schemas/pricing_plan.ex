@@ -55,7 +55,6 @@ defmodule YagyeCore.Pricing.Schemas.PricingPlan do
   def activate_changeset(plan, actor) do
     plan
     |> change(%{status: "active", activated_by: actor, activated_at: DateTime.utc_now()})
-    |> validate_required([:created_by])
     |> validate_sod(actor)
   end
 

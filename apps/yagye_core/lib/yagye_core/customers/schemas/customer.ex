@@ -27,7 +27,7 @@ defmodule YagyeCore.Customers.Schemas.Customer do
 
   def create_changeset(customer, attrs) do
     customer
-    |> cast(attrs, [:merchant_customer_ref, :kyc_tier])
+    |> cast(attrs, [:merchant_customer_ref, :kyc_tier, :name, :email, :phone])
     |> put_change(:merchant_id, attrs[:merchant_id])
     |> validate_required([:merchant_id, :merchant_customer_ref])
     |> validate_inclusion(:kyc_tier, @valid_kyc_tiers)

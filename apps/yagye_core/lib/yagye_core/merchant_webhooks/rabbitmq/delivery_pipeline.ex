@@ -309,7 +309,13 @@ defmodule YagyeCore.MerchantWebhooks.RabbitMQ.DeliveryPipeline do
   end
 
   defp truncate(body) when is_binary(body), do: String.slice(body, 0, @max_response_body)
-  defp truncate(body), do: inspect(body) |> String.slice(0, @max_response_body)
+
+  defp truncate(body) do
+    case Jason.encode(body) do
+      {:ok, json} -> String.slice(json, 0, @max_response_body)
+      _ -> inspect(body) |> String.slice(0, @max_response_body)
+    end
+  end
 
   defp producer_opts do
     [

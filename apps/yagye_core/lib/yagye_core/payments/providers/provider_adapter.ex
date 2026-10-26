@@ -50,7 +50,13 @@ defmodule YagyeCore.Payments.Providers.ProviderAdapter do
   @callback disburse(params :: map(), credential :: map()) ::
               {:ok, disburse_ok()} | {:pending, disburse_ok()} | {:error, map()}
 
-  @optional_callbacks [name_enquiry: 2, disburse: 2]
+  # Sends a refund for an already-settled charge back to the customer.
+  # `attempt` must be the succeeded PaymentAttempt (carries provider_reference).
+  # `amount_minor` is the integer refund amount in minor units.
+  @callback refund(PaymentAttempt.t(), amount_minor :: integer(), credential :: map()) ::
+              {:ok, %{provider_reference: String.t()}} | {:error, charge_error()}
+
+  @optional_callbacks [name_enquiry: 2, disburse: 2, refund: 3]
 
   @doc """
   Returns the adapter module for a given provider.

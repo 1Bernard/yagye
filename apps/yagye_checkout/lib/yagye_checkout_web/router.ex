@@ -4,6 +4,8 @@ defmodule YagyeCheckoutWeb.Router do
   import Phoenix.Controller
   import Phoenix.LiveView.Router
 
+  @extra_img_src if Mix.env() == :dev, do: " http://localhost:*", else: ""
+
   pipeline :browser do
     plug :accepts, ["html"]
     plug :fetch_session
@@ -17,7 +19,7 @@ defmodule YagyeCheckoutWeb.Router do
           "script-src 'self' 'unsafe-inline' cdn.jsdelivr.net; " <>
           "style-src 'self' 'unsafe-inline' fonts.googleapis.com; " <>
           "font-src fonts.gstatic.com; " <>
-          "img-src 'self' data: https:; " <>
+          "img-src 'self' data: https:#{@extra_img_src}; " <>
           "connect-src 'self' ws: wss:;"
     }
   end

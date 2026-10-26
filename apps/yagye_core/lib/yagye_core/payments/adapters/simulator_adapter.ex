@@ -95,6 +95,31 @@ defmodule YagyeCore.Payments.Adapters.SimulatorAdapter do
   end
 
   @impl true
+  def refund(%PaymentAttempt{provider_reference: ref}, amount_minor, credential) do
+    body = %{amount_minor: amount_minor}
+
+    case Req.post(url("/charges/#{ref}/refunds", credential),
+           json: body,
+           headers: auth_headers(credential),
+           receive_timeout: 10_000
+         ) do
+      {:ok, %Req.Response{status: 201, body: body}} ->
+        {:ok, %{provider_reference: body["refund_ref"]}}
+
+      {:ok, %Req.Response{status: status}} ->
+        {:error,
+         %{error_class: :retryable_error, response_code: "http_#{status}", response_message: nil}}
+
+      {:error, %{reason: :timeout}} ->
+        {:error, %{error_class: :indeterminate, response_code: "timeout", response_message: nil}}
+
+      {:error, _} ->
+        {:error,
+         %{error_class: :indeterminate, response_code: "network_error", response_message: nil}}
+    end
+  end
+
+  @impl true
   def name_enquiry(%{msisdn: msisdn, network: network}, credential) do
     body = %{network: network, msisdn: msisdn}
 
@@ -137,7 +162,7 @@ defmodule YagyeCore.Payments.Adapters.SimulatorAdapter do
   # Falls back to the default approved test number when metadata has no msisdn.
   defp maybe_add_wallet_fields(body, %Payment{method: "mobile_money"} = payment) do
     msisdn = get_in(payment.metadata, ["msisdn"]) || "0241000001"
-    network = get_in(payment.metadata, ["network"]) || "MTN"
+    network = (get_in(payment.metadata, ["network"]) || "MTN") |> String.upcase()
     Map.merge(body, %{msisdn: msisdn, network: network})
   end
 

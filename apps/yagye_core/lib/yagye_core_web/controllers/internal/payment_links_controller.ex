@@ -18,12 +18,16 @@ defmodule YagyeCoreWeb.Controllers.Internal.PaymentLinksController do
 
   # PATCH /internal/payment-links/:public_id — update mutable fields
   @allowed_update_fields ~w[description allowed_methods collect_email collect_phone collect_name
-                             max_uses expires_at]
+                             max_uses expires_at]a
 
   def update(conn, %{"public_id" => public_id, "merchant_code" => merchant_code} = params) do
     attrs =
-      Map.take(params, @allowed_update_fields)
-      |> Map.new(fn {k, v} -> {String.to_existing_atom(k), v} end)
+      @allowed_update_fields
+      |> Enum.flat_map(fn key ->
+        str = Atom.to_string(key)
+        if Map.has_key?(params, str), do: [{key, params[str]}], else: []
+      end)
+      |> Map.new()
 
     with {:ok, merchant} <- Merchants.get_merchant(merchant_code),
          {:ok, link} <- PaymentLinks.update_link(public_id, merchant.id, attrs) do
@@ -69,12 +73,16 @@ defmodule YagyeCoreWeb.Controllers.Internal.PaymentLinksController do
   # Body: { merchant_code, kind, currency, description, ... }
   @allowed_create_fields ~w[kind currency description amount reusable
                              collect_email collect_phone collect_name
-                             image_url allowed_methods max_uses expires_at metadata]
+                             image_url allowed_methods max_uses expires_at metadata]a
 
   def create(conn, %{"merchant_code" => merchant_code} = params) do
     attrs =
-      Map.take(params, @allowed_create_fields)
-      |> Map.new(fn {k, v} -> {String.to_existing_atom(k), v} end)
+      @allowed_create_fields
+      |> Enum.flat_map(fn key ->
+        str = Atom.to_string(key)
+        if Map.has_key?(params, str), do: [{key, params[str]}], else: []
+      end)
+      |> Map.new()
 
     with {:ok, merchant} <- Merchants.get_merchant(merchant_code),
          {:ok, link} <- PaymentLinks.create_link(merchant.id, attrs) do

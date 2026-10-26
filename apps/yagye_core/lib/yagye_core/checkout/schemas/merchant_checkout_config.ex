@@ -19,6 +19,12 @@ defmodule YagyeCore.Checkout.Schemas.MerchantCheckoutConfig do
     field :refund_policy_url, :string
     field :default_locale, :string, default: "en"
     field :allowed_methods, {:array, :string}, default: ["mobile_money", "card", "bank_transfer"]
+
+    # Refund policy
+    field :refund_window_days, :integer, default: 180
+    field :partial_refunds_enabled, :boolean, default: true
+    field :requires_approval_above_pesewas, :integer
+
     field :updated_at, :utc_datetime_usec
   end
 
@@ -39,8 +45,13 @@ defmodule YagyeCore.Checkout.Schemas.MerchantCheckoutConfig do
       :privacy_url,
       :refund_policy_url,
       :default_locale,
-      :allowed_methods
+      :allowed_methods,
+      :refund_window_days,
+      :partial_refunds_enabled,
+      :requires_approval_above_pesewas
     ])
+    |> validate_number(:refund_window_days, greater_than: 0, less_than_or_equal_to: 365)
+    |> validate_number(:requires_approval_above_pesewas, greater_than: 0)
     |> validate_subset(:allowed_methods, @valid_methods)
     |> validate_length(:allowed_methods,
       min: 1,

@@ -25,7 +25,8 @@ defmodule YagyeCoreWeb.Controllers.CheckoutSessions.CheckoutSessionJSON do
       collect_name: session.collect_name,
       allowed_methods: session.allowed_methods,
       payment_link_id: session.payment_link_id,
-      payment_id: session.payment_id,
+      payment_id: payment_public_id(session.payment),
+      logo_url: session.logo_url,
       success_url: session.success_url,
       cancel_url: session.cancel_url,
       metadata: session.metadata,
@@ -35,6 +36,10 @@ defmodule YagyeCoreWeb.Controllers.CheckoutSessions.CheckoutSessionJSON do
       inserted_at: session.inserted_at
     }
   end
+
+  defp payment_public_id(%Ecto.Association.NotLoaded{}), do: nil
+  defp payment_public_id(nil), do: nil
+  defp payment_public_id(payment), do: payment.public_id
 
   defp checkout_url(session, nil), do: "#{@base_url}/s/#{session.public_id}"
   defp checkout_url(_session, token), do: "#{@base_url}/s/#{token}"

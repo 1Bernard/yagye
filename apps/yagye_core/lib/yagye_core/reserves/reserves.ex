@@ -5,6 +5,8 @@ defmodule YagyeCore.Reserves do
 
   alias Ecto.Multi
   alias YagyeCore.Ledger
+  alias YagyeCore.Merchants.Schemas.Merchant
+  alias YagyeCore.Outbox
   alias YagyeCore.Payments.Schemas.Payment
   alias YagyeCore.Repo
   alias YagyeCore.Reserves.Schemas.{MerchantReserve, ReserveHold}
@@ -137,12 +139,19 @@ defmodule YagyeCore.Reserves do
     do: {:error, {:invalid_hold_state, state}}
 
   @doc """
-  Returns pending holds for a payment.
+  Returns all holds for a payment (any state).
   """
   def holds_for_payment(payment_id) do
     from(h in ReserveHold, where: h.payment_id == ^payment_id)
     |> Repo.all()
   end
+
+  @doc """
+  Releases a single pending hold immediately (e.g. on full refund).
+  No-ops if the hold is not in the pending state.
+  """
+  def release_hold(%ReserveHold{state: "pending"} = hold), do: release_single(hold)
+  def release_hold(_hold), do: {:ok, :not_pending}
 
   @doc """
   Releases all pending holds where release_at <= now, FIFO by release_at.
@@ -212,10 +221,36 @@ defmodule YagyeCore.Reserves do
     |> Multi.run(:ledger, fn _repo, %{hold: updated} ->
       Ledger.post_reserve_release(updated)
     end)
+    |> Multi.run(:payment, fn _repo, _changes ->
+      {:ok, Repo.get!(Payment, hold.payment_id)}
+    end)
+    |> Multi.insert(:outbox, fn %{hold: updated, payment: p} ->
+      Outbox.build_changeset(
+        p,
+        "reserve.released",
+        %{
+          hold_id: updated.id,
+          payment_id: p.public_id,
+          merchant_code: merchant_code(hold.merchant_id),
+          amount: updated.amount,
+          currency: updated.currency,
+          mode: updated.mode,
+          released_at: DateTime.to_iso8601(updated.released_at)
+        },
+        correlation_id: updated.id
+      )
+    end)
     |> Repo.transaction()
     |> case do
       {:ok, %{hold: hold}} -> {:ok, hold}
       {:error, _step, reason, _changes} -> {:error, reason}
+    end
+  end
+
+  defp merchant_code(merchant_id) do
+    case Repo.get(Merchant, merchant_id) do
+      %Merchant{public_id: code} -> code
+      nil -> nil
     end
   end
 

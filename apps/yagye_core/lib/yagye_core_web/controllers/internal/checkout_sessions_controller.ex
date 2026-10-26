@@ -5,6 +5,7 @@ defmodule YagyeCoreWeb.Controllers.Internal.CheckoutSessionsController do
 
   alias YagyeCore.CheckoutSessions, as: Checkout
   alias YagyeCore.Merchants
+  alias YagyeCore.Repo
   alias YagyeCoreWeb.Controllers.CheckoutSessions.CheckoutSessionJSON
   alias YagyeCoreWeb.Response
 
@@ -38,6 +39,7 @@ defmodule YagyeCoreWeb.Controllers.Internal.CheckoutSessionsController do
 
     with {:ok, merchant} <- Merchants.get_merchant(merchant_code),
          {:ok, %{data: sessions, has_more: has_more}} <- Checkout.list_sessions(merchant.id, opts) do
+      sessions = Repo.preload(sessions, :payment)
       data = Enum.map(sessions, &session_data/1)
       Response.ok(conn, %{object: "list", data: data, has_more: has_more})
     end

@@ -99,21 +99,21 @@ defmodule YagyeCore.CheckoutSessions do
 
     case Repo.get_by(CheckoutSession, url_token_hash: hash) do
       nil -> {:error, :not_found}
-      session -> {:ok, Repo.preload(session, :line_items)}
+      session -> {:ok, Repo.preload(session, [:line_items, :payment])}
     end
   end
 
   def get_session(public_id, merchant_id) do
     case Repo.get_by(CheckoutSession, public_id: public_id, merchant_id: merchant_id) do
       nil -> {:error, :not_found}
-      session -> {:ok, session}
+      session -> {:ok, Repo.preload(session, [:line_items, :payment])}
     end
   end
 
   def get_session_by_public_id(public_id) do
     case Repo.get_by(CheckoutSession, public_id: public_id) do
       nil -> {:error, :not_found}
-      session -> {:ok, session}
+      session -> {:ok, Repo.preload(session, [:line_items, :payment])}
     end
   end
 
@@ -149,11 +149,27 @@ defmodule YagyeCore.CheckoutSessions do
     base = if state, do: where(base, [cs], cs.state == ^state), else: base
 
     base =
-      if payment_link_id,
-        do: where(base, [cs], cs.payment_link_id == ^payment_link_id),
-        else: base
+      case resolve_payment_link_id(payment_link_id) do
+        nil -> base
+        uuid -> where(base, [cs], cs.payment_link_id == ^uuid)
+      end
 
     {:ok, Pagination.paginate(base, :public_id, opts)}
+  end
+
+  defp resolve_payment_link_id(nil), do: nil
+
+  defp resolve_payment_link_id(value) do
+    case Ecto.UUID.cast(value) do
+      {:ok, uuid} ->
+        uuid
+
+      :error ->
+        case Repo.get_by(PaymentLink, public_id: value) do
+          nil -> nil
+          link -> link.id
+        end
+    end
   end
 
   # ── State transitions ────────────────────────────────────────────────────────
@@ -286,6 +302,28 @@ defmodule YagyeCore.CheckoutSessions do
     config
     |> MerchantCheckoutConfig.changeset(Map.put(attrs, :merchant_id, merchant_id))
     |> Repo.insert_or_update()
+  end
+
+  def update_checkout_logo(merchant_id, logo_url, display_name \\ nil) do
+    now = DateTime.utc_now(:microsecond)
+
+    case Repo.get(MerchantCheckoutConfig, merchant_id) do
+      nil ->
+        name = display_name || "Merchant"
+
+        %MerchantCheckoutConfig{merchant_id: merchant_id}
+        |> MerchantCheckoutConfig.changeset(%{
+          merchant_id: merchant_id,
+          display_name: name,
+          logo_url: logo_url
+        })
+        |> Repo.insert()
+
+      config ->
+        config
+        |> Ecto.Changeset.change(logo_url: logo_url, updated_at: now)
+        |> Repo.update()
+    end
   end
 
   # ── Analytics ────────────────────────────────────────────────────────────────

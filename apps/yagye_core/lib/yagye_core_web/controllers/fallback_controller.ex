@@ -106,6 +106,14 @@ defmodule YagyeCoreWeb.FallbackController do
   def call(conn, {:error, :destination_required}),
     do: Response.unprocessable(conn, "missing_param", "destination_id is required")
 
+  def call(conn, {:error, :insufficient_balance}),
+    do:
+      Response.unprocessable(
+        conn,
+        "insufficient_balance",
+        "Insufficient merchant balance to cover this refund"
+      )
+
   def call(conn, {:error, :insufficient_payable_balance}),
     do:
       Response.unprocessable(

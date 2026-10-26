@@ -7,7 +7,7 @@ defmodule YagyeCore.Payments.Schemas.Payment do
   alias YagyeCore.Customers.Schemas.Customer
   alias YagyeCore.Merchants.Schemas.Merchant
 
-  @valid_states ~w[created processing requires_action authorised succeeded failed cancelled indeterminate disputed refunded chargebacked]
+  @valid_states ~w[created processing requires_action authorised succeeded failed cancelled indeterminate disputed refunded partially_refunded chargebacked]
   @valid_rails ~w[fiat_provider internal]
   @valid_modes ~w[simulation sandbox live]
 
@@ -26,6 +26,7 @@ defmodule YagyeCore.Payments.Schemas.Payment do
     field :version, :integer, default: 0
     field :metadata, :map, default: %{}
     field :settlement_batch_id, :binary_id
+    field :refunded_amount, :integer, default: 0
     field :fee_amount, :integer, virtual: true
 
     belongs_to :merchant, Merchant

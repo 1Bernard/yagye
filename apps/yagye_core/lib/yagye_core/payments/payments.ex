@@ -45,7 +45,13 @@ defmodule YagyeCore.Payments do
   def create_payment(merchant_id, attrs) do
     customer_ref = Map.get(attrs, :customer_reference) || Map.get(attrs, "customer_reference")
 
-    with {:ok, customer_id} <- resolve_customer(merchant_id, customer_ref),
+    customer_attrs = %{
+      name: Map.get(attrs, :customer_name) || Map.get(attrs, "customer_name"),
+      email: Map.get(attrs, :customer_email) || Map.get(attrs, "customer_email"),
+      phone: Map.get(attrs, :customer_phone) || Map.get(attrs, "customer_phone")
+    }
+
+    with {:ok, customer_id} <- resolve_customer(merchant_id, customer_ref, customer_attrs),
          :ok <- check_velocity(merchant_id, customer_id, attrs),
          {:ok, {payment, event}} <-
            insert_payment(merchant_id, Map.put(attrs, :customer_id, customer_id)),
@@ -487,10 +493,12 @@ defmodule YagyeCore.Payments do
     Enum.map(payments, fn p -> %{p | fee_amount: Map.get(fee_map, p.id)} end)
   end
 
-  defp resolve_customer(_merchant_id, nil), do: {:ok, nil}
+  defp resolve_customer(_merchant_id, nil, _attrs), do: {:ok, nil}
 
-  defp resolve_customer(merchant_id, customer_ref) do
-    case Customers.find_or_create(merchant_id, customer_ref, %{}) do
+  defp resolve_customer(merchant_id, customer_ref, attrs) do
+    clean_attrs = attrs |> Enum.reject(fn {_, v} -> is_nil(v) end) |> Map.new()
+
+    case Customers.find_or_create(merchant_id, customer_ref, clean_attrs) do
       {:ok, customer} -> {:ok, customer.id}
       error -> error
     end
@@ -612,10 +620,16 @@ defmodule YagyeCore.Payments do
   defp record_payment_fee(attempt_id, payment, fee),
     do: Pricing.record_fee("payment_attempt", attempt_id, payment.merchant_id, fee, payment.mode)
 
-  defp network_to_provider("MTN"), do: "mtn_momo"
-  defp network_to_provider("TELECEL"), do: "telecel_cash"
-  defp network_to_provider("VODAFONE"), do: "telecel_cash"
-  defp network_to_provider("AIRTELTIGO"), do: "airteltigo"
+  defp network_to_provider(network) when is_binary(network) do
+    case String.upcase(network) do
+      "MTN" -> "mtn_momo"
+      "TELECEL" -> "telecel_cash"
+      "VODAFONE" -> "telecel_cash"
+      "AIRTELTIGO" -> "airteltigo"
+      _ -> nil
+    end
+  end
+
   defp network_to_provider(_), do: nil
 
   # Safe provider code extraction — the provider association may or may not be preloaded.
