@@ -60,6 +60,11 @@ Rails.application.configure do
   # Set host to be used by links generated in mailer templates.
   config.action_mailer.default_url_options = { host: ENV.fetch("PORTAL_HOST", "portal.yagye.com") }
 
+  # Allow route URL helpers used outside of request context (e.g. models) to generate absolute URLs.
+  config.after_initialize do
+    Rails.application.routes.default_url_options = { host: ENV.fetch("PORTAL_HOST", "portal.yagye.com"), protocol: "https" }
+  end
+
   # Brevo SMTP relay for transactional email.
   config.action_mailer.delivery_method      = :smtp
   config.action_mailer.perform_deliveries   = true

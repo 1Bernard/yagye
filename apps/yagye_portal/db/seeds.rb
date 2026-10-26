@@ -39,6 +39,8 @@ PERMISSION_DEFS = [
   # settlements
   { key: "settlements.view",             resource: "settlements", action: "view",             description: "View settlement runs and reconciliation break details." },
   { key: "settlements.approve_dispatch", resource: "settlements", action: "approve_dispatch", description: "Approve or reject a settlement batch before bank dispatch." },
+  # refunds (ops approval queue)
+  { key: "refunds.approve_dispatch",     resource: "refunds",     action: "approve_dispatch", description: "Approve or reject a pending refund from the ops refund approvals queue." },
   # merchants (ops)
   { key: "merchants.view",            resource: "merchants",       action: "view",              description: "View merchant list and merchant profile pages." },
   { key: "merchants.approve",         resource: "merchants",       action: "approve",           description: "Approve a merchant for live mode processing." },
@@ -56,7 +58,8 @@ PERMISSION_DEFS = [
   { key: "team.view",                 resource: "team",            action: "view",              description: "View team member list and their roles." },
   { key: "team.manage",               resource: "team",            action: "manage",            description: "Invite new members, update roles, and remove members." },
   # reserves (Yagye ops only)
-  { key: "reserves.manage",           resource: "reserves",         action: "manage",            description: "Create and approve reserve policies for merchants." },
+  { key: "reserves.manage",           resource: "reserves",         action: "manage",            description: "Create and deactivate reserve policies for merchants." },
+  { key: "reserves.approve",          resource: "reserves",         action: "approve",           description: "Approve pending reserve policies (SoD: must differ from creator)." },
   # platform finance (Yagye ops only)
   { key: "platform_finance.view",     resource: "platform_finance", action: "view",              description: "View Yagye P&L dashboard, provider costs, and fee invoices." }
 ].freeze
@@ -104,6 +107,7 @@ GRANT_MATRIX = {
     disputes.view
     payouts.view
     settlements.view
+    refunds.approve_dispatch
     merchants.view
     kyb.view
   ],
@@ -112,9 +116,10 @@ GRANT_MATRIX = {
     disputes.view
     payouts.view payouts.review_requests
     settlements.view settlements.approve_dispatch
+    refunds.approve_dispatch
     merchants.view merchants.approve merchants.suspend merchants.impersonate
     kyb.view
-    reserves.manage
+    reserves.manage reserves.approve
     team.view team.manage
     platform_finance.view
   ],
@@ -127,6 +132,7 @@ GRANT_MATRIX = {
     payments.view payments.view_customer_pii
     merchants.view merchants.approve merchants.suspend
     kyb.view kyb.disposition kyb.approve_merchant
+    reserves.approve
   ]
 }.freeze
 

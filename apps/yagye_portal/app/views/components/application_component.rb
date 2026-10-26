@@ -144,10 +144,17 @@ class ApplicationComponent < Phlex::HTML
     "#{whole.to_i.to_s.reverse.gsub(/(\d{3})(?=\d)/, '\\1,').reverse}.#{frac}"
   end
 
-  def reserve_detail_row(label, value)
-    div(class: "py-2.5 flex items-center justify-between") do
-      p(class: UI::Theme::TYPE_MICRO) { plain label }
-      p(class: "text-[12.5px] text-gray-700 font-medium") { plain value.to_s }
+  def reserve_detail_row(label, value, stacked: false)
+    if stacked
+      div(class: "py-2.5") do
+        p(class: UI::Theme::TYPE_MICRO) { plain label }
+        p(class: "text-[12.5px] text-gray-700 font-medium mt-0.5 leading-relaxed") { plain value.to_s }
+      end
+    else
+      div(class: "py-2.5 flex items-center justify-between") do
+        p(class: UI::Theme::TYPE_MICRO) { plain label }
+        p(class: "text-[12.5px] text-gray-700 font-medium") { plain value.to_s }
+      end
     end
   end
 

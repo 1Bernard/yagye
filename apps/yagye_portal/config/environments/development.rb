@@ -46,6 +46,11 @@ Rails.application.configure do
   # Pin controller redirects to port 3000 so they don't inherit an unexpected Host header.
   config.action_controller.default_url_options = { host: "localhost", port: 3000 }
 
+  # Allow route URL helpers (used outside of request context, e.g. in models) to generate absolute URLs.
+  config.after_initialize do
+    Rails.application.routes.default_url_options = { host: "localhost", port: 3000 }
+  end
+
   # Print deprecation notices to the Rails logger.
   config.active_support.deprecation = :log
 

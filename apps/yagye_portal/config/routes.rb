@@ -52,8 +52,10 @@ Rails.application.routes.draw do
     get "settlement-batches",     to: "settlement_batches#index", as: :settlement_batches
     get "settlement-batches/:id", to: "settlement_batches#show",  as: :settlement_batch
 
-    get  "reserves",             to: "reserves#index",       as: :reserves
-    post "reserves/:id/acknowledge", to: "reserves#acknowledge", as: :acknowledge_reserve
+    get  "reserves",                  to: "reserves#index",     as: :reserves
+    get  "reserves/filter",           to: "reserves#filter",    as: :filter_reserves
+    get  "reserves/export",           to: "reserves#export",    as: :export_reserves
+    post "reserves/:id/acknowledge",  to: "reserves#acknowledge", as: :acknowledge_reserve
   end
 
   # ── Pricing plans (ops — policy-gated) ──────────────────────────────────
@@ -80,6 +82,8 @@ Rails.application.routes.draw do
     get   "merchants/:id/reactivate-modal",        to: "merchants#reactivate_modal",   as: :reactivate_modal_merchant
     get   "merchants/:id/settlement-controls",     to: "settlement_controls#show",     as: :merchant_settlement_controls
     patch "merchants/:id/settlement-controls",     to: "settlement_controls#update"
+    get   "merchants/:id/refund-policy",           to: "refund_policies#show",         as: :merchant_refund_policy
+    patch "merchants/:id/refund-policy",           to: "refund_policies#update"
     get   "merchants/:id/assign-pricing-plan-modal", to: "merchants#assign_pricing_plan_modal", as: :assign_pricing_plan_modal_merchant
     patch "merchants/:id/pricing-plan",            to: "merchants#assign_pricing_plan",       as: :assign_merchant_pricing_plan
 
@@ -116,6 +120,13 @@ Rails.application.routes.draw do
     post "compliance/approvals/:id/reject",  to: "approvals#reject",  as: :compliance_reject_approval
     get  "compliance/approvals/:id/approve-modal", to: "approvals#approve_modal", as: :approve_modal_compliance_approval
     get  "compliance/approvals/:id/reject-modal",  to: "approvals#reject_modal",  as: :reject_modal_compliance_approval
+  end
+
+  # ── Refund approvals (internal_staff only) ──────────────────────────────
+  scope module: "ops" do
+    get  "ops/refund-approvals",          to: "refund_approvals#index",   as: :ops_refund_approvals
+    post "ops/refund-approvals/:id/approve", to: "refund_approvals#approve", as: :approve_ops_refund_approval
+    post "ops/refund-approvals/:id/reject",  to: "refund_approvals#reject",  as: :reject_ops_refund_approval
   end
 
   # ── Bank statements (internal_staff only) ───────────────────────────────
@@ -168,7 +179,8 @@ Rails.application.routes.draw do
   end
 
   scope module: "payments" do
-    post "payments/:id/refund", to: "transactions#refund", as: :payment_refund
+    get  "payments/:id/refund-modal", to: "transactions#refund_modal", as: :refund_modal_payment
+    post "payments/:id/refund",       to: "transactions#refund",       as: :payment_refund
   end
 
   # ── Developers — write actions ───────────────────────────────────────────

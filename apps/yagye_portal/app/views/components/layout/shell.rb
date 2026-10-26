@@ -45,7 +45,8 @@ module Layout
         div(class: DRAWER_OVERLAY,
             data: { drawer_target: "overlay", action: "click->drawer#close" })
         aside(class: DRAWER_PANEL, data: { drawer_target: "panel" }) do
-          turbo_frame_tag("drawer-frame", data: { action: "turbo:frame-load->drawer#open" })
+          turbo_frame_tag("drawer-frame", class: "flex flex-col min-h-full w-full",
+                          data: { action: "turbo:frame-load->drawer#open" })
         end
       end
     end

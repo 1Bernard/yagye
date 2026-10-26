@@ -182,20 +182,23 @@ body[data-theme="dark"] .hover\:bg-gray-50\/70:hover { background-color: rgba(33
 body[data-theme="dark"] .hover\:bg-gray-100:hover    { background-color: var(--surface); }
 body[data-theme="dark"] .hover\:bg-gray-200:hover    { background-color: var(--border-med); }
 
-/* ── Drawer panel — 3-zone flex layout ─────────────────────────────────── */
-/* turbo-frame is a custom element; display/flex-grow won't reliably apply   */
-/* via Tailwind utility classes. Target it with CSS directly so the frame    */
-/* always fills the panel and its header/footer stay pinned at the edges.    */
+/* ── Drawer panel — main drawer scroll ─────────────────────────────────── */
+/* The aside itself is the main scroll container. Headers use sticky top-0,  */
+/* footers use sticky bottom-0, and all drawer content scrolls smoothly.    */
 aside[data-drawer-target="panel"] {
   display: flex;
   flex-direction: column;
-  overflow: hidden;
+  overflow-x: hidden;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
 }
-aside[data-drawer-target="panel"] > turbo-frame {
-  flex: 1 1 0%;
-  min-height: 0;
+aside[data-drawer-target="panel"] > turbo-frame,
+turbo-frame#drawer-frame {
   display: flex;
   flex-direction: column;
+  min-height: 100%;
+  width: 100%;
+  flex: none;
 }
 
 /* Custom row-divider — avoids Tailwind specificity battles entirely.         */
@@ -622,3 +625,5 @@ label:has(input[type="radio"]:checked) .role-card-check { opacity: 1; }
 
 /* ── KYB banner lazy-load reveal ────────────────────────────────────────── */
 /* The banner is a Turbo Frame loaded asynchronously. Without animation it  */
+
+

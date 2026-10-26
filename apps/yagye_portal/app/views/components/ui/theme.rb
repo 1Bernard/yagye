@@ -226,10 +226,10 @@ module UI
     DRAWER_OVERLAY = "fixed inset-0 bg-black/40 z-50 opacity-0 pointer-events-none " \
                      "transition-opacity duration-300"
     DRAWER_PANEL   = "fixed top-0 right-0 bottom-0 w-full sm:w-[min(640px,100vw)] bg-white " \
-                     "border-l border-gray-100 z-[60] translate-x-full flex flex-col overflow-hidden " \
+                     "border-l border-gray-100 z-[60] translate-x-full flex flex-col overflow-x-hidden overflow-y-auto " \
                      "transition-transform duration-300 ease-out"
     DRAWER_HEAD    = "sticky top-0 z-10 flex items-center justify-between bg-white/90 " \
-                     "backdrop-blur border-b border-gray-100 px-7 py-4"
+                     "backdrop-blur border-b border-gray-100 px-6 py-4.5"
 
     # ── Modal ──────────────────────────────────────────────────────────────
     MODAL_OVERLAY  = "fixed inset-0 z-[70] grid place-items-center p-5 bg-gray-900/30 " \
@@ -249,6 +249,7 @@ module UI
 
     # ── Filter chips ───────────────────────────────────────────────────────
     CHIP = "peer-checked:bg-gray-900 peer-checked:border-gray-900 peer-checked:text-white " \
+           "peer-checked:hover:text-white peer-checked:hover:bg-gray-800 peer-checked:hover:border-gray-800 " \
            "inline-flex items-center border border-gray-200 rounded-full px-3.5 py-1.5 text-xs " \
            "font-medium text-gray-500 transition-colors cursor-pointer"
 
@@ -315,6 +316,7 @@ module UI
       "expired"                 => STATUS_FAILED,
       "blocked"                 => STATUS_FAILED,
       "lost"                    => STATUS_FAILED,
+      "chargebacked"            => STATUS_FAILED,
       "true_match_blocked"      => STATUS_FAILED,
       "confirmed_match_blocked" => STATUS_FAILED,
       "overdue"                 => STATUS_FAILED,  # past due date = urgent, not just warning

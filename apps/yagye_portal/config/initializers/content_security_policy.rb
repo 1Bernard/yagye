@@ -40,5 +40,5 @@ Rails.application.configure do
   # Per-request nonce injected into nonce-bearing directives.
   # session.id is stable for the life of a session and unique per user/device.
   config.content_security_policy_nonce_generator = ->(request) { request.session.id.to_s }
-  config.content_security_policy_nonce_directives = %w[script-src]
+  config.content_security_policy_nonce_directives = %w[script-src script-src-elem]
 end

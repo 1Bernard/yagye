@@ -22,6 +22,8 @@ module UI
       "true_match_blocked"      => "Blocked",
       "confirmed_pep"           => "Confirmed PEP",
       "potential_match"         => "Potential Match",
+      # Dispute terminal states
+      "chargebacked"            => "Chargebacked",
       # Routing configuration lifecycle
       "published"               => "Published",
       "archived"                => "Archived",
