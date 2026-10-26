@@ -23,7 +23,7 @@ Read `docs/architecture/system-overview.md` and
 6. [Storage Layout and Partitioning](#6-storage-layout-and-partitioning)
 7. [Parquet: Why This Format](#7-parquet-why-this-format)
 8. [DuckDB as the Query Engine](#8-duckdb-as-the-query-engine)
-9. [Redpanda Connect: The Ingestion Pipeline](#9-redpanda-connect-the-ingestion-pipeline)
+9. [DataLakeIngestionWorker: Bronze Ingestion](#9-datalakeingestionworker-bronze-ingestion)
 10. [Exactly-Once Ingestion Guarantees](#10-exactly-once-ingestion-guarantees)
 11. [Schema Evolution and Compatibility](#11-schema-evolution-and-compatibility)
 12. [Data Freshness SLAs](#12-data-freshness-slas)
@@ -31,7 +31,7 @@ Read `docs/architecture/system-overview.md` and
 14. [Regulatory Reporting Layer](#14-regulatory-reporting-layer)
 15. [Floci: Local Development Emulation](#15-floci-local-development-emulation)
 16. [Data Governance and Access Control](#16-data-governance-and-access-control)
-17. [Lambda Architecture — What We Are](#17-lambda-architecture--what-we-are)
+17. [Micro-batch + Batch Architecture — What We Are](#17-micro-batch--batch-architecture--what-we-are)
 18. [Kimball Data Modeling — Fact and Dimension Tables](#18-kimball-data-modeling--fact-and-dimension-tables)
 19. [Slowly Changing Dimensions (SCD)](#19-slowly-changing-dimensions-scd--a-critical-correctness-concern)
 20. [Data Marts](#20-data-marts)
@@ -151,7 +151,7 @@ warehouse service.
 Traditional warehouse stack:         Yagye's lakehouse stack:
 ───────────────────────────           ────────────────────────
 Operational DB                         Operational DB (PostgreSQL)
-    │ ETL (nightly batch)                  │ CDC (Redpanda Connect, near-realtime)
+    │ ETL (nightly batch)                  │ Outbox → DataLakeIngestionWorker (micro-batch, ~1 min)
     ▼                                      ▼
 Data warehouse                         Object storage (Parquet on S3 / Floci)
 (Snowflake, BigQuery, Redshift)            │ DuckDB (in-process query engine)
@@ -257,7 +257,7 @@ Problems:
 Every state transition is a separate event in the Bronze layer.
 The full history is preserved.
 
-### Yagye's CDC approach: Outbox + Redpanda Connect
+### Yagye's CDC approach: Outbox + DataLakeIngestionWorker
 
 Yagye does NOT use PostgreSQL logical replication (WAL-based CDC tools like
 Debezium) for the primary pipeline. The reason: the outbox is already CDC.
@@ -315,54 +315,36 @@ at ETL time.
 from the application at the right state transition, and (2) write a Silver ETL
 script to transform that Bronze event into a typed Silver table.
 
-The outbox feeds Redpanda (at P14). Redpanda Connect (the streaming ETL layer)
-consumes from Redpanda topics and writes to the Bronze layer.
+The outbox feeds Redpanda (P14 done), which Portal consumers read via Karafka.
+Bronze ingestion is separate: `DataLakeIngestionWorker` polls `outbox_messages`
+directly and writes NDJSON to S3.
 
-### Pre-P14: direct Oban relay to S3
+### Bronze ingestion: DataLakeIngestionWorker
 
-Before Redpanda (P14), the outbox relay writes events to S3 via an Oban worker:
+`DataLakeIngestionWorker` is the permanent Bronze ingestion path. Bronze files
+are **NDJSON** (newline-delimited JSON), not Parquet. This is deliberate:
+
+- `Jason.encode!/1` is already a Core dependency — no NIF or schema definition needed
+- The raw layer captures whatever Core emits; new payload fields land automatically
+  without a schema migration (Bronze = faithful byte-for-byte record)
+- DuckDB reads NDJSON natively via `read_ndjson_auto()` — the Silver ETL then
+  converts to typed, compressed Parquet
+- Parquet's columnar read advantages (§7) apply to **Silver and Gold** (the query
+  layers), not to Bronze which is written once and read once by the Silver ETL
 
 ```
 outbox_messages (unprocessed)
-    │ OutboxRelayWorker polls every ~1s
+    │ DataLakeIngestionWorker (Oban cron, every 1 min)
+    │ 150s sliding window on occurred_at
     ▼
-Oban: DataLakeIngestionWorker
-    │ Batches events in memory (max 100, max 30s window)
-    ▼
-S3/Floci: Bronze Parquet files (batch write via ExParquet)
+S3/Floci: Bronze NDJSON files
+    key: events/dt=YYYY-MM-DD/<prefix>_<microseconds>.ndjson
+    format: one JSON object per line (envelope + payload)
 ```
 
-### At P14: Redpanda Connect as the ETL layer
-
-```
-outbox_messages → OutboxRelayWorker → Redpanda topic "payment.events"
-                                            │
-                    Redpanda Connect pipeline (declarative YAML config)
-                                            │
-                    ┌───────────────────────▼────────────────────────┐
-                    │  Redpanda Connect: S3 Sink connector            │
-                    │                                                 │
-                    │  input:  redpanda_consumer (payment.events)     │
-                    │  buffer: batch 500 records OR 30s               │
-                    │  output: s3 (Parquet format)                    │
-                    │          key: year={}/month={}/day={}/hour={}   │
-                    │          schema: Apache Arrow schema from event  │
-                    └─────────────────────────────────────────────────┘
-                                            │
-                    ┌───────────────────────▼────────────────────────┐
-                    │  Bronze Layer (S3/Floci)                        │
-                    │  yagye-lake-raw/                               │
-                    │    payment.succeeded/year=2026/month=10/...    │
-                    └─────────────────────────────────────────────────┘
-```
-
-Redpanda Connect is a single binary that is configured via YAML. No JVM,
-no Kafka Streams, no Flink. It handles:
-- Consumer group management (offset commits)
-- Batching and buffering
-- S3 multipart upload
-- Schema application (Parquet column types from Arrow schema)
-- Dead-letter routing for malformed events
+Redpanda Connect was evaluated as an alternative Bronze ingestion path (S3 Parquet
+sink via YAML config) but rejected in favour of `DataLakeIngestionWorker` — simpler
+dependency footprint, schema-flexible NDJSON, and no additional binary to operate.
 
 ---
 
@@ -375,7 +357,7 @@ quality guarantees.
 
 ```
 PostgreSQL (core_db)
-    │ CDC via outbox + Redpanda Connect
+    │ Outbox → DataLakeIngestionWorker (micro-batch)
     ▼
 ┌──────────────────────────────────────────────────────────────────────────────┐
 │  BRONZE LAYER  (yagye-lake-raw/)                                             │
@@ -389,7 +371,7 @@ PostgreSQL (core_db)
 │  ✗ May contain nulls, inconsistent types, duplicate deliveries              │
 │  ✗ Not queryable efficiently (not pre-aggregated or denormalised)           │
 │                                                                             │
-│  Files: batch_20261018T120000Z.parquet (raw events, 500 rows per file)      │
+│  Files: payments_1729598400123456.ndjson (one JSON object per line)         │
 └──────────────────────────────────────────────────────────────────────────────┘
                       │ DuckDB ETL (runs hourly)
                       ▼
@@ -435,23 +417,19 @@ PostgreSQL (core_db)
 
 ### Bronze: raw and immutable
 
-Bronze files are written once and never modified. The directory name encodes
-partition values:
+Bronze files are written once and never modified. They are **NDJSON** — a
+faithful, schema-flexible record of Core events. Silver handles type enforcement
+and deduplication, converting to Parquet.
+
+The directory name encodes the date partition:
 
 ```
 yagye-lake-raw/
-  payment.succeeded/
-    year=2026/month=10/day=18/hour=12/
-      batch_20261018T120523Z_0001.parquet   ← 500 events
-      batch_20261018T121004Z_0002.parquet   ← 500 events
-  payment.failed/
-    ...
-  settlement.batch.dispatched/
-    ...
-  merchant.approved/
-    ...
-  compliance.screening_hit_raised/
-    ...
+  events/
+    dt=2026-10-18/
+      payments_1729252800000000.ndjson    ← NDJSON pre-P14
+      payments_1729252860000000.ndjson
+      settlements_1729252800000000.ndjson
 ```
 (Event type names map directly to S3 prefix names — see the event catalogue
 in §4 for the full list.)
@@ -613,6 +591,12 @@ into the 100–500 MB target.
 
 ## 7. Parquet: Why This Format
 
+> **Layer scope**: The advantages below apply to **Silver and Gold** — the query
+> layers. Bronze uses NDJSON by design: it is written once, read once, and needs
+> schema flexibility so new payload fields are captured automatically. Redpanda
+> Connect's Parquet sink was considered and rejected in favour of
+> `DataLakeIngestionWorker` (see §3 and §9).
+
 ### Why not CSV or JSON?
 
 | Format | Read speed | Storage size | Schema | Columnar | Splittable |
@@ -638,12 +622,12 @@ ORC is also columnar and efficient. Parquet is preferred because:
 
 ### Compression
 
-Bronze files use Snappy compression (fast, moderate ratio — good for write-heavy
-ingestion). Silver and Gold files use Zstd compression (slower to write, better
+Bronze NDJSON files are uncompressed — DuckDB's `read_ndjson_auto()` handles them
+directly. Silver and Gold files use Zstd compression (slower to write, better
 ratio — good for read-heavy analytics). Typical ratios:
 
-- Snappy on payment events: ~3–5× compression
-- Zstd level 3 on Silver payments: ~6–8× compression
+- Zstd level 3 on Silver payments (Parquet): ~6–8× compression
+- Zstd level 3 on Gold aggregates (Parquet): ~8–12× compression
 
 A million payment events in JSON: ~500 MB. In Parquet Zstd: ~30 MB. This is
 relevant for cost (S3 storage and transfer pricing) and for query speed (less
@@ -757,99 +741,77 @@ unchanged — only the query engine changes.
 
 ---
 
-## 9. Redpanda Connect: The Ingestion Pipeline
+## 9. DataLakeIngestionWorker: Bronze Ingestion
 
-### What Redpanda Connect is
+### What it does
 
-Redpanda Connect (formerly Benthos) is a declarative stream processing framework.
-It reads from sources (Redpanda topics, HTTP endpoints, S3 buckets), applies
-transformations (field mapping, filtering, JSON parsing, schema validation),
-and writes to sinks (S3, databases, HTTP endpoints).
+`DataLakeIngestionWorker` is an Oban cron job that fires every minute. It polls
+`outbox_messages` using a **150-second sliding window** on `occurred_at` and
+writes all unprocessed events as NDJSON to the Bronze S3 bucket (Floci in dev).
 
-It is a single binary, configured entirely via YAML, with no JVM dependency and
-minimal operational overhead. Each pipeline is a YAML file that Redpanda Connect
-executes.
-
-### The payment events ingestion pipeline
-
-```yaml
-# pipelines/payment-events-to-bronze.yaml
-input:
-  kafka:
-    addresses: ["redpanda:9092"]
-    topics: ["payment.events", "merchant.events", "settlement.events"]
-    consumer_group: data-lake-ingestion
-    start_from_oldest: false
-
-pipeline:
-  threads: 4
-  processors:
-    # Parse the event envelope
-    - mapping: |
-        root = this
-        root.ingested_at = now()
-        root.source_partition = meta("kafka_partition")
-        root.source_offset = meta("kafka_offset")
-
-    # Route by event_type to separate S3 prefixes
-    - switch:
-        - check: root.event_type == "payment.succeeded"
-          processors:
-            - mapping: root.s3_prefix = "payment.succeeded"
-        - check: root.event_type == "payment.failed"
-          processors:
-            - mapping: root.s3_prefix = "payment.failed"
-        - default:
-          processors:
-            - mapping: root.s3_prefix = root.event_type
-
-output:
-  aws_s3:
-    bucket: yagye-lake-raw
-    path: '${! this.s3_prefix }/year=${! this.effective_at.ts_format("2006") }/month=${! this.effective_at.ts_format("01") }/day=${! this.effective_at.ts_format("02") }/hour=${! this.effective_at.ts_format("15") }/batch_${! now().ts_format("20060102T150405Z") }_${! count("batch") }.parquet'
-    format: parquet
-    schema:
-      - name: event_id
-        type: string
-      - name: event_type
-        type: string
-      - name: aggregate_id
-        type: string
-      - name: aggregate_version
-        type: int32
-      - name: effective_at
-        type: timestamp[us]
-      - name: envelope
-        type: string  # JSON string — typed in Silver ETL
-      - name: ingested_at
-        type: timestamp[us]
-    batching:
-      count: 500         # max 500 rows per file
-      period: "30s"      # flush after 30s even if < 500 rows
-      byte_size: 10485760  # flush if batch > 10MB
+```
+outbox_messages
+    │ DataLakeIngestionWorker (Oban cron, every 1 min)
+    │ SELECT WHERE occurred_at >= NOW() - 150s AND processed_at IS NULL
+    ▼
+S3/Floci: events/dt=YYYY-MM-DD/<prefix>_<microseconds>.ndjson
+    format: one JSON object per line
+    example key: events/dt=2026-10-22/payments_1729598400123456.ndjson
 ```
 
-### Dead-letter handling in the pipeline
+### Why NDJSON for Bronze
 
-Events that fail schema validation or Parquet serialisation are routed to a
-dead-letter S3 prefix:
+- **Zero extra dependencies**: `Jason.encode!/1` is already a Core dependency.
+  Writing Parquet from Elixir requires a Rust NIF (`ExParquet`) and an upfront
+  Arrow schema — complexity that buys nothing at a write-once raw layer.
+- **Schema flexibility**: If a field is added to a Core event payload, it lands
+  in Bronze automatically with no schema migration. The raw layer is a faithful
+  byte-for-byte record of what Core emitted.
+- **DuckDB reads it natively**: `read_ndjson_auto()` is a first-class DuckDB
+  function with automatic type inference. Silver converts to typed, compressed
+  Parquet — that's where Parquet's columnar advantages (§7) apply.
 
-```yaml
-output:
-  fallback:
-    - aws_s3:
-        bucket: yagye-lake-raw
-        path: '${! this.s3_prefix }/...'
-        # ... primary output
-    - aws_s3:
-        bucket: yagye-lake-dlq  # dead-letter
-        path: 'dlq/${! this.s3_prefix }/${! now().ts_format("20060102T150405Z") }.json'
+### Envelope structure
+
+Every NDJSON line is a JSON object with this shape:
+
+```json
+{
+  "event_id":      "018e4a2c-...",
+  "event_type":    "payment.succeeded",
+  "aggregate_id":  "pay_018e...",
+  "merchant_id":   "mer_018e...",
+  "correlation_id": "abc123",
+  "occurred_at":   "2026-10-22T12:00:00Z",
+  "schema_version": 1,
+  "payload": {
+    "amount_minor": 10000,
+    "currency": "GHS",
+    "customer_msisdn": "0241234567",
+    ...
+  }
+}
 ```
 
-Dead-letter events are JSON (not Parquet) so they can be inspected without a
-query engine. A daily alert fires when `yagye-lake-dlq` has new objects. Each
-dead-letter event includes the original payload and the error message, allowing
-schema issues to be diagnosed and the Bronze ETL to be corrected and replayed.
+Silver ETL reads top-level envelope fields directly and extracts payload fields
+via `json_extract_string(payload, '$.field')`.
+
+### Where Redpanda fits
+
+Redpanda (P14) is used for the **Portal event bus**: Core publishes to Redpanda
+topics and Portal Karafka consumers read from them for real-time UI updates
+(live transaction feeds, webhook delivery events, etc.). Redpanda is **not**
+used for Bronze ingestion — `DataLakeIngestionWorker` reads `outbox_messages`
+directly from PostgreSQL.
+
+### Where streaming enters the pipeline (P20)
+
+The Bronze layer is micro-batch by design. The first true streaming consumer
+arrives at **P20** (ML model serving): a lightweight Python Redpanda consumer
+that maintains rolling merchant/customer feature aggregates (failure_rate_1h,
+attempt_count_24h, etc.) in Redis. The FastAPI scoring service reads these Redis
+keys at inference time for sub-millisecond feature lookup, without waiting for
+the next Gold ETL run.
 
 ---
 
@@ -857,10 +819,10 @@ schema issues to be diagnosed and the Bronze ETL to be corrected and replayed.
 
 ### The at-least-once problem
 
-Redpanda (Kafka-compatible) guarantees at-least-once delivery. After a consumer
-commits an offset, the broker considers the message delivered. If the consumer
-crashes after processing but before committing the offset, the message is
-redelivered. The Bronze layer may receive the same event twice.
+`DataLakeIngestionWorker` uses a 150-second sliding window on `occurred_at`. If
+a cron tick fires while the previous run is still in progress, or if Oban retries
+a failed job, the same events may be written to Bronze more than once. Bronze
+accepts duplicates — the raw layer exists to capture everything faithfully.
 
 This is acceptable in Bronze (the raw layer exists to capture everything). But
 Silver must deduplicate before writing Gold tables, and Gold tables must not
@@ -952,25 +914,14 @@ This is forward-compatible schema evolution: the Bronze layer is preserved as
 raw JSON in the `envelope` column, so new fields added later can be read by
 re-running the Silver ETL against the old Bronze data.
 
-### Arrow schema for Parquet files
+### Schema version in Bronze NDJSON
 
-Every Parquet file uses an explicit Apache Arrow schema registered in the schema
-registry. The schema registry is a simple directory of JSON schema files:
-
-```
-schemas/
-  bronze/
-    payment.succeeded.v1.json
-    payment.succeeded.v2.json
-  silver/
-    payments.v1.json
-  gold/
-    provider_health_hourly.v1.json
-```
-
-The Redpanda Connect pipeline reads the schema version from the event envelope
-and applies the correct Arrow schema when writing Parquet. DuckDB reads the
-embedded Parquet schema when querying — no external registry needed at query time.
+Bronze NDJSON files carry a `schema_version` field in the envelope (see §9).
+The Silver ETL reads this field and applies the correct column mapping when
+multiple schema versions are present in the same Bronze window. A schema registry
+(P19 TODO) will validate envelopes against the registered schema before Bronze
+write, catching field renames or type changes at ingestion time rather than
+silently producing nulls in Silver.
 
 ---
 
@@ -980,7 +931,7 @@ Each layer has a documented freshness SLA:
 
 | Layer | Table | Freshness | Rebuild cadence |
 |---|---|---|---|
-| Bronze | All events | 30 seconds | Streaming (Redpanda Connect) |
+| Bronze | All events | ~1 minute | Micro-batch (DataLakeIngestionWorker) |
 | Silver | payments | 1 hour | Hourly cron |
 | Silver | merchants, providers | 24 hours | Nightly cron |
 | Gold | provider_health_hourly | 5 minutes | Every 5 min cron |
@@ -1240,71 +1191,74 @@ under Ghana's Data Protection Act (DPA) and Yagye's data processing policy.
 
 ---
 
-## 17. Lambda Architecture — What We Are
+## 17. Micro-batch + Batch Architecture — What We Are
 
-Yagye's data platform is a **Lambda architecture**: a well-understood pattern
-that combines a batch layer for correctness and historical reprocessing with a
-streaming layer for low-latency ingestion.
+Yagye's data platform is a **micro-batch + batch** architecture. There is no
+real-time streaming layer for the Bronze/Silver/Gold pipeline — that complexity
+is not warranted at this scale.
 
 ```
 ┌───────────────────────────────────────────────────────────────────────────┐
-│  LAMBDA ARCHITECTURE                                                       │
+│  MICRO-BATCH + BATCH ARCHITECTURE                                         │
 │                                                                           │
-│  Operational DB (core_db)                                                 │
+│  Operational DB (core_db / outbox_messages)                               │
 │      │                                                                    │
-│      ├── STREAMING LAYER ──────────────────────────────────────────────►  │
-│      │   Redpanda Connect → Bronze Parquet (< 30s lag)                    │
+│      │ MICRO-BATCH INGESTION (~1 min latency)                             │
+│      │   DataLakeIngestionWorker → Bronze NDJSON (S3)                     │
 │      │                                                                    │
-│      └── BATCH LAYER ────────────────────────────────────────────────►    │
-│          DuckDB ETL jobs: Bronze → Silver → Gold                          │
-│          Runs hourly (Silver) and nightly (Gold)                          │
+│      ▼ BATCH TRANSFORMATION                                               │
+│          Silver ETL (hourly): Bronze NDJSON → typed Parquet               │
+│          Gold ETL (hourly/nightly): Silver Parquet → aggregates           │
 │                                                                           │
 │                        SERVING LAYER                                      │
-│          DuckDB reads from Gold Parquet → ML scoring, BI, reports         │
+│          DuckDB reads from Gold Parquet → ML training, BI, reports        │
+│                                                                           │
+│  FUTURE (P20) — STREAMING FEATURE STORE                                   │
+│      Redpanda consumer → rolling aggregates → Redis                       │
+│      FastAPI scoring service reads Redis at inference time                │
 └───────────────────────────────────────────────────────────────────────────┘
 ```
 
-### Why not pure Kappa (stream-only)?
+### Why not a streaming ingestion layer?
 
-Kappa architecture is Lambda without the batch layer — all processing is done
-in a single streaming pipeline. This sounds simpler: one code path, one
-processing model. But Kappa has a critical weakness: **reprocessing**.
+A streaming Bronze ingestion layer (Redpanda Connect, Flink, Kafka Streams)
+would reduce Bronze latency from ~1 minute to ~30 seconds. For Yagye's current
+analytics use cases — reconciliation reports, settlement summaries, merchant
+dashboards — this makes no practical difference. The cost is a separate binary
+to operate, YAML pipeline config to maintain, and a second code path for
+ingestion logic.
+
+`DataLakeIngestionWorker` is one Oban job, in the language and framework the
+team already operates. When Bronze latency actually matters (P20 ML inference),
+the answer is a Redis feature store fed by a Redpanda consumer — not faster
+Bronze writes.
+
+### Why Bronze as an immutable log beats Kappa
+
+Kappa architecture processes everything as a stream and relies on Kafka/Redpanda
+topic retention for reprocessing. It has a critical weakness for a regulated PSP:
 
 When a Silver ETL bug is discovered (e.g. a fee calculation was wrong for 3
-months), reprocessing requires replaying 3 months of Kafka events through the
-corrected pipeline. This requires:
-- Kafka to have retained 3 months of events (expensive; most deployments retain
-  7 days)
-- The streaming pipeline to handle 3 months of events at catch-up speed without
-  impacting real-time processing
-- The stateful operators (joins, aggregations) to correctly handle out-of-order
-  replay
+months), Kappa reprocessing requires:
+- Redpanda to have retained 3 months of events (expensive; most configurations
+  retain 7 days)
+- The streaming pipeline to handle 3 months of catch-up without impacting
+  real-time processing
 
-Yagye's Bronze layer is the immutable event log. The DuckDB ETL can re-run
-against Bronze at any time — it is not limited by a Kafka retention window.
-Reprocessing 3 months of data with a corrected DuckDB SQL query is a
-30-minute job, not a 3-day re-architecture. This reprocessing capability is
-essential for a regulated financial system where historical data correctness
-is non-negotiable.
+Yagye's Bronze layer is the immutable event log on S3. The DuckDB ETL can
+re-run against Bronze at any time, for any date range, at full speed. A 3-month
+backfill with a corrected DuckDB SQL query is a 30-minute job. This
+reprocessability is non-negotiable for a financial system where historical
+accuracy is a regulatory requirement.
 
-### The trade-off
+### When to add a streaming layer
 
-Lambda's cost is two code paths for similar logic:
-- The Redpanda Connect pipeline handles raw event ingestion (streaming path).
-- The DuckDB ETL handles transformation and enrichment (batch path).
-
-Some logic — like PII hashing or timestamp normalisation — must be implemented
-in both. At Yagye's scale, this duplication is acceptable: the batch logic is
-simple SQL, not a stateful streaming topology. The correctability of batch
-reprocessing is worth the duplication cost.
-
-### When to migrate toward Kappa
-
-If Yagye's data team grows to manage 50+ pipelines and the two-path duplication
-becomes a significant maintenance burden, the migration path is to replace
-DuckDB batch ETL with a stateful streaming processor (Apache Flink) and rely
-on Redpanda's long retention for reprocessing. This is a 12–18-month project
-at that scale, not a day-one decision.
+The streaming layer enters at **P20** for the ML feature store: a Python
+Redpanda consumer maintains rolling windows (failure_rate_1h, attempt_count_24h)
+in Redis. If Yagye's data team grows to 50+ pipelines and needs sub-minute
+Silver freshness, the migration path is Flink or Spark Streaming over the
+existing Redpanda topics — Bronze NDJSON files remain unchanged as the
+reprocessing source.
 
 ---
 
@@ -1643,7 +1597,7 @@ Yagye currently has:
 A Data Mesh at this scale would mean:
 - Three separate pipeline codebases to maintain instead of one
 - Three separate infrastructure deployments (three sets of S3 buckets, three
-  Redpanda Connect instances, three ETL schedulers)
+  three ETL schedulers)
 - Three sets of data quality monitoring
 - Cross-mart joins (which are routine in Yagye's reporting) require cross-domain
   contracts and coordination
@@ -2606,9 +2560,8 @@ from day one of the data platform.
 - A small team can maintain the platform confidently
 
 *Yagye's target at P20 data platform launch:* The architecture described in
-this document — DuckDB, Parquet on S3, Redpanda Connect, medallion medallion
-structure, SCD Type 2, lineage metadata — is explicitly designed to reach
-Level 3 at first deployment.
+this document — DuckDB, Parquet on S3, medallion structure, SCD Type 2, lineage
+metadata — is explicitly designed to reach Level 3 at first deployment.
 
 **Level 4 — Differentiating (data drives product decisions)**
 
@@ -2670,9 +2623,9 @@ through every layer unchanged:
 Core transaction
    └─ outbox_messages.event_id = "018e4a2c-..."    ← generated at write
          │
-         │ Redpanda Connect writes to Bronze
+         │ DataLakeIngestionWorker writes to Bronze
          ▼
-Bronze/raw/2026/10/18/payments.parquet
+Bronze/raw/events/dt=2026-10-18/payments_<microseconds>.ndjson
    └─ event_id = "018e4a2c-..."                    ← preserved exactly
 
          │ DuckDB Silver ETL deduplicates on event_id
@@ -2701,7 +2654,7 @@ FROM read_parquet('s3://yagye-lake-raw/payments/**/*.parquet') b
 WHERE b.event_id = '018e4a2c-...'
 ```
 
-This returns the original raw Bronze payload exactly as Redpanda Connect
+This returns the original raw Bronze payload exactly as `DataLakeIngestionWorker`
 wrote it — the verbatim outbox message from Core. From there, the `merchant_id`
 and `payment_id` in the payload link back to the Core write model for the
 authoritative state.
@@ -2848,8 +2801,8 @@ Because the MSISDNs are deterministic (`024 100 0001` = success, `024 100 0002`
 runs. Any deviation is a pipeline regression.
 
 This test runs against Floci (not real AWS) so it is cheap and safe to run
-nightly. It is the only test that exercises Redpanda Connect, the Oban ETL
-jobs, and DuckDB S3 reads together.
+nightly. It is the only test that exercises the full pipeline: DataLakeIngestionWorker,
+Silver/Gold DuckDB ETL, and S3 reads together.
 
 ---
 
@@ -2913,14 +2866,14 @@ production traffic existed.
 
 ### Stage 2 — Read replica + simple ETL (where Yagye is today)
 
-The operational databases are OLTP. The data platform (Redpanda → Bronze
-Parquet → Silver → Gold → DuckDB) is OLAP. They share nothing except the
-outbox event stream. This is the right architecture for Yagye's current scale.
+The operational databases are OLTP. The data platform (outbox → Bronze NDJSON
+→ Silver Parquet → Gold Parquet → DuckDB) is OLAP. They share nothing except
+the outbox event stream. This is the right architecture for Yagye's current scale.
 
 Characteristics of Stage 2:
 - One centralized data platform serving all consumers (ML, ops, analytics)
 - DuckDB as the sole query engine (single-process, no distributed compute)
-- Batch ETL jobs (daily for Gold, near-real-time for Silver via Redpanda Connect)
+- Micro-batch Bronze ingestion (~1 min); hourly Silver; nightly/hourly Gold
 - Schema-first data contracts (Parquet schemas, SCD Type 2, lineage via event_id)
 
 ### Stage 3 — Distributed query engine (trigger: Gold table query > 60s)
@@ -2957,7 +2910,7 @@ next milestone per dimension:
 | Dimension | Level 1 | Level 2 (today) | Level 3 (next) | Level 4 |
 |---|---|---|---|---|
 | **Storage** | Write DB only | Lakehouse (Bronze/Silver/Gold) | Iceberg/Delta for ACID | Multi-region lakehouse |
-| **Ingestion** | Manual exports | Outbox → Redpanda Connect | CDC + schema registry | Real-time streaming |
+| **Ingestion** | Manual exports | Outbox → DataLakeIngestionWorker (micro-batch) | CDC + schema registry | Real-time streaming |
 | **Processing** | SQL on write DB | DuckDB batch ETL | Trino / Athena | Flink stateful streaming |
 | **Orchestration** | Cron scripts | Oban ETL jobs | dbt + Dagster | Multi-team pipelines |
 | **Quality** | None | DQ checks + CI unit tests | Great Expectations | Data contracts + SLOs |

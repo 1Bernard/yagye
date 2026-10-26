@@ -186,8 +186,14 @@ Table merchant_checkout_configs [headercolor: #1F6B4A] {
   refund_policy_url text
   allowed_methods "text[]" [not null, note: 'payment methods enabled for this merchant, e.g. [mobile_money, card, bank_transfer]. Drives checkout UI and routing validation.']
   default_locale text [not null]
+
+  // Refund policy (set at merchant onboarding; governs all payment refunds)
+  refund_window_days integer [not null, default: 180, note: 'max days after payment creation a refund is allowed. 30|60|90|180|365. Default 180 (conservative). CONSTRAINT: 1–365.']
+  partial_refunds_enabled boolean [not null, default: true, note: 'whether merchant can issue refunds for less than the original payment amount.']
+  requires_approval_above_pesewas integer [note: 'refunds above this pesewa amount route to ops approval queue. NULL = no threshold, all self-service.']
+
   updated_at timestamptz [not null]
-  Note: 'Branding and policy URLs rendered on hosted checkout. The terms shown are the MERCHANT s, never Yagye s.'
+  Note: 'Branding and policy URLs rendered on hosted checkout. The terms shown are the MERCHANT s, never Yagye s. Refund policy fields apply to all payments for this merchant.'
 }
 
 Table api_keys [headercolor: #1A2B4C] {
@@ -349,9 +355,20 @@ Table merchant_settlement_controls [headercolor: #1A2B4C] {
   settlement_account_name text [note: 'name on the bank account — must match merchants.legal_name for verification. Shown to ops for manual confirmation.']
 
   updated_by text [note: 'portal user who last updated these controls']
+
+  // Settlement policy — per-merchant agreement terms
+  settlement_delay_days integer [not null, default: 1, note: 'T+N delay: 1=T+1 (Ghana standard, matches Paystack). Max 7. Payments must be this many Ghana business days old before they are swept.']
+  minimum_payout_pesewas integer [not null, default: 5000, note: 'Minimum batch gross before settlement is triggered. GHS 50 matches Paystack Ghana default. 0 = no minimum.']
+  settlement_frequency text [not null, default: 'daily', note: 'daily|weekly|monthly. Weekly triggers only on Mondays; monthly on the 1st.']
+  reserve_rate_bps integer [not null, default: 0, note: 'Rolling reserve in basis points (100 bps = 1%). Withheld from each batch net_amount. 0 for standard merchants; up to 2500 (25%) for high-risk.']
+  reserve_release_days integer [not null, default: 90, note: 'Days to hold the reserve before ops-manual release. Industry standard: 90 days.']
+  early_settlement_enabled boolean [not null, default: false, note: 'Allows merchant to trigger early settlement from the portal dashboard.']
+  on_hold boolean [not null, default: false, note: 'When true the scheduler skips this merchant entirely. Set by ops for AML/fraud review.']
+  hold_reason text [note: 'Reason for the hold — shown to ops only.']
+
   inserted_at timestamptz [not null]
   updated_at timestamptz [not null]
-  Note: 'Settlement destination and batch-approval policy per merchant. Created during KYB step 3 (Account). Either msisdn OR bank fields must be populated before live mode is granted — ops verifies at review time.'
+  Note: 'Settlement destination, batch-approval policy, and per-merchant settlement agreement terms. Created during KYB step 3 (Account). Either msisdn OR bank fields must be populated before live mode is granted. Policy fields represent the agreed terms from the MSA.'
 }
 
 Table service_agreements [headercolor: #9B3232] {
@@ -614,7 +631,7 @@ Table payments [headercolor: #1A2B4C] {
   currency char(3) [not null]
   authorised_amount bigint [not null, note: 'may exceed captured_amount — partial capture is normal for physical goods']
   captured_amount bigint [not null, note: 'DERIVED: SUM(payment_captures.amount WHERE succeeded). Denormalised for query speed, verified nightly like ledger_balances.']
-  refunded_amount bigint [not null, note: 'MIGRATION REQUIRED: CHECK (refunded_amount <= captured_amount). Declared here, enforced in the migration — DBML cannot express cross-column CHECKs.']
+  refunded_amount bigint [not null, default: 0, note: 'running total of all refund amounts that have reached pending_approval|approved|requested|succeeded. Incremented atomically within the refund creation transaction. CONSTRAINT: refunded_amount >= 0 AND refunded_amount <= amount.']
   cancellation_type text [note: 'pre_authorisation|void_authorisation|expired_authorisation. A void requires a PROVIDER CALL and releases a hold; a pre-auth cancellation does not. Both land in state=cancelled and neither posts a ledger entry — nothing was ever captured.']
   voided_at timestamptz
   state payment_state [not null, note: 'see the payment_state enum — created → processing → … → succeeded, with indeterminate as the state the resolver owns']
@@ -803,13 +820,30 @@ Table refunds [headercolor: #1F6B4A] {
   mode yagye_mode [not null]
   amount bigint [not null, note: '[FIN]']
   currency char(3) [not null]
-  reason text [not null, note: 'duplicate|fraudulent|customer_request|dispute_retracted']
-  state text [not null, note: 'requested|succeeded|failed']
+  reason text [not null, note: 'duplicate|fraudulent|customer_request|dispute_retracted|requested_by_merchant']
+  state text [not null, note: 'pending_approval → approved → requested → succeeded|failed|rejected. Direct path (no approval threshold): requested → succeeded|failed.']
   failure_reason text
+
+  // Audit trail
+  initiated_by text [note: '"portal_user:usr_X" | "merchant_api" | "ops_user:usr_X" | "system". Set at creation.']
+  approved_by text [note: 'SoD: must differ from initiated_by. Populated only when approval flow was required. CONSTRAINT: approved_by != initiated_by.']
+  approved_at timestamptz
+  approval_reason text
+  provider_ref text [note: 'disbursement reference returned by the MoMo network or provider on successful dispatch.']
+  provider_response jsonb [note: 'full raw response from the provider on dispatch attempt.']
+  state_transitions "jsonb[]" [not null, note: 'append-only log: [{from, to, at, by, reason}]. One entry per state change, including the initial state at creation.']
+
   metadata jsonb [not null]
   inserted_at timestamptz [not null]
   updated_at timestamptz [not null]
-  Note: 'P5 simplified implementation. Full provider-integration, idempotency, and cross-settlement refund flows come in P12. Invariant: SUM(refunds in requested|succeeded) <= payment.captured_amount, enforced under a row lock.'
+
+  indexes {
+    payment_id [note: 'look up all refunds for a payment']
+    merchant_id [note: 'merchant refund history']
+    (state) [note: 'ops approval queue: WHERE state = pending_approval']
+  }
+
+  Note: 'Invariant: SUM(refunds.amount WHERE state IN [pending_approval, approved, requested, succeeded]) <= payment.amount, enforced under a row lock at insertion. MoMo refunds are outbound push-payment disbursements (not true API reversals). CONSTRAINT: sod_approver_differs_from_initiator — approved_by != initiated_by.'
 }
 
 Table disputes [headercolor: #9B3232] {
@@ -1160,8 +1194,9 @@ Table settlement_batches [headercolor: #1A2B4C] {
   state text [not null, note: 'pending|processing|settled|failed']
   error text [note: 'set on state=failed']
   settled_at timestamptz
-  net_amount bigint [note: '[FIN] gross_amount minus platform_fees and provider fees. The amount actually disbursed to the merchant.']
+  net_amount bigint [note: '[FIN] gross_amount minus platform_fees, provider fees, and reserved_amount. The amount actually disbursed to the merchant.']
   platform_fees bigint [note: 'SUM of platform-side fee_records for payments in this batch']
+  reserved_amount bigint [not null, default: 0, note: '[FIN] Portion withheld as rolling reserve (gross × reserve_rate_bps / 10000). Released after reserve_release_days via ops.']
   bank_dispatch_ref text [note: 'bank transfer reference for the disbursement, from BankDispatchWorker']
   bank_dispatched_at timestamptz [note: 'when the bank disbursement was submitted']
   dispatch_approved_by text [note: 'SoD: ops actor who approved the batch for dispatch']

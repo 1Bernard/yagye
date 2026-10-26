@@ -123,4 +123,65 @@ FactoryBot.define do
     last_applied_at  { Time.current }
     last_event_id    { SecureRandom.uuid }
   end
+
+  # ── Portal settlements ────────────────────────────────────────────────────
+
+  factory :portal_settlement do
+    sequence(:settlement_code) { |n| "SET-#{n.to_s.rjust(6, '0')}" }
+    merchant_code    { "MCH-0001" }
+    provider_code    { "mtn_momo" }
+    mode             { "live" }
+    state            { "initiated" }
+    currency         { "GHS" }
+    period_start     { 2.days.ago }
+    period_end       { 1.day.ago }
+    expected_net     { 50_000 }
+    item_count       { 10 }
+    last_event_id    { SecureRandom.uuid }
+    last_applied_at  { Time.current }
+  end
+
+  # ── Portal payouts ────────────────────────────────────────────────────────
+
+  factory :portal_payout do
+    sequence(:payout_code) { |n| "PAY-#{n.to_s.rjust(6, '0')}" }
+    merchant_code            { "MCH-0001" }
+    mode                     { "live" }
+    state                    { "scheduled" }
+    amount                   { 50_000 }
+    currency                 { "GHS" }
+    destination_type         { "mobile_money" }
+    destination_fingerprint  { "mtn:0241000001" }
+    scheduled_for            { Date.tomorrow }
+    last_event_id            { SecureRandom.uuid }
+    last_applied_at          { Time.current }
+  end
+
+  # ── Portal adjustment approvals ───────────────────────────────────────────
+
+  factory :portal_adjustment_approval do
+    core_break_id    { SecureRandom.uuid }
+    proposed_by      { "analyst@yagye.com" }
+    proposed_at      { Time.current }
+    proposed_action  { { "action" => "write_off", "amount" => 500 } }
+    state            { "pending" }
+    last_event_id    { SecureRandom.uuid }
+  end
+
+  # ── Disputes ──────────────────────────────────────────────────────────────
+
+  factory :dispute do
+    sequence(:core_dispute_id) { |n| "disp_#{n.to_s.rjust(6, '0')}" }
+    sequence(:reference)       { |n| "DSP-#{n.to_s.rjust(6, '0')}" }
+    merchant_code     { "MCH-0001" }
+    core_payment_id   { "pay_000001" }
+    payment_reference { "PAY-REF-001" }
+    amount            { 5_000 }
+    currency          { "GHS" }
+    reason            { "fraud" }
+    status            { "submitted" }
+    last_event_id     { SecureRandom.uuid }
+    last_applied_at   { Time.current }
+    opened_at         { Time.current }
+  end
 end

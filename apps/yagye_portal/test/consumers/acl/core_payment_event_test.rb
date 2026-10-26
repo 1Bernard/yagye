@@ -46,9 +46,9 @@ module Acl
       assert_equal "processing", event.status
     end
 
-    test "chargebacked maps to refunded" do
+    test "chargebacked maps to chargebacked" do
       event = CorePaymentEvent.new(build_payload("state" => "chargebacked"))
-      assert_equal "refunded", event.status
+      assert_equal "chargebacked", event.status
     end
 
     test "unknown state passes through unchanged" do

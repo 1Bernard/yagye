@@ -333,10 +333,12 @@ Redpanda config: `localhost:19092` (dev), `KAFKA_BOOTSTRAP_SERVERS` env (prod), 
       DuckDB-based Silver ETL (payments, settlements, merchants, reconciliation), Gold ETL
       (payments_mart, risk_mart, ops_mart), ML training scaffold (XGBoost, LightGBM, ONNX).
       Runs as `yagye_data` docker-compose service (Silver hourly, Gold every 6 h).
-- [ ] **Synthetic data generator** — `mix simulator.generate_load` Mix task in
-      `gateway_simulator`. Fires N payments at Core API using deterministic MSISDN
+- [x] **Synthetic data generator (2026-10-25)** — `mix simulator.generate_load` Mix task in
+      `yagye_simulator`. Fires N payments at Core API using deterministic MSISDN
       prefixes to produce labeled outcome classes (success / insufficient_funds /
-      timeout / fraud-burst). Target: 50k events in < 2 minutes locally.
+      expired / not_registered / scenario_driven). Configurable count, concurrency,
+      API key, service token. Writes labeled JSONL. Target: 50k events in < 2 min
+      at --concurrency 50. Route: POST /v1/checkout-sessions → POST /internal/checkout/sessions/:id/pay → poll state.
 - [ ] **Schema registry for Bronze events** — Enable the Redpanda schema registry
       (already running on :8081 in docker-compose) and register Avro schemas for each
       outbox event type (`payment.succeeded`, `settlement.completed`, etc.). Wire
@@ -367,6 +369,20 @@ Redpanda config: `localhost:19092` (dev), `KAFKA_BOOTSTRAP_SERVERS` env (prod), 
       Plugs into `Reconciliation.classify_break/1`.
 - [ ] **Model 4 — Dynamic rolling reserve predictor** — predicts 90-day dispute probability
       per merchant. Replaces flat reserve percentage in `YagyeCore.Reserves.compute_rate/1`.
+- [ ] **Portal: Risk & Compliance monitoring section** — A new "Risk" nav section in
+      `yagye_portal`, visible only to `compliance_analyst` and `compliance_manager` roles
+      (gated by a new `risk.view` permission). **Not a separate app** — compliance users
+      are already portal users; all auth, RBAC, and audit infrastructure is in place.
+      Three views:
+      - **Flagged payments queue** — payments Core held or scored high-risk (risk_score > 0.85).
+        Sortable by score, amount, merchant, date. Each row links to the payment detail page.
+      - **Case review** — per-payment disposition workflow: Clear / Escalate / Block merchant.
+        Records `dispositioned_by` + outcome; SoD: dispositioner ≠ original flagger.
+      - **Screening hits queue** — AML `screening_hits` surfaced for compliance review
+        (disposition: clear / escalate / block). Replaces the stub built in earlier phases.
+      Data source: Core API endpoints added at P20 that expose held payments and scoring
+      signals. `yagye_scoring` produces the scores; Core stores and exposes them; the portal
+      renders them. Portal never calls the scoring service directly.
 - [ ] See ADR-0023 for ML scoring architecture decisions.
 
 ---
@@ -413,6 +429,64 @@ Redpanda config: `localhost:19092` (dev), `KAFKA_BOOTSTRAP_SERVERS` env (prod), 
 | KYC session reuse across companies | Not planned — `subject_ref → pii_vault` supports it technically if needed |
 | Signature integrity on KYB documents | Delegate to Onfido/Veriff — not Yagye's responsibility |
 | Device/IP risk scoring (Sardine/Seon/Kount) | Not planned for initial launch |
+
+---
+
+### Portal UX patterns (reference for all phases)
+
+These decisions are settled. Follow them whenever building new portal views — do not
+re-litigate them or introduce new patterns without updating this section first.
+
+#### Search & filter strategy (tiered)
+
+Every data table in the portal uses a **three-tier filter ecosystem**. Apply the correct
+tier based on the audience and use-case; never collapse all three into one pattern.
+
+| Tier | Pattern | Where it lives | Who it's for |
+|---|---|---|---|
+| 1 — Quick lookup | Single search bar + status chips / state tabs | Toolbar above the table | All portal users: merchants, ops, compliance |
+| 2 — Contextual filter | Filter drawer (date range, provider, method, etc.) | Drawer opened via "Filters" button | Users who need to narrow by 2–4 known dimensions |
+| 3 — Query builder | Visual WHERE / AND sentence builder | "Advanced filter" toggle, expands inline | **Ops & compliance analysts only** — fraud investigation, reconciliation audits, custom reports |
+
+**Tier 1** is built on every table from P13 onward. It uses:
+- A fixed-width search input (auto-submit on type via `filter-form` Stimulus controller).
+- State tabs (`UI::Tabs`) above the card for the primary status dimension.
+- Active filter badge on the Filters button when Tier 2 filters are applied.
+
+**Tier 2** is the filter drawer (`turbo_frame_tag "drawer-frame"`). Each table gets its own
+`FilterView`. Keep it to 3–5 fields max — date range, one or two categorical pickers. The
+drawer form submits GET to the index path and preserves search/state params via hidden inputs.
+
+**Tier 3 — query builder** is deferred to P20. It is **only for the ops/compliance Risk
+monitoring section** (flagged payments queue, case review, screening hits). Merchants never
+see it. It targets `compliance_analyst` / `compliance_manager` roles (`risk.view` permission).
+Design inspiration: HubSpot / Salesforce query builder, Stripe's pill-tag tokenized search.
+Implementation: a `QueryBuilder` Stimulus controller with a dynamic row array (field / operator /
+value) serialised as `filters[][field]=…&filters[][op]=…&filters[][value]=…` — Core decodes
+and applies. Support AND chains only at P20; OR / grouping is a post-launch enhancement.
+
+**Export strategy per tier:**
+- Tier 1/2 tables: Export dropdown (CSV + XLSX, max 2 000 rows for XLSX). CSV is
+  uncapped (streaming). Both formats respect the active search + filter params.
+- Tier 3 (ops query builder): same export mechanism, but Core raises the XLSX cap to
+  10 000 rows for internal staff since their queries are already highly selective.
+
+#### Filter params convention
+
+All filter params pass through as plain query-string keys. Standard names:
+
+| Param | Meaning |
+|---|---|
+| `q` | Free-text search (merchant reference, name, ID) |
+| `from` | Start date, ISO 8601 date string (`YYYY-MM-DD`), inclusive |
+| `to` | End date, ISO 8601 date string (`YYYY-MM-DD`), inclusive |
+| `state` / `status` | Primary status dimension (table-specific enum) |
+| `page` | Pagination page (1-indexed, clamp to 9999) |
+| `format` | `csv` or `xlsx` — triggers export respond_to branch |
+
+Pagination is always 25 rows per page (matches `pagy` default). Export ignores pagination:
+`format=csv` gets all rows (Core raises limit to 10 000); `format=xlsx` is capped at 2 000
+with a redirect + flash if exceeded.
 
 ---
 
