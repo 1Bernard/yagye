@@ -64,7 +64,7 @@ module Merchants
       div(class: "flex flex-col gap-5") do
         actions_card
         pricing_plan_card if @app.merchant_code.present?
-        reserve_policy_card if @app.merchant_code.present? && can?(:manage?, :reserve_policies)
+        reserve_policy_card if @app.merchant_code.present? && can?(:view?, :reserve_policies)
         status_card
       end
     end
@@ -567,7 +567,7 @@ module Merchants
         end
         reserve_detail_row("Hold period", "#{pol["hold_days"] || 90} days")
         reserve_detail_row("Mode",        (pol["mode"] || "live").capitalize)
-        reserve_detail_row("Reason",      pol["reason"])      if pol["reason"].present?
+        reserve_detail_row("Reason",      pol["reason"], stacked: true) if pol["reason"].present?
         reserve_detail_row("Created by",  pol["created_by"])  if pol["created_by"].present?
         reserve_detail_row("Approved by", pol["approved_by"]) if pol["approved_by"].present?
       end
@@ -581,7 +581,7 @@ module Merchants
             plain "Approve policy"
           end
           p(class: "#{TYPE_CAPTION} text-center mt-2") do
-            plain "Must be approved by a different ops manager (SoD)."
+            plain "Must be approved by a different officer (SoD)."
           end
           p(class: "#{TYPE_CAPTION} text-center mt-1") do
             plain "Reserve policy setup is independent of KYB approval."
@@ -645,6 +645,12 @@ module Merchants
                                     class:   "w-full justify-center") do
                 render UI::Icon.new(:wallet, class: ICON_SM)
                 plain "Settlement Controls"
+              end
+              render UI::Button.new(variant: :secondary,
+                                    href:    merchant_refund_policy_path(@app),
+                                    class:   "w-full justify-center") do
+                render UI::Icon.new(:refresh, class: ICON_SM)
+                plain "Refund Policy"
               end
             end
 

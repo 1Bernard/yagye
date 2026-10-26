@@ -227,7 +227,7 @@ module Dashboard
           color:   PURPLE,
           tint:    TINT_PURPLE,
           delta:   tx_delta,
-          funnel:  @tx_count.to_i.positive? ? { success: @success_count, failed: @failed_count, pending: @pending_count } : nil
+          funnel:  @tx_count.to_i.positive? ? { success: @success_count - @refunded_count, refunded: @refunded_count, failed: @failed_count, pending: @pending_count } : nil
         )
         kpi_card(
           label:   "Success Rate",
@@ -288,20 +288,23 @@ module Dashboard
     end
 
     def mini_funnel_bar(funnel)
-      paid_pct    = pct_of(@tx_count, funnel[:success])
-      failed_pct  = pct_of(@tx_count, funnel[:failed])
-      pending_pct = pct_of(@tx_count, funnel[:pending])
+      paid_pct     = pct_of(@tx_count, funnel[:success])
+      refunded_pct = pct_of(@tx_count, funnel[:refunded])
+      failed_pct   = pct_of(@tx_count, funnel[:failed])
+      pending_pct  = pct_of(@tx_count, funnel[:pending])
 
       div(class: "mt-[10px]") do
         div(class: "flex gap-px rounded-full overflow-hidden", style: "height:5px;") do
-          div(style: "flex:#{paid_pct};background:#{GREEN}")    if paid_pct    > 0
-          div(style: "flex:#{failed_pct};background:#{RED}")    if failed_pct  > 0
-          div(style: "flex:#{pending_pct};background:#{AMBER}") if pending_pct > 0
+          div(style: "flex:#{paid_pct};background:#{GREEN}")      if paid_pct     > 0
+          div(style: "flex:#{refunded_pct};background:#{PURPLE}") if refunded_pct > 0
+          div(style: "flex:#{failed_pct};background:#{RED}")      if failed_pct   > 0
+          div(style: "flex:#{pending_pct};background:#{AMBER}")   if pending_pct  > 0
         end
         div(class: "flex items-center gap-3 mt-[7px] flex-wrap") do
-          mini_funnel_dot(funnel[:success], "paid",    GREEN)
-          mini_funnel_dot(funnel[:failed],  "failed",  RED)
-          mini_funnel_dot(funnel[:pending], "pending", AMBER)
+          mini_funnel_dot(funnel[:success],  "paid",     GREEN)
+          mini_funnel_dot(funnel[:refunded], "refunded", PURPLE)
+          mini_funnel_dot(funnel[:failed],   "failed",   RED)
+          mini_funnel_dot(funnel[:pending],  "pending",  AMBER)
         end
       end
     end
@@ -414,7 +417,7 @@ module Dashboard
       div(class: "flex items-center mb-5 bg-white border border-gray-100 rounded-2xl overflow-hidden") do
         # ── Balance ─────────────────────────────────────────────────────────
         div(class: "flex flex-col justify-center px-6 py-[18px] flex-shrink-0") do
-          p(class: TYPE_CAPTION) { plain "Balance" }
+          p(class: TYPE_CAPTION) { plain "Payout Balance" }
           p(class: "text-[20px] font-extrabold tabular-nums tracking-tight text-gray-900 mt-[5px] leading-none") do
             plain format_money(pb[:balance], currency: pb[:currency])
           end
@@ -569,7 +572,7 @@ module Dashboard
         div(class: "flex items-center justify-between px-6 pt-5 pb-0") do
           div do
             p(class: TYPE_TITLE) { plain "Transaction Volume" }
-            p(class: "#{TYPE_CAPTION} mt-1") { plain "Daily paid volume · GHS" }
+            p(class: "#{TYPE_CAPTION} mt-1") { plain "Daily volume (gross) · GHS" }
           end
           div(class: "flex items-center gap-1 p-1 bg-gray-50 rounded-xl",
               data: { controller: "period-toggle" }) do

@@ -39,7 +39,7 @@ module Acl
       "indeterminate"    => "indeterminate",
       "disputed"         => "disputed",
       "refunded"         => "refunded",
-      "chargebacked"     => "refunded"
+      "chargebacked"     => "chargebacked"
     }.freeze
 
     def status         = STATE_MAP.fetch(@p["state"].to_s, @p["state"].to_s)

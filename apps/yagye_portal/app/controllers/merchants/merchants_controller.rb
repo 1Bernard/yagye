@@ -50,7 +50,11 @@ module Merchants
         beneficial_owners = ubos_r.success?     ? (ubos_r.body["data"] || []) : []
         documents         = docs_r.success?     ? (docs_r.body["data"] || []) : []
         screening         = screening_r.success? ? screening_r.body            : nil
-        reserve_policy    = reserves_r.success?  ? reserves_r.body["policy"]   : nil
+        if reserves_r.success? && (pol = reserves_r.body["policy"])
+          pol["created_by"]  = resolve_user_display(pol["created_by"])
+          pol["approved_by"] = resolve_user_display(pol["approved_by"])
+          reserve_policy = pol
+        end
         pricing_plan      = plan_r.success?      ? plan_r.body                 : nil
         payout_dests      = dests_r.success?     ? (dests_r.body["data"] || []) : []
       end

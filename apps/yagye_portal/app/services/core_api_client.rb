@@ -40,15 +40,37 @@ class CoreApiClient
 
   # ── Payments ───────────────────────────────────────────────────────────────
 
-  # POST /v1/payments/:id/refunds
+  # POST /internal/payments/:id/refunds
   def create_refund(payment_id, amount:, reason:, initiated_by:)
-    post("/v1/payments/#{payment_id}/refunds",
+    post("/internal/payments/#{payment_id}/refunds",
          { amount: amount, reason: reason, initiated_by: initiated_by })
+  end
+
+  # GET /internal/refunds/pending
+  def list_pending_refunds(limit: 50)
+    get("/internal/refunds/pending", { limit: limit })
+  end
+
+  # POST /internal/refunds/:id/approve
+  def approve_refund(refund_id, approved_by:, reason: nil)
+    post("/internal/refunds/#{refund_id}/approve",
+         { approved_by: approved_by, reason: reason }.compact)
+  end
+
+  # POST /internal/refunds/:id/reject
+  def reject_refund(refund_id, rejected_by:, reason:)
+    post("/internal/refunds/#{refund_id}/reject",
+         { rejected_by: rejected_by, reason: reason })
   end
 
   # GET /v1/payments/:id/events
   def get_payment_events(payment_id)
     get("/v1/payments/#{payment_id}/events")
+  end
+
+  # GET /internal/payments/:public_id/reserve-hold
+  def get_payment_reserve_hold(payment_public_id)
+    get("/internal/payments/#{payment_public_id}/reserve-hold")
   end
 
   # ── API keys ───────────────────────────────────────────────────────────────
@@ -420,13 +442,22 @@ class CoreApiClient
 
   # PUT /internal/merchants/:merchant_id/settlement-controls
   def update_settlement_controls(merchant_id, approval_threshold:, approver_user_codes:,
-                                settlement_frequency: nil, settlement_day: nil)
+                                 settlement_frequency: nil, settlement_day: nil,
+                                 settlement_delay_days: nil, minimum_payout_pesewas: nil,
+                                 reserve_rate_bps: nil, reserve_release_days: nil,
+                                 on_hold: nil, hold_reason: nil)
     put("/internal/merchants/#{merchant_id}/settlement-controls",
         {
-          approval_threshold:   approval_threshold,
-          approver_user_codes:  approver_user_codes,
-          settlement_frequency: settlement_frequency,
-          settlement_day:       settlement_day
+          approval_threshold:     approval_threshold,
+          approver_user_codes:    approver_user_codes,
+          settlement_frequency:   settlement_frequency,
+          settlement_day:         settlement_day,
+          settlement_delay_days:  settlement_delay_days,
+          minimum_payout_pesewas: minimum_payout_pesewas,
+          reserve_rate_bps:       reserve_rate_bps,
+          reserve_release_days:   reserve_release_days,
+          on_hold:                on_hold,
+          hold_reason:            hold_reason
         }.compact)
   end
 
@@ -441,6 +472,23 @@ class CoreApiClient
   def update_checkout_config(merchant_code, allowed_methods:)
     patch("/internal/merchants/#{merchant_code}/checkout-config",
           { allowed_methods: allowed_methods })
+  end
+
+  # PATCH /internal/merchants/:merchant_code/checkout-config (refund policy fields)
+  def update_refund_policy(merchant_code, refund_window_days: nil, partial_refunds_enabled: nil,
+                           requires_approval_above_pesewas: nil)
+    patch("/internal/merchants/#{merchant_code}/checkout-config",
+          {
+            refund_window_days:              refund_window_days,
+            partial_refunds_enabled:         partial_refunds_enabled,
+            requires_approval_above_pesewas: requires_approval_above_pesewas
+          }.compact)
+  end
+
+  # PATCH /internal/merchants/:merchant_code/checkout-config/logo
+  def update_checkout_logo(merchant_code, logo_url:)
+    patch("/internal/merchants/#{merchant_code}/checkout-config/logo",
+          { logo_url: logo_url })
   end
 
   # GET /internal/merchants/:merchant_code/checkout-analytics
@@ -600,10 +648,28 @@ class CoreApiClient
 
   # ── Reserves ─────────────────────────────────────────────────────────────
 
+  # GET /internal/merchants/:merchant_code/reserves/forecast
+  def get_reserve_forecast(merchant_code)
+    get("/internal/merchants/#{merchant_code}/reserves/forecast")
+  end
+
+  # GET /internal/merchants/:merchant_code/reserves (export — no pagination cap)
+  def export_reserve_holds(merchant_code, q: nil, from: nil, to: nil)
+    qs = { export: true }
+    qs[:q]    = q    if q.present?
+    qs[:from] = from if from.present?
+    qs[:to]   = to   if to.present?
+    get("/internal/merchants/#{merchant_code}/reserves?#{qs.to_query}")
+  end
+
   # GET /internal/merchants/:merchant_code/reserves
-  def get_reserves(merchant_code, limit: 50, offset: 0)
-    qs = "?limit=#{limit}&offset=#{offset}"
-    get("/internal/merchants/#{merchant_code}/reserves#{qs}")
+  def get_reserves(merchant_code, limit: 50, offset: 0, state: nil, q: nil, from: nil, to: nil)
+    qs = { limit: limit, offset: offset }
+    qs[:state] = state if state.present?
+    qs[:q]     = q     if q.present?
+    qs[:from]  = from  if from.present?
+    qs[:to]    = to    if to.present?
+    get("/internal/merchants/#{merchant_code}/reserves?#{qs.to_query}")
   end
 
   # Alias for merchant show page (returns policy + summary + holds)
@@ -708,21 +774,29 @@ class CoreApiClient
     else
       body  = response.body
       error = body.is_a?(Hash) ? (body.dig("error") || {}) : {}
+      message = error["message"] || "Core API error (#{response.status})"
+      if error["param"].present?
+        detail = Array(error.dig("details", error["param"])).first
+        message = detail.present? ? "#{error['param']}: #{detail}" : "#{message} (#{error['param']})"
+      end
       Result.new(
         success?:      false,
         body:          body,
         error_code:    error["code"]    || response.status.to_s,
-        error_message: error["message"] || "Core API error (#{response.status})"
+        error_message: message
       )
     end
   end
 
   def request_headers
-    {
+    headers = {
       "X-Service-Name"  => "portal",
       "X-Service-Token" => service_secret,
       "traceparent"     => CorrelationId.current
     }
+    actor = Current.user&.user_code
+    headers["X-Actor-Code"] = actor if actor.present?
+    headers
   end
 
   def base_url

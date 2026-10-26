@@ -104,6 +104,12 @@ module Checkout
       authorize :checkout, :create?
 
       kind = params[:kind].presence || "fixed_amount"
+
+      if params[:description].blank?
+        return render Checkout::PaymentLinks::FormView.new(errors: [ "Description is required" ], mode: Current.mode),
+                      status: :unprocessable_entity
+      end
+
       if kind == "fixed_amount" && params[:amount].blank?
         return render Checkout::PaymentLinks::FormView.new(errors: [ "Amount is required for fixed-amount links" ], mode: Current.mode),
                       status: :unprocessable_entity
@@ -117,12 +123,14 @@ module Checkout
 
       reusable = params[:reusable] == "1"
 
+      amount = kind == "customer_specified" ? nil : parse_amount(params[:amount])
+
       result = core.create_payment_link(
         merchant_code:   current_user.merchant_code,
         kind:            kind,
         currency:        params[:currency].presence || "GHS",
         description:     params[:description],
-        amount:          parse_amount(params[:amount]),
+        amount:          amount,
         allowed_methods: allowed_methods,
         collect_email:   params[:collect_email] == "1",
         collect_phone:   params[:collect_phone] == "1",

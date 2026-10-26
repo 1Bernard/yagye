@@ -12,6 +12,7 @@ module Account
       branding.logo         = params[:logo] if params[:logo].present?
 
       if branding.save
+        CoreApiClient.new.update_checkout_logo(current_user.merchant_code, logo_url: branding.logo_url)
         redirect_to settings_path(tab: "verification"), notice: "Business profile updated."
       else
         redirect_to settings_path(tab: "verification"),
@@ -36,6 +37,7 @@ module Account
       branding = PortalMerchantBranding.find_or_initialize_for(current_user.merchant_code)
       authorize branding, :update?, policy_class: PortalMerchantBrandingPolicy
       branding.logo.purge if branding.logo.attached?
+      CoreApiClient.new.update_checkout_config(current_user.merchant_code, logo_url: nil)
       redirect_to settings_path(tab: "verification"), notice: "Logo removed."
     end
 

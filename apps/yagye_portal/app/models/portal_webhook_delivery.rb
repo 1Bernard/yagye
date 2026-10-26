@@ -26,6 +26,14 @@ class PortalWebhookDelivery < ApplicationRecord
     JSON.pretty_generate(request_body)
   end
 
+  def formatted_response_body
+    return "(empty response)" if response_body.blank?
+    parsed = JSON.parse(response_body)
+    JSON.pretty_generate(parsed)
+  rescue JSON::ParserError
+    response_body
+  end
+
   def state_color
     case state
     when "delivered"  then "#16a34a"

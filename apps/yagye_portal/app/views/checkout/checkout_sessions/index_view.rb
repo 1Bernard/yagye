@@ -16,13 +16,13 @@ module Checkout
       SOURCE_COLORS = {
         "invoice"      => "bg-purple-50 text-purple-700",
         "payment_link" => "bg-blue-50 text-blue-700",
-        "direct"       => "bg-gray-100 text-gray-500"
+        "direct"       => "bg-gray-100 text-gray-600"
       }.freeze
 
       SOURCE_LABELS = {
         "invoice"      => "Invoice",
         "payment_link" => "Payment link",
-        "direct"       => "Direct"
+        "direct"       => "API (direct)"
       }.freeze
 
       def initialize(sessions:, pagy: nil, stats: {}, query: nil, tab: "all")
@@ -40,7 +40,7 @@ module Checkout
           breadcrumbs: [ { label: "Checkout Sessions" } ]
         ) do
           render UI::PageHeader.new(title: "Checkout Sessions",
-                                    subtitle: "Customer checkout attempts initiated from your payment links.")
+                                    subtitle: "Customer checkout attempts via payment links or your API integration.")
           stat_band
           tab_bar
           sessions_table

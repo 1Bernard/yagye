@@ -42,7 +42,17 @@ module Checkout
       authorize :checkout_session, :show?
       result = core.get_checkout_session(params[:id])
       return redirect_to checkout_sessions_path, alert: "Session not found." unless result.success?
-      render Checkout::CheckoutSessions::ShowView.new(session: result.body)
+
+      session_data = result.body
+      portal_payment_id = nil
+      if (core_pid = session_data["payment_id"]).present?
+        portal_payment_id = Payment.find_by(core_payment_id: core_pid)&.id
+      end
+
+      render Checkout::CheckoutSessions::ShowView.new(
+        session:           session_data,
+        portal_payment_id: portal_payment_id
+      )
     end
 
     private

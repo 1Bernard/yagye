@@ -96,8 +96,11 @@ module Checkout
         div(class: "w-px h-5 bg-gray-200 flex-shrink-0")
 
         if @errors.any?
-          span(class: "text-[10.5px] font-semibold px-[8px] py-[2px] rounded-full bg-red-50 text-red-600") do
-            plain "#{@errors.size} error#{"s" if @errors.size > 1}"
+          div(class: "flex items-center gap-[6px] px-[10px] py-[4px] rounded-xl bg-red-50 border border-red-100") do
+            span(class: "text-[10.5px] font-bold text-red-600") do
+              plain "#{@errors.size} error#{"s" if @errors.size > 1}:"
+            end
+            span(class: "text-[10.5px] text-red-700") { plain @errors.first }
           end
         end
 
@@ -124,6 +127,16 @@ module Checkout
         div(class: "h-px bg-gray-100 flex-shrink-0 mx-3")
 
         div(class: "flex-1 overflow-y-auto") do
+          if @errors.any?
+            div(class: "mx-3 mt-3 p-3 rounded-xl bg-red-50 border border-red-100") do
+              @errors.each do |msg|
+                div(class: "flex items-start gap-[6px]") do
+                  span(class: "text-red-500 mt-[1px] flex-shrink-0") { plain "•" }
+                  p(class: "text-[12px] text-red-700 leading-snug") { plain msg }
+                end
+              end
+            end
+          end
           link_details_section
           section_divider
           payment_methods_section

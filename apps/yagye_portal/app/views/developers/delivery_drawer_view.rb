@@ -12,7 +12,7 @@ module Developers
     end
 
     def view_template
-      turbo_frame_tag "drawer-frame" do
+      turbo_frame_tag "drawer-frame", class: "flex flex-col min-h-full w-full" do
         drawer_header
         drawer_body
       end
@@ -21,21 +21,26 @@ module Developers
     private
 
     def drawer_header
-      div(class: "flex items-center justify-between px-6 py-5 border-b border-gray-100 sticky top-0 bg-white z-10") do
-        div do
-          p(class: TYPE_MICRO) { plain "Webhook delivery" }
-          p(class: TYPE_TITLE) { plain @delivery.event_type }
+      div(class: "#{DRAWER_HEAD} flex-shrink-0") do
+        div(class: "flex items-center gap-3 min-w-0") do
+          div(class: "w-8 h-8 rounded-lg icon-brand flex items-center justify-center flex-shrink-0") do
+            span(class: "flex w-[14px] h-[14px]") { render UI::Icon.new(:paper_plane, class: "w-full h-full") }
+          end
+          div(class: "min-w-0") do
+            p(class: TYPE_MICRO) { plain "Webhook delivery" }
+            p(class: "text-[14px] font-semibold truncate", style: "color:var(--ink)") { plain @delivery.event_type }
+          end
         end
-        a(href: developers_path(tab: "logs"),
-          data: { turbo_frame: "_top" },
-          class: XBTN) do
+        button(type: "button", class: XBTN,
+               data: { action: "click->drawer#close" },
+               aria: { label: "Close drawer" }) do
           render UI::Icon.new(:x, class: ICON_SM)
         end
       end
     end
 
     def drawer_body
-      div(class: "p-6 flex flex-col gap-5") do
+      div(class: "p-6 pb-20 flex flex-col gap-5") do
         summary_card
         request_card
         response_card
@@ -58,34 +63,41 @@ module Developers
     end
 
     def request_card
-      div(class: "#{SURFACE_CARD} overflow-hidden") do
-        code_card_header("Request")
-        div do
-          code_section("Headers", @delivery.formatted_headers)
-          div(class: "border-t border-gray-100")
-          code_section("Body", @delivery.formatted_request_body)
-        end
+      div(class: "rounded-2xl overflow-hidden border border-gray-100") do
+        dark_card_header("Request")
+        dark_code_block("Headers", @delivery.formatted_headers)
+        div(class: "h-px bg-[#30363d]")
+        dark_code_block("Body", @delivery.formatted_request_body)
       end
     end
 
     def response_card
-      div(class: "#{SURFACE_CARD} overflow-hidden") do
-        code_card_header("Response")
-        code_section("Body", @delivery.response_body.presence || "(empty response)")
+      div(class: "rounded-2xl overflow-hidden border border-gray-100") do
+        dark_card_header("Response")
+        dark_code_block("Body", @delivery.formatted_response_body)
       end
     end
 
-    def code_card_header(title)
-      div(class: "px-[18px] py-[14px] border-b border-gray-100 bg-gray-50") do
-        p(class: TYPE_MICRO) { plain title }
+    def dark_card_header(title)
+      div(class: "px-[18px] py-[12px] bg-[#161b22] border-b border-[#30363d]") do
+        p(class: "text-[10.5px] font-semibold tracking-wider uppercase text-[#8b949e]") { plain title }
       end
     end
 
-    def code_section(label, content)
-      div(class: "px-[18px] py-[14px]") do
-        p(class: "#{TYPE_MICRO} mb-2") { plain label }
-        pre(class: "#{TYPE_MONO} text-[11.5px] leading-relaxed whitespace-pre-wrap break-all bg-gray-50 border border-gray-100 rounded-[10px] p-3 overflow-x-auto") do
-          plain content
+    def dark_code_block(label, content)
+      div(class: "bg-[#0d1117]") do
+        div(class: "flex items-center justify-between px-[18px] py-[10px] border-b border-[#30363d]") do
+          span(class: "text-[10px] font-mono font-semibold tracking-wider uppercase text-[#8b949e]") { plain label }
+          button(type: "button",
+                 class: "flex items-center gap-[4px] text-[10.5px] text-[#8b949e] hover:text-[#c9d1d9] transition-colors cursor-pointer bg-transparent border-0",
+                 data: { controller: "clipboard", clipboard_text_value: content, action: "click->clipboard#copy" }) do
+            render UI::Icon.new(:copy, class: "w-[10px] h-[10px]")
+            span(data: { clipboard_target: "label" }) { plain "Copy" }
+          end
+        end
+        div(class: "px-[18px] py-[14px] overflow-x-auto") do
+          pre(class: "text-[11.5px] leading-[1.7] font-mono m-0 whitespace-pre text-[#c9d1d9]",
+              data: { controller: "json-highlight" }) { plain content }
         end
       end
     end

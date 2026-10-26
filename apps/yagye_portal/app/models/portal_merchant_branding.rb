@@ -16,7 +16,7 @@ class PortalMerchantBranding < ApplicationRecord
 
   def logo_url
     return nil unless logo.attached?
-    Rails.application.routes.url_helpers.rails_blob_url(logo, only_path: true)
+    Rails.application.routes.url_helpers.rails_blob_url(logo)
   end
 
   private

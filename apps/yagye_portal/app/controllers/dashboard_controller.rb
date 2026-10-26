@@ -89,7 +89,11 @@ class DashboardController < ApplicationController
   end
 
   def payment_scope
-    current_user.internal_staff? ? Payment.all : Payment.for_merchant(current_user.merchant_code)
+    if current_user.internal_staff?
+      Payment.where(mode: "live")
+    else
+      Payment.for_merchant(current_user.merchant_code)
+    end
   end
 
   def disputes_count
@@ -106,7 +110,7 @@ class DashboardController < ApplicationController
   end
 
   def active_merchant_count
-    Payment.where(status: "paid")
+    Payment.where(mode: "live", status: "paid")
            .where("paid_at >= ?", Time.current.beginning_of_month)
            .distinct
            .count(:merchant_code)

@@ -43,6 +43,7 @@ class PaymentEventsConsumer < ApplicationConsumer
       broadcast_status_update(p)
       notify_payment(p, event)
       update_balance(event) if event.status == "paid"
+      deduct_refund_balance(p, event) if event.status == "refunded"
     end
   end
 
@@ -60,6 +61,25 @@ class PaymentEventsConsumer < ApplicationConsumer
     end
   rescue StandardError => e
     Rails.logger.warn("[PaymentEventsConsumer] balance update failed: #{e.message}")
+  end
+
+  def deduct_refund_balance(payment, event)
+    # Use the stored net_amount from the portal payment record — this was set when
+    # the payment originally succeeded and is authoritative for what the merchant earned.
+    amount = payment.net_amount || payment.amount
+    return unless amount.to_i.positive?
+
+    with_idempotency(event_id: "#{event.public_id}:refund_balance", consumer: self.class.name) do
+      PortalMerchantBalance.apply_delta!(
+        merchant_code: payment.merchant_code,
+        currency:      payment.currency,
+        mode:          payment.mode,
+        delta:         { available: -amount },
+        event_id:      "#{event.public_id}:refund_balance"
+      )
+    end
+  rescue StandardError => e
+    Rails.logger.warn("[PaymentEventsConsumer] refund balance deduction failed: #{e.message}")
   end
 
   def broadcast_to_feed(payment)
@@ -103,6 +123,32 @@ class PaymentEventsConsumer < ApplicationConsumer
         mode:            event.mode,
         urgency:         "warning",
         source_event_id: "#{event.public_id}:payment_failed"
+      )
+    when "refunded"
+      amt = payment.amount ? format_minor_units(payment.amount, payment.currency) : ""
+      Notifications::DeliveryService.schedule(
+        merchant_code:   payment.merchant_code,
+        event_type:      "payment_refunded",
+        title:           "Refund processed",
+        body:            "#{amt} refunded · Ref: #{payment.reference}",
+        link:            "/payments/#{payment.id}",
+        metadata:        { payment_id: payment.id, reference: payment.reference },
+        mode:            event.mode,
+        urgency:         "info",
+        source_event_id: "#{event.public_id}:payment_refunded"
+      )
+    when "chargebacked"
+      amt = payment.amount ? format_minor_units(payment.amount, payment.currency) : ""
+      Notifications::DeliveryService.schedule(
+        merchant_code:   payment.merchant_code,
+        event_type:      "payment_chargebacked",
+        title:           "Chargeback received",
+        body:            "#{amt} chargebacked · Ref: #{payment.reference}",
+        link:            "/payments/#{payment.id}",
+        metadata:        { payment_id: payment.id, reference: payment.reference },
+        mode:            event.mode,
+        urgency:         "warning",
+        source_event_id: "#{event.public_id}:payment_chargebacked"
       )
     end
   rescue StandardError => e

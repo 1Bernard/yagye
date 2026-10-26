@@ -46,7 +46,10 @@ module PricingPlans
       result = CoreApiClient.new.get_pricing_plan(params[:id])
       return redirect_to pricing_plans_path, alert: "Plan not found." unless result.success?
 
-      render PricingPlans::ShowView.new(plan: result.body)
+      plan = result.body
+      plan["created_by"]   = resolve_user_display(plan["created_by"])
+      plan["activated_by"] = resolve_user_display(plan["activated_by"])
+      render PricingPlans::ShowView.new(plan: plan)
     end
 
     def create_rule
@@ -77,7 +80,8 @@ module PricingPlans
       if result.success?
         redirect_to pricing_plan_path(plan_id), notice: "Plan activated."
       else
-        msg = result.body&.dig("details", "activated_by")&.first || "Could not activate plan."
+        details = result.body&.dig("details") || {}
+        msg = details.values.flatten.first || "Could not activate plan."
         redirect_to pricing_plan_path(plan_id), alert: msg
       end
     end
@@ -107,6 +111,11 @@ module PricingPlans
         minimum_fee:    params[:minimum_fee].presence&.then { |v| (v.to_f * 100).round },
         maximum_fee:    params[:maximum_fee].presence&.then { |v| (v.to_f * 100).round }
       }.compact
+    end
+
+    def resolve_user_display(user_code)
+      return nil if user_code.blank?
+      User.find_by(user_code: user_code)&.full_name || user_code
     end
 
     def rule_error_message(result)

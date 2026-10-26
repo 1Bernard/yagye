@@ -19,8 +19,9 @@ module Checkout
         "discount" => "Discount"
       }.freeze
 
-      def initialize(session:)
-        @s = session
+      def initialize(session:, portal_payment_id: nil)
+        @s                 = session
+        @portal_payment_id = portal_payment_id
       end
 
       def view_template
@@ -53,6 +54,7 @@ module Checkout
           payment_card if @s["payment_id"].present?
           session_details_card
           collection_card
+          payment_methods_card if Array(@s["allowed_methods"]).any?
         end
       end
 
@@ -79,9 +81,10 @@ module Checkout
             state_pill(@s["state"])
           end
           div(class: "grid grid-cols-3 gap-[1px] bg-gray-100 rounded-xl overflow-hidden") do
-            meta_cell("Mode",     @s["mode"]&.capitalize || "—")
-            meta_cell("Created",  fmt_date(@s["inserted_at"] ? Time.parse(@s["inserted_at"]) : nil))
-            meta_cell("Expires",  @s["expires_at"] ? fmt_date(Time.parse(@s["expires_at"])) : "No expiry")
+            meta_cell("Mode",      @s["mode"]&.capitalize || "—")
+            meta_cell("Currency",  @s["currency"] || "—")
+            ref = @s["merchant_reference"].presence
+            meta_cell("Reference", ref ? (ref.length > 16 ? "#{ref.first(14)}…" : ref) : "—")
           end
         end
       end
@@ -103,10 +106,10 @@ module Checkout
               table(class: "w-full text-[12.5px]") do
                 thead do
                   tr(class: "border-b border-gray-100") do
-                    th(class: "text-left px-6 py-3 #{TYPE_CAPTION} font-semibold") { plain "Description" }
-                    th(class: "text-center px-4 py-3 #{TYPE_CAPTION} font-semibold") { plain "Type" }
-                    th(class: "text-right px-4 py-3 #{TYPE_CAPTION} font-semibold") { plain "Qty" }
-                    th(class: "text-right px-6 py-3 #{TYPE_CAPTION} font-semibold") { plain "Amount" }
+                    th(class: "text-left  px-6 py-3 text-[10px] font-semibold uppercase tracking-[0.14em] text-gray-400 whitespace-nowrap") { plain "Description" }
+                    th(class: "text-center px-4 py-3 text-[10px] font-semibold uppercase tracking-[0.14em] text-gray-400 whitespace-nowrap") { plain "Type" }
+                    th(class: "text-right  px-4 py-3 text-[10px] font-semibold uppercase tracking-[0.14em] text-gray-400 whitespace-nowrap") { plain "Qty" }
+                    th(class: "text-right  px-6 py-3 text-[10px] font-semibold uppercase tracking-[0.14em] text-gray-400 whitespace-nowrap") { plain "Amount" }
                   end
                 end
                 tbody do
@@ -130,7 +133,7 @@ module Checkout
                         qty = item["quantity"].to_f
                         plain qty % 1 == 0 ? qty.to_i.to_s : "%.2f" % qty
                       end
-                      td(class: "px-6 py-3 text-right font-semibold text-gray-800 tabular-nums") do
+                      td(class: "px-6 py-3 text-right font-semibold text-gray-900 tabular-nums") do
                         plain format_money(amount, currency: currency)
                       end
                     end
@@ -145,8 +148,8 @@ module Checkout
                 totals_row("Shipping", format_money(@s["shipping_amount"].to_i, currency: currency)) if @s["shipping_amount"].to_i > 0
                 totals_row("Discount", "- #{format_money(@s["discount_amount"].to_i, currency: currency)}") if @s["discount_amount"].to_i > 0
                 div(class: "flex justify-between pt-2 border-t border-gray-100 mt-1") do
-                  p(class: "text-[12px] font-bold text-gray-900") { plain "Total" }
-                  p(class: "text-[13px] font-bold text-gray-900 tabular-nums") do
+                  p(class: "#{TYPE_BODY_MD} font-bold text-gray-900") { plain "Total" }
+                  p(class: "#{TYPE_BODY_MD} font-bold text-gray-900 tabular-nums") do
                     plain format_money(@s["total_amount"].to_i, currency: currency)
                   end
                 end
@@ -174,9 +177,14 @@ module Checkout
                   p(class: TYPE_MONO) { plain @s["payment_id"] }
                 end
               end
-              a(href: payment_path(@s["payment_id"]),
-                class: "text-[12px] text-[#3D47F5] font-medium hover:underline no-underline") do
-                plain "View →"
+              if @portal_payment_id
+                a(href: payment_path(@portal_payment_id),
+                  class: "inline-flex items-center gap-[5px] px-3 h-8 border border-gray-200 " \
+                         "rounded-[9px] text-[12.5px] font-medium text-gray-600 bg-white " \
+                         "no-underline hover:border-gray-400 transition-colors flex-shrink-0") do
+                  render UI::Icon.new(:eye, class: "w-3 h-3")
+                  plain "View"
+                end
               end
             end
           end
@@ -190,15 +198,12 @@ module Checkout
           c.header("Session details")
           c.body(padding: false) do
             render UI::DetailList.new do |list|
-              list.row("Session ID",     @s["id"], mono: true)
-              list.row("Mode",           @s["mode"]&.capitalize || "—")
-              list.row("Status")         { state_pill(@s["state"]) }
-              list.row("Currency",       @s["currency"] || "—")
-              list.row("Reference",      @s["merchant_reference"].presence || "—", mono: true)
-              list.row("Payment link")   { payment_link_ref }
-              list.row("Completed at")   { plain fmt_datetime_utc(@s["completed_at"] ? Time.parse(@s["completed_at"]) : nil) }
-              list.row("Expires at")     { plain @s["expires_at"] ? fmt_datetime_utc(Time.parse(@s["expires_at"])) : "No expiry" }
-              list.row("Created")        { plain fmt_datetime_utc(@s["inserted_at"] ? Time.parse(@s["inserted_at"]) : nil) }
+              list.row("Session ID", @s["id"], mono: true, stacked: true)
+              list.row("Status")       { state_pill(@s["state"]) }
+              list.row("Payment link") { payment_link_ref } if @s["payment_link_id"].present?
+              list.row("Completed at", fmt_datetime_utc(@s["completed_at"] ? Time.parse(@s["completed_at"]) : nil))
+              list.row("Expires at",   @s["expires_at"] ? fmt_datetime_utc(Time.parse(@s["expires_at"])) : "No expiry")
+              list.row("Created",      fmt_datetime_utc(@s["inserted_at"] ? Time.parse(@s["inserted_at"]) : nil))
             end
           end
         end
@@ -211,19 +216,23 @@ module Checkout
           c.header("Collected from customer")
           c.body do
             div(class: "flex flex-wrap gap-2") do
-              collection_chip("Email",   @s["collect_email"])
-              collection_chip("Phone",   @s["collect_phone"])
-              collection_chip("Name",    @s["collect_name"])
+              collection_chip("Email", @s["collect_email"])
+              collection_chip("Phone", @s["collect_phone"])
+              collection_chip("Name",  @s["collect_name"])
             end
-            if Array(@s["allowed_methods"]).any?
-              div(class: "mt-4") do
-                p(class: "#{TYPE_CAPTION} mb-2") { plain "Payment methods" }
-                div(class: "flex flex-wrap gap-2") do
-                  Array(@s["allowed_methods"]).each do |m|
-                    span(class: "px-2 py-1 bg-gray-100 rounded-lg text-[11.5px] font-medium text-gray-600") do
-                      plain m.to_s.tr("_", " ").capitalize
-                    end
-                  end
+          end
+        end
+      end
+
+      def payment_methods_card
+        methods = Array(@s["allowed_methods"])
+        render UI::Card.new do |c|
+          c.header("Payment methods")
+          c.body do
+            div(class: "flex flex-wrap gap-2") do
+              methods.each do |m|
+                span(class: "px-2.5 py-1 bg-gray-100 rounded-lg text-[11.5px] font-medium text-gray-600") do
+                  plain m.to_s.tr("_", " ").capitalize
                 end
               end
             end
@@ -245,7 +254,7 @@ module Checkout
           "discount" => "bg-green-50 text-green-700"
         }
         cls = colors[kind] || "bg-gray-100 text-gray-500"
-        span(class: "inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10.5px] font-medium #{cls}") do
+        span(class: "inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold #{cls}") do
           if (icon = KIND_ICONS[kind])
             span(class: "flex w-[10px] h-[10px]") { render UI::Icon.new(icon, class: "w-full h-full") }
           end
@@ -270,15 +279,15 @@ module Checkout
 
       def totals_row(label, value)
         div(class: "flex justify-between") do
-          p(class: "text-[12px] text-gray-500") { plain label }
-          p(class: "text-[12.5px] text-gray-700 tabular-nums") { plain value }
+          p(class: TYPE_CAPTION) { plain label }
+          p(class: "#{TYPE_BODY_MD} tabular-nums") { plain value }
         end
       end
 
       def meta_cell(label, value)
         div(class: "bg-gray-50 px-5 py-4") do
-          p(class: "text-[10.5px] text-gray-400 font-semibold uppercase tracking-wide mb-[3px]") { plain label }
-          p(class: "text-[13px] font-medium text-gray-800") { plain value }
+          p(class: "#{TYPE_HEADING} mb-[3px]") { plain label }
+          p(class: TYPE_BODY_MD) { plain value }
         end
       end
     end
