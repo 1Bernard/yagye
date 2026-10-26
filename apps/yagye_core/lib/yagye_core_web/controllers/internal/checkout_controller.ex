@@ -1,7 +1,7 @@
 defmodule YagyeCoreWeb.Controllers.Internal.CheckoutController do
   use YagyeCoreWeb, :controller
 
-  action_fallback YagyeCoreWeb.FallbackController
+  action_fallback(YagyeCoreWeb.FallbackController)
 
   require Logger
 
@@ -15,7 +15,9 @@ defmodule YagyeCoreWeb.Controllers.Internal.CheckoutController do
   def session_by_token(conn, %{"token" => token}) do
     case CheckoutSessions.get_session_by_token(token) do
       {:ok, session} ->
-        checkout_layout = fetch_checkout_layout(session.payment_link_id)
+        checkout_layout =
+          fetch_checkout_layout(session.payment_link_id, session.logo_url, session.merchant_id)
+
         merchant_name = fetch_merchant_name(session.merchant_id)
 
         conn
@@ -185,36 +187,71 @@ defmodule YagyeCoreWeb.Controllers.Internal.CheckoutController do
   defp ensure_session_retriable(_session), do: {:error, :session_not_open}
 
   defp create_payment(session, params) do
-    attrs = %{
+    attrs =
+      base_payment_attrs(session, params)
+      |> Map.merge(checkout_profile(params))
+      |> maybe_put_customer_ref(params)
+
+    Payments.create_payment(session.merchant_id, attrs)
+  end
+
+  defp base_payment_attrs(session, params) do
+    suffix = Base.url_encode64(:crypto.strong_rand_bytes(4), padding: false)
+
+    %{
       mode: String.to_existing_atom(session.mode),
       method: params["method"] || params["payment_method"] || "mobile_money",
       rail: "fiat_provider",
       amount: session.total_amount,
       currency: session.currency,
-      merchant_reference:
-        session.merchant_reference <>
-          "-" <> Base.url_encode64(:crypto.strong_rand_bytes(4), padding: false),
+      merchant_reference: session.merchant_reference <> "-" <> suffix,
       description: session.description || "Checkout payment",
-      metadata:
-        %{
-          "msisdn" => params["msisdn"],
-          "network" => params["network"] || "MTN",
-          "card_number" => params["card_number"],
-          "checkout_session_id" => session.public_id,
-          "customer_email" => params["customer_email"],
-          "customer_phone" => params["customer_phone"],
-          "customer_name" => params["customer_name"]
-        }
-        |> Enum.reject(fn {_, v} -> is_nil(v) or v == "" end)
-        |> Map.new()
+      metadata: checkout_metadata(session, params)
     }
-
-    Payments.create_payment(session.merchant_id, attrs)
   end
 
-  defp fetch_checkout_layout(nil), do: nil
+  defp checkout_metadata(session, params) do
+    %{
+      "msisdn" => params["msisdn"],
+      "network" => params["network"] || "MTN",
+      "card_number" => params["card_number"],
+      "checkout_session_id" => session.public_id,
+      "customer_email" => params["customer_email"],
+      "customer_phone" => params["customer_phone"],
+      "customer_name" => params["customer_name"]
+    }
+    |> Enum.reject(fn {_, v} -> is_nil(v) or v == "" end)
+    |> Map.new()
+  end
 
-  defp fetch_checkout_layout(payment_link_id) do
+  # Only include profile fields the merchant explicitly enabled collecting —
+  # prevents empty-string backfills and limits name/email trust to sessions
+  # where collect_name / collect_email were true.
+  defp checkout_profile(params) do
+    %{
+      customer_name: params["customer_name"],
+      customer_email: params["customer_email"],
+      customer_phone: params["customer_phone"] || params["msisdn"]
+    }
+    |> Enum.reject(fn {_, v} -> is_nil(v) or v == "" end)
+    |> Map.new()
+  end
+
+  defp maybe_put_customer_ref(attrs, params) do
+    ref = params["msisdn"] || params["customer_phone"] || params["customer_email"]
+    if ref, do: Map.put(attrs, :customer_reference, ref), else: attrs
+  end
+
+  defp fetch_checkout_layout(nil, nil, merchant_id) do
+    case CheckoutSessions.get_checkout_config(merchant_id) do
+      {:ok, config} when not is_nil(config.logo_url) -> %{"logo_url" => config.logo_url}
+      _ -> nil
+    end
+  end
+
+  defp fetch_checkout_layout(nil, logo_url, _merchant_id), do: %{"logo_url" => logo_url}
+
+  defp fetch_checkout_layout(payment_link_id, _logo_url, _merchant_id) do
     alias YagyeCore.PaymentLinks.Schemas.PaymentLink
 
     case Repo.get(PaymentLink, payment_link_id) do

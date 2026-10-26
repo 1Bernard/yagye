@@ -200,6 +200,110 @@ defmodule YagyeCore.Settlement.SettlementTest do
     end
   end
 
+  describe "create_batch/4 — T+N delay" do
+    setup do
+      merchant = Fixtures.merchant_fixture()
+      provider = Fixtures.simulator_provider_fixture()
+      %{merchant: merchant, provider: provider}
+    end
+
+    test "delay_days=0 (default) sweeps all payments regardless of age",
+         %{merchant: merchant, provider: provider} do
+      payment = succeeded_payment_with_attempt(merchant, provider)
+      # Payment is recent (just inserted). 0 = no cutoff filter.
+      Settlement.upsert_settlement_controls(merchant.id, %{
+        settlement_delay_days: 0,
+        updated_by: "test"
+      })
+
+      assert {:ok, batch} = Settlement.create_batch(merchant.id, provider.id, "GHS", "simulation")
+      assert batch.gross_amount == payment.amount
+    end
+
+    test "delay_days=1 excludes a payment inserted today",
+         %{merchant: merchant, provider: provider} do
+      succeeded_payment_with_attempt(merchant, provider)
+      # Controls: T+1 — only payments at least 1 business day old are eligible.
+      Settlement.upsert_settlement_controls(merchant.id, %{
+        settlement_delay_days: 1,
+        minimum_payout_pesewas: 0,
+        updated_by: "test"
+      })
+
+      # Payment inserted_at is "now" — still within today, so cutoff excludes it.
+      assert {:error, :no_payments} =
+               Settlement.create_batch(merchant.id, provider.id, "GHS", "simulation")
+    end
+
+    test "delay_days=1 includes a payment inserted 3 days ago",
+         %{merchant: merchant, provider: provider} do
+      payment = succeeded_payment_with_attempt(merchant, provider)
+
+      # Back-date the payment 3 days — well past any T+1 cutoff.
+      three_days_ago = DateTime.add(DateTime.utc_now(), -3 * 24 * 3600, :second)
+
+      Ecto.Changeset.change(payment, inserted_at: three_days_ago)
+      |> Repo.update!()
+
+      Settlement.upsert_settlement_controls(merchant.id, %{
+        settlement_delay_days: 1,
+        minimum_payout_pesewas: 0,
+        updated_by: "test"
+      })
+
+      assert {:ok, batch} = Settlement.create_batch(merchant.id, provider.id, "GHS", "simulation")
+      assert batch.gross_amount == payment.amount
+    end
+  end
+
+  describe "create_batch/4 — minimum payout" do
+    setup do
+      merchant = Fixtures.merchant_fixture()
+      provider = Fixtures.simulator_provider_fixture()
+      %{merchant: merchant, provider: provider}
+    end
+
+    test "returns :below_minimum when eligible gross < minimum_payout_pesewas",
+         %{merchant: merchant, provider: provider} do
+      # Payment amount 1000 pesewas; minimum is 5000.
+      succeeded_payment_with_attempt(merchant, provider, %{amount: 1_000})
+
+      Settlement.upsert_settlement_controls(merchant.id, %{
+        minimum_payout_pesewas: 5_000,
+        updated_by: "test"
+      })
+
+      assert {:error, :below_minimum} =
+               Settlement.create_batch(merchant.id, provider.id, "GHS", "simulation")
+    end
+
+    test "creates batch when eligible gross >= minimum_payout_pesewas",
+         %{merchant: merchant, provider: provider} do
+      succeeded_payment_with_attempt(merchant, provider, %{amount: 10_000})
+
+      Settlement.upsert_settlement_controls(merchant.id, %{
+        minimum_payout_pesewas: 5_000,
+        updated_by: "test"
+      })
+
+      assert {:ok, batch} = Settlement.create_batch(merchant.id, provider.id, "GHS", "simulation")
+      assert batch.gross_amount == 10_000
+    end
+
+    test "skips minimum check when minimum_payout_pesewas is 0",
+         %{merchant: merchant, provider: provider} do
+      succeeded_payment_with_attempt(merchant, provider, %{amount: 100})
+
+      Settlement.upsert_settlement_controls(merchant.id, %{
+        minimum_payout_pesewas: 0,
+        updated_by: "test"
+      })
+
+      assert {:ok, _batch} =
+               Settlement.create_batch(merchant.id, provider.id, "GHS", "simulation")
+    end
+  end
+
   describe "get_batch/1" do
     test "returns the batch when found" do
       merchant = Fixtures.merchant_fixture()

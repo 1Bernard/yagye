@@ -37,6 +37,7 @@ defmodule YagyeCore.Settlement.Workers.SettlementProcessorWorker do
         |> SettlementBatch.transition_changeset("processing")
         |> Ecto.Changeset.put_change(:platform_fees, fee_totals.expected_platform_fees)
         |> Ecto.Changeset.put_change(:net_amount, fee_totals.expected_net)
+        |> Ecto.Changeset.put_change(:reserved_amount, Map.get(fee_totals, :reserved_amount, 0))
       )
       |> Multi.run(:ledger, fn _repo, %{processing: b} ->
         Ledger.post_batch_approved(b)

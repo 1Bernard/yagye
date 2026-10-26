@@ -34,6 +34,7 @@ defmodule YagyeCoreWeb.Router do
     as: InternalReconciliationController
 
   alias YagyeCoreWeb.Controllers.Internal.PayoutDestinationsController
+  alias YagyeCoreWeb.Controllers.Internal.RefundApprovalsController
   alias YagyeCoreWeb.Controllers.Internal.SettlementBatchApprovalsController
   alias YagyeCoreWeb.Controllers.Internal.SettlementControlsController
 
@@ -61,6 +62,7 @@ defmodule YagyeCoreWeb.Router do
   alias YagyeCoreWeb.Controllers.Internal.BankStatementsController
   alias YagyeCoreWeb.Controllers.Internal.DisputesController, as: InternalDisputesController
   alias YagyeCoreWeb.Controllers.Internal.KybController
+  alias YagyeCoreWeb.Controllers.Internal.RefundsController, as: InternalRefundsController
   alias YagyeCoreWeb.Controllers.Internal.ReservesController, as: InternalReservesController
 
   alias YagyeCoreWeb.Controllers.Fx.FxRateController
@@ -248,8 +250,15 @@ defmodule YagyeCoreWeb.Router do
     put("/merchants/:merchant_id/settlement-controls", SettlementControlsController, :upsert)
 
     # Disputes — evidence submission + ops resolution (portal → core)
+    post("/payments/:payment_id/disputes", InternalDisputesController, :create)
     post("/disputes/:id/evidence", InternalDisputesController, :submit_evidence)
     post("/disputes/:id/resolve", InternalDisputesController, :resolve)
+
+    # Refunds — merchant-initiated via portal (service-token auth)
+    post("/payments/:payment_id/refunds", InternalRefundsController, :create)
+    get("/refunds/pending", RefundApprovalsController, :pending)
+    post("/refunds/:id/approve", RefundApprovalsController, :approve)
+    post("/refunds/:id/reject", RefundApprovalsController, :reject)
 
     # Payout destinations (portal → core, service-token authenticated)
     get("/merchants/:merchant_code/payout-destinations", PayoutDestinationsController, :index)
@@ -336,6 +345,12 @@ defmodule YagyeCoreWeb.Router do
     get("/merchants/:merchant_code/checkout-config", CheckoutConfigController, :show)
     patch("/merchants/:merchant_code/checkout-config", CheckoutConfigController, :update)
 
+    patch(
+      "/merchants/:merchant_code/checkout-config/logo",
+      CheckoutConfigController,
+      :update_logo
+    )
+
     # Checkout analytics — conversion funnel metrics
     get("/merchants/:merchant_code/checkout-analytics", CheckoutAnalyticsController, :show)
 
@@ -367,10 +382,12 @@ defmodule YagyeCoreWeb.Router do
 
     # Reserves — active policy + holds (portal read-only)
     get("/merchants/:merchant_code/reserves", InternalReservesController, :index)
+    get("/merchants/:merchant_code/reserves/forecast", InternalReservesController, :forecast)
     post("/merchants/:merchant_code/reserves", InternalReservesController, :create_policy)
     post("/reserves/:id/approve", InternalReservesController, :approve_policy)
     post("/reserves/:id/deactivate", InternalReservesController, :deactivate_policy)
     post("/reserves/:id/acknowledge", InternalReservesController, :acknowledge_policy)
+    get("/payments/:payment_id/reserve-hold", InternalReservesController, :payment_hold)
 
     # FX rates — no merchant context needed, read-only reference data
     get("/fx-rates", YagyeCoreWeb.Controllers.Fx.FxRateController, :index)

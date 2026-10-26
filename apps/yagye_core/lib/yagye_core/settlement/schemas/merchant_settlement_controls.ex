@@ -6,6 +6,8 @@ defmodule YagyeCore.Settlement.Schemas.MerchantSettlementControls do
 
   alias YagyeCore.Merchants.Schemas.Merchant
 
+  @valid_frequencies ~w[daily weekly monthly]
+
   schema "merchant_settlement_controls" do
     field :approval_threshold, :integer
     field :approver_user_codes, {:array, :string}, default: []
@@ -14,6 +16,16 @@ defmodule YagyeCore.Settlement.Schemas.MerchantSettlementControls do
     field :settlement_account_number, :string
     field :settlement_account_name, :string
     field :updated_by, :string
+
+    # Settlement policy
+    field :settlement_delay_days, :integer, default: 0
+    field :minimum_payout_pesewas, :integer, default: 5_000
+    field :settlement_frequency, :string, default: "daily"
+    field :reserve_rate_bps, :integer, default: 0
+    field :reserve_release_days, :integer, default: 90
+    field :early_settlement_enabled, :boolean, default: false
+    field :on_hold, :boolean, default: false
+    field :hold_reason, :string
 
     belongs_to :merchant, Merchant
 
@@ -30,10 +42,32 @@ defmodule YagyeCore.Settlement.Schemas.MerchantSettlementControls do
       :settlement_bank_code,
       :settlement_account_number,
       :settlement_account_name,
-      :updated_by
+      :updated_by,
+      :settlement_delay_days,
+      :minimum_payout_pesewas,
+      :settlement_frequency,
+      :reserve_rate_bps,
+      :reserve_release_days,
+      :early_settlement_enabled,
+      :on_hold,
+      :hold_reason
     ])
     |> validate_required([:merchant_id, :updated_by])
     |> validate_number(:approval_threshold, greater_than_or_equal_to: 0)
+    |> validate_number(:settlement_delay_days,
+      greater_than_or_equal_to: 0,
+      less_than_or_equal_to: 7
+    )
+    |> validate_number(:minimum_payout_pesewas, greater_than_or_equal_to: 0)
+    |> validate_inclusion(:settlement_frequency, @valid_frequencies)
+    |> validate_number(:reserve_rate_bps,
+      greater_than_or_equal_to: 0,
+      less_than_or_equal_to: 2500
+    )
+    |> validate_number(:reserve_release_days,
+      greater_than_or_equal_to: 30,
+      less_than_or_equal_to: 365
+    )
     |> validate_approver_codes()
     |> foreign_key_constraint(:merchant_id)
     |> unique_constraint(:merchant_id)

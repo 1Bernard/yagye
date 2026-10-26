@@ -6,6 +6,7 @@ defmodule YagyeCore.Settlement.Workers.SettlementSchedulerWorkerTest do
   alias YagyeCore.Providers.Schemas.Provider
   alias YagyeCore.Repo
   alias YagyeCore.Settlement
+  alias YagyeCore.Settlement.GhanaBusinessDay
   alias YagyeCore.Settlement.Workers.SettlementSchedulerWorker
 
   defp setup_unsettled_payment(merchant, provider) do
@@ -94,8 +95,9 @@ defmodule YagyeCore.Settlement.Workers.SettlementSchedulerWorkerTest do
       # No batch should have been created — the payment is still unsettled
       batches =
         Repo.all(
-          from b in YagyeCore.Settlement.Schemas.SettlementBatch,
+          from(b in YagyeCore.Settlement.Schemas.SettlementBatch,
             where: b.merchant_id == ^merchant.id and b.provider_id == ^provider.id
+          )
         )
 
       assert batches == []
@@ -111,8 +113,9 @@ defmodule YagyeCore.Settlement.Workers.SettlementSchedulerWorkerTest do
 
       batches =
         Repo.all(
-          from b in YagyeCore.Settlement.Schemas.SettlementBatch,
+          from(b in YagyeCore.Settlement.Schemas.SettlementBatch,
             where: b.merchant_id == ^merchant.id and b.provider_id == ^provider.id
+          )
         )
 
       assert length(batches) == 1
@@ -133,6 +136,141 @@ defmodule YagyeCore.Settlement.Workers.SettlementSchedulerWorkerTest do
 
       assert {:error, :batch_already_open} =
                Settlement.create_batch(merchant_b.id, provider.id, "GHS", "simulation")
+    end
+  end
+
+  describe "on_hold" do
+    test "skips merchant when on_hold is true" do
+      merchant = Fixtures.merchant_fixture()
+      provider = provider_with_past_cutoff()
+      setup_unsettled_payment(merchant, provider)
+
+      Settlement.upsert_settlement_controls(merchant.id, %{
+        on_hold: true,
+        hold_reason: "compliance review",
+        updated_by: "test"
+      })
+
+      run_scheduler()
+
+      batches =
+        Repo.all(
+          from(b in YagyeCore.Settlement.Schemas.SettlementBatch,
+            where: b.merchant_id == ^merchant.id
+          )
+        )
+
+      assert batches == []
+    end
+
+    test "schedules merchant when on_hold is false" do
+      merchant = Fixtures.merchant_fixture()
+      provider = provider_with_past_cutoff()
+      setup_unsettled_payment(merchant, provider)
+
+      Settlement.upsert_settlement_controls(merchant.id, %{
+        on_hold: false,
+        updated_by: "test"
+      })
+
+      run_scheduler()
+
+      assert {:error, :batch_already_open} =
+               Settlement.create_batch(merchant.id, provider.id, "GHS", "simulation")
+    end
+  end
+
+  describe "settlement_frequency" do
+    test "weekly: skips batch creation when today is not Monday" do
+      today = Date.utc_today()
+
+      if Date.day_of_week(today) != 1 do
+        merchant = Fixtures.merchant_fixture()
+        provider = provider_with_past_cutoff()
+        setup_unsettled_payment(merchant, provider)
+
+        Settlement.upsert_settlement_controls(merchant.id, %{
+          settlement_frequency: "weekly",
+          updated_by: "test"
+        })
+
+        run_scheduler()
+
+        batches =
+          Repo.all(
+            from(b in YagyeCore.Settlement.Schemas.SettlementBatch,
+              where: b.merchant_id == ^merchant.id
+            )
+          )
+
+        assert batches == []
+      else
+        # Today is Monday — weekly frequency fires, so we expect a batch.
+        merchant = Fixtures.merchant_fixture()
+        provider = provider_with_past_cutoff()
+        setup_unsettled_payment(merchant, provider)
+
+        Settlement.upsert_settlement_controls(merchant.id, %{
+          settlement_frequency: "weekly",
+          updated_by: "test"
+        })
+
+        run_scheduler()
+
+        assert {:error, :batch_already_open} =
+                 Settlement.create_batch(merchant.id, provider.id, "GHS", "simulation")
+      end
+    end
+
+    test "monthly: skips batch creation when today is not the 1st (or next business day)" do
+      today = Date.utc_today()
+      first_of_month = %Date{today | day: 1}
+      # Determine the target day (1st or next business day if 1st is a holiday/weekend)
+      target =
+        if GhanaBusinessDay.business_day?(first_of_month) do
+          first_of_month
+        else
+          Date.add(first_of_month, 1)
+          |> Stream.iterate(&Date.add(&1, 1))
+          |> Enum.find(&GhanaBusinessDay.business_day?/1)
+        end
+
+      if Date.compare(today, target) != :eq do
+        merchant = Fixtures.merchant_fixture()
+        provider = provider_with_past_cutoff()
+        setup_unsettled_payment(merchant, provider)
+
+        Settlement.upsert_settlement_controls(merchant.id, %{
+          settlement_frequency: "monthly",
+          updated_by: "test"
+        })
+
+        run_scheduler()
+
+        batches =
+          Repo.all(
+            from(b in YagyeCore.Settlement.Schemas.SettlementBatch,
+              where: b.merchant_id == ^merchant.id
+            )
+          )
+
+        assert batches == []
+      else
+        # Today is the settlement day — monthly frequency fires.
+        merchant = Fixtures.merchant_fixture()
+        provider = provider_with_past_cutoff()
+        setup_unsettled_payment(merchant, provider)
+
+        Settlement.upsert_settlement_controls(merchant.id, %{
+          settlement_frequency: "monthly",
+          updated_by: "test"
+        })
+
+        run_scheduler()
+
+        assert {:error, :batch_already_open} =
+                 Settlement.create_batch(merchant.id, provider.id, "GHS", "simulation")
+      end
     end
   end
 end

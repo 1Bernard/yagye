@@ -1,8 +1,10 @@
 defmodule YagyeCore.Disputes.DisputesTest do
   use YagyeCore.DataCase, async: true
 
+  alias YagyeCore.CheckoutSessions
   alias YagyeCore.Disputes
   alias YagyeCore.Fixtures
+  alias YagyeCore.Repo
 
   setup do
     merchant = Fixtures.approved_merchant_fixture()
@@ -79,7 +81,7 @@ defmodule YagyeCore.Disputes.DisputesTest do
       {:ok, {refund, payment}} =
         Disputes.create_refund(payment, %{amount: payment.amount, reason: "customer_request"})
 
-      assert refund.state == "succeeded"
+      assert refund.state == "requested"
       assert refund.amount == payment.amount
       assert String.starts_with?(refund.public_id, "ref_")
       assert refund.dispute_id == nil
@@ -93,7 +95,7 @@ defmodule YagyeCore.Disputes.DisputesTest do
         Disputes.create_refund(payment, %{amount: 5_000, reason: "duplicate"})
 
       assert refund.amount == 5_000
-      assert payment.state == "refunded"
+      assert payment.state == "partially_refunded"
     end
 
     test "rejects refund amount exceeding original", %{merchant: merchant} do
@@ -150,6 +152,156 @@ defmodule YagyeCore.Disputes.DisputesTest do
 
       assert {:ok, found} = Disputes.get_refund(refund.public_id)
       assert found.id == refund.id
+    end
+  end
+
+  describe "create_refund/2 — refund window" do
+    test "rejects refund when payment is older than refund_window_days", %{merchant: merchant} do
+      payment = Fixtures.succeeded_payment_fixture(merchant)
+
+      # Set a short 30-day window
+      CheckoutSessions.update_checkout_config(merchant.id, %{
+        refund_window_days: 30,
+        display_name: "Test",
+        default_locale: "en"
+      })
+
+      # Back-date the payment 31 days — outside the window
+      old_ts = DateTime.add(DateTime.utc_now(), -31 * 24 * 3600, :second)
+      Ecto.Changeset.change(payment, inserted_at: old_ts) |> Repo.update!()
+      payment = Repo.reload!(payment)
+
+      assert {:error, :window_expired} =
+               Disputes.create_refund(payment, %{
+                 amount: payment.amount,
+                 reason: "customer_request"
+               })
+    end
+
+    test "allows refund within the refund window", %{merchant: merchant} do
+      payment = Fixtures.succeeded_payment_fixture(merchant)
+
+      CheckoutSessions.update_checkout_config(merchant.id, %{
+        refund_window_days: 30,
+        display_name: "Test",
+        default_locale: "en"
+      })
+
+      # Payment is recent — within the 30-day window
+      assert {:ok, {refund, _}} =
+               Disputes.create_refund(payment, %{
+                 amount: payment.amount,
+                 reason: "customer_request"
+               })
+
+      assert refund.state == "requested"
+    end
+  end
+
+  describe "create_refund/2 — partial refunds disabled" do
+    test "rejects partial refund when partial_refunds_enabled is false", %{merchant: merchant} do
+      payment = Fixtures.succeeded_payment_fixture(merchant, %{amount: 10_000})
+
+      CheckoutSessions.update_checkout_config(merchant.id, %{
+        partial_refunds_enabled: false,
+        display_name: "Test",
+        default_locale: "en"
+      })
+
+      assert {:error, :partial_refunds_disabled} =
+               Disputes.create_refund(payment, %{amount: 5_000, reason: "duplicate"})
+    end
+
+    test "allows full refund even when partial_refunds_enabled is false", %{merchant: merchant} do
+      payment = Fixtures.succeeded_payment_fixture(merchant, %{amount: 10_000})
+
+      CheckoutSessions.update_checkout_config(merchant.id, %{
+        partial_refunds_enabled: false,
+        display_name: "Test",
+        default_locale: "en"
+      })
+
+      assert {:ok, {refund, _payment}} =
+               Disputes.create_refund(payment, %{amount: 10_000, reason: "customer_request"})
+
+      assert refund.state == "requested"
+    end
+  end
+
+  describe "create_refund/2 — requires_approval_above_pesewas" do
+    test "creates refund in pending_approval state when amount >= threshold", %{
+      merchant: merchant
+    } do
+      payment = Fixtures.succeeded_payment_fixture(merchant, %{amount: 50_000})
+
+      CheckoutSessions.update_checkout_config(merchant.id, %{
+        requires_approval_above_pesewas: 10_000,
+        display_name: "Test",
+        default_locale: "en"
+      })
+
+      assert {:ok, {refund, _}} =
+               Disputes.create_refund(payment, %{amount: 50_000, reason: "customer_request"})
+
+      assert refund.state == "pending_approval"
+    end
+
+    test "creates refund in requested state when amount < threshold", %{merchant: merchant} do
+      payment = Fixtures.succeeded_payment_fixture(merchant, %{amount: 50_000})
+
+      CheckoutSessions.update_checkout_config(merchant.id, %{
+        requires_approval_above_pesewas: 100_000,
+        display_name: "Test",
+        default_locale: "en"
+      })
+
+      assert {:ok, {refund, _}} =
+               Disputes.create_refund(payment, %{amount: 50_000, reason: "customer_request"})
+
+      assert refund.state == "requested"
+    end
+
+    test "no threshold (nil): always creates refund in requested state", %{merchant: merchant} do
+      payment = Fixtures.succeeded_payment_fixture(merchant, %{amount: 50_000})
+
+      # No checkout config set — nil threshold means no approval required
+      assert {:ok, {refund, _}} =
+               Disputes.create_refund(payment, %{amount: 50_000, reason: "customer_request"})
+
+      assert refund.state == "requested"
+    end
+  end
+
+  describe "approve_refund/2" do
+    test "transitions pending_approval refund to requested state", %{merchant: merchant} do
+      payment = Fixtures.succeeded_payment_fixture(merchant, %{amount: 50_000})
+
+      CheckoutSessions.update_checkout_config(merchant.id, %{
+        requires_approval_above_pesewas: 10_000,
+        display_name: "Test",
+        default_locale: "en"
+      })
+
+      {:ok, {refund, _}} =
+        Disputes.create_refund(payment, %{amount: 50_000, reason: "customer_request"})
+
+      assert refund.state == "pending_approval"
+
+      # approve_changeset → "approved", then dispatch_changeset → "requested"
+      # The Multi returns the :refund step result ("approved"); reload to get final state.
+      assert {:ok, approved} = Disputes.approve_refund(refund, "ops_001")
+      reloaded = Repo.reload!(approved)
+      assert reloaded.state == "requested"
+    end
+
+    test "rejects approval of a refund not in pending_approval", %{merchant: merchant} do
+      payment = Fixtures.succeeded_payment_fixture(merchant)
+
+      {:ok, {refund, _}} =
+        Disputes.create_refund(payment, %{amount: payment.amount, reason: "customer_request"})
+
+      assert refund.state == "requested"
+      assert {:error, {:not_approvable, "requested"}} = Disputes.approve_refund(refund, "ops_001")
     end
   end
 

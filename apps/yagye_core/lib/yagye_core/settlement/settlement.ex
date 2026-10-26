@@ -14,6 +14,8 @@ defmodule YagyeCore.Settlement do
   alias YagyeCore.Providers.Schemas.Provider
   alias YagyeCore.Repo
 
+  alias YagyeCore.Disputes.Schemas.Refund
+
   alias YagyeCore.Settlement.Schemas.{
     MerchantSettlementControls,
     Settlement,
@@ -21,6 +23,7 @@ defmodule YagyeCore.Settlement do
     SettlementItem
   }
 
+  alias YagyeCore.Settlement.GhanaBusinessDay
   alias YagyeCore.Settlement.Workers.BankDispatchWorker
   alias YagyeCore.Shared.Pagination
 
@@ -30,48 +33,22 @@ defmodule YagyeCore.Settlement do
   Creates a pending settlement batch sweeping all unsettled succeeded payments
   for the given merchant, provider, currency, and mode.
 
-  Returns {:error, :no_payments} when there is nothing to settle.
-  Returns {:error, :batch_already_open} when a pending/processing batch already
-  exists for this (merchant, provider, currency, mode) — protects against double-batching.
+  Respects per-merchant controls:
+  - T+N delay (`settlement_delay_days`): only sweeps payments old enough.
+  - Minimum payout (`minimum_payout_pesewas`): skips if gross < minimum.
+
+  Returns {:error, :no_payments} when nothing is eligible yet.
+  Returns {:error, :below_minimum} when eligible gross < minimum threshold.
+  Returns {:error, :batch_already_open} when a pending/processing batch exists.
   """
   @spec create_batch(binary(), binary(), String.t(), String.t()) ::
           {:ok, SettlementBatch.t()}
-          | {:error, :no_payments | :batch_already_open | Ecto.Changeset.t()}
+          | {:error, :no_payments | :below_minimum | :batch_already_open | Ecto.Changeset.t()}
   def create_batch(merchant_id, provider_id, currency, mode) do
-    Multi.new()
-    |> Multi.run(:guard, fn _repo, _changes ->
-      guard_no_open_batch(merchant_id, provider_id, currency, mode)
-    end)
-    |> Multi.run(:payments, fn _repo, _changes ->
-      case do_sweep(merchant_id, provider_id, currency, mode) do
-        [] -> {:error, :no_payments}
-        payments -> {:ok, payments}
-      end
-    end)
-    |> Multi.run(:batch, fn _repo, %{payments: payments} ->
-      insert_batch(merchant_id, provider_id, currency, mode, payments)
-    end)
-    |> Multi.run(:stamp, fn _repo, %{payments: payments, batch: batch} ->
-      stamp_payments(Enum.map(payments, & &1.id), batch.id)
-    end)
-    |> Multi.insert(:outbox, fn %{batch: batch} ->
-      Outbox.build_changeset(batch, "settlement.batch.created", %{
-        batch_id: batch.id,
-        merchant_code: merchant_code(batch.merchant_id),
-        provider_code: provider_code(batch.provider_id),
-        currency: batch.currency,
-        payment_count: batch.payment_count,
-        gross_amount: batch.gross_amount
-      })
-    end)
-    |> Repo.transaction()
-    |> case do
-      {:ok, %{batch: batch}} -> {:ok, batch}
-      {:error, :guard, :batch_already_open, _} -> {:error, :batch_already_open}
-      {:error, :payments, :no_payments, _} -> {:error, :no_payments}
-      {:error, _step, %Ecto.Changeset{} = cs, _} -> {:error, cs}
-      {:error, _step, reason, _} -> {:error, reason}
-    end
+    controls = get_settlement_controls(merchant_id)
+    cutoff_dt = controls_cutoff(controls)
+    min_payout = controls_min_payout(controls)
+    run_batch_multi(merchant_id, provider_id, currency, mode, cutoff_dt, min_payout)
   end
 
   # ── Settlement records (P12) ─────────────────────────────────────────────────
@@ -347,15 +324,22 @@ defmodule YagyeCore.Settlement do
     platform_fees = decimal_to_int(fees["platform"])
     provider_fees = decimal_to_int(fees["provider"])
     gross = batch.gross_amount
-    expected_net = gross - platform_fees - provider_fees
+
+    controls = get_settlement_controls(batch.merchant_id)
+    reserve_bps = (controls && controls.reserve_rate_bps) || 0
+    reserved_amount = div(gross * reserve_bps, 10_000)
+    expected_refunds = batch_refund_total(batch)
+
+    expected_net = gross - platform_fees - provider_fees - reserved_amount - expected_refunds
 
     {:ok,
      %{
        expected_gross: gross,
        expected_platform_fees: platform_fees,
        expected_provider_fees: provider_fees,
-       expected_refunds: 0,
+       expected_refunds: expected_refunds,
        expected_chargebacks: 0,
+       reserved_amount: reserved_amount,
        expected_net: expected_net
      }}
   end
@@ -421,30 +405,98 @@ defmodule YagyeCore.Settlement do
     end
   end
 
+  # Only apply T+N when controls have an explicit delay (delay_days > 0).
+  # 0 = no delay (default for new merchants until ops configures it).
+  defp controls_cutoff(%{settlement_delay_days: n}) when is_integer(n) and n > 0,
+    do: GhanaBusinessDay.settlement_cutoff_datetime(n)
+
+  defp controls_cutoff(_), do: nil
+
+  defp controls_min_payout(%{minimum_payout_pesewas: min}) when is_integer(min), do: min
+  defp controls_min_payout(_), do: 0
+
+  defp run_batch_multi(merchant_id, provider_id, currency, mode, cutoff_dt, min_payout) do
+    Multi.new()
+    |> Multi.run(:guard, fn _repo, _changes ->
+      guard_no_open_batch(merchant_id, provider_id, currency, mode)
+    end)
+    |> Multi.run(:payments, fn _repo, _changes ->
+      sweep_eligible_payments(merchant_id, provider_id, currency, mode, cutoff_dt, min_payout)
+    end)
+    |> Multi.run(:batch, fn _repo, %{payments: payments} ->
+      insert_batch(merchant_id, provider_id, currency, mode, payments)
+    end)
+    |> Multi.run(:stamp, fn _repo, %{payments: payments, batch: batch} ->
+      stamp_payments(Enum.map(payments, & &1.id), batch.id)
+    end)
+    |> Multi.insert(:outbox, fn %{batch: batch} ->
+      Outbox.build_changeset(batch, "settlement.batch.created", %{
+        batch_id: batch.id,
+        merchant_code: merchant_code(batch.merchant_id),
+        provider_code: provider_code(batch.provider_id),
+        currency: batch.currency,
+        payment_count: batch.payment_count,
+        gross_amount: batch.gross_amount
+      })
+    end)
+    |> Repo.transaction()
+    |> unwrap_batch_result()
+  end
+
+  defp unwrap_batch_result({:ok, %{batch: batch}}), do: {:ok, batch}
+
+  defp unwrap_batch_result({:error, :guard, :batch_already_open, _}),
+    do: {:error, :batch_already_open}
+
+  defp unwrap_batch_result({:error, :payments, :no_payments, _}), do: {:error, :no_payments}
+  defp unwrap_batch_result({:error, :payments, :below_minimum, _}), do: {:error, :below_minimum}
+  defp unwrap_batch_result({:error, _step, %Ecto.Changeset{} = cs, _}), do: {:error, cs}
+  defp unwrap_batch_result({:error, _step, reason, _}), do: {:error, reason}
+
+  defp sweep_eligible_payments(merchant_id, provider_id, currency, mode, cutoff_dt, min_payout) do
+    payments = do_sweep(merchant_id, provider_id, currency, mode, cutoff_dt)
+    gross = Enum.sum(Enum.map(payments, & &1.amount))
+
+    cond do
+      payments == [] -> {:error, :no_payments}
+      min_payout > 0 and gross < min_payout -> {:error, :below_minimum}
+      true -> {:ok, payments}
+    end
+  end
+
   # Returns payments that succeeded via the given provider and have no batch yet.
   # Conditions on the attempt are in `where` (not `on`) so the filter is applied
   # after the join; using `on` for non-FK conditions produces surprising results
   # in Ecto with inner joins.
   # Joins providers to guard: external_psp payments are settled by the external PSP
   # directly; Yagye must never sweep them into a Yagye settlement batch.
-  defp do_sweep(merchant_id, provider_id, currency, mode) do
-    from(p in Payment,
-      join: pa in PaymentAttempt,
-      on: pa.payment_id == p.id,
-      join: prov in Provider,
-      on: prov.id == pa.provider_id,
-      where: prov.kind == "native_rail",
-      where: pa.state == @succeeded,
-      where: pa.provider_id == ^provider_id,
-      where: p.merchant_id == ^merchant_id,
-      where: p.currency == ^currency,
-      where: p.mode == ^mode,
-      where: p.state == @succeeded,
-      where: is_nil(p.settlement_batch_id),
-      distinct: true,
-      select: p
-    )
-    |> Repo.all()
+  defp do_sweep(merchant_id, provider_id, currency, mode, cutoff_dt) do
+    base =
+      from(p in Payment,
+        join: pa in PaymentAttempt,
+        on: pa.payment_id == p.id,
+        join: prov in Provider,
+        on: prov.id == pa.provider_id,
+        where: prov.kind == "native_rail",
+        where: pa.state == @succeeded,
+        where: pa.provider_id == ^provider_id,
+        where: p.merchant_id == ^merchant_id,
+        where: p.currency == ^currency,
+        where: p.mode == ^mode,
+        where: p.state == @succeeded,
+        where: is_nil(p.settlement_batch_id),
+        distinct: true,
+        select: p
+      )
+
+    base =
+      if cutoff_dt do
+        where(base, [p], p.inserted_at <= ^cutoff_dt)
+      else
+        base
+      end
+
+    Repo.all(base)
   end
 
   defp merchant_code(merchant_id) do
@@ -459,6 +511,22 @@ defmodule YagyeCore.Settlement do
       %Provider{code: code} -> code
       nil -> nil
     end
+  end
+
+  # Sums refunds (requested or succeeded) for all payments in the given batch.
+  # These are deducted from expected_net so the reconciliation expectation is accurate.
+  defp batch_refund_total(%SettlementBatch{} = batch) do
+    result =
+      from(r in Refund,
+        join: p in Payment,
+        on: p.id == r.payment_id,
+        where: p.settlement_batch_id == ^batch.id,
+        where: r.state in ["requested", "succeeded"],
+        select: sum(r.amount)
+      )
+      |> Repo.one()
+
+    decimal_to_int(result)
   end
 
   defp decimal_to_int(nil), do: 0

@@ -126,6 +126,54 @@ defmodule YagyeCore.Settlement.SettlementFeeTest do
     end
   end
 
+  describe "compute_batch_fee_totals/1 — rolling reserve" do
+    test "deducts reserved_amount from expected_net based on reserve_rate_bps" do
+      merchant = Fixtures.merchant_fixture()
+      provider = Fixtures.simulator_provider_fixture()
+      # Payment is 10_000 pesewas; reserve 5% (500 bps) → reserved = 500
+      {batch, _payment, _attempt} = setup_payment_with_attempt(merchant, provider, 10_000)
+
+      Settlement.upsert_settlement_controls(merchant.id, %{
+        reserve_rate_bps: 500,
+        updated_by: "test"
+      })
+
+      assert {:ok, totals} = Settlement.compute_batch_fee_totals(batch)
+      assert totals.reserved_amount == 500
+      assert totals.expected_net == 10_000 - 500
+    end
+
+    test "reserved_amount is 0 when reserve_rate_bps is 0 (default)" do
+      merchant = Fixtures.merchant_fixture()
+      provider = Fixtures.simulator_provider_fixture()
+      {batch, _payment, _attempt} = setup_payment_with_attempt(merchant, provider, 10_000)
+
+      Settlement.upsert_settlement_controls(merchant.id, %{
+        reserve_rate_bps: 0,
+        updated_by: "test"
+      })
+
+      assert {:ok, totals} = Settlement.compute_batch_fee_totals(batch)
+      assert totals.reserved_amount == 0
+      assert totals.expected_net == 10_000
+    end
+
+    test "reserved_amount rounds down via integer division" do
+      merchant = Fixtures.merchant_fixture()
+      provider = Fixtures.simulator_provider_fixture()
+      # 10_001 pesewas × 500 bps / 10_000 = 500.05 → floors to 500
+      {batch, _payment, _attempt} = setup_payment_with_attempt(merchant, provider, 10_001)
+
+      Settlement.upsert_settlement_controls(merchant.id, %{
+        reserve_rate_bps: 500,
+        updated_by: "test"
+      })
+
+      assert {:ok, totals} = Settlement.compute_batch_fee_totals(batch)
+      assert totals.reserved_amount == 500
+    end
+  end
+
   describe "create_settlement_from_batch/1 — per-item fees" do
     test "populates platform_fee and net_amount per item from fee_records" do
       merchant = Fixtures.merchant_fixture()

@@ -17,22 +17,25 @@ defmodule YagyeCore.Customers do
   returns the existing record if already present.
   """
   def find_or_create(merchant_id, merchant_customer_ref, attrs \\ %{}) do
-    attrs =
+    full_attrs =
       Map.merge(attrs, %{merchant_id: merchant_id, merchant_customer_ref: merchant_customer_ref})
 
-    case Repo.insert(Customer.create_changeset(%Customer{}, attrs),
-           on_conflict: :nothing,
-           conflict_target: [:merchant_id, :merchant_customer_ref]
-         ) do
-      {:ok, _} ->
-        {:ok,
-         Repo.get_by!(Customer,
-           merchant_id: merchant_id,
-           merchant_customer_ref: merchant_customer_ref
-         )}
+    result =
+      Repo.insert(Customer.create_changeset(%Customer{}, full_attrs),
+        on_conflict: :nothing,
+        conflict_target: [:merchant_id, :merchant_customer_ref]
+      )
 
-      {:error, _} = err ->
-        err
+    with {:ok, _} <- result,
+         customer when not is_nil(customer) <-
+           Repo.get_by(Customer,
+             merchant_id: merchant_id,
+             merchant_customer_ref: merchant_customer_ref
+           ) do
+      maybe_update_contact(customer, attrs)
+    else
+      {:error, _} = err -> err
+      nil -> {:error, :not_found}
     end
   end
 
@@ -61,6 +64,16 @@ defmodule YagyeCore.Customers do
   Enriches a customer record with contact info collected during checkout.
   Only overwrites nil fields — does not replace existing data.
   """
+  defp maybe_update_contact(customer, attrs) do
+    profile = Map.take(attrs, [:name, :email, :phone])
+
+    if Enum.any?(profile, fn {_, v} -> not is_nil(v) end) do
+      update_contact_info(customer, profile)
+    else
+      {:ok, customer}
+    end
+  end
+
   def update_contact_info(%Customer{} = customer, attrs) do
     contact =
       attrs

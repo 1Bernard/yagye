@@ -32,6 +32,7 @@ defmodule YagyeCore.Settlement.Schemas.SettlementBatch do
     field :dispatch_rejected_by, :string
     field :dispatch_rejected_at, :utc_datetime_usec
     field :dispatch_rejection_reason, :string
+    field :reserved_amount, :integer, default: 0
 
     belongs_to :merchant, Merchant
     belongs_to :provider, Provider

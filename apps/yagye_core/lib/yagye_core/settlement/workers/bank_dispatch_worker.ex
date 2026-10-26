@@ -28,12 +28,49 @@ defmodule YagyeCore.Settlement.Workers.BankDispatchWorker do
   alias YagyeCore.Settlement.Schemas.SettlementBatch
 
   @impl Oban.Worker
-  def perform(%Oban.Job{args: %{"batch_id" => batch_id}}) do
+  def perform(%Oban.Job{
+        args: %{"batch_id" => batch_id},
+        attempt: attempt,
+        max_attempts: max_attempts
+      }) do
     batch = Repo.get!(SettlementBatch, batch_id)
-    dispatch(batch)
+
+    case dispatch(batch) do
+      :ok ->
+        :ok
+
+      {:error, reason} ->
+        if attempt >= max_attempts do
+          escalate_dispatch_failure(batch, reason)
+        end
+
+        {:error, reason}
+    end
   end
 
   # ── Private ──────────────────────────────────────────────────────────────────
+
+  defp escalate_dispatch_failure(%SettlementBatch{} = batch, reason) do
+    Multi.new()
+    |> Multi.update(:batch, SettlementBatch.transition_changeset(batch, "failed"))
+    |> Multi.insert(:outbox, fn %{batch: b} ->
+      Outbox.build_changeset(b, "settlement.batch.dispatch_exhausted", %{
+        batch_id: b.id,
+        merchant_code: resolve_merchant_code(b.merchant_id),
+        provider_code: resolve_provider_code(b.provider_id),
+        currency: b.currency,
+        gross_amount: b.gross_amount,
+        net_amount: b.net_amount,
+        mode: b.mode
+      })
+    end)
+    |> Repo.transaction()
+
+    Logger.error("[BankDispatchWorker] all retries exhausted — batch marked failed",
+      batch_id: batch.id,
+      reason: inspect(reason)
+    )
+  end
 
   defp dispatch(%SettlementBatch{bank_dispatch_ref: ref}) when is_binary(ref) do
     :ok
