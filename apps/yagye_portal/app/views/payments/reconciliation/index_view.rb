@@ -5,15 +5,15 @@ module Payments
     class IndexView < ApplicationComponent
       include UI::Theme
 
-      # left = PSP payment attempts, right = bank/provider report lines.
-      # missing_on_right: PSP has it, bank doesn't → bank statement is missing the entry.
-      # missing_on_left:  bank has it, PSP doesn't → PSP ledger has no matching record.
+      # left = Yagye payment attempts, right = PSP settlement report lines.
+      # missing_on_right: Yagye has it, PSP report doesn't → PSP is missing the line.
+      # missing_on_left:  PSP report has it, Yagye doesn't → Yagye's ledger is missing the record.
       CLASSIFICATION_LABELS = {
-        "missing_on_right"    => "Missing on bank",
-        "missing_on_left"     => "Missing on PSP",
+        "missing_on_right"    => "Missing on PSP",
+        "missing_on_left"     => "Missing on ledger",
         "amount_mismatch"     => "Amount mismatch",
-        "duplicate_on_left"   => "Duplicate on PSP",
-        "duplicate_on_right"  => "Duplicate on bank",
+        "duplicate_on_left"   => "Duplicate on ledger",
+        "duplicate_on_right"  => "Duplicate on PSP",
         "timing_difference"   => "Timing difference",
         "fee_discrepancy"     => "Fee discrepancy",
         "currency_mismatch"   => "Currency mismatch",
