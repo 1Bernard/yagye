@@ -30,7 +30,7 @@ module Merchants
         kind:           params[:kind],
         percentage_bps: bps,
         fixed_amount:   fixed,
-        currency:       application.default_currency.presence || "GHS",
+        currency:       "GHS",
         hold_days:      params[:hold_days].to_i,
         mode:           params[:mode].presence || "live",
         reason:         params[:reason].presence,

@@ -21,21 +21,21 @@ module Merchants
             end
           end
 
-          form(action: merchant_reserve_policy_path(@app), method: "post") do
-            input(type: "hidden", name: "authenticity_token", value: form_authenticity_token)
-
+          form(action: merchant_reserve_policy_path(@app), method: "post",
+               data: { turbo_frame: "_top" }) do
             div(class: MODAL_BODY) do
-              div(class: "flex flex-col gap-4") do
+              div(class: "flex flex-col gap-4", data: { controller: "reserve-kind" }) do
                 div do
                   label(class: "#{TEXT_LABEL} block mb-1.5") { plain "Reserve type" }
-                  select(name: "kind", id: "reserve_kind", class: SELECT_FIELD) do
+                  select(name: "kind", id: "reserve_kind", class: SELECT_FIELD,
+                         data: { action: "change->reserve-kind#sync" }) do
                     option(value: "rolling", selected: "selected") { plain "Rolling reserve (% of each settlement)" }
                     option(value: "fixed") { plain "Fixed reserve (set amount per payment)" }
                     option(value: "ad_hoc") { plain "Ad hoc (one-time hold)" }
                   end
                 end
 
-                div(id: "reserve_rate_wrap") do
+                div(id: "reserve_rate_wrap", data: { reserve_kind_target: "rateWrap" }) do
                   label(class: "#{TEXT_LABEL} block mb-1.5") { plain "Reserve rate (%)" }
                   div(class: "relative") do
                     input(type: "number", name: "rate", value: "5", min: "0.01", max: "100",
@@ -44,10 +44,10 @@ module Merchants
                   end
                 end
 
-                div(id: "reserve_fixed_wrap", hidden: true) do
+                div(id: "reserve_fixed_wrap", hidden: true, data: { reserve_kind_target: "fixedWrap" }) do
                   label(class: "#{TEXT_LABEL} block mb-1.5") { plain "Reserve amount (GHS)" }
                   div(class: "relative") do
-                    input(type: "number", name: "fixed_amount", value: "0", min: "0.01",
+                    input(type: "number", name: "fixed_amount", value: "0", min: "0",
                           step: "0.01", class: INPUT_FIELD + " pl-14")
                     span(class: "absolute left-3 top-1/2 -translate-y-1/2 text-[12px] text-gray-400") { plain "GHS" }
                   end
@@ -64,6 +64,7 @@ module Merchants
                   select(name: "mode", class: SELECT_FIELD) do
                     option(value: "live", selected: "selected") { plain "Live" }
                     option(value: "sandbox") { plain "Sandbox" }
+                    option(value: "simulation") { plain "Simulation" }
                   end
                 end
 
@@ -83,23 +84,8 @@ module Merchants
               end
             end
 
-            script(nonce: content_security_policy_nonce) do
-            raw safe(<<~JS)
-              (function() {
-                var kind = document.getElementById("reserve_kind");
-                var rateW = document.getElementById("reserve_rate_wrap");
-                var fixW  = document.getElementById("reserve_fixed_wrap");
-                function sync() {
-                  rateW.hidden = kind.value !== "rolling";
-                  fixW.hidden  = kind.value !== "fixed";
-                }
-                kind.addEventListener("change", sync);
-                sync();
-              })();
-            JS
-          end
-
-          div(class: MODAL_FOOT) do
+            div(class: MODAL_FOOT) do
+              input(type: "hidden", name: "authenticity_token", value: form_authenticity_token)
               button(type: "button", class: BTN_SECONDARY,
                      data: { action: "click->modal#close" }) { plain "Cancel" }
               button(type: "submit", class: BTN_PRIMARY) do
