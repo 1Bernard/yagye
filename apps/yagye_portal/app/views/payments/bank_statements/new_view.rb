@@ -4,7 +4,6 @@ module Payments
   module BankStatements
     class NewView < ApplicationComponent
       include UI::Theme
-      include Phlex::Rails::Helpers::LabelTag
 
       def view_template
         render Layout::Shell.new(
@@ -28,7 +27,7 @@ module Payments
                   input(type: "hidden", name: "authenticity_token", value: form_authenticity_token)
                   input(type: "hidden", name: "source", value: "csv_upload")
 
-                  div(class: "flex flex-col gap-4") do
+                  div(class: "flex flex-col gap-5") do
                     div(class: "grid grid-cols-2 gap-4") do
                       field("Account reference", :account_reference,
                             placeholder: "e.g. YAGYE-GCB-001", required: true)
@@ -37,9 +36,9 @@ module Payments
                             type: "date", required: true)
                     end
 
-                    div(class: "grid grid-cols-3 gap-4") do
+                    div(class: "grid grid-cols-2 gap-4") do
                       div do
-                        label_tag("Currency")
+                        p(class: "#{TEXT_LABEL} mb-1.5") { plain "Currency" }
                         select(name: "currency", class: SELECT_FIELD) do
                           option(value: "GHS", selected: "selected") { plain "GHS — Ghana Cedi" }
                           option(value: "USD") { plain "USD — US Dollar" }
@@ -48,31 +47,23 @@ module Payments
                       end
 
                       div do
-                        label(class: "block text-[12.5px] font-medium text-gray-700 mb-1.5") { plain "Mode" }
+                        p(class: "#{TEXT_LABEL} mb-1.5") { plain "Mode" }
                         select(name: "mode", class: SELECT_FIELD) do
                           option(value: "live", selected: "selected") { plain "Live" }
                           option(value: "simulation") { plain "Simulation" }
                         end
                       end
-
-                      div do
-                        label(class: "block text-[12.5px] font-medium text-gray-700 mb-1.5") { plain "Opening balance" }
-                        div(class: "relative") do
-                          span(class: "absolute left-3 top-1/2 -translate-y-1/2 text-[11px] text-gray-400") { plain "GHS" }
-                          input(type: "number", name: "opening_balance", value: "0",
-                                step: "0.01", min: "0", required: true,
-                                class: "#{INPUT_FIELD} pl-10")
-                        end
-                      end
                     end
 
-                    field("Closing balance (GHS)", :closing_balance,
-                          type: "number", placeholder: "e.g. 98000.00")
+                    div(class: "grid grid-cols-2 gap-4") do
+                      ghs_field("Opening balance", :opening_balance,
+                                placeholder: "0.00", required: true, value: "0")
+                      ghs_field("Closing balance", :closing_balance,
+                                placeholder: "e.g. 98000.00")
+                    end
 
                     div do
-                      label(class: "block text-[12.5px] font-medium text-gray-700 mb-1") do
-                        plain "CSV lines"
-                      end
+                      p(class: "#{TEXT_LABEL} mb-1") { plain "CSV lines" }
                       p(class: "#{TYPE_CAPTION} mb-2") do
                         plain "One line per row: "
                         code(class: "#{TYPE_MONO} bg-gray-100 px-1 rounded text-[11px]") do
@@ -81,23 +72,24 @@ module Payments
                         plain " — amount in cedis, credits positive, debits negative."
                       end
                       textarea(
-                        name: "csv_lines",
-                        rows: "12",
-                        placeholder: "2026-10-01,Opening balance credit,50000.00\n2026-10-02,Settlement credit from MTN MoMo,8450.00\n2026-10-03,Bank charges,-25.00",
-                        required: true,
-                        class: "w-full border border-gray-200 rounded-[10px] px-3 py-2.5 " \
-                               "text-[12.5px] text-gray-700 bg-white font-mono outline-none " \
-                               "focus:ring-1 focus:ring-[#{BRAND}] resize-y leading-relaxed"
+                        name:        "csv_lines",
+                        rows:        "10",
+                        placeholder: "2026-10-01,Opening balance credit,50000.00\n" \
+                                     "2026-10-02,Settlement credit from MTN MoMo,8450.00\n" \
+                                     "2026-10-03,Bank charges,-25.00",
+                        required:    true,
+                        class:       "#{INPUT_FIELD} font-mono !py-2.5 resize-y leading-relaxed"
                       )
                     end
 
-                    div(class: "pt-1 flex gap-3") do
+                    div(class: "border-t border-gray-100 pt-4 flex items-center gap-3") do
                       render UI::Button.new(variant: :primary, type: "submit") do
                         render UI::Icon.new(:upload, class: ICON_SM)
-                        plain " Import statement"
+                        plain "Import statement"
                       end
-                      a(href: payments_bank_statements_path,
-                        class: "#{BTN_SECONDARY} no-underline") { plain "Cancel" }
+                      a(href: payments_bank_statements_path, class: BTN_GHOST) do
+                        plain "Cancel"
+                      end
                     end
                   end
                 end
@@ -109,18 +101,39 @@ module Payments
 
       private
 
-      def field(label_text, name, type: "text", placeholder: nil, required: false)
+      def field(label_text, name, type: "text", placeholder: nil, required: false, value: nil)
         div do
-          label(class: "block text-[12.5px] font-medium text-gray-700 mb-1.5") do
-            plain label_text
-          end
+          p(class: "#{TEXT_LABEL} mb-1.5") { plain label_text }
           input(
-            type: type,
-            name: name.to_s,
+            type:        type,
+            name:        name.to_s,
+            value:       value,
             placeholder: placeholder,
-            required: required,
-            class: INPUT_FIELD
+            required:    required,
+            class:       INPUT_FIELD
           )
+        end
+      end
+
+      def ghs_field(label_text, name, placeholder: nil, required: false, value: nil)
+        div do
+          p(class: "#{TEXT_LABEL} mb-1.5") { plain label_text }
+          div(class: "relative") do
+            span(class: "absolute left-3.5 top-1/2 -translate-y-1/2 px-2 py-0.5 rounded " \
+                        "bg-gray-100 #{TYPE_CAPTION} font-semibold pointer-events-none select-none") do
+              plain "GHS"
+            end
+            input(
+              type:        "number",
+              name:        name.to_s,
+              value:       value,
+              step:        "0.01",
+              min:         "0",
+              placeholder: placeholder,
+              required:    required,
+              class:       "#{INPUT_FIELD} !pl-16 font-mono text-[13.5px] tabular-nums"
+            )
+          end
         end
       end
     end
