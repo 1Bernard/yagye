@@ -151,6 +151,14 @@ module Payments
       if result.success?
         new_status = outcome == "won" ? "won" : "lost"
         dispute.update!(status: new_status, resolved_at: Time.current)
+
+        # Optimistically update the portal payment record so the detail page
+        # reflects the new state immediately (before the event pipeline propagates).
+        if dispute.core_payment_id.present?
+          payment_new_status = outcome == "won" ? "paid" : "chargebacked"
+          Payment.where(core_payment_id: dispute.core_payment_id).update_all(status: payment_new_status)
+        end
+
         redirect_to dispute_path(dispute), notice: "Dispute marked as #{outcome}."
       else
         redirect_to dispute_path(dispute), alert: "Could not resolve dispute. Please try again."
