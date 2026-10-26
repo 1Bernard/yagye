@@ -60,10 +60,6 @@ defmodule YagyeCore.Customers do
     |> Repo.update()
   end
 
-  @doc """
-  Enriches a customer record with contact info collected during checkout.
-  Only overwrites nil fields — does not replace existing data.
-  """
   defp maybe_update_contact(customer, attrs) do
     profile = Map.take(attrs, [:name, :email, :phone])
 

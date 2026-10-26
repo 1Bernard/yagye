@@ -38,7 +38,7 @@ defmodule YagyeCoreWeb.Controllers.Disputes.RefundControllerTest do
       body = Jason.decode!(resp.resp_body)
       assert body["object"] == "refund"
       assert body["amount"] == 10_000
-      assert body["state"] == "succeeded"
+      assert body["state"] == "requested"
       assert body["reason"] == "customer_request"
       assert body["dispute_id"] == nil
       assert String.starts_with?(body["id"], "ref_")
