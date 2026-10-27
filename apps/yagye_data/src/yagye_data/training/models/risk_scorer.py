@@ -10,24 +10,28 @@ Note: Requires 6 months of labelled chargebacks to train meaningfully.
       Until then this module returns a baseline model (all zeros).
 
 Training schedule: bi-weekly
-ONNX export: s3://yagye-ml-models/risk_scorer/model.onnx
+ONNX export: s3://yagye-ml-models/risk_scorer/{version}/model.onnx
 """
 
 import io
+import tempfile
+from datetime import datetime
 
 import boto3
 import lightgbm as lgb
+import mlflow
 import numpy as np
 from sklearn.model_selection import train_test_split
 
 from yagye_data.config import settings
 from yagye_data.shared.duckdb_client import get_connection
 from yagye_data.shared.logging import get_logger
+from yagye_data.training.evaluation import evaluate_classifier
 from yagye_data.training.features import customer_risk, merchant_risk
 
 logger = get_logger(__name__)
 
-_MODEL_KEY = "risk_scorer/model.onnx"
+_MODEL_NAME = "risk_scorer"
 _MERCHANT_FEATURE_COLS = [
     "success_rate",
     "failure_count",
@@ -45,7 +49,23 @@ _CUSTOMER_FEATURE_COLS = [
 
 
 def train() -> None:
+    mlflow.set_experiment(_MODEL_NAME)
+    with mlflow.start_run():
+        _train_inner()
+
+
+def _train_inner() -> None:
     logger.info("training.risk_scorer.start")
+
+    hyperparams = {
+        "n_estimators": 300,
+        "max_depth": 5,
+        "learning_rate": 0.03,
+        "num_leaves": 31,
+        "subsample": 0.8,
+        "colsample_bytree": 0.8,
+    }
+    mlflow.log_params(hyperparams)
 
     con = get_connection()
     merchant_df = merchant_risk.build_features(con).df()
@@ -78,20 +98,26 @@ def train() -> None:
     X_train, X_val, y_train, y_val = train_test_split(X, y, test_size=0.2, random_state=42)
 
     model = lgb.LGBMClassifier(
-        n_estimators=300,
-        max_depth=5,
-        learning_rate=0.03,
-        num_leaves=31,
-        subsample=0.8,
-        colsample_bytree=0.8,
+        **hyperparams,
         class_weight="balanced",
         random_state=42,
     )
     model.fit(X_train, y_train, eval_set=[(X_val, y_val)])
 
+    y_score = model.predict_proba(X_val)[:, 1]
+    metrics = evaluate_classifier(
+        y_true=y_val.values,
+        y_score=y_score,
+        feature_names=all_feature_cols,
+        model=model,
+        X_val=X_val.values,
+        model_name=_MODEL_NAME,
+    )
     logger.info(
         "training.risk_scorer.eval",
-        val_score=float(np.mean(model.predict(X_val) == y_val)),
+        auc_pr=round(metrics.auc_pr, 4),
+        auc_roc=round(metrics.auc_roc, 4),
+        accuracy=round(float(np.mean(model.predict(X_val) == y_val)), 4),
     )
 
     # LightGBM → ONNX via onnxmltools
@@ -103,16 +129,19 @@ def train() -> None:
             model,
             initial_types=[("X", OnnxFloat([None, len(all_feature_cols)]))],
         )
-        _upload_onnx(onnx_model)
-        logger.info("training.risk_scorer.promoted")
+        version = _upload_onnx(_MODEL_NAME, onnx_model)
+        mlflow.set_tag("s3_version", version)
+        logger.info("training.risk_scorer.promoted", version=version)
     except Exception:
         logger.exception("training.risk_scorer.onnx_export_failed")
 
 
-def _upload_onnx(onnx_model: object) -> None:
-    buf = io.BytesIO()
-    buf.write(onnx_model.SerializeToString())  # type: ignore[attr-defined]
-    buf.seek(0)
+def _upload_onnx(model_name: str, onnx_model: object) -> str:
+    version = datetime.utcnow().strftime("v%Y%m%d_%H%M%S")
+    model_key = f"{model_name}/{version}/model.onnx"
+    flag_key = f"{model_name}/champion.flag"
+
+    model_bytes = onnx_model.SerializeToString()  # type: ignore[attr-defined]
 
     kwargs: dict = {
         "region_name": settings.s3_region,
@@ -122,4 +151,13 @@ def _upload_onnx(onnx_model: object) -> None:
     if settings.s3_endpoint_url:
         kwargs["endpoint_url"] = settings.s3_endpoint_url
 
-    boto3.client("s3", **kwargs).upload_fileobj(buf, settings.ml_models_bucket, _MODEL_KEY)
+    s3 = boto3.client("s3", **kwargs)
+    s3.upload_fileobj(io.BytesIO(model_bytes), settings.ml_models_bucket, model_key)
+    s3.put_object(Bucket=settings.ml_models_bucket, Key=flag_key, Body=version.encode())
+
+    with tempfile.NamedTemporaryFile(suffix=".onnx", delete=False) as f:
+        f.write(model_bytes)
+        f.flush()
+        mlflow.log_artifact(f.name, artifact_path="model")
+
+    return version

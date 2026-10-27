@@ -81,6 +81,7 @@ def run(
                 json_extract_string(payload, '$.currency')          AS currency,
                 json_extract_string(payload, '$.method')            AS method,
                 json_extract_string(payload, '$.provider_code')     AS provider_code,
+                json_extract_string(payload, '$.provider_kind')     AS provider_kind,
                 TRY_CAST(json_extract(payload, '$.latency_ms') AS INT)
                                                                     AS latency_ms,
                 json_extract_string(payload, '$.network')           AS network,

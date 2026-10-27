@@ -6,3 +6,5 @@ __pycache__/
 *.egg-info/
 dist/
 build/
+# MLflow local run artifacts (use the MLflow server in docker-compose instead)
+mlruns/

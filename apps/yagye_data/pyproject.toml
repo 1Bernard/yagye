@@ -34,6 +34,10 @@ training = [
     "numpy>=2.0.0",
     # Drift detection & evaluation
     "evidently>=0.4.0",
+    # Experiment tracking & model evaluation
+    "mlflow>=2.18.0",
+    "shap>=0.46.0",
+    "matplotlib>=3.9.0",
 ]
 dev = [
     "pytest>=8.3.0",
@@ -95,7 +99,7 @@ warn_unused_configs = true
 exclude = ["tests/"]
 
 [[tool.mypy.overrides]]
-module = ["duckdb.*", "s3fs.*", "xgboost.*", "lightgbm.*", "skl2onnx.*", "onnxmltools.*", "onnxruntime.*", "evidently.*"]
+module = ["duckdb.*", "s3fs.*", "xgboost.*", "lightgbm.*", "skl2onnx.*", "onnxmltools.*", "onnxruntime.*", "evidently.*", "mlflow.*", "shap.*"]
 ignore_missing_imports = true
 
 # ── Pytest ────────────────────────────────────────────────────────────────────

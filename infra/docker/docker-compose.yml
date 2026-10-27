@@ -308,6 +308,11 @@ services:
       ML_MODELS_BUCKET: yagye-ml-models
       # LLM enrichment (set ANTHROPIC_API_KEY in a .env file at the compose root)
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      # MLflow experiment tracking
+      MLFLOW_TRACKING_URI: http://mlflow:5001
+      MLFLOW_S3_ENDPOINT_URL: http://floci:4566
+      AWS_ACCESS_KEY_ID: test
+      AWS_SECRET_ACCESS_KEY: test
     # Silver runs every hour; Gold runs every 6 hours.
     # In production these are separate ECS scheduled tasks with distinct schedules.
     command: >
@@ -330,6 +335,36 @@ services:
     networks:
       - data  # Floci S3 access only; no DB, no core_mesh, no edge
     # NOT on core_mesh or edge — ETL reads from S3, never calls other services
+
+  # ---------------------------------------------------------------------------
+  # P20 — MLflow: experiment tracking, model registry, artifact store
+  #
+  #   UI at http://localhost:5001
+  #   Artifact store: s3://yagye-ml-models/mlflow-artifacts (via Floci)
+  #   Backend store: SQLite in a named volume (dev only; use RDS at staging/prod)
+  # ---------------------------------------------------------------------------
+
+  mlflow:
+    image: ghcr.io/mlflow/mlflow:v2.18.0
+    restart: unless-stopped
+    command: >
+      mlflow server
+        --host 0.0.0.0
+        --port 5001
+        --backend-store-uri sqlite:////mlflow/mlflow.db
+        --default-artifact-root s3://yagye-ml-models/mlflow-artifacts
+    environment:
+      AWS_ACCESS_KEY_ID: test
+      AWS_SECRET_ACCESS_KEY: test
+      MLFLOW_S3_ENDPOINT_URL: http://floci:4566
+    ports:
+      - "5001:5001"
+    volumes:
+      - mlflow_data:/mlflow
+    depends_on:
+      - floci
+    networks:
+      - data
 
   # Karafka consumer — separate process, scales independently from the web tier.
   # Reads events from Redpanda and writes to portal_* read model tables.
@@ -451,6 +486,7 @@ volumes:
   rabbitmq_data:
   redis_data:
   floci_data:
+  mlflow_data:
   tempo_data:
   loki_data:
   prometheus_data:

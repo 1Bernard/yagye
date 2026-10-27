@@ -7,6 +7,9 @@ Usage:
 """
 
 import argparse
+import os
+
+import mlflow
 
 from yagye_data.config import settings
 from yagye_data.shared.logging import configure_logging, get_logger
@@ -29,6 +32,10 @@ _MODELS = {
 
 def main() -> None:
     configure_logging(use_json=settings.use_json_logging)
+
+    tracking_uri = os.getenv("MLFLOW_TRACKING_URI", "file:./mlruns")
+    mlflow.set_tracking_uri(tracking_uri)
+    logger.info("train.mlflow_uri", uri=tracking_uri)
 
     parser = argparse.ArgumentParser(description="Train Yagye ML models")
     parser.add_argument(
