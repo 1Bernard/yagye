@@ -103,29 +103,74 @@ happens 30–60 days before a merchant reduces volume — when retention is acti
 
 ### 2.1 Routing Health Predictor
 
-**Constraint:** Provider is determined by MSISDN prefix before this model
-is consulted. The model does not select between MTN and Vodafone — the
-customer's phone number already decided that. The model operates within
-the network-constrained candidate set.
+#### Who this model serves
 
-**Question answered:** Given that the only valid provider for this payment
-is `mtn_momo_gh`, what is its probability of success right now — considering
-amount, time of day, and current health signals? If multiple aggregator paths
-exist for this network, which path has the highest current success probability?
+This model is primarily a **Model B (enterprise orchestration) feature**.
+Model B merchants connect their own PSP credentials (Stripe, Flutterwave,
+Paystack, a second MTN aggregator) via `merchant_provider_connections`. When
+multiple providers are eligible for a payment, this model ranks them by
+predicted success probability. The merchant's routing graph pre-selects
+eligible candidates; the model scores what it is given.
 
-**Model type:** Gradient-boosted trees (XGBoost). Tabular features with
-non-linear interactions (provider health × time of day × amount bucket).
-Tree models consistently outperform linear models on this problem type.
-Neural networks are not warranted — the feature space is small and interpretability
-is important for ops to trust routing decisions.
+For **Model A (Yagye native rails)** merchants, there is typically one provider
+per MNO network — the MSISDN determines the network, and the network determines
+the provider. In this case the candidate list has a single item and the model
+returns a **go/hold signal**: if the predicted success probability is below the
+configured threshold, the payment is queued briefly rather than dispatched
+immediately. This is a predictive layer on top of the existing reactive circuit
+breaker — it acts before consecutive failures have occurred.
 
-**Input features at inference time:**
+#### The MNO MSISDN constraint
+
+Mobile money networks in Ghana (MTN, Telecel, AirtelTigo) operate independent
+subscriber bases. An MTN MSISDN can only be debited via MTN MoMo rails. Telecel
+cannot charge an MTN wallet on MTN's behalf, and vice versa. This constraint is
+enforced by the MNO settlement infrastructure — it is not a Yagye policy.
+
+**Core enforces this constraint before calling the scoring service.** The routing
+engine resolves eligible providers (MSISDN prefix → network → eligible
+provider_codes) and passes only those candidates to `/score/routing`. The
+scoring service never makes cross-network substitutions — it only scores
+pre-filtered candidates.
+
+The only routing choices within a MoMo payment are:
+- **Multiple aggregator paths to the same network**: e.g. a Model B merchant
+  has both Hubtel-MTN and Expresspay-MTN credentials. Same network, two
+  aggregator paths. The model scores which path has a better current success
+  rate.
+- **Go/hold signal for a single path**: e.g. a Model A merchant with only
+  Yagye's native MTN rail. One candidate, one score. Score below threshold →
+  brief hold.
+
+For non-MoMo methods (card, bank transfer), there is no MSISDN constraint. A
+merchant with Paystack and Flutterwave can route any card payment through either.
+This is where multi-candidate ranking provides the most value.
+
+#### Model type
+
+Gradient-boosted trees (XGBoost). Tabular features with non-linear interactions
+(provider health × time of day × amount bucket × provider kind). Tree models
+consistently outperform linear models on this problem type. Neural networks are
+not warranted — the feature space is small and interpretability is important for
+ops to trust routing decisions.
+
+Two separate model instances are trained and served:
+- `routing_native_rail` — trained on Model A payment data (single aggregator
+  path per network). Optimises the go/hold decision.
+- `routing_external_psp` — trained on Model B payment data (multiple PSP
+  options exercised). Optimises provider selection across PSPs.
+
+The correct instance is selected at inference time based on `provider_kind` in
+the request candidates.
+
+#### Input features at inference time
 
 | Feature | Source | Type |
 |---|---|---|
-| `provider_code` | MSISDN-determined (single valid provider) | Categorical |
-| `network_code` | MTN / Vodafone / AirtelTigo (from MSISDN prefix) | Categorical |
-| `aggregator_code` | Gateway path to that network (if multiple) | Categorical |
+| `provider_code` | Pre-filtered by Core routing engine | Categorical |
+| `provider_kind` | `providers.kind` (`native_rail` / `external_psp`) | Categorical |
+| `network_code` | MTN / Telecel / AirtelTigo (from MSISDN prefix, null for card) | Categorical |
+| `payment_method` | `mobile_money` / `card` / `bank_transfer` | Categorical |
 | `amount_minor` | Payment params | Continuous |
 | `amount_bucket` | `FLOOR(amount / 10000)` | Integer |
 | `hour_of_day` | UTC hour of request | Integer (0–23) |
@@ -134,13 +179,25 @@ is important for ops to trust routing decisions.
 | `recent_success_rate_24h` | Gold: provider_health_hourly | Float (0–1) |
 | `avg_latency_ms_1h` | Gold: provider_health_hourly | Float |
 | `circuit_breaker_state` | Core: in-memory | Categorical (0/1/2) |
+| `candidate_count` | len(provider_candidates) in request | Integer |
 
-**Output:** Probability score (0–1) for the constrained candidate. If the
-score falls below the configured threshold (default: 0.60), the payment is
-queued with a brief hold rather than dispatched immediately — a predictive
-circuit signal that acts before consecutive failures trigger the reactive
-circuit breaker. If multiple aggregator paths exist, the highest-scoring
-path is selected among them (all for the same network).
+**Data pipeline note:** `provider_kind` must be carried through the Bronze
+event envelope and Silver ETL so it is available as a training feature. The
+Silver payments ETL adds a `provider_kind` column joined from the providers
+reference (added at P20 Step 0 before training begins).
+
+#### Output
+
+Per-candidate probability score (0–1), sorted descending. Response also
+includes `routing_mode` so Core knows which interpretation to apply:
+
+- `routing_mode: "provider_selection"` — multiple candidates, pick the
+  highest-scoring one above threshold.
+- `routing_mode: "go_hold"` — single candidate, score is a dispatch signal.
+  Below threshold: hold briefly and retry; above threshold: dispatch now.
+
+If the score falls below threshold for all candidates: return `routing_mode:
+"hold_all"` — Core queues the payment for a brief hold regardless.
 
 **Prediction latency target:** < 10ms at p99. This is on the payment dispatch
 critical path. An unresponsive model blocks the payment. (See §12 for degradation.)
@@ -148,7 +205,21 @@ critical path. An unresponsive model blocks the payment. (See §12 for degradati
 **Label:** `CASE WHEN status = 'succeeded' THEN 1 ELSE 0 END` — binary.
 
 **Retraining schedule:** Weekly (Sunday 02:00 UTC). Uses the trailing 90 days
-of live payment attempts.
+of live payment attempts. Models are trained separately per `provider_kind`
+to prevent the Model A distribution from dominating the Model B signal.
+
+#### Shadow mode launch policy
+
+At P20 launch, no real trained models exist — training happens post-P22 when
+live payment data has accumulated. The scoring service ships rule-based
+fallbacks that replicate Core's current static priority logic. All scoring is
+in shadow mode: Core logs both the rule-based decision and the model score, but
+acts on the rule-based one. ML activates as champion only after:
+
+1. ≥ 10,000 labeled payments per `provider_kind` per model instance.
+2. Offline evaluation passes (AUCPR > baseline, calibration within 5%).
+3. 7-day shadow run shows challenger agrees with champion > 90% and improves
+   outcomes on disagreements.
 
 ---
 
@@ -731,53 +802,95 @@ scoring/
 
 ### Routing endpoint
 
+Core calls this endpoint after its routing engine has already applied the MSISDN
+network constraint and merchant entitlement filters. The scoring service only
+scores what it is given — it never makes cross-network substitutions.
+
 ```python
 # routers/routing.py
 from fastapi import APIRouter
 from pydantic import BaseModel
+from typing import Literal
 
 router = APIRouter()
 
+class ProviderCandidate(BaseModel):
+    provider_code: str
+    provider_kind: Literal["native_rail", "external_psp"]
+
 class RoutingScoringRequest(BaseModel):
     payment_id: str
-    provider_candidates: list[str]
-    network_code: str
+    # Pre-filtered by Core: MSISDN constraint + merchant entitlements already applied.
+    # 1 candidate → go/hold signal (Model A). N candidates → provider selection (Model B).
+    provider_candidates: list[ProviderCandidate]
+    payment_method: str           # "mobile_money" | "card" | "bank_transfer"
+    network_code: str | None      # MTN/Telecel/AirtelTigo for MoMo; null for card/bank
     amount_minor: int
-    hour_of_day: int  # UTC hour
+    hour_of_day: int              # UTC hour
+    day_of_week: int              # ISO weekday (0=Mon)
 
 class ProviderScore(BaseModel):
     provider_code: str
-    score: float
+    provider_kind: str
+    score: float                  # P(success), 0–1
 
 class RoutingScoringResponse(BaseModel):
     payment_id: str
+    # Sorted descending by score. Pick provider_scores[0] for provider selection.
     provider_scores: list[ProviderScore]
+    routing_mode: Literal["provider_selection", "go_hold", "hold_all"]
+    # provider_selection: multiple candidates, pick highest above threshold
+    # go_hold:           single candidate, score is a dispatch signal
+    # hold_all:          all candidates below threshold, queue for retry
     model_version: str
-    feature_source: str  # "realtime" | "degraded_cache" | "static_fallback"
+    feature_source: Literal["realtime", "degraded_cache", "static_fallback"]
 
 @router.post("/score/routing", response_model=RoutingScoringResponse)
 async def score_routing(req: RoutingScoringRequest):
     features, source = await feature_service.get_provider_features(
-        req.provider_candidates
+        [c.provider_code for c in req.provider_candidates]
     )
 
+    # Select model instance based on provider_kind of the first candidate.
+    # Mixed-kind candidate lists (rare in practice) use external_psp model.
+    kinds = {c.provider_kind for c in req.provider_candidates}
+    model = routing_model_external if "external_psp" in kinds else routing_model_native
+
     scores = []
-    for provider_code in req.provider_candidates:
-        score = routing_model.predict({
-            "provider_code_enc": encoder.transform([[provider_code]])[0][0],
-            "network_code_enc": encoder.transform([[req.network_code]])[0][0],
+    for candidate in req.provider_candidates:
+        score = model.predict({
+            "provider_code_enc": encoder.transform([[candidate.provider_code]])[0][0],
+            "provider_kind_enc": encoder.transform([[candidate.provider_kind]])[0][0],
+            "payment_method_enc": encoder.transform([[req.payment_method]])[0][0],
+            "network_code_enc": encoder.transform([[req.network_code or "none")])[0][0],
             "amount_bucket": req.amount_minor // 10000,
             "hour_of_day": req.hour_of_day,
-            "day_of_week": datetime.utcnow().weekday(),
-            **features.get(provider_code, DEFAULT_FEATURES)
+            "day_of_week": req.day_of_week,
+            "candidate_count": len(req.provider_candidates),
+            **features.get(candidate.provider_code, DEFAULT_FEATURES)
         })
-        scores.append(ProviderScore(provider_code=provider_code, score=score))
+        scores.append(ProviderScore(
+            provider_code=candidate.provider_code,
+            provider_kind=candidate.provider_kind,
+            score=score,
+        ))
+
+    sorted_scores = sorted(scores, key=lambda s: s.score, reverse=True)
+    threshold = settings.routing_score_threshold  # default 0.60
+
+    if all(s.score < threshold for s in sorted_scores):
+        routing_mode = "hold_all"
+    elif len(sorted_scores) == 1:
+        routing_mode = "go_hold"
+    else:
+        routing_mode = "provider_selection"
 
     return RoutingScoringResponse(
         payment_id=req.payment_id,
-        provider_scores=sorted(scores, key=lambda s: s.score, reverse=True),
-        model_version=routing_model.version,
-        feature_source=source
+        provider_scores=sorted_scores,
+        routing_mode=routing_mode,
+        model_version=model.version,
+        feature_source=source,
     )
 ```
 
@@ -811,16 +924,22 @@ Model loading at startup can take 2–3 seconds for large ONNX files.
 
 ### The routing integration point
 
-The routing engine in `YagyeCore.Routing` calls the scoring service if ML
-routing is enabled for the merchant:
+The routing engine in `YagyeCore.Routing` calls the scoring service for all
+merchants once ML is activated (post-P22, after model training). During P20
+launch, all calls are in shadow mode — the rule-based decision is used, but
+both decisions are logged for comparison.
+
+The MSISDN network constraint is applied by Core before this call. The scoring
+service receives only pre-filtered candidates — it never makes cross-network
+substitutions.
 
 ```elixir
 defmodule YagyeCore.Routing do
-  def evaluate(merchant_id, payment_attrs) do
-    rules = load_rules(merchant_id)
-    candidates = eligible_providers(rules, payment_attrs)
-
-    if ml_routing_enabled?(merchant_id) && length(candidates) > 1 do
+  # Called by PaymentDispatchWorker after eligible providers are resolved.
+  # candidates: list of %{provider_id, provider_code, provider_kind} maps —
+  # already filtered for MSISDN network constraint + circuit breaker state.
+  def evaluate_with_ml(candidates, payment_attrs) do
+    if ml_shadow_or_active?() do
       score_with_ml(candidates, payment_attrs)
     else
       static_priority(candidates)
@@ -828,29 +947,73 @@ defmodule YagyeCore.Routing do
   end
 
   defp score_with_ml(candidates, payment_attrs) do
-    case Req.post(scoring_url("/score/routing"),
-      json: %{
-        payment_id: payment_attrs.payment_id,
-        provider_candidates: Enum.map(candidates, & &1.provider_code),
-        network_code: payment_attrs.network_code,
-        amount_minor: payment_attrs.amount,
-        hour_of_day: DateTime.utc_now().hour
-      },
-      receive_timeout: 5_000  # 5s hard timeout
-    ) do
+    payload = %{
+      payment_id: payment_attrs.payment_id,
+      provider_candidates: Enum.map(candidates, fn c ->
+        %{provider_code: c.provider_code, provider_kind: c.provider_kind}
+      end),
+      payment_method: payment_attrs.method,
+      network_code: payment_attrs.network_code,
+      amount_minor: payment_attrs.amount,
+      hour_of_day: DateTime.utc_now().hour,
+      day_of_week: Date.day_of_week(Date.utc_today())
+    }
+
+    case Req.post(scoring_url("/score/routing"), json: payload, receive_timeout: 5_000) do
       {:ok, %{status: 200, body: body}} ->
-        ranked = Enum.sort_by(body["provider_scores"], & &1["score"], :desc)
-        # Find the routing rule for the highest-scoring provider
-        provider_code = List.first(ranked)["provider_code"]
-        Enum.find(candidates, fn r -> r.provider_code == provider_code end)
+        handle_routing_response(body, candidates, payment_attrs)
 
       {:error, _} ->
-        # Scoring service unavailable → static fallback (see §12)
+        # Scoring service unreachable → static fallback (see §12)
         static_priority(candidates)
+    end
+  end
+
+  defp handle_routing_response(body, candidates, payment_attrs) do
+    routing_mode = body["routing_mode"]
+    top_score = List.first(body["provider_scores"])
+
+    # Always log for shadow-mode comparison and feedback loop
+    Logger.info(%{
+      event: "routing.ml_scored",
+      payment_id: payment_attrs.payment_id,
+      routing_mode: routing_mode,
+      ml_top_provider: top_score["provider_code"],
+      ml_top_score: top_score["score"],
+      feature_source: body["feature_source"],
+      model_version: body["model_version"]
+    })
+
+    case routing_mode do
+      "hold_all" ->
+        # All candidates below threshold — queue briefly and retry
+        {:hold, :ml_low_confidence}
+
+      "go_hold" when top_score["score"] < @hold_threshold ->
+        {:hold, :ml_low_confidence}
+
+      _ ->
+        # provider_selection or go_hold above threshold — use ML top choice
+        # if ML is champion; use static_priority if ML is still in shadow mode
+        if ml_active?() do
+          provider_code = top_score["provider_code"]
+          Enum.find(candidates, fn c -> c.provider_code == provider_code end)
+        else
+          static_priority(candidates)  # shadow mode: log but don't act
+        end
     end
   end
 end
 ```
+
+**Model A (single native_rail candidate):** `routing_mode` will be `"go_hold"`
+or `"hold_all"`. Core's `PaymentDispatchWorker` respects `:hold` by scheduling
+a brief delay before the next dispatch attempt — a predictive layer on top of
+the existing reactive circuit breaker.
+
+**Model B (multiple PSP candidates):** `routing_mode` will be
+`"provider_selection"`. Core picks the top-scoring provider. The merchant's
+routing graph already pre-filtered which PSPs are eligible; ML ranks them.
 
 ### Risk score integration point
 
@@ -883,10 +1046,34 @@ the actual chargeback rate?" — the feedback loop that validates model accuracy
 
 ## 10. A/B Testing and Shadow Mode
 
-### Shadow mode: the safe way to validate a new model
+### P20 launch: everything starts in shadow mode
 
-A new model version runs in shadow mode before becoming the champion. In shadow
-mode:
+At P20 launch, no trained ML models exist — training happens post-P22 when
+live payment data has accumulated. The scoring service ships with rule-based
+fallbacks that replicate Core's current static priority logic.
+
+During P20–P22:
+- The scoring service is called on every payment dispatch.
+- The rule-based fallback is the **de facto champion** (Core acts on it).
+- The scoring service response is logged but not acted on.
+- This shadow period builds the comparison dataset before real models are trained.
+
+ML activates as champion only after all three gates pass per model instance:
+
+| Gate | Requirement |
+|---|---|
+| Data volume | ≥ 10,000 labeled payments per `provider_kind` |
+| Offline eval | AUCPR > rule-based baseline; calibration within 5% |
+| Shadow run | 7 days; agreement with rule-based > 90%; challenger improves outcomes on disagreements |
+
+Activation is a DB flag (`routing_ml_rollout_percent`) — no code deployment.
+Set to 0 (shadow only) → 5 → 20 → 50 → 100 over 14 days. Instant rollback by
+setting back to 0.
+
+### Shadow mode: the safe way to validate a new model version
+
+Once ML is active as champion, a new model version runs in shadow mode before
+replacing it:
 1. The champion model makes the routing decision (actual traffic).
 2. The challenger model is called simultaneously (shadow).
 3. Both predictions are logged.

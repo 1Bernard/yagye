@@ -358,9 +358,21 @@ Redpanda config: `localhost:19092` (dev), `KAFKA_BOOTSTRAP_SERVERS` env (prod), 
       - `POST /score/routing` → `{provider_scores: [{provider_code, score}]}`
       - `POST /score/risk` → `{risk_score: float, signals: [...]}`
       Fallback: if service unreachable, Core falls back to rule-based routing.
-- [ ] **Model 1 — Smart routing predictor** — LightGBM trained on P19 Parquet data.
-      Features: provider, network, amount_bucket, hour_of_day, recent_error_rate (15m window).
-      Target: P(success). Replaces static provider priority in `PaymentDispatchWorker`.
+- [ ] **Model 1 — Smart routing predictor** — XGBoost trained on post-P22 live Parquet data.
+      Serves two distinct sub-problems with one endpoint:
+      - **Model B merchants (external_psp)**: ranks multiple PSP candidates by P(success).
+        This is the primary use case. No MNO MSISDN constraint applies to card/bank
+        transfer; for MoMo with multiple aggregator paths, MSISDN still constrains the
+        network but the model picks between aggregators within that network.
+      - **Model A merchants (native_rail)**: single candidate, score is a go/hold
+        signal — predictive layer on top of the reactive circuit breaker.
+      Features: provider_code, provider_kind (native_rail/external_psp), payment_method,
+      network_code, amount_bucket, hour_of_day, day_of_week, recent_success_rate_1h/24h,
+      avg_latency_ms_1h, circuit_breaker_state, candidate_count.
+      Two model instances trained separately per provider_kind to prevent Model A data
+      from dominating the Model B signal. Ships in shadow mode at P20; activates as
+      champion post-P22 after ≥ 10k labeled payments per instance and a 7-day shadow run.
+      Requires `provider_kind` column added to Silver payments ETL at P20 Step 0.
 - [ ] **Model 2 — MoMo velocity & burst anomaly scorer** — time-series anomaly model
       on inter-arrival times, hour-of-day, amount deviation from merchant baseline.
       Plugs into `VelocityChecker` — scores > 0.85 → `:hold` instead of `:ok`.
