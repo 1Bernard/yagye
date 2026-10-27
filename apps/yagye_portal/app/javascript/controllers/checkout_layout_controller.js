@@ -1,7 +1,7 @@
 import { Controller } from "@hotwired/stimulus"
 
 export default class extends Controller {
-  static targets = ["methodList", "previewList", "emptyPreview", "saveBtn", "savedBadge", "checkoutUrl", "logoUrlInput", "previewLogoImg", "copyUrlBtn"]
+  static targets = ["methodList", "previewList", "emptyPreview", "saveBtn", "savedBadge", "checkoutUrl", "logoUrlInput", "previewLogoImg", "copyUrlBtn", "previewPayBtn"]
   static values  = {
     saveUrl:  String,
     csrf:     String,
@@ -213,6 +213,75 @@ export default class extends Controller {
     window.location = `/payment-links/${event.target.value}/layout`
   }
 
+  // ── Appearance ────────────────────────────────────────────────────────────
+
+  updateBrandColor(event) {
+    const hex = event.currentTarget.value.trim()
+    if (!/^#[0-9a-fA-F]{6}$/.test(hex)) return
+    // Sync color picker
+    const picker = this.element.querySelector("input[type='color']")
+    if (picker) picker.value = hex
+    // Update preview button bg
+    if (this.hasPreviewPayBtnTarget) this.previewPayBtnTarget.style.background = hex
+    this._markDirty()
+  }
+
+  syncColorHex(event) {
+    const hex = event.currentTarget.value
+    // Sync text hex input
+    const hexInput = this.element.querySelector("[data-preview-color-hex]")
+    if (hexInput) hexInput.value = hex
+    // Update preview button bg
+    if (this.hasPreviewPayBtnTarget) this.previewPayBtnTarget.style.background = hex
+    this._markDirty()
+  }
+
+  updateFont(event) {
+    this._markDirty()
+  }
+
+  // ── Content ───────────────────────────────────────────────────────────────
+
+  updateBusinessName(event) {
+    const name = event.currentTarget.value
+    const el   = this.element.querySelector("[data-preview-biz-name]")
+    if (el) el.textContent = name || el.dataset.defaultName || "Your business"
+    this._markDirty()
+  }
+
+  updateHeadline(event) {
+    const text   = event.currentTarget.value.trim()
+    const wrapper = this.element.querySelector("[data-preview-headline-wrapper]")
+    const el     = this.element.querySelector("[data-preview-headline]")
+    if (wrapper) wrapper.style.display = text ? "" : "none"
+    if (el)      el.textContent = text
+    this._markDirty()
+  }
+
+  // ── CTA ───────────────────────────────────────────────────────────────────
+
+  updateCta(event) {
+    const label = event.currentTarget.value
+    if (this.hasPreviewPayBtnTarget) {
+      const btn = this.previewPayBtnTarget
+      // Replace text node only — leave the arrow icon span intact
+      const textNode = [...btn.childNodes].find(n => n.nodeType === Node.TEXT_NODE)
+      if (textNode) textNode.textContent = label || (btn.dataset.defaultLabel || "Continue")
+    }
+    this._markDirty()
+  }
+
+  // ── Terms ─────────────────────────────────────────────────────────────────
+
+  toggleTerms(event) {
+    const fields = this.element.querySelector("[data-terms-fields]")
+    if (fields) fields.style.display = event.currentTarget.checked ? "" : "none"
+    this._markDirty()
+  }
+
+  updateTermsLabel(event) { this._markDirty() }
+  updateTermsUrl(event)   { this._markDirty() }
+
   toggleMethod(event) {
     const toggle  = event.currentTarget
     const tile    = toggle.closest("[data-method-id]")
@@ -347,6 +416,46 @@ export default class extends Controller {
     })
 
     const logo_url = this.hasLogoUrlInputTarget ? this.logoUrlInputTarget.value.trim() : ""
-    return { methods, ...(logo_url ? { logo_url } : {}) }
+
+    // Brand color
+    const hexInput   = this.element.querySelector("[data-preview-color-hex]")
+    const brand_color = hexInput?.value.trim() || ""
+
+    // Font
+    const fontSelect  = this.element.querySelector("select[data-action*='updateFont']")
+    const font_family = fontSelect?.value || ""
+
+    // Business name
+    const bizInput    = this.element.querySelector("[data-action*='updateBusinessName']")
+    const business_name = bizInput?.value.trim() || ""
+
+    // Headline
+    const headlineInput = this.element.querySelector("[data-action*='updateHeadline']")
+    const headline      = headlineInput?.value.trim() || ""
+
+    // CTA text
+    const ctaSelect = this.element.querySelector("select[data-action*='updateCta']")
+    const cta_text  = ctaSelect?.value || ""
+
+    // Terms
+    const termsToggle  = this.element.querySelector("[data-terms-toggle]")
+    const termsLabel   = this.element.querySelector("[data-action*='updateTermsLabel']")
+    const termsUrl     = this.element.querySelector("[data-action*='updateTermsUrl']")
+    const terms = {
+      enabled: termsToggle?.checked ?? false,
+      label:   termsLabel?.value.trim() || "I agree to the Terms & Conditions",
+      url:     termsUrl?.value.trim() || ""
+    }
+
+    return {
+      methods,
+      ...(logo_url    ? { logo_url }    : {}),
+      ...(brand_color ? { brand_color } : {}),
+      ...(font_family ? { font_family } : {}),
+      business_name,
+      headline,
+      cta_text,
+      terms
+    }
   }
 }

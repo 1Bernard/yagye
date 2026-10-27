@@ -52,14 +52,15 @@ module Checkout
 
     def view_template
       render Layout::Shell.new(
-        active_nav: :payment_links,
-        title:      "Checkout layout",
-        breadcrumbs: [
+        active_nav:   :payment_links,
+        title:        "Checkout layout",
+        breadcrumbs:  [
           { label: "Payment Links", href: payment_links_path },
           { label: @link["description"] || @link["id"], href: payment_link_path(@link["id"]) },
           { label: "Checkout layout" }
         ],
-        padded: false
+        padded:       false,
+        hide_sidebar: true
       ) do
         canvas_styles
 
@@ -212,8 +213,9 @@ module Checkout
 
         div(class: "h-px bg-gray-100 flex-shrink-0 mx-3")
 
+        div(class: "flex-1 overflow-y-auto") do
         # Branding
-        div(class: "px-3 pt-2 pb-3 flex-shrink-0") do
+        div(class: "px-3 pt-2 pb-3") do
           p(class: "text-[9px] font-bold uppercase tracking-[0.1em] text-gray-400 mb-[7px]") { plain "Branding" }
 
           if @branding&.logo&.attached?
@@ -250,16 +252,197 @@ module Checkout
         end
 
         div(class: "h-px bg-gray-100 flex-shrink-0 mx-3 mb-1")
+        appearance_section
+        div(class: "h-px bg-gray-100 flex-shrink-0 mx-3 mb-1")
+        content_section
+        div(class: "h-px bg-gray-100 flex-shrink-0 mx-3 mb-1")
+        cta_section
+        div(class: "h-px bg-gray-100 flex-shrink-0 mx-3 mb-1")
+        terms_section
+        div(class: "h-px bg-gray-100 flex-shrink-0 mx-3 mb-1")
         p(class: "text-[9px] font-bold uppercase tracking-[0.1em] text-gray-400 px-3 pb-2 pt-1 flex-shrink-0") do
           plain "Payment methods"
         end
 
         # Sortable list
         div(
-          class: "flex-1 overflow-y-auto px-3 pb-3 flex flex-col gap-[6px]",
+          class: "px-3 pb-3 flex flex-col gap-[6px]",
           data: { checkout_layout_target: "methodList" }
         ) do
           methods_to_render.each { |m| method_tile(m) }
+        end
+        end # scrollable body
+      end
+    end
+
+    FONT_OPTIONS = [
+      [ "Plus Jakarta Sans (default)", "plus-jakarta" ],
+      [ "Inter",                       "inter" ],
+      [ "Nunito",                      "nunito" ],
+      [ "Playfair Display",            "playfair" ],
+      [ "Roboto Slab",                 "roboto-slab" ]
+    ].freeze
+
+    CTA_PRESETS = [
+      [ "Pay (default)",  "" ],
+      [ "Donate",         "Donate" ],
+      [ "Register",       "Register" ],
+      [ "Book now",       "Book now" ],
+      [ "Subscribe",      "Subscribe" ],
+      [ "Get started",    "Get started" ]
+    ].freeze
+
+    def section_label(text)
+      p(class: "text-[9px] font-bold uppercase tracking-[0.1em] text-gray-400 mb-[7px]") { plain text }
+    end
+
+    def input_field(name:, value:, placeholder: "", data: {})
+      input(
+        type:        "text",
+        name:        name,
+        value:       value.to_s,
+        placeholder: placeholder,
+        class:       "w-full text-[11.5px] text-gray-700 bg-gray-50 border border-gray-200 " \
+                     "rounded-lg px-[9px] py-[6px] outline-none focus:border-[#3D47F5] " \
+                     "focus:ring-1 focus:ring-[#3D47F5]/20 transition placeholder-gray-300",
+        data:        data
+      )
+    end
+
+    def appearance_section
+      saved_color  = @link.dig("checkout_layout", "brand_color").to_s
+      saved_color  = "#3D47F5" if saved_color.blank?
+      saved_font   = @link.dig("checkout_layout", "font_family").to_s
+
+      div(class: "px-3 pt-2 pb-3 flex-shrink-0") do
+        section_label("Appearance")
+
+        # Brand color row
+        div(class: "flex items-center gap-[6px] mb-[7px]") do
+          div(class: "relative flex-shrink-0") do
+            input(
+              type:  "color",
+              value: saved_color,
+              class: "w-7 h-7 rounded-md cursor-pointer border border-gray-200 p-0 bg-white",
+              style: "appearance:none;-webkit-appearance:none;padding:1px;",
+              data:  { action: "input->checkout-layout#syncColorHex" }
+            )
+          end
+          input_field(
+            name:        "brand_color_hex",
+            value:       saved_color,
+            placeholder: "#3D47F5",
+            data:        { action: "input->checkout-layout#updateBrandColor", preview_color_hex: "" }
+          )
+        end
+
+        # Font selector
+        select(
+          class: "w-full text-[11.5px] text-gray-700 bg-gray-50 border border-gray-200 " \
+                 "rounded-lg px-[9px] py-[6px] outline-none cursor-pointer",
+          data:  { action: "change->checkout-layout#updateFont" }
+        ) do
+          FONT_OPTIONS.each do |(label, value)|
+            opts = { value: value }
+            opts[:selected] = "selected" if saved_font == value
+            option(**opts) { plain label }
+          end
+        end
+      end
+    end
+
+    def content_section
+      saved_name     = @link.dig("checkout_layout", "business_name").to_s
+      saved_headline = @link.dig("checkout_layout", "headline").to_s
+
+      div(class: "px-3 pt-2 pb-3 flex-shrink-0") do
+        section_label("Content")
+
+        div(class: "flex flex-col gap-[6px]") do
+          div do
+            p(class: "text-[9.5px] text-gray-400 mb-[3px]") { plain "Business name (optional override)" }
+            input_field(
+              name:        "business_name",
+              value:       saved_name,
+              placeholder: @branding&.display_name.presence || "Your business name",
+              data:        { action: "input->checkout-layout#updateBusinessName" }
+            )
+          end
+          div do
+            p(class: "text-[9.5px] text-gray-400 mb-[3px]") { plain "Checkout headline (optional)" }
+            input_field(
+              name:        "headline",
+              value:       saved_headline,
+              placeholder: "e.g. Support our fundraiser",
+              data:        { action: "input->checkout-layout#updateHeadline" }
+            )
+          end
+        end
+      end
+    end
+
+    def cta_section
+      saved_cta = @link.dig("checkout_layout", "cta_text").to_s
+
+      div(class: "px-3 pt-2 pb-3 flex-shrink-0") do
+        section_label("Button label")
+
+        select(
+          class: "w-full text-[11.5px] text-gray-700 bg-gray-50 border border-gray-200 " \
+                 "rounded-lg px-[9px] py-[6px] outline-none cursor-pointer",
+          data:  { action: "change->checkout-layout#updateCta" }
+        ) do
+          CTA_PRESETS.each do |(label, value)|
+            opts = { value: value }
+            opts[:selected] = "selected" if saved_cta == value
+            option(**opts) { plain label }
+          end
+        end
+      end
+    end
+
+    def terms_section
+      terms        = @link.dig("checkout_layout", "terms") || {}
+      enabled      = terms["enabled"] == true
+      saved_label  = terms["label"].presence || "I agree to the Terms & Conditions"
+      saved_url    = terms["url"].to_s
+
+      div(class: "px-3 pt-2 pb-3 flex-shrink-0") do
+        section_label("Terms & Conditions")
+
+        # Enable toggle row
+        div(class: "flex items-center justify-between mb-[7px]") do
+          p(class: "text-[11px] text-gray-600") { plain "Require acceptance before payment" }
+          label(class: "relative inline-flex items-center cursor-pointer") do
+            input(
+              type:    "checkbox",
+              class:   "sr-only peer",
+              checked: enabled ? true : nil,
+              data:    { action: "change->checkout-layout#toggleTerms", terms_toggle: "" }
+            )
+            span(class: "w-7 h-[15px] bg-gray-200 rounded-full peer peer-checked:bg-[#3D47F5] transition-colors") { }
+            span(class: "absolute left-[2px] top-[2px] w-[11px] h-[11px] bg-white rounded-full " \
+                        "transition-transform peer-checked:translate-x-[13px]") { }
+          end
+        end
+
+        div(
+          class: "flex flex-col gap-[5px] overflow-hidden transition-all",
+          style: enabled ? "" : "display:none",
+          data:  { terms_fields: "" }
+        ) do
+          input_field(
+            name:        "terms_label",
+            value:       saved_label,
+            placeholder: "I agree to the Terms & Conditions",
+            data:        { action: "input->checkout-layout#updateTermsLabel" }
+          )
+          input_field(
+            name:        "terms_url",
+            value:       saved_url,
+            placeholder: "https://yoursite.com/terms",
+            data:        { action: "input->checkout-layout#updateTermsUrl" }
+          )
         end
       end
     end
@@ -458,7 +641,13 @@ module Checkout
                   span(class: "flex w-[13px] h-[13px] text-white") { render UI::Icon.new(:shield, class: "w-full h-full") }
                 end
               end
-              span(class: "text-[12px] font-bold text-gray-900 tracking-tight") { plain "Yagye" }
+              default_biz = @branding&.display_name.presence || "Your business"
+              span(
+                class: "text-[12px] font-bold text-gray-900 tracking-tight",
+                data:  { preview_biz_name: "", default_name: default_biz }
+              ) do
+                plain @link.dig("checkout_layout", "business_name").presence || default_biz
+              end
             end
             span(
               class: "text-[10.5px] font-semibold px-[8px] py-[2px] rounded-full bg-gray-100 text-gray-500"
@@ -479,6 +668,19 @@ module Checkout
 
         div(class: "h-px bg-gray-100")
 
+        # Headline (always rendered; hidden when blank so JS can show/hide)
+        saved_headline = @link.dig("checkout_layout", "headline").presence
+        div(
+          class: "px-5 pt-4 pb-1",
+          data:  { preview_headline_wrapper: "" },
+          style: saved_headline ? "" : "display:none"
+        ) do
+          p(
+            class: "text-[13px] font-semibold text-gray-700 leading-snug",
+            data:  { preview_headline: "" }
+          ) { plain saved_headline.to_s }
+        end
+
         # Method list
         div(
           class: "px-4 pt-4 pb-3 flex flex-col gap-[6px]",
@@ -497,16 +699,22 @@ module Checkout
 
         # Pay button
         div(class: "px-4 pb-4") do
+          saved_color  = @link.dig("checkout_layout", "brand_color").presence || "#3D47F5"
+          saved_cta    = @link.dig("checkout_layout", "cta_text").presence
+          button_label = if saved_cta
+            saved_cta
+          elsif @link["amount"]
+            "Pay #{currency_symbol(@link["currency"])}#{format_amount(@link["amount"])}"
+          else
+            "Continue"
+          end
           div(
             class: "w-full py-[11px] rounded-xl text-[13px] font-semibold text-white " \
-                   "bg-[#3D47F5] flex items-center justify-center gap-[6px] " \
-                   "pointer-events-none select-none"
+                   "flex items-center justify-center gap-[6px] pointer-events-none select-none",
+            style: "background:#{saved_color}",
+            data:  { checkout_layout_target: "previewPayBtn", default_label: button_label }
           ) do
-            if @link["amount"]
-              plain "Pay #{currency_symbol(@link["currency"])}#{format_amount(@link["amount"])}"
-            else
-              plain "Continue"
-            end
+            plain button_label
             span(class: "flex w-[13px] h-[13px]") { render UI::Icon.new(:arrow_right, class: "w-full h-full") }
           end
         end

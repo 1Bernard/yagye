@@ -1,0 +1,16 @@
+You've been invited to join Yagye Operations
+=============================================
+
+<%= @invited_by %> has invited you to join the Yagye Operations team as an internal staff member.
+
+Invited email: <%= @user.email %>
+Expires:       <%= @expires_at.strftime("%d %B %Y at %H:%M UTC") %>
+
+Accept your invitation:
+<%= @accept_url %>
+
+If you didn't expect this invitation, you can safely ignore this email.
+This link expires in 7 days.
+
+---
+Yagye — Payment infrastructure for Africa

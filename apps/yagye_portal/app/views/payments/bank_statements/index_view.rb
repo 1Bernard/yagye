@@ -20,9 +20,10 @@ module Payments
             title:    "Bank Statements",
             subtitle: "Imported statement files for bank reconciliation."
           ) do
-            a(href: new_payments_bank_statement_path,
-              class: "#{BTN_PRIMARY} no-underline inline-flex items-center gap-1.5") do
-              render UI::Icon.new(:plus, class: ICON_SM)
+            render UI::Button.new(variant: :primary,
+                                 href: upload_modal_payments_bank_statement_path,
+                                 data: { turbo_frame: "modal-frame" }) do
+              render UI::Icon.new(:upload, class: ICON_SM)
               plain "Import statement"
             end
           end
@@ -39,8 +40,8 @@ module Payments
         lines   = @statements.sum { |s| (s["line_count"] || s["lines"]&.size).to_i }
         accounts = @statements.map { |s| s["account_reference"] }.compact.uniq.size
         recent  = @statements.count do |s|
-          next false if s["inserted_at"].blank?
-          Time.parse(s["inserted_at"]) >= 30.days.ago
+          next false if s["ingested_at"].blank?
+          Time.parse(s["ingested_at"]) >= 30.days.ago
         rescue ArgumentError, TypeError
           false
         end
@@ -71,7 +72,7 @@ module Payments
           end
 
           t.column("Imported") do |s|
-            plain fmt_datetime(s["inserted_at"] ? Time.parse(s["inserted_at"]) : nil)
+            plain fmt_datetime(s["ingested_at"] ? Time.parse(s["ingested_at"]) : nil)
           end
 
           t.actions do |s|

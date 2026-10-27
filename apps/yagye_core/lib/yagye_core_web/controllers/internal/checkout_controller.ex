@@ -69,10 +69,15 @@ defmodule YagyeCoreWeb.Controllers.Internal.CheckoutController do
   # POST /internal/checkout/sessions/:public_id/pay
   # Body: {method, msisdn, network}
   def pay(conn, %{"public_id" => public_id} = params) do
+    method = params["method"] || params["payment_method"] || "mobile_money"
+    ua_hash = if is_binary(params["user_agent_hash"]), do: params["user_agent_hash"], else: nil
+
     with {:ok, session} <- CheckoutSessions.get_session_by_public_id(public_id),
          {:ok, session} <- ensure_session_retriable(session),
          {:ok, {payment, _event}} <- create_payment(session, params),
-         {:ok, _updated} <- CheckoutSessions.begin_processing(session, payment.id) do
+         {:ok, _updated} <- CheckoutSessions.begin_processing(session, payment.id, ua_hash) do
+      CheckoutSessions.record_method_selected(session, method)
+
       conn
       |> put_status(:ok)
       |> json(%{payment_public_id: payment.public_id, session_state: "processing"})
@@ -192,11 +197,45 @@ defmodule YagyeCoreWeb.Controllers.Internal.CheckoutController do
       |> Map.merge(checkout_profile(params))
       |> maybe_put_customer_ref(params)
 
-    Payments.create_payment(session.merchant_id, attrs)
+    case Payments.create_payment(session.merchant_id, attrs) do
+      {:ok, _} = ok ->
+        ok
+
+      {:error, %Ecto.Changeset{} = cs} ->
+        # Unique constraint on [:merchant_id, :merchant_reference] means a concurrent
+        # request with the same submission_token already created this payment — replay it.
+        maybe_replay_idempotent(session, attrs, cs)
+
+      error ->
+        error
+    end
+  end
+
+  defp maybe_replay_idempotent(session, attrs, cs) do
+    if cs.errors[:merchant_reference] do
+      case Payments.get_payment_by_merchant_reference(
+             session.merchant_id,
+             attrs.merchant_reference
+           ) do
+        {:ok, payment} -> {:ok, {payment, nil}}
+        {:error, _} -> {:error, cs}
+      end
+    else
+      {:error, cs}
+    end
   end
 
   defp base_payment_attrs(session, params) do
-    suffix = Base.url_encode64(:crypto.strong_rand_bytes(4), padding: false)
+    # Use the client's submission_token as the reference suffix when present.
+    # This makes the merchant_reference deterministic for the same click, so a
+    # duplicate concurrent request hits the DB unique constraint instead of
+    # creating a second payment. Fall back to random bytes when absent.
+    token = params["submission_token"]
+
+    suffix =
+      if is_binary(token) and byte_size(token) >= 4,
+        do: String.slice(token, 0, 11),
+        else: Base.url_encode64(:crypto.strong_rand_bytes(4), padding: false)
 
     %{
       mode: String.to_existing_atom(session.mode),

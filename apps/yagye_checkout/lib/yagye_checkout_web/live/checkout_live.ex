@@ -21,8 +21,10 @@ defmodule YagyeCheckoutWeb.Live.CheckoutLive do
 
   @impl true
   def mount(%{"token" => token}, _session, socket) do
+    ua_hash = capture_ua_hash(socket)
+
     case CoreClient.get_session(token) do
-      {:ok, session} -> {:ok, init_from_session(socket, session)}
+      {:ok, session} -> {:ok, init_from_session(socket, session) |> assign(user_agent_hash: ua_hash)}
       {:error, :not_found} -> {:ok, base_assigns(socket, :not_found)}
       {:error, _} -> {:ok, base_assigns(socket, :error)}
     end
@@ -99,54 +101,69 @@ defmodule YagyeCheckoutWeb.Live.CheckoutLive do
 
   def handle_event("simulate_transfer", _params, socket), do: {:noreply, socket}
 
+  def handle_event("toggle_terms", _params, socket) do
+    {:noreply, assign(socket, terms_accepted: !socket.assigns.terms_accepted, terms_error: nil)}
+  end
+
+  # Guard: ignore submit while a payment request is already in-flight.
+  def handle_event("submit_checkout", _params, %{assigns: %{submitting: true}} = socket) do
+    {:noreply, socket}
+  end
+
   def handle_event("submit_checkout", params, socket) do
-    collection_errors = validate_collection(params, socket.assigns)
-
-    if collection_errors != %{} do
-      {:noreply, assign(socket, collection_errors: collection_errors)}
+    if socket.assigns.terms_enabled and not socket.assigns.terms_accepted do
+      {:noreply, assign(socket, terms_error: "You must accept the terms to continue")}
     else
-      socket =
-        assign(socket,
-          customer_email: String.trim(params["customer_email"] || ""),
-          customer_phone: String.trim(params["customer_phone"] || ""),
-          customer_name: String.trim(params["customer_name"] || ""),
-          collection_errors: %{}
-        )
+      collection_errors = validate_collection(params, socket.assigns)
 
-      case socket.assigns.selected_method do
-        "mobile_money" ->
-          phone =
-            Map.get(params, "phone", socket.assigns.phone)
-            |> to_string()
-            |> String.replace(~r/[\s\-()]/, "")
+      if collection_errors != %{} do
+        {:noreply, assign(socket, collection_errors: collection_errors)}
+      else
+        token = :crypto.strong_rand_bytes(8) |> Base.url_encode64(padding: false)
 
-          case validate_phone(phone, socket.assigns.selected_network) do
-            {:error, msg} -> {:noreply, assign(socket, phone_error: msg)}
-            :ok -> submit_mobile_money(socket, phone)
-          end
+        socket =
+          assign(socket,
+            submitting: true,
+            submission_token: token,
+            customer_email: String.trim(params["customer_email"] || ""),
+            customer_phone: String.trim(params["customer_phone"] || ""),
+            customer_name: String.trim(params["customer_name"] || ""),
+            collection_errors: %{}
+          )
 
-        "card" ->
-          # Sync card field assigns from form params in case phx-change events
-          # haven't settled yet (race between typing and clicking Pay).
-          cn_raw = params["card_number"] || socket.assigns.card_number
-          cn_digits = String.replace(cn_raw, ~r/\D/, "") |> String.slice(0, 16)
-          cn_formatted = cn_digits |> String.graphemes() |> Enum.chunk_every(4) |> Enum.map(&Enum.join/1) |> Enum.join(" ")
-          socket =
-            assign(socket,
-              card_number: cn_formatted,
-              card_brand: detect_card_brand(cn_digits),
-              card_expiry: params["card_expiry"] || socket.assigns.card_expiry,
-              card_cvv: String.replace(params["card_cvv"] || socket.assigns.card_cvv, ~r/\D/, "") |> String.slice(0, 4),
-              card_name: params["card_name"] || socket.assigns.card_name
-            )
-          errs = validate_card(socket.assigns.card_number, socket.assigns.card_expiry, socket.assigns.card_cvv, socket.assigns.card_name)
-          if errs != %{}, do: {:noreply, assign(socket, card_errors: errs)}, else: submit_card(socket)
+        case socket.assigns.selected_method do
+          "mobile_money" ->
+            phone =
+              Map.get(params, "phone", socket.assigns.phone)
+              |> to_string()
+              |> String.replace(~r/[\s\-()]/, "")
 
-        "bank_transfer" ->
-          submit_bank_transfer(socket)
+            case validate_phone(phone, socket.assigns.selected_network) do
+              {:error, msg} -> {:noreply, assign(socket, submitting: false, phone_error: msg)}
+              :ok -> submit_mobile_money(socket, phone)
+            end
 
-        _ ->
-          {:noreply, socket}
+          "card" ->
+            cn_raw = params["card_number"] || socket.assigns.card_number
+            cn_digits = String.replace(cn_raw, ~r/\D/, "") |> String.slice(0, 16)
+            cn_formatted = cn_digits |> String.graphemes() |> Enum.chunk_every(4) |> Enum.map(&Enum.join/1) |> Enum.join(" ")
+            socket =
+              assign(socket,
+                card_number: cn_formatted,
+                card_brand: detect_card_brand(cn_digits),
+                card_expiry: params["card_expiry"] || socket.assigns.card_expiry,
+                card_cvv: String.replace(params["card_cvv"] || socket.assigns.card_cvv, ~r/\D/, "") |> String.slice(0, 4),
+                card_name: params["card_name"] || socket.assigns.card_name
+              )
+            errs = validate_card(socket.assigns.card_number, socket.assigns.card_expiry, socket.assigns.card_cvv, socket.assigns.card_name)
+            if errs != %{}, do: {:noreply, assign(socket, submitting: false, card_errors: errs)}, else: submit_card(socket)
+
+          "bank_transfer" ->
+            submit_bank_transfer(socket)
+
+          _ ->
+            {:noreply, assign(socket, submitting: false)}
+        end
       end
     end
   end
@@ -237,6 +254,9 @@ defmodule YagyeCheckoutWeb.Live.CheckoutLive do
   @impl true
   def render(assigns) do
     ~H"""
+    <%= if @brand_color || @font_family do %>
+      {raw(build_dynamic_style(@brand_color, @font_family))}
+    <% end %>
     <div class="co-checkout-container">
 
       <%!-- ── Terminal Screens ── --%>
@@ -424,6 +444,12 @@ defmodule YagyeCheckoutWeb.Live.CheckoutLive do
             <%!-- ── LEFT: Payment Options ── --%>
             <main class="co-main-column">
               <div class="co-panel co-payment-panel">
+
+                <%= if @checkout_headline && @checkout_headline != "" do %>
+                  <div class="co-checkout-headline">
+                    <p>{@checkout_headline}</p>
+                  </div>
+                <% end %>
 
                 <div class="co-panel-header">
                   <div class="co-panel-title-wrap">
@@ -798,11 +824,38 @@ defmodule YagyeCheckoutWeb.Live.CheckoutLive do
                     </div>
                   <% end %>
 
+                  <%!-- ── T&Cs checkbox ── --%>
+                  <%= if @terms_enabled do %>
+                    <div class="co-terms-row">
+                      <input
+                        type="checkbox"
+                        id="co-terms-check"
+                        class="co-terms-checkbox"
+                        checked={@terms_accepted}
+                        phx-click="toggle_terms"
+                      />
+                      <label for="co-terms-check" class="co-terms-label">
+                        <%= if @terms_url && @terms_url != "" do %>
+                          I agree to the
+                          <a href={@terms_url} target="_blank" rel="noopener noreferrer" class="co-terms-link">
+                            {String.replace(@terms_label, "I agree to the ", "")}
+                          </a>
+                        <% else %>
+                          {@terms_label}
+                        <% end %>
+                      </label>
+                    </div>
+                    <%= if @terms_error do %>
+                      <span class="co-error-text">{@terms_error}</span>
+                    <% end %>
+                  <% end %>
+
                   <%!-- ── Pay Button ── --%>
                   <% {whole, cents} = format_amount_parts(@total_amount) %>
-                  <% pay_label = case @selected_method do
-                    "bank_transfer" -> "Generate Transfer Account"
-                    _ -> "Pay #{currency_symbol(@currency)}#{whole}.#{cents}"
+                  <% pay_label = cond do
+                    @cta_text && @cta_text != "" -> @cta_text
+                    @selected_method == "bank_transfer" -> "Generate Transfer Account"
+                    true -> "Pay #{currency_symbol(@currency)}#{whole}.#{cents}"
                   end %>
                   <button
                     type="submit"
@@ -813,16 +866,27 @@ defmodule YagyeCheckoutWeb.Live.CheckoutLive do
                   </button>
 
                   <div class="co-trust-strip">
-                    <span>
-                      <svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-                        <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
-                      </svg>
-                      256-bit SSL
-                    </span>
-                    <span>&middot;</span>
-                    <span>Bank-grade security</span>
-                    <span>&middot;</span>
-                    <span>Instant settlement</span>
+                    <%= if @trust_ssl do %>
+                      <span>
+                        <svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                          <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+                        </svg>
+                        256-bit SSL
+                      </span>
+                    <% end %>
+                    <%= if @trust_ssl && @trust_instant do %><span>&middot;</span><% end %>
+                    <%= if @trust_instant do %>
+                      <span>Bank-grade security</span>
+                      <span>&middot;</span>
+                      <span>Instant settlement</span>
+                    <% end %>
+                    <%= if @trust_bog do %>
+                      <span>&middot;</span>
+                      <span>BoG regulated</span>
+                    <% end %>
+                    <%= if not @trust_ssl and not @trust_instant and not @trust_bog do %>
+                      <span>Secured by Yagye</span>
+                    <% end %>
                   </div>
 
                   <%= if @cancel_url && external_url?(@cancel_url) do %>
@@ -855,7 +919,7 @@ defmodule YagyeCheckoutWeb.Live.CheckoutLive do
                       </svg>
                     </div>
                   <% end %>
-                  <span class="co-merchant-name">{merchant_brand_name(@session)}</span>
+                  <span class="co-merchant-name">{@checkout_business_name || merchant_brand_name(@session)}</span>
                 </div>
                 <div class="co-merchant-ssl">
                   <svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
@@ -1732,6 +1796,34 @@ defmodule YagyeCheckoutWeb.Live.CheckoutLive do
         text-align: center; font-size: 0.75rem;
         color: var(--muted-text); padding: 1rem 0;
       }
+
+      /* ── Checkout headline ── */
+      .co-checkout-headline {
+        margin-bottom: 1.25rem; padding-bottom: 1.25rem;
+        border-bottom: 1px solid var(--border);
+      }
+      .co-checkout-headline p {
+        font-size: 1rem; font-weight: 600; color: var(--body-text); line-height: 1.5;
+      }
+
+      /* ── T&Cs row ── */
+      .co-terms-row {
+        display: flex; align-items: flex-start; gap: 0.625rem;
+        padding: 0.75rem 0.875rem;
+        background: var(--canvas);
+        border: 1px solid var(--border-med);
+        border-radius: 10px;
+      }
+      .co-terms-checkbox {
+        width: 15px; height: 15px; flex-shrink: 0; margin-top: 2px;
+        accent-color: var(--brand); cursor: pointer;
+      }
+      .co-terms-label {
+        font-size: 0.8125rem; color: var(--body-text); line-height: 1.5; cursor: pointer;
+      }
+      .co-terms-link {
+        color: var(--brand); text-decoration: underline; text-underline-offset: 2px;
+      }
     </style>
     """
   end
@@ -1767,6 +1859,26 @@ defmodule YagyeCheckoutWeb.Live.CheckoutLive do
       logo_url: (session["checkout_layout"] || %{})["logo_url"],
       simulation_mode: session["mode"] == "simulation"
     )
+    |> then(fn sock ->
+      layout = session["checkout_layout"] || %{}
+      terms  = layout["terms"] || %{}
+      trust  = layout["trust_badges"] || %{}
+      assign(sock,
+        brand_color:            layout["brand_color"],
+        font_family:            layout["font_family"],
+        checkout_headline:      layout["headline"],
+        cta_text:               layout["cta_text"],
+        checkout_business_name: layout["business_name"],
+        terms_enabled:          terms["enabled"] == true,
+        terms_label:            terms["label"] || "I agree to the Terms & Conditions",
+        terms_url:              terms["url"] || "",
+        terms_accepted:         false,
+        terms_error:            nil,
+        trust_ssl:              Map.get(trust, "ssl", true) != false,
+        trust_instant:          Map.get(trust, "instant", true) != false,
+        trust_bog:              trust["bog"] == true
+      )
+    end)
     |> maybe_start_poll(page_state)
   end
 
@@ -1835,8 +1947,36 @@ defmodule YagyeCheckoutWeb.Live.CheckoutLive do
       virtual_account: nil,
       va_expires_unix: nil,
       now_unix: System.os_time(:second),
-      simulation_mode: false
+      simulation_mode: false,
+      brand_color: nil,
+      font_family: nil,
+      checkout_headline: nil,
+      cta_text: nil,
+      terms_enabled: false,
+      terms_label: "I agree to the Terms & Conditions",
+      terms_url: "",
+      terms_accepted: false,
+      terms_error: nil,
+      trust_ssl: true,
+      trust_instant: true,
+      trust_bog: false,
+      checkout_business_name: nil,
+      submitting: false,
+      submission_token: nil,
+      user_agent_hash: nil
     )
+  end
+
+  defp capture_ua_hash(socket) do
+    case get_connect_info(socket, :x_headers) do
+      headers when is_list(headers) ->
+        case List.keyfind(headers, "user-agent", 0) do
+          {_, ua} -> Base.encode16(:crypto.hash(:sha256, ua), case: :lower)
+          nil -> nil
+        end
+      _ ->
+        nil
+    end
   end
 
   defp resolve_state("completed", _e, _n), do: :done
@@ -1854,53 +1994,62 @@ defmodule YagyeCheckoutWeb.Live.CheckoutLive do
   defp maybe_start_poll(socket, _), do: socket
 
   defp submit_mobile_money(socket, phone) do
-    %{assigns: %{session_public_id: sid, selected_network: sel_net, customer_email: email, customer_phone: cph, customer_name: name}} = socket
+    %{assigns: %{session_public_id: sid, selected_network: sel_net,
+                  customer_email: email, customer_phone: cph, customer_name: name,
+                  submission_token: token, user_agent_hash: ua_hash}} = socket
     network = sel_net || detect_network(phone)
 
     attrs =
-      %{method: "mobile_money", msisdn: phone, network: network}
+      %{method: "mobile_money", msisdn: phone, network: network, submission_token: token}
       |> maybe_put(:customer_email, email)
       |> maybe_put(:customer_phone, cph)
       |> maybe_put(:customer_name, name)
+      |> maybe_put(:user_agent_hash, ua_hash)
 
     case CoreClient.pay_session(sid, attrs) do
       {:ok, %{"payment_public_id" => pay_id}} ->
         if connected?(socket), do: Process.send_after(self(), :poll, @poll_ms)
-        {:noreply, assign(socket, page_state: :processing, payment_public_id: pay_id, poll_count: 0, error: nil, phone_error: nil, processing_method: "mobile_money")}
+        {:noreply, assign(socket, submitting: false, page_state: :processing, payment_public_id: pay_id, poll_count: 0, error: nil, phone_error: nil, processing_method: "mobile_money")}
 
       {:error, _} ->
-        {:noreply, assign(socket, error: "We couldn't process your payment. Please verify your mobile number and balance.")}
+        {:noreply, assign(socket, submitting: false, error: "We couldn't process your payment. Please verify your mobile number and balance.")}
     end
   end
 
   defp submit_card(socket) do
-    %{assigns: %{session_public_id: sid, card_number: cn, customer_email: email, customer_phone: cph, customer_name: name}} = socket
+    %{assigns: %{session_public_id: sid, card_number: cn,
+                  customer_email: email, customer_phone: cph, customer_name: name,
+                  submission_token: token, user_agent_hash: ua_hash}} = socket
     digits = String.replace(cn, " ", "")
 
     attrs =
-      %{method: "card", card_number: digits}
+      %{method: "card", card_number: digits, submission_token: token}
       |> maybe_put(:customer_email, email)
       |> maybe_put(:customer_phone, cph)
       |> maybe_put(:customer_name, name)
+      |> maybe_put(:user_agent_hash, ua_hash)
 
     case CoreClient.pay_session(sid, attrs) do
       {:ok, %{"payment_public_id" => pay_id}} ->
         if connected?(socket), do: Process.send_after(self(), :poll, @poll_ms)
-        {:noreply, assign(socket, page_state: :processing, payment_public_id: pay_id, poll_count: 0, error: nil, card_errors: %{}, processing_method: "card")}
+        {:noreply, assign(socket, submitting: false, page_state: :processing, payment_public_id: pay_id, poll_count: 0, error: nil, card_errors: %{}, processing_method: "card")}
 
       {:error, _} ->
-        {:noreply, assign(socket, error: "Card payment failed. Please check your details and try again.")}
+        {:noreply, assign(socket, submitting: false, error: "Card payment failed. Please check your details and try again.")}
     end
   end
 
   defp submit_bank_transfer(socket) do
-    %{assigns: %{session_public_id: sid, customer_email: email, customer_phone: cph, customer_name: name}} = socket
+    %{assigns: %{session_public_id: sid,
+                  customer_email: email, customer_phone: cph, customer_name: name,
+                  submission_token: token, user_agent_hash: ua_hash}} = socket
 
     attrs =
-      %{method: "bank_transfer"}
+      %{method: "bank_transfer", submission_token: token}
       |> maybe_put(:customer_email, email)
       |> maybe_put(:customer_phone, cph)
       |> maybe_put(:customer_name, name)
+      |> maybe_put(:user_agent_hash, ua_hash)
 
     case CoreClient.pay_session(sid, attrs) do
       {:ok, %{"payment_public_id" => pay_id}} ->
@@ -1908,6 +2057,7 @@ defmodule YagyeCheckoutWeb.Live.CheckoutLive do
 
         {:noreply,
          assign(socket,
+           submitting: false,
            page_state: :awaiting_transfer,
            payment_public_id: pay_id,
            poll_count: 0,
@@ -1918,7 +2068,7 @@ defmodule YagyeCheckoutWeb.Live.CheckoutLive do
          )}
 
       {:error, _} ->
-        {:noreply, assign(socket, error: "We couldn't generate a transfer account. Please try again.")}
+        {:noreply, assign(socket, submitting: false, error: "We couldn't generate a transfer account. Please try again.")}
     end
   end
 
@@ -2169,5 +2319,70 @@ defmodule YagyeCheckoutWeb.Live.CheckoutLive do
     |> Enum.chunk_every(4)
     |> Enum.map_join(" ", &Enum.join/1)
   end
+
+  defp build_dynamic_style(nil, nil), do: ""
+
+  defp build_dynamic_style(brand_color, font_family) do
+    root_parts =
+      [
+        if brand_color do
+          hover = darken_color(brand_color)
+          rgb   = hex_to_rgb(brand_color)
+          """
+          --brand: #{brand_color};
+          --brand-hover: #{hover};
+          --brand-subtle: rgba(#{rgb}, 0.08);
+          --brand-glow: rgba(#{rgb}, 0.15);
+          """
+        end,
+        (if font_family, do: "--co-font: #{font_stack(font_family)};", else: nil)
+      ]
+      |> Enum.reject(&is_nil/1)
+      |> Enum.join("\n")
+
+    font_body =
+      if font_family,
+        do: "body, .co-checkout-container { font-family: var(--co-font); }",
+        else: ""
+
+    "<style>:root { #{root_parts} } #{font_body}</style>"
+  end
+
+  defp darken_color(nil), do: "#323BD8"
+
+  defp darken_color(hex) do
+    hex = String.trim_leading(hex, "#")
+    case Integer.parse(hex, 16) do
+      {n, ""} ->
+        r = max(div(n, 0x10000) - 25, 0)
+        g = max(rem(div(n, 0x100), 0x100) - 25, 0)
+        b = max(rem(n, 0x100) - 25, 0)
+        "#" <>
+          String.pad_leading(Integer.to_string(r, 16), 2, "0") <>
+          String.pad_leading(Integer.to_string(g, 16), 2, "0") <>
+          String.pad_leading(Integer.to_string(b, 16), 2, "0")
+      _ -> "#323BD8"
+    end
+  end
+
+  defp hex_to_rgb(nil), do: "61, 71, 245"
+
+  defp hex_to_rgb(hex) do
+    hex = String.trim_leading(hex, "#")
+    case Integer.parse(hex, 16) do
+      {n, ""} ->
+        r = div(n, 0x10000)
+        g = rem(div(n, 0x100), 0x100)
+        b = rem(n, 0x100)
+        "#{r}, #{g}, #{b}"
+      _ -> "61, 71, 245"
+    end
+  end
+
+  defp font_stack("inter"),       do: "'Inter', system-ui, sans-serif"
+  defp font_stack("nunito"),      do: "'Nunito', system-ui, sans-serif"
+  defp font_stack("playfair"),    do: "'Playfair Display', Georgia, serif"
+  defp font_stack("roboto-slab"), do: "'Roboto Slab', Georgia, serif"
+  defp font_stack(_),             do: "'Plus Jakarta Sans', system-ui, sans-serif"
 
 end

@@ -44,7 +44,12 @@ defmodule YagyeCore.Reconciliation do
         order_by: [desc: b.detected_at],
         limit: ^limit
       )
+      |> filter_breaks_by_provider(Keyword.get(opts, :provider_id))
+      |> filter_breaks_by_merchant(Keyword.get(opts, :merchant_id))
+      |> filter_breaks_by_state(Keyword.get(opts, :state))
+      |> filter_breaks_by_severity(Keyword.get(opts, :severity))
       |> Repo.all()
+      |> Repo.preload([:provider, :merchant])
 
     {:ok, breaks}
   end
@@ -169,7 +174,7 @@ defmodule YagyeCore.Reconciliation do
   def get_break(public_id) do
     case Repo.get_by(ReconciliationBreak, public_id: public_id) do
       nil -> {:error, :not_found}
-      break -> {:ok, break}
+      break -> {:ok, Repo.preload(break, [:provider, :merchant])}
     end
   end
 
@@ -286,6 +291,18 @@ defmodule YagyeCore.Reconciliation do
   end
 
   # ── Internal helpers ──────────────────────────────────────────────────────────
+
+  defp filter_breaks_by_provider(query, nil), do: query
+  defp filter_breaks_by_provider(query, pid), do: from(b in query, where: b.provider_id == ^pid)
+
+  defp filter_breaks_by_merchant(query, nil), do: query
+  defp filter_breaks_by_merchant(query, mid), do: from(b in query, where: b.merchant_id == ^mid)
+
+  defp filter_breaks_by_state(query, nil), do: query
+  defp filter_breaks_by_state(query, s), do: from(b in query, where: b.state == ^s)
+
+  defp filter_breaks_by_severity(query, nil), do: query
+  defp filter_breaks_by_severity(query, s), do: from(b in query, where: b.severity == ^s)
 
   defp check_idempotency(provider_id, payload) do
     case Repo.get_by(ProviderSettlementReport,

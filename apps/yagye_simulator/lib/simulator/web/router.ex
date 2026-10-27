@@ -38,6 +38,7 @@ defmodule Simulator.Web.Router do
     post("/transfers", TransferController, :create)
 
     get("/settlement-reports", SettlementReportController, :show)
+    get("/bank-statements", BankStatementController, :show)
 
     post("/disbursements", DisbursementController, :create)
   end
@@ -58,8 +59,12 @@ defmodule Simulator.Web.Router do
 
     live("/scenarios", Live.ScenarioLive, :index)
     live("/charges", Live.ChargeLive, :index)
+    live("/disbursements", Live.DisbursementLive, :index)
     live("/simulate", Live.SimulationLive, :index)
     live("/test-data", Live.TestDataLive, :index)
+
+    # Unauthenticated CSV download — used by the admin UI bank statement button
+    get("/bank-statements/csv", Controllers.BankStatementController, :admin_csv)
   end
 
   scope "/", Simulator.Web do

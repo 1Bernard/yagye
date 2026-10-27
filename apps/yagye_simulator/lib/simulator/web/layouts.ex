@@ -150,6 +150,26 @@ defmodule Simulator.Web.Layouts do
           /* ── Empty state ─────────────────────────────────────────────────── */
           .empty-state { text-align: center; padding: 3rem; color: #334155; font-size: .875rem; }
 
+          /* ── Settlement downloads ────────────────────────────────────────── */
+          .settlement-downloads { margin-top: 2.5rem; padding-top: 2rem; border-top: 1px solid #1e293b; }
+          .settlement-downloads h2 { margin-bottom: .5rem; }
+          .settlement-downloads .subtitle { color: #475569; font-size: .8rem; margin-bottom: 1rem; }
+          .settlement-controls { display: flex; align-items: center; gap: .75rem; margin-bottom: 1rem; }
+          .settlement-controls label { font-size: .8rem; color: #64748b; }
+          .settlement-controls input[type="date"] {
+            background: #0f172a; border: 1px solid #1e293b; border-radius: 4px;
+            color: #e2e8f0; padding: .3rem .5rem; font-size: .8rem; color-scheme: dark;
+          }
+          .settlement-controls input[type="date"]:focus { outline: none; border-color: #0369a1; }
+          .settlement-buttons { display: flex; flex-wrap: wrap; gap: .6rem; }
+          .btn-download {
+            display: inline-block; font-size: .78rem; font-weight: 600; padding: .4rem .9rem;
+            border-radius: 4px; border: none; cursor: pointer; white-space: nowrap;
+            transition: opacity .15s;
+          }
+          .btn-download:hover { opacity: .85; }
+          .btn-download:disabled { opacity: .45; cursor: not-allowed; }
+
           /* ── Inline code ─────────────────────────────────────────────────── */
           .icode { background: #1e293b; padding: 1px 5px; border-radius: 3px; font-size: .8rem; font-family: ui-monospace, monospace; color: #94a3b8; }
 
@@ -234,6 +254,7 @@ defmodule Simulator.Web.Layouts do
           <a href="/admin/scenarios" class="brand">Simulator</a>
           <a href="/admin/scenarios">Scenarios</a>
           <a href="/admin/charges">Charges</a>
+          <a href="/admin/disbursements">Disbursements</a>
           <a href="/admin/simulate">Simulate</a>
           <a href="/admin/test-data">Test Data</a>
         </nav>
@@ -252,6 +273,41 @@ defmodule Simulator.Web.Layouts do
               if (a.getAttribute("href") === path) a.classList.add("active");
             });
           })();
+
+          // CSV download — delegated listener on .btn-download[data-api-key].
+          // data-endpoint: API path (defaults to /settlement-reports)
+          // data-filename:  filename for the saved file
+          // Uses fetch() + x-api-key header so the browser download manager is never
+          // involved (unlike <a download> which chokes on non-200 responses).
+          document.addEventListener("click", function(e) {
+            var btn = e.target.closest(".btn-download[data-api-key]");
+            if (!btn || btn.disabled) return;
+            var apiKey   = btn.dataset.apiKey;
+            var date     = btn.dataset.date;
+            var endpoint = btn.dataset.endpoint || "/settlement-reports";
+            var filename  = btn.dataset.filename || ("download_" + date + ".csv");
+            btn.disabled = true;
+            fetch(endpoint + "?date=" + date + "&format=csv", {
+              headers: { "x-api-key": apiKey }
+            })
+            .then(function(r) {
+              if (!r.ok) { alert("Download failed: HTTP " + r.status); return null; }
+              return r.blob();
+            })
+            .then(function(blob) {
+              if (!blob) return;
+              var url = URL.createObjectURL(blob);
+              var a = document.createElement("a");
+              a.href = url;
+              a.download = filename;
+              document.body.appendChild(a);
+              a.click();
+              document.body.removeChild(a);
+              URL.revokeObjectURL(url);
+            })
+            .catch(function(err) { alert("Download error: " + err); })
+            .finally(function() { btn.disabled = false; });
+          });
         </script>
       </body>
     </html>

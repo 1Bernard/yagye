@@ -42,11 +42,18 @@ defmodule Simulator.Web.Live.SimulationLive do
   @networks ~w[MTN TELECEL AIRTELTIGO]
   @currencies ~w[GHS NGN KES USD]
 
+  @network_account_refs %{
+    "MTN" => "acct_mtn_momo_gh",
+    "TELECEL" => "acct_telecel_cash_gh",
+    "AIRTELTIGO" => "acct_airteltigo_money_gh"
+  }
+  @fallback_account_ref "acct_yagye_platform"
+
   @impl true
   def mount(_params, _session, socket) do
     {:ok,
      assign(socket,
-       account: load_account(),
+       account: load_account_for("WALLET", "MTN"),
        instrument: "WALLET",
        msisdn: "0241000001",
        network: "MTN",
@@ -122,7 +129,9 @@ defmodule Simulator.Web.Live.SimulationLive do
       |> put_wallet_fields(a)
       |> put_card_fields(a)
 
-    case Charges.create_charge(a.account, attrs) do
+    account = load_account_for(a.instrument, a.network)
+
+    case Charges.create_charge(account, attrs) do
       {:ok, charge} ->
         entry = build_history_entry(charge, a)
         history = [entry | Enum.take(a.history, 9)]
@@ -451,8 +460,13 @@ defmodule Simulator.Web.Live.SimulationLive do
 
   # ── Helpers ───────────────────────────────────────────────────────────────────
 
-  defp load_account do
-    Repo.all(Account) |> List.first() |> maybe_preload()
+  defp load_account_for("WALLET", network) do
+    ref = Map.get(@network_account_refs, network, @fallback_account_ref)
+    Repo.get_by(Account, account_ref: ref) |> maybe_preload()
+  end
+
+  defp load_account_for(_instrument, _network) do
+    Repo.get_by(Account, account_ref: @fallback_account_ref) |> maybe_preload()
   end
 
   defp maybe_preload(nil), do: nil

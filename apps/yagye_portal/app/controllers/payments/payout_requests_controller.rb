@@ -71,10 +71,30 @@ module Payments
         reviewed_at:   Time.current,
         reviewer_note: params[:note].to_s.strip.presence
       )
+
+      core_mode = Current.mode == "live" ? "live" : "simulation"
+      result = CoreApiClient.new.create_internal_payout(
+        merchant_code: req.merchant_code,
+        amount:        req.amount,
+        currency:      req.currency || "GHS",
+        mode:          core_mode,
+        requested_by:  req.requested_by,
+        approved_by:   current_user.user_code
+      )
+
       audit(action: "payout_request.approved", resource_type: "payout_request",
             outcome: "succeeded", resource_code: req.id.to_s,
-            metadata: { merchant_code: req.merchant_code, amount: req.amount })
-      redirect_to payout_request_path(req), notice: "Request approved."
+            metadata: { merchant_code: req.merchant_code, amount: req.amount,
+                        payout_created: result.success? })
+
+      if result.success?
+        redirect_to payout_request_path(req), notice: "Request approved — payout queued."
+      else
+        redirect_to payout_request_path(req),
+                    notice: "Request approved.",
+                    alert:  "Warning: payout could not be queued automatically. " \
+                            "Please create it manually. (#{result.error_message})"
+      end
     end
 
     def reject

@@ -47,14 +47,17 @@ module Layout
           { key: :routing_rules,   icon: :swap,         label: "Routing Rules",   path: :developers_routing_rules_path },
           { key: :reconciliation,  icon: :trending_up,  label: "Reconciliation",  path: :reconciliation_path },
           { key: :bank_statements, icon: :file,         label: "Bank Statements",  path: :payments_bank_statements_path },
-          { key: :settlements,     icon: :wallet,       label: "Settlements",      path: :settlements_path }
+          { key: :settlements,     icon: :wallet,       label: "Settlements",      path: :settlements_path },
+          { key: :webhook_deliveries, icon: :refresh,    label: "Webhook Deliveries", path: :developers_deliveries_path,
+            internal_only: true }
         ]
       },
       {
         label: "ACCOUNT",
         items: [
           { key: :activity,   icon: :clock,    label: "Activity",       path: :activity_path },
-          { key: :developers, icon: :hash,     label: "Developers",     path: :developers_path },
+          { key: :developers, icon: :hash,     label: "Developers",     path: :developers_path,
+            merchant_only: true },
           { key: :settings,   icon: :settings, label: "Settings",       path: :settings_path },
           { key: :settings_pricing, icon: :tag, label: "Pricing & Fees", path: :settings_pricing_path,
             merchant_only: true },

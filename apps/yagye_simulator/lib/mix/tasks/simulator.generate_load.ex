@@ -44,14 +44,14 @@ defmodule Mix.Tasks.Simulator.GenerateLoad do
 
   @msisdn_distribution [
     # {weight, class, msisdn, network}
-    {30, "success",            "0241000001", "MTN"},
-    {15, "success",            "0501000001", "TELECEL"},
-    {15, "success",            "0571000001", "AIRTELTIGO"},
+    {30, "success", "0241000001", "MTN"},
+    {15, "success", "0501000001", "TELECEL"},
+    {15, "success", "0571000001", "AIRTELTIGO"},
     {10, "insufficient_funds", "0241000002", "MTN"},
-    {5,  "insufficient_funds", "0501000002", "TELECEL"},
-    {5,  "expired",            "0241000003", "MTN"},
-    {5,  "not_registered",     "0241000004", "MTN"},
-    {15, "scenario_driven",    nil,          "MTN"}
+    {5, "insufficient_funds", "0501000002", "TELECEL"},
+    {5, "expired", "0241000003", "MTN"},
+    {5, "not_registered", "0241000004", "MTN"},
+    {15, "scenario_driven", nil, "MTN"}
   ]
 
   @total_weight Enum.reduce(@msisdn_distribution, 0, fn {w, _, _, _}, acc -> acc + w end)
@@ -68,74 +68,101 @@ defmodule Mix.Tasks.Simulator.GenerateLoad do
 
   @impl Mix.Task
   def run(args) do
-    {opts, _, _} =
-      OptionParser.parse(args,
-        strict: [
-          count:         :integer,
-          concurrency:   :integer,
-          core_url:      :string,
-          api_key:       :string,
-          service_token: :string,
-          output:        :string,
-          mode:          :string,
-          amount:        :float,
-          currency:      :string
-        ]
-      )
-
-    count         = opts[:count]         || @default_count
-    concurrency   = opts[:concurrency]   || @default_concurrency
-    core_url      = opts[:core_url]      || @default_core_url
-    api_key       = opts[:api_key]       || System.get_env("LOAD_GEN_API_KEY") || raise_missing("--api-key or LOAD_GEN_API_KEY")
-    service_token = opts[:service_token] || System.get_env("LOAD_GEN_SERVICE_TOKEN") || raise_missing("--service-token or LOAD_GEN_SERVICE_TOKEN")
-    mode          = opts[:mode]          || @default_mode
-    amount_major  = opts[:amount]        || @default_amount
-    currency      = opts[:currency]      || @default_currency
-    output_path   = opts[:output]        || "load_gen_#{:os.system_time(:second)}.jsonl"
-
-    amount_minor = round(amount_major * 100)
+    cfg = parse_run_config(args)
 
     Mix.shell().info("""
     \n[load-gen] Starting synthetic load generation
-      count       = #{count}
-      concurrency = #{concurrency}
-      core_url    = #{core_url}
-      mode        = #{mode}
-      amount      = #{amount_major} #{currency} (#{amount_minor} minor)
-      output      = #{output_path}
+      count       = #{cfg.count}
+      concurrency = #{cfg.concurrency}
+      core_url    = #{cfg.core_url}
+      mode        = #{cfg.mode}
+      amount      = #{cfg.amount_major} #{cfg.currency} (#{cfg.amount_minor} minor)
+      output      = #{cfg.output_path}
     """)
 
     Application.ensure_all_started(:req)
 
-    {:ok, file} = File.open(output_path, [:write, :utf8])
-    counter = :counters.new(3, [])  # [succeeded, failed, total]
-
-    jobs = build_job_list(count, mode, amount_minor, currency)
-
+    {:ok, file} = File.open(cfg.output_path, [:write, :utf8])
+    counter = :counters.new(3, [])
+    jobs = build_job_list(cfg.count, cfg.mode, cfg.amount_minor, cfg.currency)
     start_ms = System.monotonic_time(:millisecond)
 
     jobs
     |> Task.async_stream(
-      fn job ->
-        result = fire_payment(job, core_url, api_key, service_token)
-        :counters.add(counter, 3, 1)
-
-        case result do
-          {:ok, record} ->
-            :counters.add(counter, 1, 1)
-            record
-
-          {:error, reason} ->
-            :counters.add(counter, 2, 1)
-            Map.put(job, :error, inspect(reason))
-        end
-      end,
-      max_concurrency: concurrency,
+      &fire_and_count(&1, cfg, counter),
+      max_concurrency: cfg.concurrency,
       timeout: 30_000,
       on_timeout: :kill_task,
       ordered: false
     )
-    |> Stream.each(fn
+    |> Stream.each(&write_job_result(&1, file, counter, cfg.count, start_ms))
+    |> Stream.run()
+
+    elapsed_s = (System.monotonic_time(:millisecond) - start_ms) / 1000
+    File.close(file)
+
+    Mix.shell().info("""
+    \n[load-gen] Done in #{Float.round(elapsed_s, 1)}s
+      succeeded = #{:counters.get(counter, 1)}
+      failed    = #{:counters.get(counter, 2)}
+      total     = #{:counters.get(counter, 3)}
+      output    = #{cfg.output_path}
+      rate      = #{Float.round(cfg.count / elapsed_s, 1)} payments/s
+    """)
+  end
+
+  @opt_spec [
+    count: :integer,
+    concurrency: :integer,
+    core_url: :string,
+    api_key: :string,
+    service_token: :string,
+    output: :string,
+    mode: :string,
+    amount: :float,
+    currency: :string
+  ]
+
+  defp parse_run_config(args) do
+    {opts, _, _} = OptionParser.parse(args, strict: @opt_spec)
+    amount_major = Keyword.get(opts, :amount, @default_amount)
+
+    %{
+      count: Keyword.get(opts, :count, @default_count),
+      concurrency: Keyword.get(opts, :concurrency, @default_concurrency),
+      core_url: Keyword.get(opts, :core_url, @default_core_url),
+      api_key: require_opt(opts, :api_key, "LOAD_GEN_API_KEY", "--api-key"),
+      service_token:
+        require_opt(opts, :service_token, "LOAD_GEN_SERVICE_TOKEN", "--service-token"),
+      mode: Keyword.get(opts, :mode, @default_mode),
+      amount_major: amount_major,
+      amount_minor: round(amount_major * 100),
+      currency: Keyword.get(opts, :currency, @default_currency),
+      output_path: Keyword.get(opts, :output, "load_gen_#{:os.system_time(:second)}.jsonl")
+    }
+  end
+
+  defp require_opt(opts, key, env_var, flag) do
+    Keyword.get(opts, key) || System.get_env(env_var) || raise_missing("#{flag} or #{env_var}")
+  end
+
+  defp fire_and_count(job, cfg, counter) do
+    result = fire_payment(job, cfg.core_url, cfg.api_key, cfg.service_token)
+    :counters.add(counter, 3, 1)
+
+    case result do
+      {:ok, record} ->
+        :counters.add(counter, 1, 1)
+        record
+
+      {:error, reason} ->
+        :counters.add(counter, 2, 1)
+        Map.put(job, :error, inspect(reason))
+    end
+  end
+
+  defp write_job_result(result, file, counter, count, start_ms) do
+    case result do
       {:ok, record} ->
         IO.write(file, Jason.encode!(record) <> "\n")
         total = :counters.get(counter, 3)
@@ -144,21 +171,7 @@ defmodule Mix.Tasks.Simulator.GenerateLoad do
       {:exit, reason} ->
         :counters.add(counter, 2, 1)
         IO.write(file, Jason.encode!(%{error: inspect(reason)}) <> "\n")
-    end)
-    |> Stream.run()
-
-    elapsed_s = (System.monotonic_time(:millisecond) - start_ms) / 1000
-
-    File.close(file)
-
-    Mix.shell().info("""
-    \n[load-gen] Done in #{Float.round(elapsed_s, 1)}s
-      succeeded = #{:counters.get(counter, 1)}
-      failed    = #{:counters.get(counter, 2)}
-      total     = #{:counters.get(counter, 3)}
-      output    = #{output_path}
-      rate      = #{Float.round(count / elapsed_s, 1)} payments/s
-    """)
+    end
   end
 
   # ── Job list ─────────────────────────────────────────────────────────────────
@@ -171,14 +184,14 @@ defmodule Mix.Tasks.Simulator.GenerateLoad do
       effective_msisdn = msisdn || random_mtn_msisdn(i)
 
       %{
-        index:     i,
-        class:     class,
-        msisdn:    effective_msisdn,
-        network:   network,
-        amount:    amount_minor,
-        currency:  currency,
-        mode:      mode,
-        ref:       "loadgen_#{:os.system_time(:nanosecond)}_#{i}"
+        index: i,
+        class: class,
+        msisdn: effective_msisdn,
+        network: network,
+        amount: amount_minor,
+        currency: currency,
+        mode: mode,
+        ref: "loadgen_#{:os.system_time(:nanosecond)}_#{i}"
       }
     end)
   end
@@ -201,7 +214,8 @@ defmodule Mix.Tasks.Simulator.GenerateLoad do
   # Generates an MTN MSISDN that will go through scenario-rate distribution.
   # Avoids the fixed MSISDN suffixes 0001-0006 to prevent deterministic mapping.
   defp random_mtn_msisdn(seed) do
-    suffix = rem(seed * 7_919 + 7, 9_000) + 1_000  # 1000-9999, avoids 000x range
+    # 1000-9999, avoids 000x range
+    suffix = rem(seed * 7_919 + 7, 9_000) + 1_000
     "0241#{String.pad_leading(to_string(suffix), 4, "0")}"
   end
 
@@ -217,18 +231,18 @@ defmodule Mix.Tasks.Simulator.GenerateLoad do
       latency_ms = System.monotonic_time(:millisecond) - t0
 
       record = %{
-        payment_id:          payment_id,
-        session_id:          session_id,
-        outcome_class:       job.class,
-        msisdn:              job.msisdn,
-        network:             job.network,
-        amount:              job.amount,
-        currency:            job.currency,
-        mode:                job.mode,
-        merchant_reference:  job.ref,
-        fired_at:            DateTime.to_iso8601(fired_at),
-        terminal_state:      terminal_state,
-        latency_ms:          latency_ms
+        payment_id: payment_id,
+        session_id: session_id,
+        outcome_class: job.class,
+        msisdn: job.msisdn,
+        network: job.network,
+        amount: job.amount,
+        currency: job.currency,
+        mode: job.mode,
+        merchant_reference: job.ref,
+        fired_at: DateTime.to_iso8601(fired_at),
+        terminal_state: terminal_state,
+        latency_ms: latency_ms
       }
 
       {:ok, record}
@@ -237,11 +251,11 @@ defmodule Mix.Tasks.Simulator.GenerateLoad do
 
   defp create_checkout_session(job, core_url, api_key) do
     body = %{
-      amount:             job.amount,
-      currency:           job.currency,
+      amount: job.amount,
+      currency: job.currency,
       merchant_reference: job.ref,
-      description:        "Load gen payment #{job.index}",
-      metadata:           %{outcome_class: job.class, generator: "load_gen"}
+      description: "Load gen payment #{job.index}",
+      metadata: %{outcome_class: job.class, generator: "load_gen"}
     }
 
     case Req.post(
@@ -263,8 +277,8 @@ defmodule Mix.Tasks.Simulator.GenerateLoad do
 
   defp submit_payment(session_id, job, core_url, service_token) do
     body = %{
-      method:  "mobile_money",
-      msisdn:  job.msisdn,
+      method: "mobile_money",
+      msisdn: job.msisdn,
       network: job.network
     }
 
@@ -327,12 +341,12 @@ defmodule Mix.Tasks.Simulator.GenerateLoad do
   # ── Progress ──────────────────────────────────────────────────────────────────
 
   defp print_progress(counter, total, start_ms) do
-    done       = :counters.get(counter, 3)
-    succeeded  = :counters.get(counter, 1)
-    failed     = :counters.get(counter, 2)
+    done = :counters.get(counter, 3)
+    succeeded = :counters.get(counter, 1)
+    failed = :counters.get(counter, 2)
     elapsed_ms = System.monotonic_time(:millisecond) - start_ms
-    rate       = if elapsed_ms > 0, do: Float.round(done / (elapsed_ms / 1000), 1), else: 0.0
-    pct        = Float.round(done / total * 100, 1)
+    rate = if elapsed_ms > 0, do: Float.round(done / (elapsed_ms / 1000), 1), else: 0.0
+    pct = Float.round(done / total * 100, 1)
 
     Mix.shell().info(
       "[load-gen] #{done}/#{total} (#{pct}%) | ok=#{succeeded} err=#{failed} | #{rate} req/s"

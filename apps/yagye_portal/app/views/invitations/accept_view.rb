@@ -4,25 +4,24 @@ module Invitations
   class AcceptView < ApplicationComponent
     include UI::Theme
 
-    def initialize(user:, membership:, token:, csrf_token:)
-      @user       = user
-      @membership = membership
-      @token      = token
-      @csrf_token = csrf_token
+    def initialize(invitation:, token:, csrf_token:)
+      @invitation  = invitation
+      @token       = token
+      @csrf_token  = csrf_token
     end
 
     def view_template
       render Auth::Shell.new(
         title:    "Accept your invitation",
-        subtitle: "You've been invited to #{@membership.merchant_name}. Set a password to activate your account."
+        subtitle: "You've been invited to #{@invitation.context_name}. Set a password to activate your account."
       ) do
-        render UI::ErrorSummary.new(errors: @user.errors)
+        render UI::ErrorSummary.new(errors: @invitation.user.errors)
 
         div class: "mb-5 rounded-xl border border-blue-100 bg-blue-50 px-4 py-3" do
           p class: "text-[12.5px] text-blue-700" do
             plain "Invited by "
-            strong { plain @membership.invited_by&.full_name || "your team" }
-            plain " · expires #{fmt_date(@membership.invitation_expires_at)}"
+            strong { plain @invitation.invited_by_name }
+            plain " · expires #{fmt_date(@invitation.expires_at)}"
           end
         end
 
@@ -30,13 +29,12 @@ module Invitations
           input type: :hidden, name: :authenticity_token, value: @csrf_token
           input type: :hidden, name: "_method", value: "patch"
 
-          # Email — display only, not editable
           div(class: "flex flex-col gap-1.5") do
             label(for: "user_email", class: TEXT_LABEL) { plain "Email" }
             input(
               type:     :email,
               id:       "user_email",
-              value:    @user.email,
+              value:    @invitation.user.email,
               disabled: true,
               class:    "w-full rounded-xl border border-gray-200 bg-gray-100 px-3 py-3 " \
                         "text-sm text-gray-500 cursor-not-allowed"

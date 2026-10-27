@@ -30,6 +30,8 @@ class SettlementEventsConsumer < ApplicationConsumer
       currency:                   evt.currency,
       period_start:               evt.period_start,
       period_end:                 evt.period_end,
+      gross_amount:               evt.gross_amount,
+      platform_fees:              evt.platform_fees,
       expected_net:               evt.expected_net,
       reported_net:               evt.reported_net,
       variance:                   evt.variance,

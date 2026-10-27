@@ -4,6 +4,7 @@ defmodule YagyeCore.Payouts do
   import Ecto.Query
 
   alias Ecto.Multi
+  alias YagyeCore.Ledger
   alias YagyeCore.Merchants.Schemas.Merchant
   alias YagyeCore.Outbox
   alias YagyeCore.Payouts.Schemas.{Payout, PayoutDestination}
@@ -76,6 +77,32 @@ defmodule YagyeCore.Payouts do
     end
   end
 
+  @doc """
+  Returns paid payouts that have no corresponding `payout_completed` ledger entry.
+  Used by ops to surface accounting gaps — e.g. when `post_payout_completed` failed
+  silently after the payout state was already written.
+  """
+  def list_ledger_gaps(opts \\ []) do
+    mode = Keyword.get(opts, :mode)
+    limit = Keyword.get(opts, :limit, 100)
+
+    base =
+      from(p in Payout,
+        left_join: e in YagyeCore.Ledger.Schemas.Entry,
+        on:
+          e.source_type == "payout" and e.source_id == p.id and
+            e.entry_type == "payout_completed",
+        where: p.state == "paid",
+        where: is_nil(e.id),
+        order_by: [desc: p.completed_at],
+        limit: ^limit,
+        select: p
+      )
+
+    base = if mode, do: where(base, [p], p.mode == ^mode), else: base
+    Repo.all(base)
+  end
+
   def get_payout(id) do
     case Repo.get(Payout, id) do
       nil -> {:error, :not_found}
@@ -109,6 +136,7 @@ defmodule YagyeCore.Payouts do
              provider_reference: provider_reference,
              completed_at: DateTime.utc_now()
            }) do
+      Ledger.post_payout_completed(updated)
       emit_payout_event(updated, "payout.paid")
       {:ok, updated}
     end

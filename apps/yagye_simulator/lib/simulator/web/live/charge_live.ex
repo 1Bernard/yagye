@@ -11,15 +11,46 @@ defmodule Simulator.Web.Live.ChargeLive do
   @refresh_ms 2_000
   @feed_limit 60
 
+  @mno_accounts [
+    %{label: "MTN MoMo", key: "sim_mtn_key", style: "background:#ffcb05;color:#000"},
+    %{label: "Telecel Cash", key: "sim_telecel_key", style: "background:#e2001a;color:#fff"},
+    %{
+      label: "AirtelTigo Money",
+      key: "sim_airteltigo_key",
+      style: "background:#cc0000;color:#fff"
+    },
+    %{label: "Generic Simulator", key: "sim_dev_key", style: "background:#334155;color:#fff"}
+  ]
+
   @impl true
   def mount(_params, _session, socket) do
     if connected?(socket), do: :timer.send_interval(@refresh_ms, self(), :refresh)
-    {:ok, assign(socket, charges: load_charges(), feed_limit: @feed_limit)}
+
+    yesterday = Date.to_iso8601(Date.add(Date.utc_today(), -1))
+
+    {:ok,
+     assign(socket,
+       charges: load_charges(),
+       feed_limit: @feed_limit,
+       settlement_date: Date.to_iso8601(Date.utc_today()),
+       bank_statement_date: yesterday,
+       mno_accounts: @mno_accounts
+     )}
   end
 
   @impl true
   def handle_info(:refresh, socket) do
     {:noreply, assign(socket, charges: load_charges())}
+  end
+
+  @impl true
+  def handle_event("set_settlement_date", %{"date" => date}, socket) do
+    {:noreply, assign(socket, settlement_date: date)}
+  end
+
+  @impl true
+  def handle_event("set_bank_statement_date", %{"bank_date" => date}, socket) do
+    {:noreply, assign(socket, bank_statement_date: date)}
   end
 
   @impl true
@@ -107,6 +138,68 @@ defmodule Simulator.Web.Live.ChargeLive do
           </tbody>
         </table>
       <% end %>
+
+      <section class="settlement-downloads">
+        <h2>Settlement Reports</h2>
+        <p class="subtitle">
+          Download Ghana MoMo-style CSV files per provider.
+          Reports are generated from settled charges up to the selected date.
+        </p>
+        <div class="settlement-controls">
+          <label for="settlement-date">Date</label>
+          <input
+            id="settlement-date"
+            type="date"
+            value={@settlement_date}
+            max={Date.to_iso8601(Date.utc_today())}
+            phx-change="set_settlement_date"
+            name="date"
+          />
+        </div>
+        <div class="settlement-buttons">
+          <%= for acct <- @mno_accounts do %>
+            <button
+              class="btn-download"
+              style={acct.style}
+              data-api-key={acct.key}
+              data-date={@settlement_date}
+              data-filename={"settlement_#{acct.key}_#{@settlement_date}.csv"}
+            >
+              ↓ {acct.label}
+            </button>
+          <% end %>
+        </div>
+      </section>
+
+      <section class="settlement-downloads">
+        <h2>Bank Statement</h2>
+        <p class="subtitle">
+          Synthetic bank statement aggregating all MNO net settlements into Yagye's account.
+          Upload to <strong style="color: #94a3b8;">Bank Statements → Import statement</strong>
+          in the portal to complete end-to-end reconciliation testing.
+        </p>
+        <div class="settlement-controls">
+          <label for="bank-stmt-date">Date</label>
+          <input
+            id="bank-stmt-date"
+            type="date"
+            value={@bank_statement_date}
+            max={Date.to_iso8601(Date.utc_today())}
+            phx-change="set_bank_statement_date"
+            name="bank_date"
+          />
+        </div>
+        <div class="settlement-buttons">
+          <a
+            href={"/admin/bank-statements/csv?date=#{@bank_statement_date}"}
+            download={"bank_statement_#{@bank_statement_date}.csv"}
+            class="btn-download"
+            style="background:#1c3a2f;color:#6ee7b7;border:1px solid #2d5442;text-decoration:none"
+          >
+            ↓ Yagye Bank Account (GCB)
+          </a>
+        </div>
+      </section>
     </div>
     """
   end

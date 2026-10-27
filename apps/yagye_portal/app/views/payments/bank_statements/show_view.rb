@@ -58,7 +58,7 @@ module Payments
                 code(class: TYPE_MONO) { plain @statement["account_reference"].to_s }
               end
               list.row("Statement date",  @statement["statement_date"].to_s)
-              list.row("Imported",        fmt_datetime(parse_time(@statement["inserted_at"])))
+              list.row("Imported",        fmt_datetime(parse_time(@statement["ingested_at"])))
               list.row("Lines", (@statement["lines"]&.size || @statement["line_count"] || 0).to_s)
             end
           end

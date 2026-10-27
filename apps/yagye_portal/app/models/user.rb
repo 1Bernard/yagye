@@ -25,6 +25,7 @@ class User < ApplicationRecord
   has_many :roles, through: :active_user_roles
   has_many :merchant_memberships, dependent: :destroy
   has_one :active_membership, -> { active }, class_name: "MerchantMembership"
+  belongs_to :invited_by, class_name: "User", optional: true
   has_many :passkey_credentials, dependent: :destroy
   has_many :portal_notifications, dependent: :destroy
   has_many :user_sessions, dependent: :destroy
@@ -145,6 +146,29 @@ class User < ApplicationRecord
 
   def merchant_code
     active_membership&.merchant_code
+  end
+
+  # ── Staff invitation token (mirrors MerchantMembership pattern) ───────────
+
+  def self.generate_invitation_token!
+    raw    = SecureRandom.urlsafe_base64(32)
+    digest = Digest::SHA256.hexdigest(raw)
+    [ raw, digest ]
+  end
+
+  def self.find_by_staff_invitation_token(raw_token)
+    digest = Digest::SHA256.hexdigest(raw_token.to_s)
+    find_by(invitation_token_digest: digest)
+  end
+
+  def staff_invitation_valid?
+    invitation_token_digest.present? &&
+      invitation_expires_at.present? &&
+      invitation_expires_at > Time.current
+  end
+
+  def accept_staff_invitation!
+    update!(invitation_token_digest: nil, invitation_expires_at: nil)
   end
 
   # Returns 1, 2, or 3 for merchant users; nil for internal staff.

@@ -9,9 +9,11 @@ class PortalSettlement < ApplicationRecord
 
   scope :for_merchant, ->(code) { where(merchant_code: code) }
 
-  def formatted_expected_net = format_minor_units(expected_net, currency)
-  def formatted_reported_net = reported_net ? format_minor_units(reported_net, currency) : "—"
-  def period_label           = "#{period_start.strftime("%d %b")} – #{period_end.strftime("%d %b %Y")}"
+  def formatted_expected_net  = format_minor_units(expected_net, currency)
+  def formatted_reported_net  = reported_net ? format_minor_units(reported_net, currency) : "—"
+  def formatted_gross_amount  = gross_amount ? format_minor_units(gross_amount, currency) : "—"
+  def formatted_platform_fees = platform_fees ? format_minor_units(platform_fees, currency) : "—"
+  def period_label            = "#{period_start.strftime("%d %b")} – #{period_end.strftime("%d %b %Y")}"
   def created_at             = last_applied_at
   def dispatched?            = bank_dispatch_ref.present?
   def awaiting_approval?     = state == "awaiting_approval"

@@ -12,6 +12,16 @@ defmodule YagyeCore.Providers do
 
   @simulator_code "simulator"
 
+  # Maps the normalised MoMo network value (from payment.metadata["network"]) to the
+  # provider code that holds the per-MNO simulation credential and settlement file.
+  # Kept in sync with normalise_network/1 in Payments.
+  @sim_network_providers %{
+    "MTN" => "mtn_momo_gh",
+    "TELECEL" => "telecel_cash_gh",
+    "VODAFONE" => "telecel_cash_gh",
+    "AIRTELTIGO" => "airteltigo_money_gh"
+  }
+
   # ── Public API ───────────────────────────────────────────────────────────────
 
   # Returns the webhook_secret for a given provider code. The secret is stored
@@ -40,11 +50,18 @@ defmodule YagyeCore.Providers do
   # Return: {:ok, {provider, credential_map, routing_meta}}
   # routing_meta = %{source: :rule, rule_id: id, configuration_id: config_id}
   #              | %{source: :static}
-  def get_provider_for_payment(%{mode: "simulation"}, _excluded) do
-    with {:ok, provider} <- fetch_provider_by_code(@simulator_code),
-         {:ok, credential_map} <- fetch_platform_credential(provider.id, "simulation") do
-      {:ok, {provider, credential_map, %{source: :static}}}
-    end
+  #
+  # Simulation mode: routes to the per-MNO provider (mtn_momo_gh, telecel_cash_gh,
+  # airteltigo_money_gh) based on payment.metadata["network"], falling back to the
+  # generic "simulator" provider for non-momo or unknown network payments.
+  # The provider.id stored on the PaymentAttempt is the real MNO provider UUID so
+  # settlement batches and reconciliation runs are scoped per MNO — but the struct's
+  # code is overridden to "simulator" so ProviderAdapter still dispatches to
+  # SimulatorAdapter instead of each MNO's (not-yet-built) production adapter.
+  def get_provider_for_payment(%{mode: "simulation"} = payment, _excluded) do
+    network = get_in(payment.metadata || %{}, ["network"])
+    code = Map.get(@sim_network_providers, network, @simulator_code)
+    resolve_sim_provider(code)
   end
 
   def get_provider_for_payment(%{mode: mode, merchant_id: merchant_id} = payment, excluded)
@@ -135,6 +152,34 @@ defmodule YagyeCore.Providers do
   end
 
   # ── Private ──────────────────────────────────────────────────────────────────
+
+  # Resolves the simulation provider + credential for the given code.
+  # Falls back to the generic simulator when the MNO provider is not yet seeded
+  # or its simulation credential is missing (e.g. fresh dev environment).
+  defp resolve_sim_provider(code) do
+    result =
+      with {:ok, provider} <- fetch_provider_by_code(code),
+           {:ok, credential_map} <- fetch_platform_credential(provider.id, "simulation") do
+        # Keep provider.id as the MNO UUID for correct PaymentAttempt scoping.
+        # Override code → "simulator" so ProviderAdapter dispatches SimulatorAdapter.
+        {:ok, {%{provider | code: "simulator"}, credential_map, %{source: :static}}}
+      end
+
+    case result do
+      {:ok, _} = ok ->
+        ok
+
+      {:error, _} when code != @simulator_code ->
+        Logger.warning(
+          "[providers] sim provider missing for code=#{code}, falling back to simulator"
+        )
+
+        resolve_sim_provider(@simulator_code)
+
+      error ->
+        error
+    end
+  end
 
   defp fetch_provider_by_code(code) do
     case Repo.get_by(Provider, code: code, active: true) do

@@ -50,6 +50,7 @@ defmodule YagyeCore do
       Float,
       Float.Schemas.MomoFloatBalance,
       Reconciliation,
+      Reconciliation.Reports.CsvReport,
       Reconciliation.Schemas.ReconciliationBreak,
       Reconciliation.Schemas.ReconciliationRun,
       BankReconciliation,

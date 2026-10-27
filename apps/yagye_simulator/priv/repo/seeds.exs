@@ -141,6 +141,71 @@ case Repo.get_by(ApiKey, account_id: account.id) do
     IO.puts("                         This matches yagye_core priv/repo/seeds.exs")
 end
 
+# ── 5. Per-MNO simulator accounts ────────────────────────────────────────────
+# Each MNO gets its own account so settlement reports are scoped per provider.
+# Keys must match the simulation credentials in yagye_core priv/repo/seeds.exs.
+# All three accounts share the same webhook URL and secret — Core validates
+# webhooks against the "simulator" provider credential regardless of MNO.
+
+mno_accounts = [
+  %{
+    account_ref: "acct_mtn_momo_gh",
+    display_name: "MTN Mobile Money GH",
+    api_key: "sim_mtn_key",
+    label: "mtn_momo_gh-dev"
+  },
+  %{
+    account_ref: "acct_telecel_cash_gh",
+    display_name: "Telecel Cash GH",
+    api_key: "sim_telecel_key",
+    label: "telecel_cash_gh-dev"
+  },
+  %{
+    account_ref: "acct_airteltigo_money_gh",
+    display_name: "AirtelTigo Money GH",
+    api_key: "sim_airteltigo_key",
+    label: "airteltigo_money_gh-dev"
+  }
+]
+
+Enum.each(mno_accounts, fn mno ->
+  mno_account =
+    case Repo.get_by(Account, account_ref: mno.account_ref) do
+      %Account{} = a ->
+        IO.puts("Account [#{mno.account_ref}]: already exists")
+        a
+
+      nil ->
+        {:ok, a} =
+          Accounts.create_account(%{
+            account_ref: mno.account_ref,
+            display_name: mno.display_name,
+            webhook_url: "http://localhost:4000/provider-webhooks/simulator",
+            webhook_secret: "sim_webhook_secret_dev",
+            webhook_signing_algorithm: "HS256",
+            settlement_cadence: "daily",
+            settlement_cutoff_time: ~T[23:59:00],
+            settlement_timezone: "Africa/Accra",
+            currency: "GHS",
+            fee_percentage_bps: 150,
+            fee_fixed_minor: 0,
+            default_scenario_id: default_scenario.id
+          })
+
+        IO.puts("Account [#{mno.account_ref}]: created (id: #{a.id})")
+        a
+    end
+
+  case Repo.get_by(ApiKey, account_id: mno_account.id) do
+    %ApiKey{} ->
+      IO.puts("API key [#{mno.api_key}]       : already exists")
+
+    nil ->
+      {:ok, _key} = Accounts.issue_api_key(mno_account.id, mno.api_key, mno.label)
+      IO.puts("API key [#{mno.api_key}]       : created")
+  end
+end)
+
 IO.puts("\n=== Done ===")
 IO.puts("Admin UI : http://localhost:4100/admin/scenarios")
 IO.puts("API docs : http://localhost:4100/api/swaggerui\n")

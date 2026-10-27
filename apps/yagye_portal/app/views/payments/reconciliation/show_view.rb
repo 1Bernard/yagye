@@ -72,6 +72,31 @@ module Payments
               cls_label = CLASSIFICATION_LABELS[@break["classification"]] ||
                           @break["classification"]&.tr("_", " ")&.capitalize || "—"
               list.row("Type",        cls_label)
+
+              if @break["provider_code"].present?
+                prov_name = @break["provider_name"].to_s
+                prov_code = @break["provider_code"].to_s.upcase
+                list.row("Provider") do
+                  div do
+                    span(class: "text-[13px] font-mono font-semibold text-gray-800") { plain prov_code }
+                    span(class: " text-[12px] text-gray-500") { plain " · #{prov_name}" } if prov_name.present?
+                  end
+                end
+              end
+
+              if @break["merchant_name"].present? || @break["merchant_code"].present?
+                m_name = @break["merchant_name"].to_s
+                m_code = @break["merchant_code"].to_s
+                list.row("Merchant") do
+                  div do
+                    span(class: "text-[13px] font-medium text-gray-800") { plain m_name.presence || m_code }
+                    if m_name.present?
+                      span(class: "block text-[11px] font-mono text-gray-400 mt-px") { plain m_code.first(16) }
+                    end
+                  end
+                end
+              end
+
               list.row("Left ref",    @break["left_ref"]  || "—", mono: true)
               list.row("Right ref",   @break["right_ref"] || "—", mono: true)
               list.row("Assigned to", @break["assigned_to"] || "Unassigned")

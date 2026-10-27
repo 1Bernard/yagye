@@ -317,6 +317,157 @@ case Repo.get_by(ProviderCredential, provider_id: mtn_provider.id, mode: "sandbo
     IO.puts("MTN sandbox credential: created (#{c.id}) → SM: #{mtn_sandbox_secret_name}")
 end
 
+# Simulation credential for MTN MoMo — points to the MTN account in the simulator.
+# The api_key must match the simulator seed (acct_mtn_momo_gh → sim_mtn_key).
+case Repo.one(
+       from(c in ProviderCredential,
+         where:
+           c.provider_id == ^mtn_provider.id and c.mode == "simulation" and is_nil(c.merchant_id)
+       )
+     ) do
+  %ProviderCredential{} = c ->
+    IO.puts("MTN sim credential    : already exists (#{c.id})")
+
+  nil ->
+    payload =
+      Vault.encrypt_map(%{
+        "api_key" => "sim_mtn_key",
+        "webhook_secret" => "sim_webhook_secret_dev"
+      })
+
+    {:ok, c} =
+      %ProviderCredential{}
+      |> ProviderCredential.changeset(%{
+        provider_id: mtn_provider.id,
+        merchant_id: nil,
+        mode: "simulation",
+        base_url: "http://localhost:4100",
+        encrypted_payload: payload,
+        active: true
+      })
+      |> Repo.insert()
+
+    IO.puts("MTN sim credential    : created (#{c.id}) → key=sim_mtn_key")
+end
+
+# ── 6b-iii. Telecel Cash native-rail provider ────────────────────────────────
+# Telecel (formerly Vodafone Ghana) direct rail. Adapter TBD at P-Telecel.
+# Active now so simulation routing resolves correctly.
+
+telecel_provider =
+  case Repo.get_by(Provider, code: "telecel_cash_gh") do
+    %Provider{} = p ->
+      IO.puts("Telecel provider      : already exists (#{p.id})")
+      p
+
+    nil ->
+      {:ok, p} =
+        %Provider{}
+        |> Provider.changeset(%{
+          code: "telecel_cash_gh",
+          display_name: "Telecel Cash",
+          adapter_module: "YagyeCore.Payments.Adapters.SimulatorAdapter",
+          kind: "native_rail",
+          active: true,
+          capabilities: %{"mobile_money_gh" => true}
+        })
+        |> Repo.insert()
+
+      IO.puts("Telecel provider      : created (#{p.id})")
+      p
+  end
+
+case Repo.one(
+       from(c in ProviderCredential,
+         where:
+           c.provider_id == ^telecel_provider.id and c.mode == "simulation" and
+             is_nil(c.merchant_id)
+       )
+     ) do
+  %ProviderCredential{} = c ->
+    IO.puts("Telecel sim credential: already exists (#{c.id})")
+
+  nil ->
+    payload =
+      Vault.encrypt_map(%{
+        "api_key" => "sim_telecel_key",
+        "webhook_secret" => "sim_webhook_secret_dev"
+      })
+
+    {:ok, c} =
+      %ProviderCredential{}
+      |> ProviderCredential.changeset(%{
+        provider_id: telecel_provider.id,
+        merchant_id: nil,
+        mode: "simulation",
+        base_url: "http://localhost:4100",
+        encrypted_payload: payload,
+        active: true
+      })
+      |> Repo.insert()
+
+    IO.puts("Telecel sim credential: created (#{c.id}) → key=sim_telecel_key")
+end
+
+# ── 6b-iv. AirtelTigo Money native-rail provider ─────────────────────────────
+# AirtelTigo direct rail. Adapter TBD at P-AirtelTigo.
+# Active now so simulation routing resolves correctly.
+
+airteltigo_provider =
+  case Repo.get_by(Provider, code: "airteltigo_money_gh") do
+    %Provider{} = p ->
+      IO.puts("AirtelTigo provider   : already exists (#{p.id})")
+      p
+
+    nil ->
+      {:ok, p} =
+        %Provider{}
+        |> Provider.changeset(%{
+          code: "airteltigo_money_gh",
+          display_name: "AirtelTigo Money",
+          adapter_module: "YagyeCore.Payments.Adapters.SimulatorAdapter",
+          kind: "native_rail",
+          active: true,
+          capabilities: %{"mobile_money_gh" => true}
+        })
+        |> Repo.insert()
+
+      IO.puts("AirtelTigo provider   : created (#{p.id})")
+      p
+  end
+
+case Repo.one(
+       from(c in ProviderCredential,
+         where:
+           c.provider_id == ^airteltigo_provider.id and c.mode == "simulation" and
+             is_nil(c.merchant_id)
+       )
+     ) do
+  %ProviderCredential{} = c ->
+    IO.puts("AirtelTigo sim cred   : already exists (#{c.id})")
+
+  nil ->
+    payload =
+      Vault.encrypt_map(%{
+        "api_key" => "sim_airteltigo_key",
+        "webhook_secret" => "sim_webhook_secret_dev"
+      })
+
+    {:ok, c} =
+      %ProviderCredential{}
+      |> ProviderCredential.changeset(%{
+        provider_id: airteltigo_provider.id,
+        merchant_id: nil,
+        mode: "simulation",
+        base_url: "http://localhost:4100",
+        encrypted_payload: payload,
+        active: true
+      })
+      |> Repo.insert()
+
+    IO.puts("AirtelTigo sim cred   : created (#{c.id}) → key=sim_airteltigo_key")
+end
+
 # ── 6b-ii. Paystack platform credential (for bank account disbursements) ────────
 # Paystack is used as the bank transfer rail for settlement disbursements when
 # a merchant has configured a bank account (not mobile money) as settlement target.

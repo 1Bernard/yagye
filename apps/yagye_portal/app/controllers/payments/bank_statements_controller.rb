@@ -24,12 +24,17 @@ module Payments
       render Payments::BankStatements::NewView.new
     end
 
+    def upload_modal
+      authorize :bank_statements, :new?
+      render Payments::BankStatements::UploadModalView.new
+    end
+
     def create
       authorize :bank_statements, :create?
 
       account_reference = params[:account_reference].to_s.strip
       statement_date    = params[:statement_date].to_s.strip
-      raw_csv           = params[:csv_lines].to_s.strip
+      raw_csv           = read_csv_param
       currency          = params[:currency].presence_in(%w[GHS USD EUR GBP]) || "GHS"
       mode              = params[:mode].presence_in(%w[live simulation]) || "live"
       opening_balance   = (params[:opening_balance].to_f * 100).round
@@ -76,6 +81,14 @@ module Payments
     end
 
     private
+
+    def read_csv_param
+      if params[:csv_file].respond_to?(:read)
+        params[:csv_file].read.force_encoding("UTF-8")
+      else
+        params[:csv_lines].to_s.strip
+      end
+    end
 
     def parse_csv_lines(raw, currency: "GHS")
       raw.lines.each_with_index.filter_map do |line, idx|

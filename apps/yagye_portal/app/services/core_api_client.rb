@@ -73,6 +73,22 @@ class CoreApiClient
     get("/internal/payments/#{payment_public_id}/reserve-hold")
   end
 
+  # ── Payouts (ops-initiated) ────────────────────────────────────────────────
+
+  # POST /internal/merchants/:merchant_code/payouts
+  # Called by portal after ops approves a payout request (maker-checker enforced in portal).
+  def create_internal_payout(merchant_code:, amount:, currency:, mode:, requested_by:, approved_by:, destination_id: nil)
+    post("/internal/merchants/#{merchant_code}/payouts",
+         { amount: amount, currency: currency, mode: mode,
+           requested_by: requested_by, approved_by: approved_by,
+           destination_id: destination_id }.compact)
+  end
+
+  # GET /internal/payouts/ledger-gaps
+  def list_payout_ledger_gaps(mode: nil, limit: 100)
+    get("/internal/payouts/ledger-gaps", { mode: mode, limit: limit }.compact)
+  end
+
   # ── API keys ───────────────────────────────────────────────────────────────
 
   # POST /internal/merchants/:code/keys
@@ -507,8 +523,10 @@ class CoreApiClient
   end
 
   # GET /internal/reconciliation-breaks (cross-merchant, ops only)
-  def list_all_reconciliation_breaks
-    get("/internal/reconciliation-breaks")
+  def list_all_reconciliation_breaks(params = {})
+    query = params.reject { |_, v| v.blank? }
+    path  = query.any? ? "/internal/reconciliation-breaks?#{query.to_query}" : "/internal/reconciliation-breaks"
+    get(path)
   end
 
   # GET /internal/reconciliation-breaks/:id
@@ -526,6 +544,16 @@ class CoreApiClient
       resolution_code: resolution_code,
       resolution_note: resolution_note
     }.compact)
+  end
+
+  # POST /internal/settlement-reports/upload
+  def upload_settlement_report(provider_code:, mode:, currency:, csv_content:)
+    post("/internal/settlement-reports/upload", {
+      provider_code: provider_code,
+      mode:          mode,
+      currency:      currency,
+      csv_content:   csv_content
+    })
   end
 
   # ── Bank Statements (ops import / reconciliation) ─────────────────────────

@@ -22,7 +22,12 @@ defmodule YagyeCore.Outbox.Workers.OutboxRelayWorker do
   alias YagyeCore.Outbox.KafkaProducer
   alias YagyeCore.Outbox.Schemas.OutboxMessage
   alias YagyeCore.Projections.Workers.{MerchantBalanceProjection, PaymentSummaryProjection}
-  alias YagyeCore.Reconciliation.Workers.ReconciliationTriggerWorker
+
+  alias YagyeCore.Reconciliation.Workers.{
+    ReconciliationSettlementWorker,
+    ReconciliationTriggerWorker
+  }
+
   alias YagyeCore.Repo
 
   @batch_size 50
@@ -109,6 +114,7 @@ defmodule YagyeCore.Outbox.Workers.OutboxRelayWorker do
       MerchantBalanceProjection
     )
     |> maybe_add(event_type == "settlement.batch.settled", ReconciliationTriggerWorker)
+    |> maybe_add(event_type == "reconciliation.run.completed", ReconciliationSettlementWorker)
     |> maybe_add(event_type == "checkout_session.completed", InvoiceReconciliationWorker)
   end
 

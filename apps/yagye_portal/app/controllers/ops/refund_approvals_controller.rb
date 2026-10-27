@@ -26,12 +26,12 @@ module Ops
       else
         error_code = result.body&.dig("error", "code") || "approval_failed"
         message = case error_code
-                  when "not_approvable" then "This refund cannot be approved in its current state."
-                  when "validation_failed"
+        when "not_approvable" then "This refund cannot be approved in its current state."
+        when "validation_failed"
                     errors = result.body.dig("error", "errors")
                     errors&.dig("approved_by")&.first || "Approval failed — you may not approve your own refund."
-                  else "Approval failed. Please try again."
-                  end
+        else "Approval failed. Please try again."
+        end
         redirect_to ops_refund_approvals_path, alert: message
       end
     end

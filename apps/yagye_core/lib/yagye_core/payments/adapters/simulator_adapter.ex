@@ -95,6 +95,36 @@ defmodule YagyeCore.Payments.Adapters.SimulatorAdapter do
   end
 
   @impl true
+  def disburse(params, credential) do
+    body = %{
+      amount_minor: params.amount,
+      currency: params.currency,
+      destination_type: params[:destination_type] || "mobile_money",
+      destination_ref: params[:recipient_msisdn] || params[:reference] || Uniq.UUID.uuid4()
+    }
+
+    case Req.post(url("/disbursements", credential),
+           json: body,
+           headers: auth_headers(credential),
+           receive_timeout: 10_000
+         ) do
+      {:ok, %Req.Response{status: 201, body: body}} ->
+        {:ok, %{provider_reference: body["disbursement_ref"]}}
+
+      {:ok, %Req.Response{status: status}} ->
+        {:error,
+         %{error_class: :retryable_error, response_code: "http_#{status}", response_message: nil}}
+
+      {:error, %{reason: :timeout}} ->
+        {:error, %{error_class: :indeterminate, response_code: "timeout", response_message: nil}}
+
+      {:error, _} ->
+        {:error,
+         %{error_class: :indeterminate, response_code: "network_error", response_message: nil}}
+    end
+  end
+
+  @impl true
   def refund(%PaymentAttempt{provider_reference: ref}, amount_minor, credential) do
     body = %{amount_minor: amount_minor}
 

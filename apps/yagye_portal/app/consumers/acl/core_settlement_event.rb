@@ -25,10 +25,12 @@ module Acl
     def period_start     = @p["period_start"]
     def period_end       = @p["period_end"]
     def expected_net     = (@p["expected_net"] || @p["net_amount"]).to_i
+    def gross_amount     = @p["gross_amount"]
+    def platform_fees    = @p["platform_fees"]
     def reported_net     = @p["reported_net"]
     def variance         = @p["variance"]
     def value_date       = @p["value_date"]
-    def item_count       = @p["item_count"] || @p["payment_count"]
+    def item_count       = (@p["item_count"] || @p["payment_count"])&.to_i
     def bank_dispatch_ref         = @p["bank_dispatch_ref"]
     def bank_dispatched_at        = @p["bank_dispatched_at"]
     def dispatch_approved_by      = @p["dispatch_approved_by"]

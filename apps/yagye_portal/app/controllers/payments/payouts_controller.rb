@@ -43,7 +43,7 @@ module Payments
       render Payments::Payouts::StatementView.new(payout: payout), layout: false
     end
 
-    private
+private
 
     def payout_stats(scope)
       merchant_code = current_user.internal_staff? ? nil : current_user.merchant_code

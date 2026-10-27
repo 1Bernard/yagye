@@ -20,9 +20,11 @@ module Payments
         "unknown"             => "Unknown"
       }.freeze
 
-      def initialize(breaks:, query: nil, state_filter: nil, severity_filter: nil, from: nil, to: nil)
+      def initialize(breaks:, query: nil, provider_filter: nil, state_filter: nil,
+                     severity_filter: nil, from: nil, to: nil)
         @breaks          = breaks
         @query           = query
+        @provider_filter = provider_filter
         @state_filter    = state_filter
         @severity_filter = severity_filter
         @from            = from
@@ -38,8 +40,18 @@ module Payments
           render UI::PageHeader.new(
             title:    "Reconciliation breaks",
             subtitle: "Discrepancies between Yagye ledger records and PSP settlement reports."
-          )
+          ) do
+            if can?(:upload_report?, :reconciliation)
+              render UI::Button.new(variant: :primary,
+                                   href: reconciliation_upload_report_modal_path,
+                                   data: { turbo_frame: "modal-frame" }) do
+                render UI::Icon.new(:upload, class: ICON_SM)
+                plain "Upload MNO report"
+              end
+            end
+          end
           stat_band
+          provider_tabs
           breaks_table
         end
       end
@@ -60,6 +72,26 @@ module Payments
         end
       end
 
+      def provider_tabs
+        all_providers = @breaks.map { |b| b["provider_code"] }.compact.uniq.sort
+        return if all_providers.empty?
+
+        render UI::Tabs.new do |t|
+          t.tab "All providers",
+                href:   reconciliation_path(q: @query, state: @state_filter,
+                                            severity: @severity_filter, from: @from, to: @to),
+                active: @provider_filter.nil?
+          all_providers.each do |code|
+            count = @provider_filter.nil? ? @breaks.count { |b| b["provider_code"] == code } : nil
+            t.tab code.upcase,
+                  href:   reconciliation_path(provider: code, q: @query, state: @state_filter,
+                                              severity: @severity_filter, from: @from, to: @to),
+                  active: @provider_filter == code,
+                  count:  count
+          end
+        end
+      end
+
       def breaks_table
         render UI::Datatable.new(records: @breaks,
                                  empty_message: "No reconciliation breaks detected.") do |t|
@@ -67,6 +99,34 @@ module Payments
 
           t.column("#", class: "text-gray-400 tabular-nums text-right w-8") do |_, i|
             plain((i + 1).to_s)
+          end
+
+          t.column("Provider") do |b|
+            code = b["provider_code"].to_s
+            name = b["provider_name"].to_s
+            if code.present?
+              div do
+                span(class: "block text-[12px] font-mono font-semibold text-gray-700") { plain code.upcase }
+                span(class: "block text-[11px] text-gray-400 mt-px") { plain name } if name.present?
+              end
+            else
+              span(class: "text-[11px] text-gray-400") { plain "—" }
+            end
+          end
+
+          t.column("Merchant") do |b|
+            name = b["merchant_name"].to_s
+            code = b["merchant_code"].to_s
+            if name.present? || code.present?
+              div do
+                span(class: "block text-[13px] font-medium text-gray-800") { plain name.presence || code }
+                if name.present?
+                  span(class: "block text-[11px] font-mono text-gray-400 mt-px") { plain code.first(12) }
+                end
+              end
+            else
+              span(class: "text-[11px] text-gray-400") { plain "—" }
+            end
           end
 
           t.column("Break ID") do |b|
@@ -133,8 +193,8 @@ module Payments
       # ── Toolbar ─────────────────────────────────────────────────────────────
 
       def toolbar_content
-        filter_count = [ @state_filter.present?, @severity_filter.present?,
-                         @from.present?, @to.present? ].count(true)
+        filter_count = [ @provider_filter.present?, @state_filter.present?,
+                         @severity_filter.present?, @from.present?, @to.present? ].count(true)
 
         form(action: reconciliation_path, method: "get",
              data: { controller: "filter-form", filter_form_target: "form" }) do
@@ -143,18 +203,32 @@ module Payments
               render UI::Icon.new(:search, class: "w-full h-full")
             end
             input(type: "search", name: "q", value: @query,
-                  placeholder: "Search break ID or classification…",
+                  placeholder: "Search break ID, provider, merchant…",
                   class: FILTER_SEARCH_INPUT)
           end
         end
 
         div(class: "flex items-center gap-2") do
+          export_btn
           filter_btn(filter_count)
         end
       end
 
+      def export_btn
+        base = { q: @query, provider: @provider_filter, state: @state_filter,
+                 severity: @severity_filter, from: @from, to: @to }.reject { |_, v| v.blank? }
+        a(href: reconciliation_path(base.merge(format: :csv)),
+          class: "inline-flex items-center gap-[5px] px-3 h-8 border border-gray-200 rounded-[9px] " \
+                 "text-[12.5px] font-medium text-gray-600 bg-white cursor-pointer transition-colors " \
+                 "hover:border-gray-400 hover:text-gray-800 no-underline") do
+          render UI::Icon.new(:download, class: "w-3 h-3")
+          plain "Export CSV"
+        end
+      end
+
       def filter_btn(filter_count)
-        a(href: filter_reconciliation_path(q: @query, state: @state_filter, severity: @severity_filter,
+        a(href: filter_reconciliation_path(q: @query, provider: @provider_filter,
+                                           state: @state_filter, severity: @severity_filter,
                                            from: @from, to: @to),
           class: "inline-flex items-center gap-[5px] px-3 h-8 border rounded-[9px] " \
                  "text-[12.5px] font-medium bg-white cursor-pointer transition-colors no-underline " \

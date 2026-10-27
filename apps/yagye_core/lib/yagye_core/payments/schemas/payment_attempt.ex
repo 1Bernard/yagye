@@ -74,7 +74,8 @@ defmodule YagyeCore.Payments.Schemas.PaymentAttempt do
       :response_message,
       :error_class,
       :latency_ms,
-      :raw_response
+      :raw_response,
+      :dispatched_at
     ])
     |> validate_inclusion(:state, @valid_states)
   end

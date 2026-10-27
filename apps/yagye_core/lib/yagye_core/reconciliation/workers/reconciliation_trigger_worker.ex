@@ -43,28 +43,38 @@ defmodule YagyeCore.Reconciliation.Workers.ReconciliationTriggerWorker do
   end
 
   defp ingest_settlement_report(batch) do
-    report_date = DateTime.to_date(batch.period_start)
+    start_date = DateTime.to_date(batch.period_start)
+    end_date = DateTime.to_date(batch.period_end)
+    Enum.each(Date.range(start_date, end_date), &ingest_one_day(batch, &1))
+  end
 
-    case SimulatorReport.generate(batch.provider_id, batch.mode, report_date) do
+  defp ingest_one_day(batch, date) do
+    case SimulatorReport.generate(batch.provider_id, batch.mode, date) do
       {:ok, payload} ->
-        case Reconciliation.ingest_report(batch.provider_id, payload) do
-          {:ok, _report} ->
-            :ok
-
-          {:error, {:already_ingested, _}} ->
-            :ok
-
-          {:error, reason} ->
-            Logger.warning("[ReconciliationTriggerWorker] report ingest failed",
-              reason: inspect(reason),
-              batch_id: batch.id
-            )
-        end
+        ingest_report_payload(batch, payload, date)
 
       {:error, reason} ->
         Logger.warning("[ReconciliationTriggerWorker] report fetch failed",
           reason: inspect(reason),
-          batch_id: batch.id
+          batch_id: batch.id,
+          date: date
+        )
+    end
+  end
+
+  defp ingest_report_payload(batch, payload, date) do
+    case Reconciliation.ingest_report(batch.provider_id, payload) do
+      {:ok, _} ->
+        :ok
+
+      {:error, {:already_ingested, _}} ->
+        :ok
+
+      {:error, reason} ->
+        Logger.warning("[ReconciliationTriggerWorker] report ingest failed",
+          reason: inspect(reason),
+          batch_id: batch.id,
+          date: date
         )
     end
   end

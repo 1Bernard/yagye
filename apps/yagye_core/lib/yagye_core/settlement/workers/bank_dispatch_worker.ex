@@ -252,8 +252,13 @@ defmodule YagyeCore.Settlement.Workers.BankDispatchWorker do
         net_amount: b.net_amount,
         bank_dispatch_ref: b.bank_dispatch_ref,
         bank_dispatched_at: b.bank_dispatched_at && DateTime.to_iso8601(b.bank_dispatched_at),
+        # value_date is when funds are credited to the merchant's account.
+        # Simulator settles T+0; real bank adapters should supply this from the disbursement response.
+        value_date:
+          b.bank_dispatched_at && Date.to_iso8601(DateTime.to_date(b.bank_dispatched_at)),
         period_start: b.period_start && DateTime.to_iso8601(b.period_start),
-        period_end: b.period_end && DateTime.to_iso8601(b.period_end)
+        period_end: b.period_end && DateTime.to_iso8601(b.period_end),
+        payment_count: b.payment_count
       })
     end)
     |> Repo.transaction()

@@ -125,6 +125,112 @@ class TeamInviteFlowTest < ActionDispatch::IntegrationTest
     assert_equal 0, User.where(email: "sneak@merchant.com").count
   end
 
+  # ── Internal staff invitation (ops_manager inviting internal staff) ───────
+
+  test "ops_manager can invite a new ops_analyst — token stored on user, no MerchantMembership" do
+    ops = create_internal_user_with_role("ops_manager")
+    sign_in ops
+
+    assert_difference "User.count", 1 do
+      assert_difference "UserRole.count", 1 do
+        assert_no_difference "MerchantMembership.count" do
+          post team_invite_user_path, params: {
+            first_name: "New",
+            last_name:  "Analyst",
+            email:      "new.analyst@yagye.com",
+            role_key:   "ops_analyst"
+          }
+        end
+      end
+    end
+
+    assert_redirected_to team_users_path
+
+    invited = User.find_by!(email: "new.analyst@yagye.com")
+    assert_equal "internal_staff",  invited.kind
+    assert_equal "ops_analyst",     invited.user_roles.first.role_key
+    assert_not_nil                  invited.invitation_token_digest
+    assert_not_nil                  invited.invitation_expires_at
+    assert_equal ops,               invited.invited_by
+    assert_equal 0,                 invited.merchant_memberships.count
+  end
+
+  test "staff invitation email contains a token link (tests mailer directly)" do
+    ops     = create_internal_user_with_role("ops_manager")
+    invitee = User.create!(
+      email: "staff-mail-test@yagye.com", first_name: "Staff", last_name: "Test",
+      kind: "internal_staff", password: "Password1!xx", otp_required_for_login: false
+    )
+    raw_token, digest = User.generate_invitation_token!
+    invitee.update!(invitation_token_digest: digest, invitation_expires_at: 7.days.from_now,
+                    invited_by: ops)
+
+    mail = UserMailer.staff_invitation_instructions(invitee, ops, raw_token, invitee.invitation_expires_at)
+    body = mail.html_part&.body&.decoded || mail.text_part&.body&.decoded || mail.body.decoded
+    assert_match raw_token, body
+    assert_match(/Yagye/, mail.subject)
+    assert_equal [ "staff-mail-test@yagye.com" ], mail.to
+  end
+
+  test "staff invitee can view the accept form with a valid token" do
+    staff_user, raw_token = create_pending_staff_invitation
+
+    get accept_invitation_path(raw_token)
+    assert_ok
+    assert_match "Yagye Operations", response.body
+  end
+
+  test "staff invitee accepts invitation, is signed in, and redirected to TOTP setup" do
+    staff_user, raw_token = create_pending_staff_invitation
+
+    patch accept_invitation_path(raw_token), params: {
+      user: { password: "NewSecurePass99!", password_confirmation: "NewSecurePass99!" }
+    }
+
+    assert_redirected_to settings_totp_new_path
+
+    staff_user.reload
+    assert_nil staff_user.invitation_token_digest
+    assert_nil staff_user.invitation_expires_at
+  end
+
+  test "expired staff invitation token redirects to sign in" do
+    staff_user, raw_token = create_pending_staff_invitation
+    staff_user.update!(invitation_expires_at: 1.day.ago)
+
+    get accept_invitation_path(raw_token)
+    assert_redirected_to new_user_session_path
+    follow_redirect!
+    assert_match(/invalid or has expired/i, response.body)
+  end
+
+  test "staff token cannot be reused after acceptance" do
+    staff_user, raw_token = create_pending_staff_invitation
+
+    patch accept_invitation_path(raw_token), params: {
+      user: { password: "Password1!xx", password_confirmation: "Password1!xx" }
+    }
+
+    get accept_invitation_path(raw_token)
+    assert_redirected_to new_user_session_path
+  end
+
+  test "ops_manager CANNOT invite a merchant user (no merchant context)" do
+    ops = create_internal_user_with_role("ops_manager")
+    sign_in ops
+
+    assert_no_difference "User.count" do
+      post team_invite_user_path, params: {
+        first_name: "Merch", last_name: "User",
+        email:      "merch.user@merchant.com", role_key: "merchant_owner"
+      }
+    end
+
+    assert_redirected_to team_users_path
+    follow_redirect!
+    assert_match(/merchant context/i, response.body)
+  end
+
   # ── Accepting an invitation ────────────────────────────────────────────────
 
   test "invitee can view the accept form with a valid token" do
@@ -207,6 +313,25 @@ class TeamInviteFlowTest < ActionDispatch::IntegrationTest
   end
 
   private
+
+  def create_pending_staff_invitation
+    ops = create_internal_user_with_role("ops_manager")
+    raw_token, digest = User.generate_invitation_token!
+    staff_user = User.create!(
+      email:                   "staff-invitee-#{SecureRandom.hex(4)}@yagye.com",
+      first_name:              "Staff",
+      last_name:               "Invitee",
+      kind:                    "internal_staff",
+      password:                SecureRandom.hex(16),
+      otp_required_for_login:  false,
+      invited_by:              ops,
+      invitation_token_digest: digest,
+      invitation_expires_at:   7.days.from_now
+    )
+    role = Role.find_by!(key: "ops_analyst")
+    UserRole.create!(user: staff_user, role: role, granted_by: ops, granted_at: Time.current)
+    [ staff_user, raw_token ]
+  end
 
   def create_pending_invitation
     raw_token, digest = MerchantMembership.generate_invitation_token!

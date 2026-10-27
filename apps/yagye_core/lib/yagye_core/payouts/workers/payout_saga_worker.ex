@@ -9,7 +9,7 @@ defmodule YagyeCore.Payouts.Workers.PayoutSagaWorker do
 
   alias YagyeCore.Ledger
   alias YagyeCore.Ledger.Schemas.Balance
-  alias YagyeCore.Payments.Adapters.{MTNMomoAdapter, PaystackAdapter}
+  alias YagyeCore.Payments.Adapters.{MTNMomoAdapter, PaystackAdapter, SimulatorAdapter}
   alias YagyeCore.Payouts
   alias YagyeCore.Payouts.Schemas.{Payout, PayoutDestination}
   alias YagyeCore.Providers
@@ -140,8 +140,24 @@ defmodule YagyeCore.Payouts.Workers.PayoutSagaWorker do
 
   # ── Disbursement routing ──────────────────────────────────────────────────────
 
+  # Simulation: route through the real simulator so disbursements are recorded
+  # in the simulator DB (visible in admin UI) with genuine DISB_... references.
   defp dispatch_payout(%Payout{mode: "simulation"} = payout) do
-    {:ok, "sim_payout_#{payout.id}"}
+    destination = Repo.get!(PayoutDestination, payout.destination_id)
+
+    case PayoutDestination.decrypt_details(destination) do
+      {:ok, details} ->
+        with {:ok, credential} <- Providers.fetch_credential_for_psp("simulator", "simulation") do
+          SimulatorAdapter.disburse(
+            build_sim_disburse_params(payout, destination.kind, details),
+            credential
+          )
+          |> normalize_disburse_result()
+        end
+
+      {:error, reason} ->
+        {:error, {:decrypt_failed, reason}}
+    end
   end
 
   defp dispatch_payout(%Payout{} = payout) do
@@ -151,6 +167,26 @@ defmodule YagyeCore.Payouts.Workers.PayoutSagaWorker do
       {:ok, details} -> route_payout_dispatch(payout, destination.kind, details)
       {:error, reason} -> {:error, {:decrypt_failed, reason}}
     end
+  end
+
+  defp build_sim_disburse_params(payout, "mobile_money", details) do
+    %{
+      amount: payout.amount,
+      currency: payout.currency,
+      reference: payout.id,
+      destination_type: "mobile_money",
+      recipient_msisdn: details["msisdn"] || details["phone_number"]
+    }
+  end
+
+  defp build_sim_disburse_params(payout, kind, details) do
+    %{
+      amount: payout.amount,
+      currency: payout.currency,
+      reference: payout.id,
+      destination_type: kind,
+      recipient_msisdn: details["account_number"] || details["msisdn"]
+    }
   end
 
   defp route_payout_dispatch(payout, "mobile_money", details) do

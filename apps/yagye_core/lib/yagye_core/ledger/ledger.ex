@@ -479,6 +479,46 @@ defmodule YagyeCore.Ledger do
   end
 
   @doc """
+  Posts the "payout_completed" entry when a payout is confirmed paid by the provider.
+
+  Debit  : payout_transit  — clear the in-flight balance (liability ↓)
+  Credit : yagye_float     — Yagye's float decreases as funds leave (asset ↓)
+  """
+  def post_payout_completed(%Payout{} = payout) do
+    OpenTelemetry.Tracer.with_span "ledger.post_payout_completed" do
+      with {:ok, transit_account} <-
+             get_or_create_account(%{
+               account_type: "payout_transit",
+               normal_balance: "credit",
+               scope_type: "merchant",
+               scope_id: payout.merchant_id,
+               currency: payout.currency,
+               mode: payout.mode,
+               allows_negative: false
+             }),
+           {:ok, float_account} <-
+             get_or_create_account(%{
+               account_type: "yagye_float",
+               normal_balance: "debit",
+               scope_type: nil,
+               scope_id: nil,
+               currency: payout.currency,
+               mode: payout.mode,
+               allows_negative: false
+             }),
+           {:ok, entry} <- insert_payout_completed_entry(payout),
+           {:ok, debit} <-
+             insert_posting(entry, transit_account, "debit", payout.amount, payout.merchant_id),
+           {:ok, credit} <-
+             insert_posting(entry, float_account, "credit", payout.amount, payout.merchant_id) do
+        apply_balance(transit_account.id, payout.amount, :debit, debit.id)
+        apply_balance(float_account.id, payout.amount, :credit, credit.id)
+        {:ok, entry}
+      end
+    end
+  end
+
+  @doc """
   Posts the "reserve_held" entry when a reserve hold is created on payment success.
 
   Debit  : merchant_payable  — reduce what we immediately owe the merchant
@@ -871,6 +911,38 @@ defmodule YagyeCore.Ledger do
            source_type: "payout",
            source_id: payout.id,
            entry_type: "payout_committed"
+         )}
+
+      {:error, _} = err ->
+        err
+    end
+  end
+
+  defp insert_payout_completed_entry(%Payout{} = payout) do
+    now = DateTime.utc_now()
+
+    Entry.changeset(%Entry{}, %{
+      mode: payout.mode,
+      currency: payout.currency,
+      entry_type: "payout_completed",
+      source_type: "payout",
+      source_id: payout.id,
+      description: "Payout completed: #{payout.public_id}",
+      correlation_id: payout.public_id,
+      effective_at: now,
+      recorded_at: now
+    })
+    |> Repo.insert(
+      on_conflict: :nothing,
+      conflict_target: [:source_type, :source_id, :entry_type]
+    )
+    |> case do
+      {:ok, _} ->
+        {:ok,
+         Repo.get_by!(Entry,
+           source_type: "payout",
+           source_id: payout.id,
+           entry_type: "payout_completed"
          )}
 
       {:error, _} = err ->

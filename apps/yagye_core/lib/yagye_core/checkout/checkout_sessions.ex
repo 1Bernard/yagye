@@ -175,8 +175,17 @@ defmodule YagyeCore.CheckoutSessions do
   # ── State transitions ────────────────────────────────────────────────────────
 
   def record_method_selected(%CheckoutSession{} = session, method) do
+    changeset =
+      CheckoutEvent.changeset(%CheckoutEvent{}, %{
+        session_id: session.id,
+        event_type: "method_selected",
+        method_selected: method,
+        payload: %{method: method},
+        occurred_at: DateTime.utc_now()
+      })
+
     Multi.new()
-    |> Multi.insert(:event, event_changeset(session, "method_selected", %{method: method}))
+    |> Multi.insert(:event, changeset)
     |> Repo.transaction()
     |> case do
       {:ok, _} -> {:ok, session}
@@ -184,14 +193,16 @@ defmodule YagyeCore.CheckoutSessions do
     end
   end
 
-  def begin_processing(%CheckoutSession{} = session, payment_id) do
+  def begin_processing(%CheckoutSession{} = session, payment_id, user_agent_hash \\ nil) do
+    extra = if user_agent_hash, do: %{user_agent_hash: user_agent_hash}, else: %{}
+
     Multi.new()
     |> Multi.update(
       :session,
       CheckoutSession.state_changeset(session, "processing", %{payment_id: payment_id})
     )
     |> Multi.insert(:event, fn %{session: s} ->
-      event_changeset(s, "submitted", %{payment_id: payment_id})
+      event_changeset(s, "submitted", %{payment_id: payment_id}, extra)
     end)
     |> Repo.transaction()
     |> case do
@@ -544,13 +555,15 @@ defmodule YagyeCore.CheckoutSessions do
   defp ensure_map(m) when is_struct(m), do: Map.from_struct(m)
   defp ensure_map(m), do: m
 
-  defp event_changeset(%CheckoutSession{} = session, event_type, payload) do
-    CheckoutEvent.changeset(%CheckoutEvent{}, %{
+  defp event_changeset(%CheckoutSession{} = session, event_type, payload, extra \\ %{}) do
+    base = %{
       session_id: session.id,
       event_type: event_type,
       payload: payload,
       occurred_at: DateTime.utc_now()
-    })
+    }
+
+    CheckoutEvent.changeset(%CheckoutEvent{}, Map.merge(base, extra))
   end
 
   defp maybe_increment_link_use_count(nil), do: {:ok, nil}

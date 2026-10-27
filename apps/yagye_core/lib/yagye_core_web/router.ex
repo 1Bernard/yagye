@@ -34,6 +34,7 @@ defmodule YagyeCoreWeb.Router do
     as: InternalReconciliationController
 
   alias YagyeCoreWeb.Controllers.Internal.PayoutDestinationsController
+  alias YagyeCoreWeb.Controllers.Internal.PayoutsController, as: InternalPayoutsController
   alias YagyeCoreWeb.Controllers.Internal.RefundApprovalsController
   alias YagyeCoreWeb.Controllers.Internal.SettlementBatchApprovalsController
   alias YagyeCoreWeb.Controllers.Internal.SettlementControlsController
@@ -62,6 +63,7 @@ defmodule YagyeCoreWeb.Router do
   alias YagyeCoreWeb.Controllers.Internal.BankStatementsController
   alias YagyeCoreWeb.Controllers.Internal.DisputesController, as: InternalDisputesController
   alias YagyeCoreWeb.Controllers.Internal.KybController
+  alias YagyeCoreWeb.Controllers.Internal.PayoutLedgerAuditController
   alias YagyeCoreWeb.Controllers.Internal.RefundsController, as: InternalRefundsController
   alias YagyeCoreWeb.Controllers.Internal.ReservesController, as: InternalReservesController
 
@@ -127,6 +129,12 @@ defmodule YagyeCoreWeb.Router do
 
     # Internal key provisioning — portal uses service token, not merchant API key
     post("/merchants/:code/keys", InternalApiKeysController, :create)
+
+    # Ops-initiated payouts — portal approve action calls this after maker-checker
+    post("/merchants/:merchant_code/payouts", InternalPayoutsController, :create)
+
+    # Ledger integrity — paid payouts with no payout_completed entry
+    get("/payouts/ledger-gaps", PayoutLedgerAuditController, :index)
 
     # P13 — Routing rules management (Yagye ops + enterprise merchants at P16)
     get("/routing-rules", RoutingController, :index)
@@ -244,6 +252,9 @@ defmodule YagyeCoreWeb.Router do
     get("/bank-statements", BankStatementsController, :index)
     post("/bank-statements", BankStatementsController, :create)
     get("/bank-statements/:id", BankStatementsController, :show)
+
+    # MNO settlement report upload — ops uploads CSV from a real MNO, triggers recon run
+    post("/settlement-reports/upload", InternalReconciliationController, :upload_report)
 
     # Settlement controls + dispatch approvals (portal → core)
     get("/merchants/:merchant_id/settlement-controls", SettlementControlsController, :show)

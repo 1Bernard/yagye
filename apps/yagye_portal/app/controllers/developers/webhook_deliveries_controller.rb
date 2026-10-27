@@ -3,7 +3,17 @@
 module Developers
   class WebhookDeliveriesController < ApplicationController
     def index
-      redirect_to developers_path(tab: "deliveries")
+      authorize :portal_webhook_delivery, :index?, policy_class: PortalWebhookDeliveryPolicy
+
+      if current_user.internal_staff?
+        @pagy, @deliveries = pagy(
+          Developers::WebhookDeliveriesQuery.new(policy_scope(PortalWebhookDelivery)).call(filter_params),
+          limit: 50
+        )
+        render Developers::DeliveriesIndexView.new(deliveries: @deliveries, pagy: @pagy)
+      else
+        redirect_to developers_path(tab: "deliveries")
+      end
     end
 
     def show
@@ -11,6 +21,14 @@ module Developers
       authorize delivery, :show?
       render Developers::DeliveryDrawerView.new(delivery: delivery)
     end
+
+    private
+
+    def filter_params
+      params.permit(:state, :event_type, :endpoint_id, :merchant_code).to_h.symbolize_keys
+    end
+
+    public
 
     def retry
       delivery = find_owned!(PortalWebhookDelivery)

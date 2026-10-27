@@ -10,7 +10,8 @@ module Team
           drawer_header
           div(class: "flex-1 min-h-0 overflow-y-auto") do
             form(action: team_invite_user_path, method: "post", id: "invite-form",
-                 class: "px-6 py-5 flex flex-col gap-6") do
+                 class: "px-6 py-5 flex flex-col gap-6",
+                 data: { turbo_frame: "_top" }) do
               input(type: "hidden", name: "authenticity_token", value: form_authenticity_token)
               contact_section
               role_section
@@ -66,20 +67,22 @@ module Team
             plain "Assign a role"
           end
           p(class: "#{TYPE_CAPTION} mb-4") do
-            plain "Choose the role that best matches this person's responsibilities."
-          end
-
-          div(class: "flex flex-col gap-2") do
-            p(class: "#{TYPE_MICRO} text-gray-400 mb-1") { plain "Merchant" } if current_user.internal_staff?
-            Portal::RoleMetadata::MERCHANT.each do |r|
-              role_card(r[:label], r[:key], r[:hint], icon: r[:icon], palette: r[:palette])
+            if current_user.internal_staff?
+              plain "Choose the internal role that best matches this person's responsibilities."
+            else
+              plain "Choose the role that best matches this person's responsibilities."
             end
           end
 
           if current_user.internal_staff?
-            div(class: "flex flex-col gap-2 mt-5") do
-              p(class: "#{TYPE_MICRO} text-gray-400 mb-1") { plain "Internal" }
+            div(class: "flex flex-col gap-2") do
               Portal::RoleMetadata::INTERNAL.each do |r|
+                role_card(r[:label], r[:key], r[:hint], icon: r[:icon], palette: r[:palette])
+              end
+            end
+          else
+            div(class: "flex flex-col gap-2") do
+              Portal::RoleMetadata::MERCHANT.each do |r|
                 role_card(r[:label], r[:key], r[:hint], icon: r[:icon], palette: r[:palette])
               end
             end

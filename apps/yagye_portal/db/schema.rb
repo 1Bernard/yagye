@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_10_20_130005) do
+ActiveRecord::Schema[8.1].define(version: 2026_10_27_000001) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pgcrypto"
@@ -417,6 +417,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_20_130005) do
     t.string "dispatch_rejected_by"
     t.string "dispatch_rejection_reason"
     t.bigint "expected_net", null: false
+    t.bigint "gross_amount"
     t.integer "item_count"
     t.datetime "last_applied_at", null: false
     t.text "last_event_id", null: false
@@ -424,6 +425,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_20_130005) do
     t.text "mode", null: false
     t.datetime "period_end", null: false
     t.datetime "period_start", null: false
+    t.bigint "platform_fees"
     t.text "provider_code", null: false
     t.bigint "reported_net"
     t.text "state", null: false
@@ -598,6 +600,9 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_20_130005) do
     t.string "encrypted_password", default: "", null: false
     t.integer "failed_attempts", default: 0, null: false
     t.string "first_name"
+    t.datetime "invitation_expires_at"
+    t.text "invitation_token_digest"
+    t.uuid "invited_by_id"
     t.text "kind", default: "merchant_user", null: false
     t.string "language_preference", default: "en", null: false
     t.string "last_name"
@@ -618,6 +623,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_20_130005) do
     t.datetime "updated_at", null: false
     t.text "user_code"
     t.index ["email"], name: "index_users_on_email", unique: true
+    t.index ["invitation_token_digest"], name: "index_users_on_invitation_token_digest", unique: true, where: "(invitation_token_digest IS NOT NULL)"
     t.index ["phone_number"], name: "index_users_on_phone_number", unique: true, where: "(phone_number IS NOT NULL)"
     t.index ["reset_password_token"], name: "index_users_on_reset_password_token", unique: true
     t.index ["unlock_token"], name: "index_users_on_unlock_token", unique: true
@@ -655,4 +661,5 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_20_130005) do
   add_foreign_key "user_roles", "users"
   add_foreign_key "user_roles", "users", column: "granted_by_id"
   add_foreign_key "user_sessions", "users"
+  add_foreign_key "users", "users", column: "invited_by_id"
 end

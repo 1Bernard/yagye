@@ -38,7 +38,10 @@ defmodule YagyeCore.Payments.Workers.PaymentDispatchWorker do
         # payloads in Payments can access provider.code without an extra DB query.
         attempt = %{attempt | provider: provider}
 
+        t0 = System.monotonic_time(:millisecond)
         result = ProviderAdapter.for_provider(provider).charge(payment, attempt, credential)
+        latency_ms = System.monotonic_time(:millisecond) - t0
+        attempt = %{attempt | latency_ms: latency_ms}
 
         case result do
           {:pending, pending_data} ->

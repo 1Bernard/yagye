@@ -26,13 +26,14 @@ module Checkout
 
       def view_template
         render Layout::Shell.new(
-          active_nav: :payment_links,
-          title:      @link["description"] || @link["id"],
-          breadcrumbs: [
+          active_nav:   :payment_links,
+          title:        @link["description"] || @link["id"],
+          breadcrumbs:  [
             { label: "Payment Links", href: payment_links_path },
             { label: @link["description"] || @link["id"].to_s.first(16) }
           ],
-          padded: false
+          padded:       false,
+          hide_sidebar: true
         ) do
           canvas_styles
 

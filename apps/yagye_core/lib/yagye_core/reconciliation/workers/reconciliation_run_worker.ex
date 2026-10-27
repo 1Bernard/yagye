@@ -85,6 +85,9 @@ defmodule YagyeCore.Reconciliation.Workers.ReconciliationRunWorker do
   end
 
   defp fetch_right(%ReconciliationRun{} = run) do
+    start_date = DateTime.to_date(run.scope_from)
+    end_date = DateTime.to_date(run.scope_to)
+
     Repo.all(
       from l in ProviderReportLine,
         join: r in ProviderSettlementReport,
@@ -92,8 +95,8 @@ defmodule YagyeCore.Reconciliation.Workers.ReconciliationRunWorker do
         where: r.provider_id == ^run.provider_id,
         where: r.mode == ^run.mode,
         where: l.match_state == "unmatched",
-        where: l.occurred_at >= ^run.scope_from,
-        where: l.occurred_at < ^run.scope_to,
+        where: l.value_date >= ^start_date,
+        where: l.value_date <= ^end_date,
         select: %{
           id: l.id,
           provider_reference: l.provider_reference,

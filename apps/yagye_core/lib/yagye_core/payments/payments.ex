@@ -110,7 +110,8 @@ defmodule YagyeCore.Payments do
       PaymentAttempt.result_changeset(attempt, %{
         state: "succeeded",
         provider_reference: result.provider_reference,
-        dispatched_at: DateTime.utc_now()
+        dispatched_at: DateTime.utc_now(),
+        latency_ms: attempt.latency_ms
       })
     )
     |> Multi.update(:authorised, Payment.transition_changeset(payment, "authorised"))
@@ -206,7 +207,8 @@ defmodule YagyeCore.Payments do
         state: "failed",
         error_class: Atom.to_string(err.error_class),
         response_code: err.response_code,
-        response_message: err.response_message
+        response_message: err.response_message,
+        latency_ms: attempt.latency_ms
       })
     )
     |> Multi.update(:payment, Payment.transition_changeset(payment, "failed"))
@@ -247,7 +249,8 @@ defmodule YagyeCore.Payments do
       PaymentAttempt.result_changeset(attempt, %{
         state: "timed_out",
         error_class: Atom.to_string(err.error_class),
-        response_code: err.response_code
+        response_code: err.response_code,
+        latency_ms: attempt.latency_ms
       })
     )
     |> Multi.update(:payment, Payment.transition_changeset(payment, "indeterminate"))
@@ -289,7 +292,8 @@ defmodule YagyeCore.Payments do
     |> PaymentAttempt.result_changeset(%{
       state: "failed",
       error_class: Atom.to_string(err.error_class),
-      response_code: err.response_code
+      response_code: err.response_code,
+      latency_ms: attempt.latency_ms
     })
     |> Repo.update()
 
@@ -303,8 +307,12 @@ defmodule YagyeCore.Payments do
 
     attempt_cs =
       attempt
-      |> PaymentAttempt.result_changeset(%{state: "dispatched", provider_reference: charge_ref})
-      |> Ecto.Changeset.put_change(:dispatched_at, DateTime.utc_now())
+      |> PaymentAttempt.result_changeset(%{
+        state: "dispatched",
+        provider_reference: charge_ref,
+        dispatched_at: DateTime.utc_now(),
+        latency_ms: attempt.latency_ms
+      })
 
     Multi.new()
     |> Multi.update(:attempt, attempt_cs)
@@ -432,6 +440,13 @@ defmodule YagyeCore.Payments do
 
   def get_payment_by_id(id) do
     case Repo.get(Payment, id) do
+      nil -> {:error, :not_found}
+      payment -> {:ok, payment}
+    end
+  end
+
+  def get_payment_by_merchant_reference(merchant_id, merchant_reference) do
+    case Repo.get_by(Payment, merchant_id: merchant_id, merchant_reference: merchant_reference) do
       nil -> {:error, :not_found}
       payment -> {:ok, payment}
     end

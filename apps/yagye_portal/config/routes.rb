@@ -127,14 +127,16 @@ Rails.application.routes.draw do
     get  "ops/refund-approvals",          to: "refund_approvals#index",   as: :ops_refund_approvals
     post "ops/refund-approvals/:id/approve", to: "refund_approvals#approve", as: :approve_ops_refund_approval
     post "ops/refund-approvals/:id/reject",  to: "refund_approvals#reject",  as: :reject_ops_refund_approval
+    get  "ops/payout-ledger-audit",       to: "payout_ledger_audit#index", as: :ops_payout_ledger_audit
   end
 
   # ── Bank statements (internal_staff only) ───────────────────────────────
   scope module: "payments" do
-    get  "ops/bank-statements",      to: "bank_statements#index",  as: :payments_bank_statements
-    get  "ops/bank-statements/new",  to: "bank_statements#new",    as: :new_payments_bank_statement
-    post "ops/bank-statements",      to: "bank_statements#create"
-    get  "ops/bank-statements/:id",  to: "bank_statements#show",   as: :payments_bank_statement
+    get  "ops/bank-statements",               to: "bank_statements#index",         as: :payments_bank_statements
+    get  "ops/bank-statements/upload/modal",  to: "bank_statements#upload_modal",  as: :upload_modal_payments_bank_statement
+    get  "ops/bank-statements/new",           to: "bank_statements#new",           as: :new_payments_bank_statement
+    post "ops/bank-statements",               to: "bank_statements#create"
+    get  "ops/bank-statements/:id",           to: "bank_statements#show",          as: :payments_bank_statement
   end
 
   # ── Activity feed ────────────────────────────────────────────────────────
@@ -157,7 +159,7 @@ Rails.application.routes.draw do
   scope module: "payments" do
     get  "payouts",                          to: "payouts#index",                   as: :payouts
     get  "payouts/filter",                   to: "payouts#filter",                  as: :filter_payouts
-    get  "payouts/:id/statement",            to: "payouts#statement",               as: :payout_statement
+get "payouts/:id/statement",            to: "payouts#statement",               as: :payout_statement
     get  "payouts/:id",                     to: "payouts#show",                    as: :payout
     get  "payout-requests",                 to: "payout_requests#index",           as: :payout_requests
     get  "payout-requests/new",             to: "payout_requests#new",             as: :new_payout_request
@@ -167,6 +169,8 @@ Rails.application.routes.draw do
     post "payout-requests/:id/reject",      to: "payout_requests#reject",          as: :reject_payout_request
     get  "reconciliation",                                      to: "reconciliation#index",                      as: :reconciliation
     get  "reconciliation/filter",                               to: "reconciliation#filter",                     as: :filter_reconciliation
+    get  "reconciliation/upload-report/modal",                  to: "reconciliation#upload_report_modal",         as: :reconciliation_upload_report_modal
+    post "reconciliation/upload-report",                        to: "reconciliation#upload_report",              as: :reconciliation_upload_report
     get  "reconciliation/:id",                                  to: "reconciliation#show",                       as: :reconciliation_break
     get  "reconciliation/:id/propose-adjustment/modal",         to: "reconciliation#propose_adjustment_modal",   as: :reconciliation_propose_adjustment_modal
     post "reconciliation/:id/propose-adjustment",               to: "reconciliation#propose_adjustment",         as: :reconciliation_propose_adjustment
