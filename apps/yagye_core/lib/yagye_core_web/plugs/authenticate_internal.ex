@@ -3,13 +3,14 @@ defmodule YagyeCoreWeb.Plugs.AuthenticateInternal do
   Authenticates inbound requests from internal Yagye services (portal, checkout).
 
   Each caller must supply two headers:
-    X-Service-Name  — identifies the calling service ("portal" or "checkout")
+    X-Service-Name  — identifies the calling service ("portal", "checkout", or "load_gen")
     X-Service-Token — the shared secret for that service
 
   Core holds a separate secret per service so that a leaked token for one
   caller does not compromise the others. Secrets are set via env vars:
     CORE_PORTAL_SERVICE_SECRET   — portal → core
     CORE_CHECKOUT_SERVICE_SECRET — checkout → core
+    CORE_LOAD_GEN_SERVICE_SECRET — simulator load generator → core (dev/staging only)
 
   Uses constant-time comparison to prevent timing attacks.
   This plug runs on /internal routes only — never on merchant-facing routes.
@@ -22,7 +23,8 @@ defmodule YagyeCoreWeb.Plugs.AuthenticateInternal do
   # Map service name → env var that holds the expected secret.
   @service_secrets %{
     "portal" => "CORE_PORTAL_SERVICE_SECRET",
-    "checkout" => "CORE_CHECKOUT_SERVICE_SECRET"
+    "checkout" => "CORE_CHECKOUT_SERVICE_SECRET",
+    "load_gen" => "CORE_LOAD_GEN_SERVICE_SECRET"
   }
 
   @impl Plug

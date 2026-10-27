@@ -7,6 +7,9 @@ Outputs:
 """
 
 from datetime import datetime
+from pathlib import Path
+
+import duckdb
 
 from yagye_data.config import settings
 from yagye_data.shared.duckdb_client import get_connection
@@ -16,22 +19,29 @@ from yagye_data.shared.s3_client import s3_uri
 logger = get_logger(__name__)
 
 
-def run(window_start: datetime, window_end: datetime) -> None:
+def run(
+    window_start: datetime,
+    window_end: datetime,
+    *,
+    con: duckdb.DuckDBPyConnection | None = None,
+) -> None:
     ds = window_start.strftime("%Y-%m-%d")
     silver_glob = s3_uri(settings.silver_bucket, f"payments/dt={ds}/part.parquet")
 
     logger.info("gold.payments_mart.start", date=ds)
 
-    con = get_connection()
+    con = con if con is not None else get_connection()
 
     # ── Provider health (primary ML input) ────────────────────────────────────
     provider_health_out = s3_uri(
         settings.gold_bucket, f"provider_health_hourly/dt={ds}/part.parquet"
     )
+    if provider_health_out.startswith("/"):
+        Path(provider_health_out).parent.mkdir(parents=True, exist_ok=True)
     con.execute(f"""
         COPY (
             SELECT
-                DATE_TRUNC('hour', occurred_at)              AS hour_bucket,
+                DATE_TRUNC('hour', occurred_at::TIMESTAMPTZ) AS hour_bucket,
                 provider_code,
                 COUNT(*)                                     AS attempt_count,
                 SUM(CASE WHEN event_type = 'payment.succeeded' THEN 1 ELSE 0 END)
@@ -45,9 +55,10 @@ def run(window_start: datetime, window_end: datetime) -> None:
                 AVG(latency_ms)                              AS avg_latency_ms,
                 '{ds}'::DATE                                 AS dt
             FROM read_parquet('{silver_glob}')
-            WHERE occurred_at >= TIMESTAMPTZ '{window_start.isoformat()}'
-              AND occurred_at <  TIMESTAMPTZ '{window_end.isoformat()}'
+            WHERE occurred_at::TIMESTAMPTZ >= TIMESTAMPTZ '{window_start.isoformat()}'
+              AND occurred_at::TIMESTAMPTZ <  TIMESTAMPTZ '{window_end.isoformat()}'
               AND provider_code IS NOT NULL
+              AND (mode IS NULL OR mode = 'live')
             GROUP BY 1, 2
         )
         TO '{provider_health_out}'
@@ -56,6 +67,8 @@ def run(window_start: datetime, window_end: datetime) -> None:
 
     # ── Payment facts (wide grain for general analytics) ──────────────────────
     payment_facts_out = s3_uri(settings.gold_bucket, f"payment_facts/dt={ds}/part.parquet")
+    if payment_facts_out.startswith("/"):
+        Path(payment_facts_out).parent.mkdir(parents=True, exist_ok=True)
     con.execute(f"""
         COPY (
             SELECT
@@ -72,8 +85,9 @@ def run(window_start: datetime, window_end: datetime) -> None:
                 network,
                 '{ds}'::DATE AS dt
             FROM read_parquet('{silver_glob}')
-            WHERE occurred_at >= TIMESTAMPTZ '{window_start.isoformat()}'
-              AND occurred_at <  TIMESTAMPTZ '{window_end.isoformat()}'
+            WHERE occurred_at::TIMESTAMPTZ >= TIMESTAMPTZ '{window_start.isoformat()}'
+              AND occurred_at::TIMESTAMPTZ <  TIMESTAMPTZ '{window_end.isoformat()}'
+              AND (mode IS NULL OR mode = 'live')
         )
         TO '{payment_facts_out}'
         (FORMAT parquet, COMPRESSION zstd, ROW_GROUP_SIZE 100000)

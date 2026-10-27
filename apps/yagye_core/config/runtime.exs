@@ -65,6 +65,14 @@ if config_env() == :dev do
       "dev_checkout_service_secret_change_in_production"
     )
   )
+
+  System.put_env(
+    "CORE_LOAD_GEN_SERVICE_SECRET",
+    System.get_env(
+      "CORE_LOAD_GEN_SERVICE_SECRET",
+      "dev_load_gen_service_secret_change_in_production"
+    )
+  )
 end
 
 if config_env() == :prod do

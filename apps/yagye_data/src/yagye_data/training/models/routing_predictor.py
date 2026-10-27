@@ -4,7 +4,13 @@ Predicts P(payment.succeeded | provider, features) so the routing engine can
 rank providers by expected success rate given current network conditions.
 
 Label: 1 = payment.succeeded, 0 = payment.failed / payment.indeterminate
-Features: provider_health features + current hour-of-day + day-of-week
+        Per-attempt binary from Silver payments — NOT a provider-hour aggregate.
+
+Features: provider_health features from Gold, joined per attempt from Silver.
+          Training and serving use the same feature definition.
+
+Split: time-based (first 80% of sorted occurrences = train, last 20% = val).
+       Random splits cause temporal leakage on time-series data.
 
 Training schedule: weekly (cron in Oban, triggers `make train`)
 ONNX export: pushed to s3://yagye-ml-models/routing_predictor/model.onnx
@@ -16,12 +22,11 @@ import boto3
 import xgboost as xgb
 from skl2onnx import to_onnx
 from skl2onnx.common.data_types import FloatTensorType
-from sklearn.model_selection import train_test_split
 
 from yagye_data.config import settings
 from yagye_data.shared.duckdb_client import get_connection
 from yagye_data.shared.logging import get_logger
-from yagye_data.training.features import provider_health
+from yagye_data.shared.s3_client import s3_uri
 from yagye_data.training.gate import should_promote
 
 logger = get_logger(__name__)
@@ -36,24 +41,83 @@ _FEATURE_COLS = [
     "hour_of_day",
     "day_of_week",
 ]
+_MIN_TRAINING_ROWS = 100
 
 
 def train() -> None:
     logger.info("training.routing_predictor.start")
 
     con = get_connection()
-    rel = provider_health.build_features(con)
+    silver_glob = s3_uri(settings.silver_bucket, "payments/**/*.parquet")
+    gold_glob = s3_uri(settings.gold_bucket, "provider_health_hourly/**/*.parquet")
 
-    df = rel.df()
-    df["hour_of_day"] = df["hour_bucket"].dt.hour
-    df["day_of_week"] = df["hour_bucket"].dt.dayofweek
-    # Label: use success_rate threshold as proxy until we have per-attempt labels
-    df["label"] = (df["success_rate"] >= 0.9).astype(int)
+    df = con.execute(f"""
+        WITH attempts AS (
+            SELECT
+                event_id,
+                occurred_at,
+                provider_code,
+                CASE WHEN event_type = 'payment.succeeded' THEN 1 ELSE 0 END AS label,
+                DATE_TRUNC('hour', occurred_at)       AS hour_bucket,
+                EXTRACT(hour FROM occurred_at)::INT   AS hour_of_day,
+                EXTRACT(dow  FROM occurred_at)::INT   AS day_of_week
+            FROM read_parquet('{silver_glob}', hive_partitioning = true)
+            WHERE provider_code IS NOT NULL
+              AND (mode IS NULL OR mode = 'live')
+        ),
+        health AS (
+            SELECT
+                provider_code,
+                hour_bucket,
+                success_rate,
+                p50_latency_ms,
+                p95_latency_ms,
+                attempt_count,
+                AVG(success_rate) OVER (
+                    PARTITION BY provider_code
+                    ORDER BY hour_bucket
+                    ROWS BETWEEN 23 PRECEDING AND CURRENT ROW
+                ) AS rolling_24h_success_rate
+            FROM read_parquet('{gold_glob}', hive_partitioning = true)
+        )
+        SELECT
+            a.occurred_at,
+            a.label,
+            a.hour_of_day,
+            a.day_of_week,
+            COALESCE(h.success_rate,             0.5) AS success_rate,
+            COALESCE(h.p50_latency_ms,           0.0) AS p50_latency_ms,
+            COALESCE(h.p95_latency_ms,           0.0) AS p95_latency_ms,
+            COALESCE(h.attempt_count,            0)   AS attempt_count,
+            COALESCE(h.rolling_24h_success_rate, 0.5) AS rolling_24h_success_rate
+        FROM attempts a
+        LEFT JOIN health h
+            ON  a.provider_code = h.provider_code
+            AND a.hour_bucket   = h.hour_bucket
+        ORDER BY a.occurred_at
+    """).df()
 
-    X = df[_FEATURE_COLS].fillna(0).astype("float32")
+    if len(df) < _MIN_TRAINING_ROWS:
+        logger.warning(
+            "training.routing_predictor.skipped",
+            reason="insufficient_data",
+            rows=len(df),
+        )
+        return
+
+    # Time-based split — preserves temporal order to avoid look-ahead leakage
+    cutoff_pos = int(len(df) * 0.8)
+    cutoff = df["occurred_at"].iloc[cutoff_pos]
+    train_mask = df["occurred_at"] <  cutoff
+    val_mask   = df["occurred_at"] >= cutoff
+
+    X = df[_FEATURE_COLS].fillna(0.0).astype("float32")
     y = df["label"]
 
-    X_train, X_val, y_train, y_val = train_test_split(X, y, test_size=0.2, random_state=42)
+    X_train = X[train_mask].reset_index(drop=True)
+    y_train = y[train_mask].reset_index(drop=True)
+    X_val   = X[val_mask].reset_index(drop=True)
+    y_val   = y[val_mask].reset_index(drop=True)
 
     model = xgb.XGBClassifier(
         n_estimators=200,
@@ -61,7 +125,6 @@ def train() -> None:
         learning_rate=0.05,
         subsample=0.8,
         colsample_bytree=0.8,
-        use_label_encoder=False,
         eval_metric="logloss",
         random_state=42,
     )

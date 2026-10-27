@@ -251,10 +251,13 @@ defmodule Mix.Tasks.Simulator.GenerateLoad do
 
   defp create_checkout_session(job, core_url, api_key) do
     body = %{
-      amount: job.amount,
+      subtotal_amount: job.amount,
+      total_amount: job.amount,
       currency: job.currency,
       merchant_reference: job.ref,
       description: "Load gen payment #{job.index}",
+      success_url: "http://localhost/load-gen/success",
+      cancel_url: "http://localhost/load-gen/cancel",
       metadata: %{outcome_class: job.class, generator: "load_gen"}
     }
 

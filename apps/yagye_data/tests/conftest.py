@@ -1,17 +1,18 @@
 """Shared pytest fixtures.
 
 Tests use a local temporary directory for Parquet files instead of real S3.
-DuckDB reads from local paths the same way it reads from s3:// URIs, so no
-mocking of S3 is needed — we just point the config at file:// paths.
+DuckDB reads from local paths the same way it reads from s3:// URIs when the
+bucket starts with '/' — see shared/s3_client.py.
 
-The `monkeypatch` approach keeps each test hermetically isolated.
+The settings singleton is frozen (pydantic frozen=True), so env-var patches
+have no effect after instantiation. We patch the module-level `settings`
+binding in each pipeline module directly using monkeypatch.setattr().
 """
 
-import os
-import tempfile
 from collections.abc import Generator
 from pathlib import Path
 
+import duckdb
 import pytest
 
 
@@ -25,22 +26,34 @@ def tmp_lake(tmp_path: Path) -> Path:
 
 @pytest.fixture(autouse=True)
 def patch_settings(monkeypatch: pytest.MonkeyPatch, tmp_lake: Path) -> None:
-    """Point all bucket settings at the local tmp directory for tests."""
-    monkeypatch.setenv("S3_ENDPOINT_URL", "")
-    monkeypatch.setenv("BRONZE_BUCKET", str(tmp_lake / "raw"))
-    monkeypatch.setenv("SILVER_BUCKET", str(tmp_lake / "silver"))
-    monkeypatch.setenv("GOLD_BUCKET", str(tmp_lake / "gold"))
-    monkeypatch.setenv("ML_MODELS_BUCKET", str(tmp_lake / "models"))
-    monkeypatch.setenv("ANTHROPIC_API_KEY", "test-key")
-    monkeypatch.setenv("DATABASE_URL", "postgresql://localhost/test")
+    """Replace the settings singleton with test-local bucket paths.
+
+    Because Settings is frozen we cannot mutate the existing instance.
+    Instead we create a fresh one with local paths and replace the module-level
+    `settings` name in every pipeline module that reads bucket config.
+    """
+    import yagye_data.config as config_mod
+    import yagye_data.pipeline.gold.payments_mart as gold_mart_mod
+    import yagye_data.pipeline.silver.payments as silver_payments_mod
+
+    test_settings = config_mod.Settings(
+        bronze_bucket=str(tmp_lake / "raw"),
+        silver_bucket=str(tmp_lake / "silver"),
+        gold_bucket=str(tmp_lake / "gold"),
+        ml_models_bucket=str(tmp_lake / "models"),
+        s3_endpoint_url=None,
+        anthropic_api_key="test-key",
+    )
+    monkeypatch.setattr(config_mod, "settings", test_settings)
+    monkeypatch.setattr(silver_payments_mod, "settings", test_settings)
+    monkeypatch.setattr(gold_mart_mod, "settings", test_settings)
 
 
 @pytest.fixture
-def duckdb_con():
+def duckdb_con() -> Generator[duckdb.DuckDBPyConnection, None, None]:
     """A plain in-memory DuckDB connection (no S3 config needed for local tests)."""
-    import duckdb
-
     con = duckdb.connect()
     con.execute("INSTALL parquet; LOAD parquet;")
+    con.execute("INSTALL json; LOAD json;")
     yield con
     con.close()

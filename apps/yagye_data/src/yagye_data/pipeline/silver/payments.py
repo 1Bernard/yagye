@@ -13,6 +13,9 @@ Field notes:
 """
 
 from datetime import datetime
+from pathlib import Path
+
+import duckdb
 
 from yagye_data.config import settings
 from yagye_data.shared.duckdb_client import get_connection
@@ -25,14 +28,22 @@ logger = get_logger(__name__)
 #   event_id, event_type, merchant_id, aggregate_id, occurred_at, payload, mode
 
 
-def run(window_start: datetime, window_end: datetime) -> None:
+def run(
+    window_start: datetime,
+    window_end: datetime,
+    *,
+    con: duckdb.DuckDBPyConnection | None = None,
+) -> None:
     ds = window_start.strftime("%Y-%m-%d")
     bronze_glob = s3_uri(settings.bronze_bucket, f"events/dt={ds}/payment*.ndjson")
     silver_prefix = s3_uri(settings.silver_bucket, f"payments/dt={ds}/part.parquet")
 
     logger.info("silver.payments.start", date=ds, bronze_glob=bronze_glob)
 
-    con = get_connection()
+    if silver_prefix.startswith("/"):
+        Path(silver_prefix).parent.mkdir(parents=True, exist_ok=True)
+
+    con = con if con is not None else get_connection()
 
     # Bronze is NDJSON (written by DataLakeIngestionWorker in yagye_core).
     # read_ndjson_auto() handles schema inference; nested `payload` object
@@ -73,6 +84,9 @@ def run(window_start: datetime, window_end: datetime) -> None:
                 TRY_CAST(json_extract(payload, '$.latency_ms') AS INT)
                                                                     AS latency_ms,
                 json_extract_string(payload, '$.network')           AS network,
+                mode                                                AS mode,
+                sha256(NULLIF(json_extract_string(payload, '$.customer_msisdn'), ''))
+                                                                    AS customer_msisdn_hash,
                 payload::VARCHAR                                    AS raw_payload,
                 '{ds}'::DATE                                        AS dt
             FROM deduped

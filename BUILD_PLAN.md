@@ -333,12 +333,13 @@ Redpanda config: `localhost:19092` (dev), `KAFKA_BOOTSTRAP_SERVERS` env (prod), 
       DuckDB-based Silver ETL (payments, settlements, merchants, reconciliation), Gold ETL
       (payments_mart, risk_mart, ops_mart), ML training scaffold (XGBoost, LightGBM, ONNX).
       Runs as `yagye_data` docker-compose service (Silver hourly, Gold every 6 h).
-- [x] **Synthetic data generator (2026-10-25)** — `mix simulator.generate_load` Mix task in
+- [x] **Synthetic data generator (2026-10-27)** — `mix simulator.generate_load` Mix task in
       `yagye_simulator`. Fires N payments at Core API using deterministic MSISDN
       prefixes to produce labeled outcome classes (success / insufficient_funds /
       expired / not_registered / scenario_driven). Configurable count, concurrency,
       API key, service token. Writes labeled JSONL. Target: 50k events in < 2 min
       at --concurrency 50. Route: POST /v1/checkout-sessions → POST /internal/checkout/sessions/:id/pay → poll state.
+      _Validated end-to-end: 10/10 payments succeeded, clean JSONL output with payment_id + outcome_class + terminal_state + latency_ms._
 - [ ] **Schema registry for Bronze events** — Enable the Redpanda schema registry
       (already running on :8081 in docker-compose) and register Avro schemas for each
       outbox event type (`payment.succeeded`, `settlement.completed`, etc.). Wire

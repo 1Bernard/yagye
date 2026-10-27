@@ -45,4 +45,7 @@ def ensure_bucket(bucket: str) -> None:
 
 
 def s3_uri(bucket: str, key: str) -> str:
+    # Local paths (used in tests via monkeypatched bucket env vars) bypass s3://
+    if bucket.startswith("/"):
+        return f"{bucket}/{key}"
     return f"s3://{bucket}/{key}"
