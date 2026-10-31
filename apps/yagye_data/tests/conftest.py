@@ -34,6 +34,7 @@ def patch_settings(monkeypatch: pytest.MonkeyPatch, tmp_lake: Path) -> None:
     """
     import yagye_data.config as config_mod
     import yagye_data.pipeline.gold.payments_mart as gold_mart_mod
+    import yagye_data.pipeline.gold.provider_health as provider_health_mod
     import yagye_data.pipeline.silver.payments as silver_payments_mod
 
     test_settings = config_mod.Settings(
@@ -47,6 +48,7 @@ def patch_settings(monkeypatch: pytest.MonkeyPatch, tmp_lake: Path) -> None:
     monkeypatch.setattr(config_mod, "settings", test_settings)
     monkeypatch.setattr(silver_payments_mod, "settings", test_settings)
     monkeypatch.setattr(gold_mart_mod, "settings", test_settings)
+    monkeypatch.setattr(provider_health_mod, "settings", test_settings)
 
 
 @pytest.fixture

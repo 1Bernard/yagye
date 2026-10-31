@@ -61,7 +61,10 @@ PERMISSION_DEFS = [
   { key: "reserves.manage",           resource: "reserves",         action: "manage",            description: "Create and deactivate reserve policies for merchants." },
   { key: "reserves.approve",          resource: "reserves",         action: "approve",           description: "Approve pending reserve policies (SoD: must differ from creator)." },
   # platform finance (Yagye ops only)
-  { key: "platform_finance.view",     resource: "platform_finance", action: "view",              description: "View Yagye P&L dashboard, provider costs, and fee invoices." }
+  { key: "platform_finance.view",     resource: "platform_finance", action: "view",              description: "View Yagye P&L dashboard, provider costs, and fee invoices." },
+  # risk & ML (compliance / ops internal only)
+  { key: "risk.view",                 resource: "risk",             action: "view",              description: "View flagged payments, risk scores, and screening hit queue." },
+  { key: "risk.disposition",          resource: "risk",             action: "disposition",       description: "Disposition flagged payment cases and add feedback labels for model retraining." }
 ].freeze
 
 PERMISSION_DEFS.each do |attrs|
@@ -110,6 +113,7 @@ GRANT_MATRIX = {
     refunds.approve_dispatch
     merchants.view
     kyb.view
+    risk.view
   ],
   "ops_manager" => %w[
     payments.view payments.view_customer_pii payments.refund payments.export
@@ -127,12 +131,14 @@ GRANT_MATRIX = {
     payments.view
     merchants.view
     kyb.view
+    risk.view
   ],
   "compliance_manager" => %w[
     payments.view payments.view_customer_pii
     merchants.view merchants.approve merchants.suspend
     kyb.view kyb.disposition kyb.approve_merchant
     reserves.approve
+    risk.view risk.disposition
   ]
 }.freeze
 

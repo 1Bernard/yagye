@@ -81,6 +81,8 @@ defmodule YagyeCore do
       Pricing.Schemas.FeeRecord,
       Pricing.Schemas.PlatformFeeInvoice,
       Dashboard,
+      Risk,
+      Risk.Schemas.RiskLabel,
       Repo
     ]
 

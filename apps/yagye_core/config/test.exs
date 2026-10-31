@@ -52,6 +52,10 @@ config :yagye_core, :simulator_req_opts, plug: {Req.Test, :simulator_http}
 config :yagye_core, :mtn_momo_req_opts, plug: {Req.Test, :mtn_momo_http}, retry: false
 config :yagye_core, :flutterwave_req_opts, plug: {Req.Test, :flutterwave_http}, retry: false
 config :yagye_core, :paystack_req_opts, plug: {Req.Test, :paystack_http}, retry: false
+config :yagye_core, :scoring_req_opts, plug: YagyeCore.ScoringStub, retry: false
 
 # Disable RabbitMQ connection in tests — no broker required
 config :yagye_core, :enable_rabbitmq, false
+
+# Pin business-day check to true in tests — settlement scheduler would skip on weekends otherwise
+config :yagye_core, :always_business_day, true

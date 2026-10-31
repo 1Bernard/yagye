@@ -49,6 +49,8 @@ module Layout
           { key: :bank_statements, icon: :file,         label: "Bank Statements",  path: :payments_bank_statements_path },
           { key: :settlements,     icon: :wallet,       label: "Settlements",      path: :settlements_path },
           { key: :webhook_deliveries, icon: :refresh,    label: "Webhook Deliveries", path: :developers_deliveries_path,
+            internal_only: true },
+          { key: :risk,              icon: :alert_triangle, label: "Risk & Fraud",    path: :risk_flagged_payments_path,
             internal_only: true }
         ]
       },

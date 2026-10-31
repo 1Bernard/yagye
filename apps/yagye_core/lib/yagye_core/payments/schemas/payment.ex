@@ -28,6 +28,9 @@ defmodule YagyeCore.Payments.Schemas.Payment do
     field :settlement_batch_id, :binary_id
     field :refunded_amount, :integer, default: 0
     field :fee_amount, :integer, virtual: true
+    field :risk_score, :decimal
+    field :risk_decision, :string
+    field :risk_flagged_at, :utc_datetime_usec
 
     belongs_to :merchant, Merchant
     belongs_to :customer, Customer
@@ -65,6 +68,12 @@ defmodule YagyeCore.Payments.Schemas.Payment do
     payment
     |> change(state: to_state)
     |> optimistic_lock(:version)
+  end
+
+  def risk_changeset(payment, attrs) do
+    payment
+    |> cast(attrs, [:risk_score, :risk_decision, :risk_flagged_at])
+    |> validate_inclusion(:risk_decision, ~w[allow review block])
   end
 
   defp put_public_id(%{data: %{public_id: nil}} = changeset) do

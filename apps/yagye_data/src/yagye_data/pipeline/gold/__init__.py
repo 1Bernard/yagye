@@ -14,7 +14,7 @@ from datetime import UTC, datetime, timedelta
 import structlog
 
 from yagye_data.config import settings
-from yagye_data.pipeline.gold import ops_mart, payments_mart, risk_mart
+from yagye_data.pipeline.gold import ops_mart, payments_mart, provider_health, risk_mart
 from yagye_data.shared.logging import configure_logging, get_logger
 
 logger = get_logger(__name__)
@@ -36,7 +36,7 @@ def run(lookback_hours: int | None = None) -> None:
         lookback_hours=hours,
     )
 
-    for module in (payments_mart, risk_mart, ops_mart):
+    for module in (payments_mart, risk_mart, ops_mart, provider_health):
         t_mod = time.monotonic()
         module.run(window_start, window_end)
         logger.info(

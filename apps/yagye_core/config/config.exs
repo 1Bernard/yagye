@@ -13,6 +13,17 @@ config :yagye_core,
   ecto_repos: [YagyeCore.Repo],
   generators: [timestamp_type: :utc_datetime, binary_id: true]
 
+# Risk & ML scoring service (yagye_scoring FastAPI).
+# Shadow mode by default — calls are made but results don't block payments.
+# Flip RISK_ML_ENABLED=true and ROUTING_ML_ROLLOUT_PERCENT>0 to activate.
+config :yagye_core, :scoring,
+  service_url: System.get_env("SCORING_SERVICE_URL", "http://localhost:8001"),
+  risk_ml_enabled: System.get_env("RISK_ML_ENABLED", "false") == "true",
+  routing_ml_rollout_percent:
+    String.to_integer(System.get_env("ROUTING_ML_ROLLOUT_PERCENT", "0")),
+  # 200ms hard budget — never slow the payment path for ML
+  timeout_ms: String.to_integer(System.get_env("SCORING_TIMEOUT_MS", "200"))
+
 # Configures the endpoint
 config :yagye_core, YagyeCoreWeb.Endpoint,
   url: [host: "localhost"],
@@ -76,7 +87,13 @@ config :yagye_core, Oban,
        # Escalate disputes past their evidence_due_at deadline daily at 03:00 UTC
        {"0 3 * * *", YagyeCore.Disputes.Workers.DisputeEscalationWorker},
        # Bronze ingestion: poll outbox every minute and write NDJSON to S3
-       {"* * * * *", YagyeCore.DataLake.Workers.DataLakeIngestionWorker}
+       {"* * * * *", YagyeCore.DataLake.Workers.DataLakeIngestionWorker},
+       # Provider health features → Redis every 2 min (feeds yagye_scoring routing model)
+       {"*/2 * * * *", YagyeCore.Risk.Workers.ProviderHealthWorker},
+       # Customer velocity features → Redis every 5 min (feeds yagye_scoring risk model)
+       {"*/5 * * * *", YagyeCore.Risk.Workers.CustomerRiskWorker},
+       # Merchant risk features → Redis every 5 min (feeds yagye_scoring risk model)
+       {"*/5 * * * *", YagyeCore.Risk.Workers.MerchantRiskWorker}
      ]}
   ],
   queues: [
@@ -89,7 +106,8 @@ config :yagye_core, Oban,
     reserves: 3,
     payouts: 5,
     compliance: 5,
-    data_lake: 2
+    data_lake: 2,
+    risk: 5
   ]
 
 config :opentelemetry,

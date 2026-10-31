@@ -122,6 +122,16 @@ Rails.application.routes.draw do
     get  "compliance/approvals/:id/reject-modal",  to: "approvals#reject_modal",  as: :reject_modal_compliance_approval
   end
 
+  # ── Risk & Fraud (internal_staff only, compliance + ops roles) ──────────────
+  scope module: "risk" do
+    get  "risk/flagged-payments",            to: "flagged_payments#index",   as: :risk_flagged_payments
+    get  "risk/flagged-payments/:id",        to: "flagged_payments#show",    as: :risk_flagged_payment
+    post "risk/flagged-payments/:id/dispose", to: "flagged_payments#dispose", as: :dispose_risk_flagged_payment
+
+    get  "risk/screening-hits",              to: "screening_hits#index",     as: :risk_screening_hits
+    post "risk/screening-hits/:id/dispose",  to: "screening_hits#dispose",   as: :dispose_risk_screening_hit
+  end
+
   # ── Refund approvals (internal_staff only) ──────────────────────────────
   scope module: "ops" do
     get  "ops/refund-approvals",          to: "refund_approvals#index",   as: :ops_refund_approvals

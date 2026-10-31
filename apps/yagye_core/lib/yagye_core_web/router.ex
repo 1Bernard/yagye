@@ -429,6 +429,17 @@ defmodule YagyeCoreWeb.Router do
     )
 
     post("/webhook-deliveries/retry", InternalWebhookEndpointsController, :retry_delivery)
+
+    # P20 — Risk & ML: flagged payment case management
+    alias YagyeCoreWeb.Controllers.Internal.RiskController
+    get("/risk/flagged-payments", RiskController, :list_flagged)
+    get("/risk/flagged-payments/:payment_id", RiskController, :show_case)
+    post("/risk/flagged-payments/:payment_id/flag", RiskController, :flag)
+    post("/risk/flagged-payments/:payment_id/dispose", RiskController, :dispose)
+
+    # P20 — Screening hits cross-merchant view (ops compliance queue)
+    get("/risk/screening-hits", RiskController, :list_screening_hits)
+    post("/risk/screening-hits/:id/dispose", RiskController, :dispose_hit)
   end
 
   # v1 merchant-facing API

@@ -30,7 +30,7 @@ defmodule YagyeCore.Settlement.Workers.SettlementSchedulerWorker do
 
   @impl Oban.Worker
   def perform(%Oban.Job{}) do
-    if GhanaBusinessDay.business_day?() do
+    if business_day?() do
       fetch_unsettled_combos()
       |> Enum.each(&maybe_schedule_batch/1)
     end
@@ -100,7 +100,7 @@ defmodule YagyeCore.Settlement.Workers.SettlementSchedulerWorker do
 
     # Fire on the 1st; if the 1st is a weekend/holiday, advance to the next business day.
     target =
-      if GhanaBusinessDay.business_day?(first),
+      if business_day?(first),
         do: first,
         else: next_business_day(first)
 
@@ -112,9 +112,18 @@ defmodule YagyeCore.Settlement.Workers.SettlementSchedulerWorker do
   defp next_business_day(%Date{} = date) do
     candidate = Date.add(date, 1)
 
-    if GhanaBusinessDay.business_day?(candidate),
+    if business_day?(candidate),
       do: candidate,
       else: next_business_day(candidate)
+  end
+
+  # Allows tests to pin the result to true via config :yagye_core, :always_business_day, true.
+  defp business_day?(date \\ Date.utc_today()) do
+    if Application.get_env(:yagye_core, :always_business_day, false) do
+      true
+    else
+      GhanaBusinessDay.business_day?(date)
+    end
   end
 
   # Returns true when the current hour in the provider's timezone is at or past cutoff.

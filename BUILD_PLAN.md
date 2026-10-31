@@ -353,11 +353,123 @@ Redpanda config: `localhost:19092` (dev), `KAFKA_BOOTSTRAP_SERVERS` env (prod), 
 
 ### P20 — Risk & Machine Learning
 
-- [ ] **Scoring service** (`apps/yagye_scoring`) — FastAPI + Uvicorn container on
-      `core_mesh` network. Loads `.onnx` model weights. Exposes:
-      - `POST /score/routing` → `{provider_scores: [{provider_code, score}]}`
-      - `POST /score/risk` → `{risk_score: float, signals: [...]}`
-      Fallback: if service unreachable, Core falls back to rule-based routing.
+**Code-analysis findings (2026-10-31) — gaps confirmed before implementation:**
+- Circuit breaker already has `:half_open` state (closed → open → half_open → closed). ✓
+- Retry memory already exists: `PaymentAttempt` rows + `Payments.attempted_provider_ids/1`. ✓
+- Gold ETL writes S3 only — nothing populates Redis. Scoring service falls back to
+  static defaults (0.85 assumed success rate) for every payment. MUST FIX: Step 1.
+- `provider_health_hourly` Gold ETL referenced by training features but not implemented. Step 2.
+- `risk_score` / `risk_decision` / `risk_flagged_at` absent from payments table. Step 3.
+- `risk_labels` table (case-review → training feedback loop) does not exist. Step 5.
+- `ScoringClient` HTTP module in Core does not exist. Step 4.
+- `PaymentDispatchWorker` not wired to `/score/routing`. Step 4.
+- `create_payment` / `VelocityChecker` not wired to `/score/risk`. Step 4.
+- Core internal API endpoints for flagged payments missing. Step 6.
+- Portal Risk & Compliance section (3 views) missing. Step 7.
+- Compliance notification on hold event missing. Step 7.
+- SAR PDF export missing. Step 7.
+
+**Step 0 — already done (2026-09-25)**
+- [x] `yagye_scoring` FastAPI service scaffolded with `/score/routing`, `/score/risk`,
+      `/score/reserve`, `/score/churn`, model registry, ONNX loading, feature clients.
+- [x] `provider_kind` column added to Silver payments ETL.
+- [x] MLflow experiment tracking wired; 4 experiments with SHAP/PR/calibration charts.
+- [x] Demo training scripts; AUCPR gate enforced.
+
+**Step 1 — Redis real-time feature writer (Core)**
+- [ ] `ProviderHealthWorker` — Oban cron every 2 min. Queries `payment_attempts` for
+      last 1 h and 24 h per provider (success rate, p50/p95 latency). Writes JSON to
+      Redis key `yagye:features:provider:{provider_code}` with `updated_at` timestamp.
+      Also writes circuit_breaker_state (0=closed,1=half_open,2=open) from
+      `CircuitBreaker.state/1`. This is the real-time feature layer; Gold Parquet is
+      the training feature layer — both are needed.
+- [ ] `CustomerRiskWorker` — Oban cron every 5 min. Aggregates cross-merchant MSISDN
+      attempt count and failure rate over last 1 h. Writes to
+      `yagye:features:customer:{msisdn_hash}`.
+- [ ] `MerchantRiskWorker` — Oban cron every 5 min. Aggregates merchant daily volume,
+      avg amount, std amount. Writes to `yagye:features:merchant:{merchant_id}`.
+- [ ] All three workers write with TTL = 30 min so stale keys self-expire.
+
+**Step 2 — provider_health_hourly Gold ETL**
+- [ ] `apps/yagye_data/src/yagye_data/pipeline/gold/provider_health.py` — DuckDB query
+      over Silver payments, grouped by provider_code + hour_bucket. Outputs:
+      success_rate, p50_latency_ms, p95_latency_ms, attempt_count per hour.
+      Written to `s3://yagye-lake-gold/provider_health_hourly/dt=YYYY-MM-DD/part.parquet`.
+- [ ] Wire into `run_gold_etl.py`.
+- [ ] Confirm training feature `provider_health.build_features()` resolves correctly.
+
+**Step 3 — payment schema additions**
+- [ ] Migration: add `risk_score float`, `risk_decision varchar`, `risk_flagged_at timestamptz`
+      to `payments` table (all nullable — only set when scored).
+- [ ] Update `Payment` Ecto schema and `Payments` context functions accordingly.
+- [ ] Update outbox `payment.succeeded` / `payment.failed` payloads to include
+      `risk_score` and `risk_decision` when present.
+- [ ] New `risk_labels` table: `id`, `payment_id` (FK), `risk_score float`,
+      `ml_decision varchar`, `compliance_disposition varchar`
+      (`clear|escalate|block_merchant`), `dispositioned_by uuid` (FK → users),
+      `dispositioned_at timestamptz`, `notes text`, `inserted_at`. Used by case review.
+
+**Step 4 — ScoringClient + Core wiring**
+- [ ] `YagyeCore.Scoring.ScoringClient` — Req-based HTTP client. Timeout: 200 ms.
+      On timeout/connect-error returns `{:error, :scoring_unavailable}` — Core falls back.
+- [ ] `YagyeCore.Scoring.RiskScoring` — wraps `/score/risk`. Called from `create_payment`
+      before the payment row is inserted. Shadow mode (env `RISK_ML_ENABLED=false`):
+      call the endpoint, log result, but do not block or hold payments.
+      Active mode (`RISK_ML_ENABLED=true`): decision "block" → `{:error, :risk_blocked}`;
+      decision "review" → create payment with state "held", set `risk_flagged_at`.
+- [ ] `YagyeCore.Scoring.RoutingScoring` — wraps `/score/routing`. Called from
+      `PaymentDispatchWorker` after `get_provider_for_payment/2` resolves eligible
+      candidates. Shadow mode (`ROUTING_ML_ROLLOUT_PERCENT=0`): log scores but keep
+      rule-based ordering. Active: re-rank candidates by score before selecting.
+- [ ] On each payment outcome, update Redis provider health immediately via
+      `ProviderHealthWorker.update_one/2` (synchronous upsert, not the cron path).
+      This gives sub-minute freshness without waiting for the 2-min cron.
+- [ ] Store `risk_score`, `risk_decision`, `routing_scores` (JSONB) on the payment record.
+
+**Step 5 — risk_labels + feedback loop**
+- [ ] Ecto migration for `risk_labels` (see Step 3).
+- [ ] `YagyeCore.Risk` context: `flag_payment/2`, `dispose_case/3`, `list_flagged/1`,
+      `get_case/1`. SoD enforced: `dispose_case` raises if `dispositioned_by == flagged_by`.
+- [ ] Case review disposition writes to `risk_labels`. Label is fed into next training
+      run as a supervised signal for the risk scorer (Model 2).
+
+**Step 6 — Core internal API endpoints (for portal)**
+- [ ] `GET /internal/risk/flagged_payments` — paginated list of payments where
+      `risk_decision IN ("review","block")`, ordered by `risk_flagged_at DESC`.
+      Returns payment_id, amount, currency, merchant_id, risk_score, risk_decision,
+      risk_flagged_at, state.
+- [ ] `GET /internal/risk/flagged_payments/:id` — single payment with risk_labels history.
+- [ ] `POST /internal/risk/flagged_payments/:id/dispose` — SoD-enforced disposition.
+      Body: `{disposition, notes}`. Returns updated risk_label row.
+- [ ] `GET /internal/risk/screening_hits` — existing screening_hits table, paginated,
+      filterable by disposition state.
+
+**Step 7 — Portal: Risk & Compliance section**
+- [ ] New nav entry "Risk" gated to `compliance_analyst` + `compliance_manager` via
+      `risk.view` permission (add to DB seed + `Permission` enum).
+- [ ] `Risk::FlaggedPaymentsController` + index view — Tier 1 filter (search + status tabs:
+      held / cleared / escalated / blocked). Tier 2 drawer: date range, merchant, score band.
+      Tier 3 query builder (Stimulus `QueryBuilder` controller) for compliance analysts.
+- [ ] `Risk::CaseReviewController` + show view — disposition workflow:
+      Clear / Escalate / Block merchant buttons. SoD enforced server-side.
+      Records `dispositioned_by` + outcome in `risk_labels`. Shows ML signals + SHAP signals.
+- [ ] `Risk::ScreeningHitsController` + index/show — existing screening_hits surfaced
+      with same disposition workflow. Replaces stub from P13.
+- [ ] Real-time badge on Risk nav item via Solid Cable — broadcasts when a new payment
+      is held (`risk_flagged_at` set). Compliance team sees unread count without refresh.
+- [ ] SAR export — "Export SAR" button on case review page generates a structured PDF
+      (case summary, payment details, ML signals, disposition history) for FIC filing.
+      Uses a Phlex-rendered HTML-to-PDF approach (or a downloadable pre-filled form).
+
+**Step 8 — Tests**
+- [ ] Core: unit tests for `ScoringClient` (Req.Test mocks for scoring service),
+      `RiskScoring`, `RoutingScoring`, `ProviderHealthWorker`, `Risk` context.
+- [ ] Core: integration test — payment held when `RISK_ML_ENABLED=true` and mock
+      scoring service returns decision="review".
+- [ ] Data: unit test for `provider_health.py` Gold ETL against fixture Parquet.
+- [ ] Portal: controller tests for all three Risk views (flagged payments, case review,
+      screening hits). SoD violation test.
+
 - [ ] **Model 1 — Smart routing predictor** — XGBoost trained on post-P22 live Parquet data.
       Serves two distinct sub-problems with one endpoint:
       - **Model B merchants (external_psp)**: ranks multiple PSP candidates by P(success).

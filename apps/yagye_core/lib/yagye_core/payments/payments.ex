@@ -32,6 +32,7 @@ defmodule YagyeCore.Payments do
   alias YagyeCore.Pricing
   alias YagyeCore.Repo
   alias YagyeCore.Reserves
+  alias YagyeCore.Risk.ScoringClient
   alias YagyeCore.Shared.Pagination
 
   # ── Public API ───────────────────────────────────────────────────────────────
@@ -53,12 +54,54 @@ defmodule YagyeCore.Payments do
 
     with {:ok, customer_id} <- resolve_customer(merchant_id, customer_ref, customer_attrs),
          :ok <- check_velocity(merchant_id, customer_id, attrs),
+         {:ok, merchant} <- resolve_merchant(merchant_id),
+         risk_attrs <- score_risk_inline(attrs, merchant),
+         :ok <- enforce_risk_block(risk_attrs),
          {:ok, {payment, event}} <-
-           insert_payment(merchant_id, Map.put(attrs, :customer_id, customer_id)),
+           insert_payment(
+             merchant_id,
+             attrs |> Map.put(:customer_id, customer_id) |> Map.merge(risk_attrs)
+           ),
          {:ok, _job} <- PaymentDispatchWorker.new(%{payment_id: payment.id}) |> Oban.insert() do
       {:ok, {payment, event}}
     end
   end
+
+  defp score_risk_inline(attrs, merchant) do
+    cfg = Application.get_env(:yagye_core, :scoring)
+
+    if cfg[:risk_ml_enabled] do
+      apply_risk_score(attrs, merchant)
+    else
+      Task.start(fn -> ScoringClient.score_risk(build_payment_shell(attrs), merchant) end)
+      %{}
+    end
+  end
+
+  defp apply_risk_score(attrs, merchant) do
+    case ScoringClient.score_risk(build_payment_shell(attrs), merchant) do
+      {:ok, %{decision: decision, score: score}} -> %{risk_score: score, risk_decision: decision}
+      _ -> %{}
+    end
+  end
+
+  defp build_payment_shell(attrs) do
+    %{
+      id: nil,
+      amount: Map.get(attrs, :amount) || Map.get(attrs, "amount"),
+      currency: Map.get(attrs, :currency) || Map.get(attrs, "currency"),
+      method: Map.get(attrs, :method) || Map.get(attrs, "method"),
+      mode: Map.get(attrs, :mode) || Map.get(attrs, "mode"),
+      metadata: Map.get(attrs, :metadata) || Map.get(attrs, "metadata") || %{},
+      customer_id: Map.get(attrs, :customer_id) || Map.get(attrs, "customer_id")
+    }
+  end
+
+  defp enforce_risk_block(%{risk_decision: "block"}) do
+    {:error, :payment_blocked_by_risk}
+  end
+
+  defp enforce_risk_block(_), do: :ok
 
   def dispatch_payment(payment_id) do
     Multi.new()

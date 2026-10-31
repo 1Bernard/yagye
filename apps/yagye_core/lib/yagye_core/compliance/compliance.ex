@@ -310,6 +310,34 @@ defmodule YagyeCore.Compliance do
     end
   end
 
+  # List all open screening hits, optionally filtered by list_type.
+  def list_open_hits(opts \\ []) do
+    list_type = Keyword.get(opts, :list_type)
+    limit = Keyword.get(opts, :limit, 50)
+    after_cursor = Keyword.get(opts, :after)
+
+    query =
+      from(h in ScreeningHit,
+        where: h.status == "open",
+        order_by: [desc: h.inserted_at]
+      )
+
+    query = if list_type, do: where(query, [h], h.list_type == ^list_type), else: query
+
+    query =
+      if after_cursor do
+        where(query, [h], h.inserted_at < ^after_cursor)
+      else
+        query
+      end
+
+    hits = query |> limit(^(limit + 1)) |> Repo.all()
+    has_more = length(hits) > limit
+    records = Enum.take(hits, limit)
+    next = if has_more, do: List.last(records) && List.last(records).inserted_at, else: nil
+    {records, has_more, next}
+  end
+
   # Internal — used by compliance tooling, not the merchant-facing API.
   def raise_screening_hit(attrs) do
     changeset = ScreeningHit.changeset(%ScreeningHit{}, attrs)
