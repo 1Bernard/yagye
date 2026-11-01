@@ -34,6 +34,7 @@ defmodule YagyeCore.Payments do
   alias YagyeCore.Reserves
   alias YagyeCore.Risk.ScoringClient
   alias YagyeCore.Shared.Pagination
+  alias YagyeCore.Splits.Workers.SplitDistributorWorker
 
   # ── Public API ───────────────────────────────────────────────────────────────
 
@@ -444,12 +445,27 @@ defmodule YagyeCore.Payments do
           {:ok, nil}
       end
     end)
+    |> maybe_enqueue_split_job()
     |> maybe_update_momo_financial_id(payment, result)
     |> Repo.transaction()
     |> case do
       {:ok, %{succeeded: payment}} -> {:ok, payment}
       {:error, _step, reason, _changes} -> {:error, reason}
     end
+  end
+
+  defp maybe_enqueue_split_job(multi) do
+    Multi.run(multi, :split_job, fn _repo, %{succeeded: p} ->
+      enqueue_split_if_needed(p)
+    end)
+  end
+
+  defp enqueue_split_if_needed(%{split_rule_id: nil}), do: {:ok, nil}
+
+  defp enqueue_split_if_needed(payment) do
+    %{"payment_id" => payment.id}
+    |> SplitDistributorWorker.new()
+    |> Oban.insert()
   end
 
   defp maybe_store_virtual_account(multi, %{method: "bank_transfer"}, %{virtual_account: va})

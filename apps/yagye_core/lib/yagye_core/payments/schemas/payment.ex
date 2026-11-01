@@ -6,6 +6,7 @@ defmodule YagyeCore.Payments.Schemas.Payment do
 
   alias YagyeCore.Customers.Schemas.Customer
   alias YagyeCore.Merchants.Schemas.Merchant
+  alias YagyeCore.Splits.Schemas.SplitRule
 
   @valid_states ~w[created processing requires_action authorised succeeded failed cancelled indeterminate disputed refunded partially_refunded chargebacked escrow_held escrow_released escrow_disputed]
   @valid_rails ~w[fiat_provider internal]
@@ -34,6 +35,7 @@ defmodule YagyeCore.Payments.Schemas.Payment do
 
     belongs_to :merchant, Merchant
     belongs_to :customer, Customer
+    belongs_to :split_rule, SplitRule
 
     timestamps()
   end
@@ -43,6 +45,7 @@ defmodule YagyeCore.Payments.Schemas.Payment do
     |> cast(attrs, [
       :merchant_id,
       :customer_id,
+      :split_rule_id,
       :mode,
       :amount,
       :currency,
@@ -62,6 +65,7 @@ defmodule YagyeCore.Payments.Schemas.Payment do
     |> unique_constraint(:public_id)
     |> unique_constraint([:merchant_id, :merchant_reference])
     |> foreign_key_constraint(:merchant_id)
+    |> foreign_key_constraint(:split_rule_id)
   end
 
   def transition_changeset(payment, to_state) when to_state in @valid_states do

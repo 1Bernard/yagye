@@ -770,6 +770,48 @@ defmodule YagyeCore.Ledger do
     end
   end
 
+  @doc """
+  Posts a "split_distributed" entry for each split record leg.
+
+  Called per split record (one call per leg) by SplitDistributorWorker.
+
+  Debit  : merchant_payable — reduce what we owe the merchant by the split amount
+  Credit : split_payable    — record the split obligation to the sub-merchant/leg
+  """
+  def post_split_distribution(%Payment{} = payment, split_record_id, amount) do
+    OpenTelemetry.Tracer.with_span "ledger.post_split_distribution" do
+      with {:ok, merchant_account} <-
+             get_or_create_account(%{
+               account_type: "merchant_payable",
+               normal_balance: "credit",
+               scope_type: "merchant",
+               scope_id: payment.merchant_id,
+               currency: payment.currency,
+               mode: payment.mode,
+               allows_negative: false
+             }),
+           {:ok, split_account} <-
+             get_or_create_account(%{
+               account_type: "split_payable",
+               normal_balance: "credit",
+               scope_type: "payment",
+               scope_id: payment.id,
+               currency: payment.currency,
+               mode: payment.mode,
+               allows_negative: false
+             }),
+           {:ok, entry} <- insert_split_distribution_entry(payment, split_record_id),
+           {:ok, debit} <-
+             insert_posting(entry, merchant_account, "debit", amount, payment.merchant_id),
+           {:ok, credit} <-
+             insert_posting(entry, split_account, "credit", amount, payment.merchant_id) do
+        apply_balance(merchant_account.id, amount, :debit, debit.id)
+        apply_balance(split_account.id, amount, :credit, credit.id)
+        {:ok, entry}
+      end
+    end
+  end
+
   # ── Private ──────────────────────────────────────────────────────────────────
 
   defp get_or_create_account(attrs) do
@@ -1329,6 +1371,38 @@ defmodule YagyeCore.Ledger do
            source_type: "escrow_hold",
            source_id: hold_id,
            entry_type: "escrow_refund"
+         )}
+
+      {:error, _} = err ->
+        err
+    end
+  end
+
+  defp insert_split_distribution_entry(%Payment{} = payment, split_record_id) do
+    now = DateTime.utc_now()
+
+    Entry.changeset(%Entry{}, %{
+      mode: payment.mode,
+      currency: payment.currency,
+      entry_type: "split_distributed",
+      source_type: "split_record",
+      source_id: split_record_id,
+      description: "Split distributed for #{payment.public_id}",
+      correlation_id: payment.public_id,
+      effective_at: now,
+      recorded_at: now
+    })
+    |> Repo.insert(
+      on_conflict: :nothing,
+      conflict_target: [:source_type, :source_id, :entry_type]
+    )
+    |> case do
+      {:ok, _} ->
+        {:ok,
+         Repo.get_by!(Entry,
+           source_type: "split_record",
+           source_id: split_record_id,
+           entry_type: "split_distributed"
          )}
 
       {:error, _} = err ->

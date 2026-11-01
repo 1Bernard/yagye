@@ -88,6 +88,10 @@ defmodule YagyeCore do
       Escrow,
       Escrow.Schemas.EscrowHold,
       Escrow.Schemas.EscrowDisputeEvent,
+      Splits,
+      Splits.Schemas.SplitRule,
+      Splits.Schemas.SplitRuleLeg,
+      Splits.Schemas.SplitRecord,
       Repo
     ]
 
