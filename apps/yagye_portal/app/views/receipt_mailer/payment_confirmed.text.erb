@@ -1,0 +1,18 @@
+Payment confirmed – <%= @currency %> <%= @amount %>
+<%= "=" * 50 %>
+
+Your payment has been received successfully.
+
+  Amount:         <%= @currency %> <%= @amount %>
+  Merchant:       <%= @merchant_code %>
+  Payment method: <%= @method %>
+  Reference:      <%= @public_id %>
+<% if @paid_at.present? %>
+  Date:           <%= @paid_at %>
+<% end %>
+
+View your full receipt:
+<%= @receipt_url %>
+
+---
+Powered by Yagye · Secure payment infrastructure for Ghana.

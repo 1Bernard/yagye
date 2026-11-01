@@ -10,6 +10,7 @@ module Settings
                    active_sessions: [], current_session_digest: nil,
                    payout_controls: {}, payout_destinations: [], next_value_date: nil,
                    unsettled_amount: 0, payout_currency: "GHS", allowed_methods: nil,
+                   receipt_settings: nil,
                    password_error: nil, password_error_field: nil)
       @tab                    = tab
       @current_user           = current_user
@@ -33,6 +34,7 @@ module Settings
       @unsettled_amount       = unsettled_amount
       @payout_currency        = payout_currency
       @allowed_methods        = allowed_methods
+      @receipt_settings       = receipt_settings
       @password_error         = password_error
       @password_error_field   = password_error_field
     end
@@ -93,6 +95,8 @@ module Settings
               end
             when "payment_methods"
               render Settings::PaymentMethodsPanel.new(allowed_methods: @allowed_methods) if @current_user&.merchant_user?
+            when "receipt"
+              render Settings::ReceiptPanel.new(settings: @receipt_settings || {}) if @current_user&.merchant_user?
             end
           end
         end
@@ -126,7 +130,8 @@ module Settings
           label: "Finance",
           items: [
             { key: "payouts",          label: "Payouts",          icon: :trending_up },
-            { key: "payment_methods",  label: "Payment Methods",  icon: :credit_card }
+            { key: "payment_methods",  label: "Payment Methods",  icon: :credit_card },
+            { key: "receipt",          label: "Receipts",         icon: :file }
           ]
         }
       end

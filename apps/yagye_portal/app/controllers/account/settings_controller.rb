@@ -4,7 +4,7 @@ module Account
   class SettingsController < ApplicationController
     def index
       authorize :settings, :index?
-      tab = params[:tab].presence_in(%w[profile security notifications allowlists sso verification payouts payment_methods]) || "profile"
+      tab = params[:tab].presence_in(%w[profile security notifications allowlists sso verification payouts payment_methods receipt]) || "profile"
       merchant_code = current_user.merchant_code
       is_merchant   = current_user.merchant_user?
 
@@ -33,6 +33,8 @@ module Account
       payout_controls, payout_destinations, next_value_date, unsettled_amount, payout_currency =
         tab == "payouts" && is_merchant ? load_payouts_data(merchant_code) : [ {}, [], nil, 0, "GHS" ]
 
+      receipt_settings = tab == "receipt" && is_merchant ? load_receipt_settings(merchant_code) : nil
+
       render Settings::IndexView.new(
         tab: tab, current_user: current_user,
         ip_allowlists: ip_allowlists, ip_blocklists: ip_blocklists,
@@ -43,7 +45,7 @@ module Account
         active_sessions: active_sessions, current_session_digest: current_session_digest,
         payout_controls: payout_controls, payout_destinations: payout_destinations,
         next_value_date: next_value_date, unsettled_amount: unsettled_amount, payout_currency: payout_currency,
-        allowed_methods: allowed_methods
+        allowed_methods: allowed_methods, receipt_settings: receipt_settings
       )
     end
 
@@ -65,6 +67,32 @@ module Account
       else
         redirect_to settings_path(tab: "profile"),
                     alert: current_user.errors.full_messages.first || "Could not update profile."
+      end
+    end
+
+    def receipt_settings
+      authorize :settings, :update?
+      redirect_to settings_path(tab: "receipt")
+    end
+
+    def update_receipt_settings
+      authorize :settings, :update?
+      return redirect_to settings_path(tab: "receipt"), alert: "Receipt settings are only available to merchants." unless current_user.merchant_user?
+
+      settings = {
+        show_fee:        params[:show_fee] == "1",
+        show_address:    params[:show_address] == "1",
+        show_phone:      params[:show_phone] == "1",
+        show_powered_by: params[:show_powered_by] == "1",
+        custom_note:     params[:custom_note].to_s.strip.first(500)
+      }
+
+      result = CoreApiClient.new.update_receipt_settings(current_user.merchant_code, settings)
+
+      if result.success?
+        redirect_to settings_path(tab: "receipt"), notice: "Receipt settings saved."
+      else
+        redirect_to settings_path(tab: "receipt"), alert: "Could not save receipt settings."
       end
     end
 
@@ -118,6 +146,13 @@ module Account
     end
 
     private
+
+    def load_receipt_settings(merchant_code)
+      result = CoreApiClient.new.get_receipt_settings(merchant_code)
+      result.success? ? result.body : {}
+    rescue StandardError
+      {}
+    end
 
     def load_allowed_methods
       result = CoreApiClient.new.get_checkout_config(current_user.merchant_code)

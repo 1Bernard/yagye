@@ -112,6 +112,7 @@ class PaymentEventsConsumer < ApplicationConsumer
         urgency:         "info",
         source_event_id: "#{event.public_id}:payment_success"
       )
+      dispatch_customer_receipt(event)
     when "failed"
       Notifications::DeliveryService.schedule(
         merchant_code:   payment.merchant_code,
@@ -163,6 +164,33 @@ class PaymentEventsConsumer < ApplicationConsumer
     Turbo::StreamsChannel.broadcast_replace_to(stream, target: target, html: html)
   rescue StandardError => e
     Rails.logger.warn("[PaymentEventsConsumer] status broadcast failed: #{e.message}")
+  end
+
+  def dispatch_customer_receipt(event)
+    receipt_base = ENV.fetch("RECEIPT_BASE_URL", "https://app.yagye.io")
+    receipt_url  = "#{receipt_base}/r/#{event.public_id}"
+    amount_ghs   = format("GH₵%.2f", event.amount / 100.0)
+    ref_short    = event.public_id.to_s.last(8).upcase
+
+    if event.customer_msisdn.present?
+      content = "#{amount_ghs} payment confirmed. Ref: #{ref_short}. Receipt: #{receipt_url}"
+      content = content.first(157) + "..." if content.length > 160
+      SmsNotifierJob.perform_later(to: event.customer_msisdn, content: content, tag: "receipt")
+    end
+
+    if event.customer_email.present?
+      ReceiptMailer.payment_confirmed(
+        to:            event.customer_email,
+        amount:        event.amount,
+        currency:      event.currency,
+        public_id:     event.public_id,
+        merchant_code: event.merchant_code,
+        method:        event.payment_method,
+        paid_at:       event.paid_at.to_s
+      ).deliver_later
+    end
+  rescue StandardError => e
+    Rails.logger.warn("[PaymentEventsConsumer] receipt dispatch failed: #{e.message}")
   end
 
   def format_minor_units(minor_units, currency_code = "GHS")
