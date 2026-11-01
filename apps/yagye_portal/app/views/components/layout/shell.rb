@@ -4,7 +4,8 @@ module Layout
   class Shell < ApplicationComponent
     include UI::Theme
 
-    def initialize(active_nav:, title:, subtitle: nil, breadcrumbs: nil, padded: true, show_kyb_banner: true, hide_sidebar: false)
+    def initialize(active_nav:, title:, subtitle: nil, breadcrumbs: nil, padded: true,
+                   show_kyb_banner: true, hide_sidebar: false, hide_topbar: false)
       @active_nav       = active_nav
       @title            = title
       @subtitle         = subtitle
@@ -12,13 +13,14 @@ module Layout
       @padded           = padded
       @show_kyb_banner  = show_kyb_banner
       @hide_sidebar     = hide_sidebar
+      @hide_topbar      = hide_topbar
     end
 
     def view_template
       div(class: "flex h-screen overflow-hidden bg-gray-50 font-sans") do
         render Layout::Sidebar.new(active: @active_nav) unless @hide_sidebar
         div(class: "flex-1 flex flex-col min-w-0 overflow-hidden") do
-          render Layout::Topbar.new(title: @title, subtitle: @subtitle, breadcrumbs: @breadcrumbs)
+          render Layout::Topbar.new(title: @title, subtitle: @subtitle, breadcrumbs: @breadcrumbs) unless @hide_topbar
           if current_user&.merchant_user? && @show_kyb_banner && (progress = kyb_banner_progress)
             render Shared::KybBanner.new(progress: progress)
           end

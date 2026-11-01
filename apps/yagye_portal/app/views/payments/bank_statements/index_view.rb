@@ -22,7 +22,7 @@ module Payments
           ) do
             render UI::Button.new(variant: :primary,
                                  href: upload_modal_payments_bank_statement_path,
-                                 data: { turbo_frame: "modal-frame" }) do
+                                 data: { turbo_frame: "drawer-frame" }) do
               render UI::Icon.new(:upload, class: ICON_SM)
               plain "Import statement"
             end

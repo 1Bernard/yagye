@@ -60,7 +60,8 @@ module Checkout
           { label: "Checkout layout" }
         ],
         padded:       false,
-        hide_sidebar: true
+        hide_sidebar: true,
+        hide_topbar:  true
       ) do
         canvas_styles
 

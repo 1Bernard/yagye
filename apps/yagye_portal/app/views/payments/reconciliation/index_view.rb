@@ -44,7 +44,7 @@ module Payments
             if can?(:upload_report?, :reconciliation)
               render UI::Button.new(variant: :primary,
                                    href: reconciliation_upload_report_modal_path,
-                                   data: { turbo_frame: "modal-frame" }) do
+                                   data: { turbo_frame: "drawer-frame" }) do
                 render UI::Icon.new(:upload, class: ICON_SM)
                 plain "Upload MNO report"
               end

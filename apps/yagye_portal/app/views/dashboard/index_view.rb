@@ -259,25 +259,24 @@ module Dashboard
 
     def kpi_card(label:, value:, icon:, color:, tint:, delta: nil, sub: nil, funnel: nil)
       div(class: "bg-white border border-gray-100 rounded-2xl p-[22px]") do
-        # Icon row + optional delta chip
-        div(class: "flex items-start justify-between mb-4") do
-          div(class: "w-9 h-9 rounded-xl flex items-center justify-center",
+        div(class: "flex items-start justify-between mb-[16px]") do
+          div(class: "w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0",
               style: "background:#{tint}") do
-            span(class: "flex w-[17px] h-[17px]", style: "color:#{color}") do
+            span(class: "flex w-[18px] h-[18px]", style: "color:#{color}") do
               render UI::Icon.new(icon, class: "w-full h-full")
             end
           end
           if delta
             pos = delta.to_f >= 0
-            span(class: "text-[11px] font-semibold px-[7px] py-[2px] rounded-full",
+            span(class: "inline-flex items-center gap-[3px] text-[11px] font-bold px-[8px] py-[3px] rounded-full",
                  style: "color:#{pos ? GREEN : RED};background:#{pos ? TINT_GREEN : TINT_RED}") do
               plain "#{pos ? '↑' : '↓'} #{delta.abs}%"
             end
           end
         end
 
-        p(class: TYPE_HEADING) { plain label }
-        p(class: "#{TYPE_STAT} mt-2", style: "color:#{color}") { plain value }
+        p(class: "text-[11px] font-semibold text-gray-400 uppercase tracking-[0.09em] leading-none mb-[10px]") { plain label }
+        p(class: "font-display text-[30px] font-black tracking-[-0.025em] tabular-nums leading-none text-gray-900") { plain value }
 
         if funnel
           mini_funnel_bar(funnel)

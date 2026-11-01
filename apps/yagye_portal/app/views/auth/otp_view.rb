@@ -68,8 +68,7 @@ module Auth
             20%,60% { transform: translateX(-5px); }
             40%,80% { transform: translateX(5px); }
           }
-          #otp-submit { transition: opacity .2s; }
-          #otp-submit:disabled { opacity: .38; cursor: not-allowed; }
+          #otp-submit { transition: opacity .15s; }
 
           .otp-or-divider {
             display: flex; align-items: center; gap: 12px; margin: 18px 0 14px;
@@ -140,12 +139,12 @@ module Auth
         end
 
         button(
-          type:     :submit,
-          id:       "otp-submit",
-          disabled: true,
-          class:    "w-full inline-flex items-center justify-center rounded-xl px-4 py-3.5 " \
-                    "text-sm font-semibold text-white shadow-lg",
-          style:    "background-color:#3D47F5",
+          type:    :submit,
+          id:      "otp-submit",
+          hidden:  true,
+          class:   "w-full inline-flex items-center justify-center rounded-xl px-4 py-3.5 " \
+                   "text-sm font-semibold text-white shadow-lg",
+          style:   "background-color:#3D47F5",
           data: {
             controller:                        "loading-button",
             action:                            "click->loading-button#start",
@@ -154,7 +153,7 @@ module Auth
         ) do
           render UI::Icon.new(:spinner, class: "w-4 h-4 mr-2 animate-spin hidden",
                                         data: { loading_button_target: "spinner" })
-          span(data: { loading_button_target: "label" }) { plain "Verify" }
+          span(data: { loading_button_target: "label" }) { plain "Verifying…" }
         end
       end
 
@@ -235,7 +234,7 @@ module Auth
               hidden.value = val;
               boxes.forEach(b => b.classList.toggle('otp-filled', b.value !== ''));
               const ready = /^\\d{6}$/.test(val);
-              btn.disabled = !ready;
+              btn.hidden = !ready;
               return ready;
             }
 

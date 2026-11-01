@@ -55,10 +55,10 @@ class ApplicationComponent < Phlex::HTML
 
     div(class: "bg-white border border-gray-100 rounded-2xl p-[22px]") do
       if icon
-        div(class: "flex items-start justify-between mb-[14px]") do
-          div(class: "w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0",
+        div(class: "flex items-start justify-between mb-[16px]") do
+          div(class: "w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0",
               style: "background:#{tint_bg}") do
-            span(class: "flex w-[17px] h-[17px]", style: "color:#{color}") do
+            span(class: "flex w-[18px] h-[18px]", style: "color:#{color}") do
               render UI::Icon.new(icon, class: "w-full h-full")
             end
           end
@@ -66,15 +66,15 @@ class ApplicationComponent < Phlex::HTML
             positive = delta.to_f >= 0
             dc = positive ? UI::Theme::GREEN : UI::Theme::RED
             db = positive ? UI::Theme::TINT_GREEN : UI::Theme::TINT_RED
-            span(class: "text-[11px] font-semibold px-[7px] py-[2px] rounded-full",
+            span(class: "inline-flex items-center gap-[3px] text-[11px] font-bold px-[8px] py-[3px] rounded-full",
                  style: "color:#{dc};background:#{db}") do
-              plain "#{positive ? '+' : ''}#{delta}%"
+              plain "#{positive ? '↑' : '↓'} #{delta.to_f.abs}%"
             end
           end
         end
       end
-      p(class: "#{UI::Theme::TYPE_HEADING} mb-2") { plain label }
-      p(class: "#{UI::Theme::TYPE_STAT} mt-2", style: "color:#{color}") { plain value }
+      p(class: "text-[11px] font-semibold text-gray-400 uppercase tracking-[0.09em] leading-none mb-[10px]") { plain label }
+      p(class: "font-display text-[30px] font-black tracking-[-0.025em] tabular-nums leading-none text-gray-900") { plain value }
     end
   end
 

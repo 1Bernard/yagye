@@ -40,10 +40,12 @@ module Checkout
         crumbs << { label: @editing ? "Edit" : "New invoice" }
 
         render Layout::Shell.new(
-          active_nav: :invoices,
-          title:      @editing ? "Edit #{@invoice["number"]}" : "New invoice",
-          breadcrumbs: crumbs,
-          padded: false
+          active_nav:   :invoices,
+          title:        @editing ? "Edit #{@invoice["number"]}" : "New invoice",
+          breadcrumbs:  crumbs,
+          padded:       false,
+          hide_sidebar: true,
+          hide_topbar:  true
         ) do
           canvas_styles
 

@@ -399,15 +399,13 @@ Redpanda config: `localhost:19092` (dev), `KAFKA_BOOTSTRAP_SERVERS` env (prod), 
 - [ ] Confirm training feature `provider_health.build_features()` resolves correctly.
 
 **Step 3 — payment schema additions**
-- [ ] Migration: add `risk_score float`, `risk_decision varchar`, `risk_flagged_at timestamptz`
-      to `payments` table (all nullable — only set when scored).
-- [ ] Update `Payment` Ecto schema and `Payments` context functions accordingly.
+- [x] Migration: add `risk_score float`, `risk_decision varchar`, `risk_flagged_at timestamptz`
+      to `payments` table (all nullable — only set when scored). `20261031000001`
+- [x] Update `Payment` Ecto schema and `Payments` context functions accordingly.
 - [ ] Update outbox `payment.succeeded` / `payment.failed` payloads to include
       `risk_score` and `risk_decision` when present.
-- [ ] New `risk_labels` table: `id`, `payment_id` (FK), `risk_score float`,
-      `ml_decision varchar`, `compliance_disposition varchar`
-      (`clear|escalate|block_merchant`), `dispositioned_by uuid` (FK → users),
-      `dispositioned_at timestamptz`, `notes text`, `inserted_at`. Used by case review.
+- [x] New `risk_labels` table. `20261031000001` — schema at `Risk.Schemas.RiskLabel`,
+      context at `YagyeCore.Risk`.
 
 **Step 4 — ScoringClient + Core wiring**
 - [ ] `YagyeCore.Scoring.ScoringClient` — Req-based HTTP client. Timeout: 200 ms.
@@ -516,12 +514,10 @@ Redpanda config: `localhost:19092` (dev), `KAFKA_BOOTSTRAP_SERVERS` env (prod), 
 
 - [ ] S3 + KMS for KYB documents — replace placeholder `s3_key` from the metadata endpoint
       with real presigned upload/download URLs via AWS S3 + KMS encryption.
-- [ ] `screening_hits` SoD: add DB CHECK `raised_by IS NULL OR dispositioned_by IS NULL OR
-      raised_by ≠ dispositioned_by` + `validate_sod/1` in `ScreeningHit.disposition_changeset/2`.
-      (DBML already updated; migration deferred.)
-- [ ] `merchants` SoD DB CHECK: add `CHECK (reviewed_by IS NULL OR approved_by IS NULL OR
-      reviewed_by ≠ approved_by)` migration. Changeset guard already exists — this adds
-      the DB-level backstop.
+- [x] `screening_hits` SoD DB CHECK — `20261006120000` (`screening_hits_sod` constraint,
+      `raised_by IS DISTINCT FROM dispositioned_by`).
+- [x] `merchants` SoD DB CHECK — `20261006120000` (`merchants_sod` constraint,
+      `reviewed_by IS DISTINCT FROM approved_by`).
 - [ ] Ghana Registrar General (RGD) registry check integration — verify business registration,
       directors, good standing via RGD API.
 - [ ] Full AML provider integration (ComplyAdvantage or LexisNexis) — replace screening stubs
