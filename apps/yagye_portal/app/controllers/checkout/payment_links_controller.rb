@@ -126,18 +126,21 @@ module Checkout
       amount = kind == "customer_specified" ? nil : parse_amount(params[:amount])
 
       result = core.create_payment_link(
-        merchant_code:   current_user.merchant_code,
-        kind:            kind,
-        currency:        params[:currency].presence || "GHS",
-        description:     params[:description],
-        amount:          amount,
-        allowed_methods: allowed_methods,
-        collect_email:   params[:collect_email] == "1",
-        collect_phone:   params[:collect_phone] == "1",
-        collect_name:    params[:collect_name] == "1",
-        reusable:        reusable,
-        max_uses:        (reusable && params[:max_uses].present?) ? params[:max_uses].to_i : nil,
-        expires_at:      params[:expires_at].presence
+        merchant_code:              current_user.merchant_code,
+        kind:                       kind,
+        currency:                   params[:currency].presence || "GHS",
+        description:                params[:description],
+        amount:                     amount,
+        allowed_methods:            allowed_methods,
+        collect_email:              params[:collect_email] == "1",
+        collect_phone:              params[:collect_phone] == "1",
+        collect_name:               params[:collect_name] == "1",
+        reusable:                   reusable,
+        max_uses:                   (reusable && params[:max_uses].present?) ? params[:max_uses].to_i : nil,
+        expires_at:                 params[:expires_at].presence,
+        escrow_enabled:             params[:escrow_enabled] == "1",
+        escrow_auto_release_days:   params[:escrow_auto_release_days].present? ? params[:escrow_auto_release_days].to_i : 7,
+        escrow_dispute_window_hours: params[:escrow_dispute_window_hours].present? ? params[:escrow_dispute_window_hours].to_i : 48
       )
 
       if result.success?

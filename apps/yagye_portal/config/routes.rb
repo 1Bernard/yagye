@@ -56,6 +56,11 @@ Rails.application.routes.draw do
     get  "reserves/filter",           to: "reserves#filter",    as: :filter_reserves
     get  "reserves/export",           to: "reserves#export",    as: :export_reserves
     post "reserves/:id/acknowledge",  to: "reserves#acknowledge", as: :acknowledge_reserve
+
+    # ── Escrow holds ─────────────────────────────────────────────────────────
+    get  "escrow-holds",                    to: "escrow_holds#index",           as: :escrow_holds
+    get  "escrow-holds/:id",                to: "escrow_holds#show",            as: :escrow_hold
+    post "escrow-holds/:id/resolve-dispute", to: "escrow_holds#resolve_dispute", as: :resolve_dispute_escrow_hold
   end
 
   # ── Pricing plans (ops — policy-gated) ──────────────────────────────────
@@ -339,6 +344,13 @@ get "payouts/:id/statement",            to: "payouts#statement",               a
     # Saved filters
     post   "settings/saved-filters",     to: "saved_filters#create",  as: :settings_saved_filters
     delete "settings/saved-filters/:id", to: "saved_filters#destroy", as: :settings_remove_saved_filter
+
+    # Split rules
+    get  "settings/split-rules",                    to: "split_rules#index",      as: :split_rules
+    get  "settings/split-rules/new",                to: "split_rules#new",        as: :new_split_rule
+    post "settings/split-rules",                    to: "split_rules#create"
+    get  "settings/split-rules/:id",                to: "split_rules#show",       as: :split_rule
+    post "settings/split-rules/:id/deactivate",     to: "split_rules#deactivate", as: :deactivate_split_rule
   end
 
   devise_scope :user do

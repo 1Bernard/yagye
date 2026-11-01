@@ -146,6 +146,8 @@ module Checkout
           collect_section
           section_divider
           usage_section
+          section_divider
+          escrow_section
         end
       end
     end
@@ -366,6 +368,88 @@ module Checkout
       end
     end
 
+    # ── Trust Hold (Escrow) ──────────────────────────────────────────────────
+
+    def escrow_section
+      div(class: "px-4 pt-3 pb-5") do
+        div(class: "flex items-center gap-2 mb-[6px]") do
+          p(class: "text-[9px] font-bold uppercase tracking-[0.1em] text-gray-400") { plain "Trust Hold" }
+          span(
+            class: "text-[9px] font-semibold px-[6px] py-[1px] rounded-full " \
+                   "bg-amber-50 text-amber-600 border border-amber-100"
+          ) { plain "NEW" }
+        end
+        p(class: "text-[10.5px] text-gray-400 mb-3 leading-snug") do
+          plain "Hold buyer's payment in trust until they confirm receipt. " \
+                "Ideal for social commerce and goods delivery."
+        end
+
+        div(
+          class: "flex items-center gap-2.5 px-3 py-2.5 rounded-[10px] border border-gray-100 " \
+                 "hover:border-gray-200 transition-colors mb-3"
+        ) do
+          input(
+            type:  "checkbox",
+            name:  "escrow_enabled",
+            value: "1",
+            id:    "escrow_enabled",
+            class: "w-[14px] h-[14px] rounded flex-shrink-0 accent-[#3D47F5] cursor-pointer",
+            data:  { action: "change->payment-link-compose#toggleEscrow" }
+          )
+          div do
+            label(
+              for:   "escrow_enabled",
+              class: "block text-[12px] font-semibold text-gray-800 cursor-pointer leading-tight"
+            ) { plain "Enable trust hold" }
+            p(class: "text-[10.5px] text-gray-400") do
+              plain "Buyer must confirm receipt before merchant is paid"
+            end
+          end
+        end
+
+        div(
+          data:   { payment_link_compose_target: "escrowConfig" },
+          hidden: true,
+          class:  "flex flex-col gap-2"
+        ) do
+          escrow_number_field(
+            "escrow_auto_release_days",
+            "Auto-release after",
+            "days",
+            "7",
+            "Funds release to merchant automatically after this many days if buyer takes no action"
+          )
+          escrow_number_field(
+            "escrow_dispute_window_hours",
+            "Dispute window",
+            "hours",
+            "48",
+            "How long after payment the buyer can open a dispute"
+          )
+        end
+      end
+    end
+
+    def escrow_number_field(field_name, label_text, unit, default_val, hint_text)
+      div do
+        span(class: "text-[9px] font-bold uppercase tracking-[0.1em] text-gray-400 block mb-[5px]") do
+          plain label_text
+        end
+        div(class: "flex items-center gap-2") do
+          input(
+            type:  "number",
+            name:  field_name,
+            min:   "1",
+            value: default_val,
+            class: "#{panel_input_cls} tabular-nums",
+            style: "width: 80px; flex-shrink: 0"
+          )
+          span(class: "text-[12px] text-gray-500") { plain unit }
+        end
+        p(class: "text-[10.5px] text-gray-400 mt-[3px]") { plain hint_text }
+      end
+    end
+
     # ── Preview area (right) ─────────────────────────────────────────────────
 
     def preview_area
@@ -447,6 +531,18 @@ module Checkout
                      "text-[13.5px] font-bold text-white cursor-default",
               data:  { payment_link_compose_target: "pvPayButton" }
             ) { plain "Pay GH₵ 50.00" }
+          end
+
+          # Escrow trust badge (shown when escrow enabled)
+          div(
+            class:  "px-6 pb-4 flex items-center justify-center gap-[5px]",
+            hidden: true,
+            data:   { payment_link_compose_target: "pvEscrowBadge" }
+          ) do
+            span(class: "text-[10px]") { plain "🔒" }
+            span(class: "text-[10px] font-semibold text-amber-600") do
+              plain "Payment held in trust until receipt confirmed"
+            end
           end
 
           # Footer

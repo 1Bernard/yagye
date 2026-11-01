@@ -402,6 +402,51 @@ class CoreApiClient
     post("/internal/merchants/#{merchant_code}/payout-destinations/#{destination_id}/reject", {})
   end
 
+  # ── Escrow Holds ─────────────────────────────────────────────────────────────
+
+  # GET /internal/escrow/holds?merchant_code=&state=
+  def list_escrow_holds(merchant_code:, state: nil)
+    path = "/internal/escrow/holds?merchant_code=#{CGI.escape(merchant_code.to_s)}"
+    path += "&state=#{CGI.escape(state.to_s)}" if state.present?
+    get(path)
+  end
+
+  # GET /internal/escrow/holds/:id
+  def get_escrow_hold(public_id)
+    get("/internal/escrow/holds/#{public_id}")
+  end
+
+  # POST /internal/escrow/holds/:id/resolve-dispute
+  def resolve_escrow_dispute(public_id, outcome:, note:)
+    post("/internal/escrow/holds/#{public_id}/resolve-dispute", {
+      outcome: outcome,
+      actor: "ops",
+      note: note
+    })
+  end
+
+  # ── Split Rules ───────────────────────────────────────────────────────────────
+
+  # GET /internal/split-rules?merchant_code=
+  def list_split_rules(merchant_code:)
+    get("/internal/split-rules?merchant_code=#{CGI.escape(merchant_code.to_s)}")
+  end
+
+  # POST /internal/split-rules
+  def create_split_rule(merchant_code:, name:, legs:, **_opts)
+    post("/internal/split-rules", { merchant_code: merchant_code, name: name, legs: legs })
+  end
+
+  # GET /internal/split-rules/:id
+  def get_split_rule(public_id)
+    get("/internal/split-rules/#{public_id}")
+  end
+
+  # POST /internal/split-rules/:id/deactivate
+  def deactivate_split_rule(public_id)
+    post("/internal/split-rules/#{public_id}/deactivate", {})
+  end
+
   # ── Disputes (portal → core, service-token authenticated) ─────────────────
 
   # POST /internal/disputes/:id/evidence
