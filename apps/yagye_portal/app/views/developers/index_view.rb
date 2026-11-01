@@ -942,8 +942,8 @@ module Developers
             render UI::Icon.new(:lock, class: "w-full h-full")
           end
           p(class: "text-[11.5px] text-amber-700 leading-[1.5]") do
-            plain "PSP Sandbox access (real MTN MoMo & Stripe test environments) is enabled by the Yagye team " \
-                  "once your business profile is approved."
+            plain "PSP Sandbox access (real MTN MoMo, Paystack & Flutterwave test environments) is enabled by the Yagye team " \
+                  "once your KYB application is submitted."
           end
         end
       end
@@ -992,8 +992,9 @@ module Developers
           div(class: "px-4 py-2.5 bg-gray-50 border-b border-gray-100") do
             p(class: "text-[10.5px] font-bold text-gray-500 uppercase tracking-wide") { plain "Active sandbox providers" }
           end
-          sandbox_provider_row("MTN MoMo sandbox",  "Ghana",       "#ffcc00", last: false)
-          sandbox_provider_row("Stripe test mode",  "Card / Int.", "#635bff", last: true)
+          sandbox_provider_row("MTN MoMo sandbox",    "Ghana / MoMo",  "#ffcc00", last: false)
+          sandbox_provider_row("Paystack test mode",  "Ghana / Card",  "#00c3f7", last: false)
+          sandbox_provider_row("Flutterwave sandbox", "Ghana / Card",  "#f5a623", last: true)
         end
 
         # simulator override note

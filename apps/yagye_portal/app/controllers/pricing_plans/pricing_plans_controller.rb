@@ -25,7 +25,11 @@ module PricingPlans
 
     def new
       authorize :pricing_plans, :create?
-      render PricingPlans::NewView.new
+      if turbo_frame_request?
+        render PricingPlans::NewDrawerView.new
+      else
+        render PricingPlans::NewView.new
+      end
     end
 
     def create
@@ -37,7 +41,8 @@ module PricingPlans
         redirect_to pricing_plan_path(result.body["id"]), notice: "Pricing plan created."
       else
         errors = result.body&.dig("details") || {}
-        render PricingPlans::NewView.new(errors: errors, params: attrs), status: :unprocessable_entity
+        view_class = turbo_frame_request? ? PricingPlans::NewDrawerView : PricingPlans::NewView
+        render view_class.new(errors: errors, params: attrs), status: :unprocessable_entity
       end
     end
 

@@ -8,6 +8,9 @@ class PortalWebhookDelivery < ApplicationRecord
   belongs_to :portal_webhook_endpoint,
              foreign_key: :endpoint_id, primary_key: :endpoint_id, optional: true
 
+  belongs_to :portal_merchant,
+             foreign_key: :merchant_code, primary_key: :merchant_code, optional: true
+
   def success?
     response_status&.between?(200, 299)
   end

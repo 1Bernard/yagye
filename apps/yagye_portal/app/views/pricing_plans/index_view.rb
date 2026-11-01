@@ -28,7 +28,8 @@ module PricingPlans
           title:    "Pricing Plans",
           subtitle: "Global rate plans assigned to merchants at transaction time."
         ) do
-          render UI::Button.new(variant: :primary, href: new_pricing_plan_path) do
+          render UI::Button.new(variant: :primary, href: new_pricing_plan_path,
+                               data: { turbo_frame: "drawer-frame" }) do
             render UI::Icon.new(:plus, class: "w-[14px] h-[14px]")
             plain "New plan"
           end

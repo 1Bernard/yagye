@@ -4,9 +4,13 @@ module Developers
   class DeliveriesIndexView < ApplicationComponent
     include UI::Theme
 
-    def initialize(deliveries:, pagy:)
+    def initialize(deliveries:, pagy:, state: nil, event_type: nil, from: nil, to: nil)
       @deliveries = deliveries
       @pagy       = pagy
+      @state      = state
+      @event_type = event_type
+      @from       = from
+      @to         = to
     end
 
     def view_template
@@ -25,8 +29,18 @@ module Developers
           pagy:          @pagy,
           empty_message: "No webhook delivery attempts in the last 30 days."
         ) do |t|
+          t.header { toolbar_content }
+
           t.column("Merchant") do |d|
-            span(class: TYPE_MONO) { plain d.merchant_code || "—" }
+            name = d.portal_merchant&.trading_name
+            if name.present?
+              div do
+                span(class: "text-[13px] font-medium text-gray-800") { plain name }
+                span(class: "block text-[11px] text-gray-400 font-mono mt-px") { plain d.merchant_code }
+              end
+            else
+              span(class: TYPE_MONO) { plain d.merchant_code || "—" }
+            end
           end
 
           t.column("Event") do |d|
@@ -66,6 +80,43 @@ module Developers
               render UI::Icon.new(:eye, class: ICON_SM)
               plain "Inspect"
             end
+          end
+        end
+      end
+    end
+
+    private
+
+    def toolbar_content
+      filter_count = [ @state.presence, @event_type.presence,
+                       (@from.presence || @to.presence) ].compact.count
+
+      form(action: developers_deliveries_path, method: "get",
+           data: { controller: "filter-form", filter_form_target: "form" }) do
+        div(class: FILTER_SEARCH_WRAP) do
+          span(class: "flex w-[13px] h-[13px] text-gray-400 flex-shrink-0") do
+            render UI::Icon.new(:search, class: "w-full h-full")
+          end
+          input(type: "search", name: "event_type", value: @event_type,
+                placeholder: "Search by event type…",
+                class: FILTER_SEARCH_INPUT)
+        end
+      end
+
+      a(href: filter_developers_deliveries_path(state: @state, event_type: @event_type,
+                                                from: @from, to: @to),
+        class: "inline-flex items-center gap-[5px] px-3 h-8 border rounded-[9px] " \
+               "text-[12.5px] font-medium bg-white cursor-pointer transition-colors no-underline " \
+               "#{filter_count > 0 ? 'border-gray-400 text-gray-900' : 'border-gray-200 text-gray-600'} " \
+               "hover:border-gray-400",
+        data: { turbo_frame: "drawer-frame" }) do
+        render UI::Icon.new(:filter, class: "w-3 h-3")
+        plain "Filters"
+        if filter_count > 0
+          span(class: "ml-[2px] inline-flex items-center justify-center w-4 h-4 rounded-full " \
+                      "text-white text-[9px] font-bold leading-none",
+               style: "background:#{BRAND}") do
+            plain filter_count.to_s
           end
         end
       end

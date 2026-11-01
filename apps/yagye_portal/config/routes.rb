@@ -159,10 +159,21 @@ Rails.application.routes.draw do
     get "developers/webhooks/new",                  to: "webhooks#new",                as: :new_developers_webhook
     get "developers/webhooks/:endpoint_id/edit",   to: "webhooks#edit",               as: :edit_developers_webhook
     get "developers/deliveries",                   to: "webhook_deliveries#index",    as: :developers_deliveries
+    get "developers/deliveries/filter",            to: "webhook_deliveries#filter",   as: :filter_developers_deliveries
     get "developers/deliveries/:id",               to: "webhook_deliveries#show",     as: :developers_delivery
     get "developers/routing-rules",            to: "routing_rules#index",         as: :developers_routing_rules
     get "developers/routing-rules/new",        to: "routing_rules#new",           as: :new_developers_routing_rule
     get "developers/routing-rules/:id/edit",   to: "routing_rules#edit",          as: :edit_developers_routing_rule
+
+    # PSP provider connections (Model B merchants — tier 3 only)
+    get  "developers/providers",                 to: "providers#index",     as: :developers_providers
+    get  "developers/providers/new",             to: "providers#new",       as: :new_developers_provider
+    get  "developers/providers/:id/edit",        to: "providers#edit",      as: :edit_developers_provider
+
+    # Merchant self-service routing graph (Model B, enterprise-gated)
+    get  "developers/merchant-routing",          to: "merchant_routing#index",  as: :developers_merchant_routing_index
+    get  "developers/merchant-routing/new",      to: "merchant_routing#new",    as: :new_developers_merchant_routing
+    get  "developers/merchant-routing/:id/edit", to: "merchant_routing#edit",   as: :edit_developers_merchant_routing
   end
 
   # ── Payments — refund ────────────────────────────────────────────────────
@@ -202,6 +213,16 @@ get "payouts/:id/statement",            to: "payouts#statement",               a
     post  "developers/routing-rules",                    to: "routing_rules#create"
     patch "developers/routing-rules/:id",                to: "routing_rules#update",  as: :developers_routing_rule
     post  "developers/routing-rules/:id/publish",        to: "routing_rules#publish", as: :publish_developers_routing_rule
+
+    # PSP provider connections write actions
+    post  "developers/providers",                        to: "providers#create",       as: :developers_providers_create
+    patch "developers/providers/:id",                    to: "providers#update",       as: :developers_provider
+    post  "developers/providers/:id/deactivate",         to: "providers#deactivate",   as: :deactivate_developers_provider
+
+    # Merchant routing write actions
+    post  "developers/merchant-routing",                 to: "merchant_routing#create"
+    patch "developers/merchant-routing/:id",             to: "merchant_routing#update",  as: :update_developers_merchant_routing
+    post  "developers/merchant-routing/:id/publish",     to: "merchant_routing#publish", as: :publish_developers_merchant_routing
     post   "developers/keys",                    to: "api_keys#create",   as: :developers_keys
     delete "developers/keys/:key_id",            to: "api_keys#destroy",  as: :developers_key
     get    "developers/keys/:key_id/revoke-modal", to: "api_keys#revoke_modal", as: :revoke_modal_developers_key
@@ -267,6 +288,8 @@ get "payouts/:id/statement",            to: "payouts#statement",               a
     patch "settings/password",             to: "settings#update_password",      as: :settings_password
     patch "settings/notifications",        to: "settings#update_notifications",  as: :settings_notifications
     patch "settings/payment-methods",      to: "settings#update_payment_methods", as: :settings_payment_methods
+    get   "settings/receipt",              to: "settings#receipt_settings",       as: :settings_receipt
+    patch "settings/receipt",              to: "settings#update_receipt_settings", as: :settings_update_receipt
 
     # Payout destinations management (dedicated page, merchant-only)
     post   "settings/payout-destinations",              to: "payout_destinations#create",      as: :settings_payout_destinations

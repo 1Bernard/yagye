@@ -136,17 +136,45 @@ class CoreApiClient
 
   # ── Routing configurations ─────────────────────────────────────────────────
 
-  def list_routing_configurations(scope: "platform")
-    get("/internal/routing-configurations?scope=#{scope}")
+  def list_routing_configurations(scope: "platform", merchant_code: nil)
+    qs = { scope: scope }
+    qs[:merchant_code] = merchant_code if merchant_code
+    get("/internal/routing-configurations?#{URI.encode_www_form(qs.transform_keys(&:to_s))}")
   end
 
   def get_routing_configuration(id)
     get("/internal/routing-configurations/#{id}")
   end
 
-  def create_routing_configuration(name:, scope: "platform", description: nil, graph_payload:)
+  def create_routing_configuration(name:, scope: "platform", description: nil, graph_payload:,
+                                   merchant_id: nil)
     post("/internal/routing-configurations",
-         { name: name, scope: scope, description: description, graph_payload: graph_payload })
+         { name: name, scope: scope, description: description,
+           graph_payload: graph_payload, merchant_id: merchant_id }.compact)
+  end
+
+  # ── Provider connections (merchant PSP management — Model B) ──────────────
+
+  # GET /internal/merchants/:merchant_code/provider-connections
+  def list_provider_connections(merchant_code)
+    get("/internal/merchants/#{merchant_code}/provider-connections")
+  end
+
+  # POST /internal/merchants/:merchant_code/provider-connections
+  # attrs: { provider_code, mode, priority, enabled_methods, api_key, secret_key, base_url }
+  def create_provider_connection(merchant_code, attrs)
+    post("/internal/merchants/#{merchant_code}/provider-connections", attrs)
+  end
+
+  # PATCH /internal/provider-connections/:id
+  # attrs: { priority, status, enabled_methods }
+  def update_provider_connection(connection_id, attrs)
+    patch("/internal/provider-connections/#{connection_id}", attrs)
+  end
+
+  # POST /internal/provider-connections/:id/deactivate
+  def deactivate_provider_connection(connection_id)
+    post("/internal/provider-connections/#{connection_id}/deactivate", {})
   end
 
   def update_routing_configuration(id, name:, description: nil, graph_payload:)
@@ -744,6 +772,16 @@ class CoreApiClient
   def reject_adjustment(break_id:, rejected_by:, rejected_reason:)
     post("/internal/adjustment_approvals/#{break_id}/reject",
          { rejected_by: rejected_by, rejected_reason: rejected_reason })
+  end
+
+  # GET /internal/merchants/:merchant_code/receipt-settings
+  def get_receipt_settings(merchant_code)
+    get("/internal/merchants/#{merchant_code}/receipt-settings")
+  end
+
+  # PATCH /internal/merchants/:merchant_code/receipt-settings
+  def update_receipt_settings(merchant_code, settings)
+    patch("/internal/merchants/#{merchant_code}/receipt-settings", { settings: settings })
   end
 
   def openapi_spec

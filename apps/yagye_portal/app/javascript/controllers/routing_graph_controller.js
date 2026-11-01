@@ -136,6 +136,20 @@ export default class extends Controller {
     this.editor.on("nodeCreated",    ()  => this._updateEmptyState())
     this.editor.on("nodeRemoved",    ()  => this._updateEmptyState())
 
+    // Capture-phase delete listener — fires before Drawflow's bubble-phase handlers
+    // so Drawflow cannot preventDefault/stopPropagation the click away from us.
+    this._onDelCapture = e => {
+      const btn = e.target.closest(".rg-del")
+      if (!btn) return
+      const nodeEl = btn.closest(".drawflow-node")
+      if (!nodeEl) return
+      e.stopPropagation()
+      this.editor.removeNodeId(nodeEl.id)
+      this._selectedNodeId = null
+      this._updateEmptyState()
+    }
+    this.element.addEventListener("click", this._onDelCapture, { capture: true })
+
     // Close picker when clicking outside its wrapper
     this._onDocClick = e => {
       if (!this.hasPickerTarget) return
@@ -177,6 +191,7 @@ export default class extends Controller {
 
   disconnect() {
     delete this.element.__routingGraph
+    if (this._onDelCapture)  this.element.removeEventListener("click", this._onDelCapture, { capture: true })
     if (this._onDocClick)     document.removeEventListener("click",     this._onDocClick)
     if (this._onDocDragstart) document.removeEventListener("dragstart", this._onDocDragstart)
     if (this._onDocDragend)   document.removeEventListener("dragend",   this._onDocDragend)
@@ -281,8 +296,10 @@ export default class extends Controller {
        </div>`
 
     // ── Trash icon — hidden by default; CSS reveals it on .drawflow-node.selected
+    // No onclick here — deletion is handled by a capture-phase delegated listener
+    // in _initEditor so Drawflow's own node handlers cannot intercept it first.
     const trashBtn = `
-      <button class="rg-del" onclick="${rc}.deleteSelected()"
+      <button class="rg-del"
               style="display:none;width:24px;height:24px;border-radius:6px;
                      border:none;background:transparent;color:#c4c9d4;cursor:pointer;
                      align-items:center;justify-content:center;flex-shrink:0;
@@ -442,12 +459,6 @@ export default class extends Controller {
     }
   }
 
-  deleteSelected() {
-    if (!this._selectedNodeId) return
-    this.editor.removeNodeId(`node-${this._selectedNodeId}`)
-    this._onNodeUnselected()
-    this._updateEmptyState()
-  }
 
   // ── Save ─────────────────────────────────────────────────────────────────
 

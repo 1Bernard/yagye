@@ -10,7 +10,15 @@ module Developers
           Developers::WebhookDeliveriesQuery.new(policy_scope(PortalWebhookDelivery)).call(filter_params),
           limit: 50
         )
-        render Developers::DeliveriesIndexView.new(deliveries: @deliveries, pagy: @pagy)
+        fp = filter_params
+        render Developers::DeliveriesIndexView.new(
+          deliveries: @deliveries,
+          pagy:       @pagy,
+          state:      fp[:state],
+          event_type: fp[:event_type],
+          from:       fp[:from],
+          to:         fp[:to]
+        )
       else
         redirect_to developers_path(tab: "deliveries")
       end
@@ -25,10 +33,20 @@ module Developers
     private
 
     def filter_params
-      params.permit(:state, :event_type, :endpoint_id, :merchant_code).to_h.symbolize_keys
+      params.permit(:state, :event_type, :endpoint_id, :merchant_code, :q, :from, :to).to_h.symbolize_keys
     end
 
     public
+
+    def filter
+      authorize :portal_webhook_delivery, :index?, policy_class: PortalWebhookDeliveryPolicy
+      render Developers::DeliveriesFilterView.new(
+        state:      params[:state],
+        event_type: params[:event_type],
+        from:       params[:from],
+        to:         params[:to]
+      )
+    end
 
     def retry
       delivery = find_owned!(PortalWebhookDelivery)

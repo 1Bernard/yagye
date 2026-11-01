@@ -233,4 +233,18 @@ if Rails.env.development? || Rails.env.test?
   end
 
   puts "Merchant application: #{DEMO_APP_CODE} (submitted — ops must approve and invite the merchant owner)"
+
+  PortalMerchant.find_or_create_by!(merchant_code: DEMO_MERCHANT_CODE) do |m|
+    m.trading_name     = "KofiBuild"
+    m.legal_name       = DEMO_MERCHANT_NAME
+    m.country          = "GH"
+    m.status           = "active"
+    m.activity_state   = "active"
+    m.onboarding_state = "approved"
+    m.sandbox_enabled  = true
+    m.last_event_id    = "evt_merchant_demo_001"
+    m.aggregate_version = 1
+  end
+
+  puts "Demo merchant: #{DEMO_MERCHANT_CODE} (KofiBuild)"
 end

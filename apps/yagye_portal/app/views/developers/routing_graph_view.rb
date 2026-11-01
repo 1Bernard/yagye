@@ -12,14 +12,11 @@ module Developers
 
     def view_template
       render Layout::Shell.new(
-        active_nav: :routing_rules,
-        title: @configuration ? @configuration["name"] : "New routing configuration",
-        breadcrumbs: [
-          { label: "Operations" },
-          { label: "Routing Rules", href: developers_routing_rules_path },
-          { label: @configuration ? @configuration["name"] : "New" }
-        ],
-        padded: false
+        active_nav:  :routing_rules,
+        title:       @configuration ? @configuration["name"] : "New routing configuration",
+        padded:      false,
+        hide_sidebar: true,
+        hide_topbar:  true
       ) do
         # Drawflow assets — content_for(:head) is a no-op from Phlex
         link(rel: "stylesheet", href: "https://cdn.jsdelivr.net/npm/drawflow@0.0.59/dist/drawflow.min.css")
