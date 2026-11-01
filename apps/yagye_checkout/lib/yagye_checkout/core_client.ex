@@ -43,6 +43,21 @@ defmodule YagyeCheckout.CoreClient do
     })
   end
 
+  @doc "Fetches the escrow hold for a payment by its hold public_id."
+  def get_escrow_hold(hold_public_id) do
+    get("/internal/escrow/holds/#{hold_public_id}")
+  end
+
+  @doc "Buyer confirms receipt — releases escrow funds to the merchant."
+  def confirm_escrow_receipt(hold_public_id) do
+    post("/internal/escrow/holds/#{hold_public_id}/confirm-release", %{})
+  end
+
+  @doc "Buyer opens a dispute on an escrow hold."
+  def open_escrow_dispute(hold_public_id, note) do
+    post("/internal/escrow/holds/#{hold_public_id}/open-dispute", %{actor: "buyer", note: note})
+  end
+
   # ── HTTP helpers ─────────────────────────────────────────────────────────────
 
   defp get(path) do

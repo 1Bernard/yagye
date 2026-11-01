@@ -101,6 +101,46 @@ defmodule YagyeCheckoutWeb.Live.CheckoutLive do
 
   def handle_event("simulate_transfer", _params, socket), do: {:noreply, socket}
 
+  # ── Escrow events ─────────────────────────────────────────────────────────────
+
+  def handle_event("escrow_show_confirm_modal", _params, socket) do
+    {:noreply, assign(socket, escrow_confirm_modal: true)}
+  end
+
+  def handle_event("escrow_hide_confirm_modal", _params, socket) do
+    {:noreply, assign(socket, escrow_confirm_modal: false)}
+  end
+
+  def handle_event("escrow_change_note", %{"dispute_note" => note}, socket) do
+    {:noreply, assign(socket, dispute_note: note)}
+  end
+
+  def handle_event("escrow_confirm_receipt", _params, %{assigns: %{escrow_hold: hold}} = socket) do
+    socket = assign(socket, escrow_confirming: true, escrow_confirm_modal: false)
+    hold_id = hold && hold["public_id"]
+
+    case CoreClient.confirm_escrow_receipt(hold_id) do
+      {:ok, _} ->
+        {:noreply, assign(socket, page_state: :done, escrow_confirming: false)}
+
+      {:error, _} ->
+        {:noreply, assign(socket, escrow_confirming: false, error: "Could not confirm receipt. Please try again or contact support.")}
+    end
+  end
+
+  def handle_event("escrow_open_dispute", _params, %{assigns: %{escrow_hold: hold, dispute_note: note}} = socket) do
+    socket = assign(socket, escrow_disputing: true)
+    hold_id = hold && hold["public_id"]
+
+    case CoreClient.open_escrow_dispute(hold_id, note) do
+      {:ok, _} ->
+        {:noreply, assign(socket, page_state: :escrow_disputed, escrow_disputing: false)}
+
+      {:error, _} ->
+        {:noreply, assign(socket, escrow_disputing: false, error: "Could not open dispute. Please try again or contact support.")}
+    end
+  end
+
   def handle_event("toggle_terms", _params, socket) do
     {:noreply, assign(socket, terms_accepted: !socket.assigns.terms_accepted, terms_error: nil)}
   end
@@ -190,6 +230,9 @@ defmodule YagyeCheckoutWeb.Live.CheckoutLive do
       {:ok, %{"state" => "succeeded"}} ->
         finalize(socket, sid, pay_id)
 
+      {:ok, %{"state" => "escrow_held"}} ->
+        finalize_escrow(socket, pay_id)
+
       {:ok, %{"state" => state}} when state in ["failed", "cancelled", "expired"] ->
         {:noreply,
          assign(socket,
@@ -235,6 +278,9 @@ defmodule YagyeCheckoutWeb.Live.CheckoutLive do
     case CoreClient.get_payment_state(pay_id) do
       {:ok, %{"state" => "succeeded"}} ->
         finalize(socket, sid, pay_id)
+
+      {:ok, %{"state" => "escrow_held"}} ->
+        finalize_escrow(socket, pay_id)
 
       {:ok, %{"state" => state}} when state in ["failed", "cancelled"] ->
         {:noreply,
@@ -388,6 +434,92 @@ defmodule YagyeCheckoutWeb.Live.CheckoutLive do
             <%= if @success_url && external_url?(@success_url) do %>
               <a href={@success_url} class="co-btn-primary">Return to Merchant</a>
             <% end %>
+          </div>
+
+        <% :escrow_held -> %>
+          <% {whole, cents} = format_amount_parts(@total_amount) %>
+          <div class="co-panel co-terminal-panel co-escrow-panel">
+            <div class="co-escrow-icon-wrap">
+              <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#d97706" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+              </svg>
+            </div>
+            <h2 class="co-terminal-title">Payment Held in Trust</h2>
+            <div class="co-terminal-amount">{currency_symbol(@currency)}{whole}.{cents}</div>
+            <p class="co-terminal-desc">
+              Your payment is safely held. Once you confirm you've received your order, the merchant will be paid. If something is wrong, open a dispute below.
+            </p>
+            <div class="co-escrow-notice">
+              <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;margin-top:1px"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+              Funds release automatically in {@escrow_hold && @escrow_hold["auto_release_days"] || 7} days if you take no action.
+            </div>
+            <%= if @error do %>
+              <div class="co-error-banner">{@error}</div>
+            <% end %>
+            <button class="co-btn-primary co-escrow-confirm-btn" phx-click="escrow_show_confirm_modal" disabled={@escrow_confirming}>
+              <%= if @escrow_confirming do %>Confirming…<% else %>I've received my order ✓<% end %>
+            </button>
+            <div class="co-escrow-divider">or</div>
+            <div class="co-escrow-dispute-section">
+              <p class="co-escrow-dispute-label">Something went wrong with your order?</p>
+              <textarea
+                phx-change="escrow_change_note"
+                name="dispute_note"
+                placeholder="Describe the issue — e.g. item not received, wrong item..."
+                class="co-escrow-dispute-note"
+                rows="3"
+              >{@dispute_note}</textarea>
+              <button class="co-btn-secondary" phx-click="escrow_open_dispute" phx-disable-with="Opening dispute…" disabled={@escrow_disputing || String.trim(@dispute_note) == ""}>
+                Open a dispute
+              </button>
+            </div>
+            <div class="co-receipt-box" style="margin-top:16px">
+              <div class="co-receipt-row">
+                <span>Reference</span>
+                <span class="co-receipt-mono">{@session && @session["public_id"]}</span>
+              </div>
+              <div class="co-receipt-row">
+                <span>Status</span>
+                <span class="co-badge-escrow">Held in Trust</span>
+              </div>
+            </div>
+            <%= if @escrow_confirm_modal do %>
+              <div class="co-modal-overlay" phx-click="escrow_hide_confirm_modal">
+                <div class="co-modal" phx-click-stop="">
+                  <h3 class="co-modal-title">Confirm receipt?</h3>
+                  <p class="co-modal-body">
+                    This is irreversible — once confirmed, the merchant will receive the funds immediately. Only confirm if you have fully received your order.
+                  </p>
+                  <div class="co-modal-actions">
+                    <button class="co-btn-ghost" phx-click="escrow_hide_confirm_modal">Cancel</button>
+                    <button class="co-btn-primary" phx-click="escrow_confirm_receipt" phx-disable-with="Confirming…">Yes, confirm receipt</button>
+                  </div>
+                </div>
+              </div>
+            <% end %>
+          </div>
+
+        <% :escrow_disputed -> %>
+          <div class="co-panel co-terminal-panel co-terminal-panel--info">
+            <div class="co-escrow-icon-wrap co-escrow-icon-wrap--disputed">
+              <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#3b82f6" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>
+              </svg>
+            </div>
+            <h2 class="co-terminal-title">Dispute Opened</h2>
+            <p class="co-terminal-desc">
+              Your dispute has been received. Our team will review it within 2 business days and notify you of the outcome.
+            </p>
+            <div class="co-receipt-box">
+              <div class="co-receipt-row">
+                <span>Reference</span>
+                <span class="co-receipt-mono">{@session && @session["public_id"]}</span>
+              </div>
+              <div class="co-receipt-row">
+                <span>Status</span>
+                <span class="co-badge-pending">Under Review</span>
+              </div>
+            </div>
           </div>
 
         <% :expired -> %>
@@ -1585,6 +1717,115 @@ defmodule YagyeCheckoutWeb.Live.CheckoutLive do
       }
 
       .co-btn-primary:hover { opacity: 0.88; }
+      .co-btn-primary:disabled { opacity: 0.55; cursor: not-allowed; }
+
+      .co-btn-secondary {
+        display: inline-flex; align-items: center; justify-content: center;
+        background: transparent; color: #ef4444;
+        border: 1.5px solid #fca5a5; padding: 0.625rem 1.25rem;
+        border-radius: 10px; font-weight: 600; font-size: 0.875rem;
+        transition: background 0.15s, border-color 0.15s; cursor: pointer;
+        width: 100%;
+      }
+      .co-btn-secondary:hover { background: #fef2f2; border-color: #f87171; }
+      .co-btn-secondary:disabled { opacity: 0.5; cursor: not-allowed; }
+
+      .co-btn-ghost {
+        background: transparent; color: var(--body-text);
+        border: 1.5px solid var(--border-med); padding: 0.625rem 1.25rem;
+        border-radius: 10px; font-weight: 600; font-size: 0.875rem;
+        transition: background 0.15s; cursor: pointer;
+      }
+      .co-btn-ghost:hover { background: var(--canvas); }
+
+      /* ── Escrow states ── */
+      .co-escrow-icon-wrap {
+        width: 64px; height: 64px; border-radius: 50%;
+        background: #fef3c7;
+        display: flex; align-items: center; justify-content: center;
+      }
+      .co-escrow-icon-wrap--disputed { background: #eff6ff; }
+
+      .co-escrow-notice {
+        display: flex; align-items: flex-start; gap: 6px;
+        background: #fef9ec; border: 1px solid #fde68a;
+        border-radius: 10px; padding: 0.625rem 0.875rem;
+        font-size: 0.8rem; color: #92400e; line-height: 1.5;
+        width: 100%; text-align: left;
+      }
+
+      .co-escrow-confirm-btn { width: 100%; border: none; cursor: pointer; }
+
+      .co-escrow-divider {
+        font-size: 0.75rem; color: var(--muted-text); text-transform: uppercase;
+        letter-spacing: 0.05em; display: flex; align-items: center; gap: 0.75rem;
+        width: 100%;
+      }
+      .co-escrow-divider::before, .co-escrow-divider::after {
+        content: ""; flex: 1; height: 1px; background: var(--border-med);
+      }
+
+      .co-escrow-dispute-section {
+        width: 100%; display: flex; flex-direction: column; gap: 0.625rem;
+        text-align: left;
+      }
+
+      .co-escrow-dispute-label {
+        font-size: 0.8rem; font-weight: 600; color: var(--body-text);
+      }
+
+      .co-escrow-dispute-note {
+        width: 100%; border: 1.5px solid var(--border-med); border-radius: 10px;
+        padding: 0.625rem 0.875rem; font-size: 0.875rem; color: var(--ink);
+        background: var(--surface); resize: vertical; min-height: 80px;
+        outline: none; transition: border-color 0.15s; font-family: inherit;
+        box-sizing: border-box;
+      }
+      .co-escrow-dispute-note:focus { border-color: var(--brand); }
+
+      .co-badge-escrow {
+        background: #fef3c7; color: #92400e;
+        font-size: 0.6875rem; font-weight: 700;
+        padding: 0.2rem 0.5rem; border-radius: 999px;
+      }
+
+      .co-badge-pending {
+        background: #dbeafe; color: #1e40af;
+        font-size: 0.6875rem; font-weight: 700;
+        padding: 0.2rem 0.5rem; border-radius: 999px;
+      }
+
+      .co-error-banner {
+        width: 100%; background: #fef2f2; border: 1px solid #fecaca;
+        border-radius: 10px; padding: 0.625rem 0.875rem;
+        font-size: 0.8rem; color: #b91c1c; text-align: left;
+      }
+
+      /* ── Confirmation modal ── */
+      .co-modal-overlay {
+        position: fixed; inset: 0; background: rgba(0,0,0,0.5);
+        display: flex; align-items: center; justify-content: center;
+        z-index: 100; padding: 1rem;
+      }
+
+      .co-modal {
+        background: var(--surface); border-radius: 16px;
+        padding: 1.75rem; max-width: 360px; width: 100%;
+        box-shadow: 0 20px 60px rgba(0,0,0,0.2);
+        display: flex; flex-direction: column; gap: 0.875rem;
+      }
+
+      .co-modal-title {
+        font-size: 1.125rem; font-weight: 800; color: var(--ink); margin: 0;
+      }
+
+      .co-modal-body {
+        font-size: 0.875rem; color: var(--body-text); line-height: 1.6; margin: 0;
+      }
+
+      .co-modal-actions {
+        display: flex; gap: 0.625rem; justify-content: flex-end; flex-wrap: wrap;
+      }
 
       /* ── Spinner ── */
       .co-spinner { width: 48px; height: 48px; position: relative; }
@@ -1963,7 +2204,12 @@ defmodule YagyeCheckoutWeb.Live.CheckoutLive do
       checkout_business_name: nil,
       submitting: false,
       submission_token: nil,
-      user_agent_hash: nil
+      user_agent_hash: nil,
+      escrow_hold: nil,
+      escrow_confirm_modal: false,
+      escrow_confirming: false,
+      escrow_disputing: false,
+      dispute_note: ""
     )
   end
 
@@ -1984,6 +2230,8 @@ defmodule YagyeCheckoutWeb.Live.CheckoutLive do
   defp resolve_state("expired",   _e, _n), do: :expired
   defp resolve_state(_s, expires, now) when is_integer(expires) and expires < now, do: :expired
   defp resolve_state("processing", _e, _n), do: :processing
+  defp resolve_state("escrow_held",     _e, _n), do: :escrow_held
+  defp resolve_state("escrow_disputed", _e, _n), do: :escrow_disputed
   defp resolve_state(_s, _e, _n), do: :form
 
   defp maybe_start_poll(socket, state) when state in [:processing, :awaiting_transfer] do
@@ -2089,6 +2337,16 @@ defmodule YagyeCheckoutWeb.Live.CheckoutLive do
 
       _ ->
         {:noreply, assign(socket, page_state: :done)}
+    end
+  end
+
+  defp finalize_escrow(socket, pay_id) do
+    case CoreClient.get_escrow_hold(pay_id) do
+      {:ok, hold} ->
+        {:noreply, assign(socket, page_state: :escrow_held, escrow_hold: hold)}
+
+      _ ->
+        {:noreply, assign(socket, page_state: :escrow_held, escrow_hold: %{})}
     end
   end
 
