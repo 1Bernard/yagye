@@ -76,6 +76,7 @@ defmodule YagyeCore.Reconciliation.Workers.ReconciliationRunWorker do
         select: %{
           id: a.id,
           provider_reference: a.provider_reference,
+          idempotency_token: a.idempotency_token,
           amount: p.amount,
           currency: p.currency,
           merchant_id: p.merchant_id,
@@ -114,13 +115,37 @@ defmodule YagyeCore.Reconciliation.Workers.ReconciliationRunWorker do
     ur = index_by(right_items, :provider_reference)
 
     {exact_matches, ul, ur} = match_exact_reference(run, ul, ur)
+    # Secondary pass: for external PSPs (e.g. Flutterwave) where provider_reference
+    # on the left is the PSP's numeric ID but the report uses idempotency_token (txRef)
+    # as provider_reference. Index remaining left items by idempotency_token.
+    {token_matches, ul, ur} = match_by_idempotency_token(run, ul, ur)
     {composite_matches, ul, ur} = match_composite(run, ul, ur)
     {window_matches, ul, ur} = match_amount_window(run, ul, ur)
 
-    all_matches = exact_matches ++ composite_matches ++ window_matches
+    all_matches = exact_matches ++ token_matches ++ composite_matches ++ window_matches
     breaks = build_breaks(run, Map.values(ul), Map.values(ur))
 
     {all_matches, breaks}
+  end
+
+  defp match_by_idempotency_token(run, unmatched_left, unmatched_right) do
+    ul_by_token = index_by(Map.values(unmatched_left), :idempotency_token)
+
+    Enum.reduce(ul_by_token, {[], unmatched_left, unmatched_right}, fn
+      {nil, _left}, acc ->
+        acc
+
+      {token, left}, {matches, ul, ur} ->
+        case Map.fetch(ur, token) do
+          {:ok, right} ->
+            match = build_match(run, "exact_reference", @exact_confidence, left, right)
+            ref_key = left[:provider_reference]
+            {[match | matches], Map.delete(ul, ref_key), Map.delete(ur, token)}
+
+          :error ->
+            {matches, ul, ur}
+        end
+    end)
   end
 
   defp match_exact_reference(run, unmatched_left, unmatched_right) do

@@ -8,7 +8,7 @@ defmodule YagyeCoreWeb.Controllers.Internal.ReconciliationController do
   alias YagyeCore.Merchants.Schemas.Merchant
   alias YagyeCore.Providers.Schemas.Provider
   alias YagyeCore.Reconciliation
-  alias YagyeCore.Reconciliation.Reports.CsvReport
+  alias YagyeCore.Reconciliation.Reports.{CsvReport, FlutterwaveReport, PaystackReport}
   alias YagyeCore.Repo
   alias YagyeCore.Settlement.Schemas.SettlementBatch
   alias YagyeCoreWeb.Response
@@ -83,7 +83,7 @@ defmodule YagyeCoreWeb.Controllers.Internal.ReconciliationController do
     with {:provider, %Provider{} = provider} <-
            {:provider, Repo.get_by(Provider, code: provider_code)},
          {:parse, {:ok, payload}} <-
-           {:parse, CsvReport.parse(provider.id, mode, csv_content, currency)},
+           {:parse, parse_report(provider, mode, csv_content, currency)},
          {:ingest, {:ok, report}} <-
            {:ingest, Reconciliation.ingest_report(provider.id, payload)} do
       runs_triggered = trigger_matching_runs(provider, mode, report.report_date)
@@ -134,6 +134,19 @@ defmodule YagyeCoreWeb.Controllers.Internal.ReconciliationController do
   end
 
   # ── Private helpers ───────────────────────────────────────────────────────────
+
+  defp parse_report(%{code: code} = provider, mode, csv_content, currency) do
+    case code do
+      c when c in ["paystack", "paystack_gh"] ->
+        PaystackReport.parse(provider.id, mode, csv_content, currency)
+
+      c when c in ["flutterwave", "flutterwave_gh"] ->
+        FlutterwaveReport.parse(provider.id, mode, csv_content, currency)
+
+      _ ->
+        CsvReport.parse(provider.id, mode, csv_content, currency)
+    end
+  end
 
   defp trigger_matching_runs(provider, mode, report_date) do
     batches =

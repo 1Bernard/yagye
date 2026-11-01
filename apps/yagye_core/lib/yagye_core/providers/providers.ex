@@ -151,6 +151,105 @@ defmodule YagyeCore.Providers do
     end
   end
 
+  # ── Merchant provider connection management ──────────────────────────────────
+
+  def get_provider_by_code(code), do: fetch_provider_by_code(code)
+
+  def list_merchant_connections(merchant_id, mode \\ nil) do
+    query =
+      from(c in MerchantProviderConnection,
+        where: c.merchant_id == ^merchant_id,
+        order_by: [asc: c.priority, asc: c.inserted_at],
+        preload: [:provider]
+      )
+
+    query =
+      if mode do
+        where(query, [c], c.mode == ^mode)
+      else
+        query
+      end
+
+    {:ok, Repo.all(query)}
+  end
+
+  def create_merchant_connection(merchant_id, provider_id, attrs) do
+    mode = attrs[:mode] || attrs["mode"]
+
+    result =
+      %MerchantProviderConnection{}
+      |> MerchantProviderConnection.changeset(
+        Map.merge(attrs, %{merchant_id: merchant_id, provider_id: provider_id})
+      )
+      |> Repo.insert(on_conflict: :nothing, conflict_target: [:merchant_id, :provider_id, :mode])
+
+    case result do
+      {:ok, _} ->
+        conn =
+          Repo.get_by!(MerchantProviderConnection,
+            merchant_id: merchant_id,
+            provider_id: provider_id,
+            mode: mode
+          )
+
+        {:ok, Repo.preload(conn, :provider)}
+
+      {:error, _} = err ->
+        err
+    end
+  end
+
+  def update_merchant_connection(connection_id, attrs) do
+    conn =
+      try do
+        Repo.get(MerchantProviderConnection, connection_id)
+      rescue
+        Ecto.Query.CastError -> nil
+      end
+
+    case conn do
+      nil ->
+        {:error, :not_found}
+
+      conn ->
+        conn
+        |> MerchantProviderConnection.update_changeset(attrs)
+        |> Repo.update()
+        |> case do
+          {:ok, updated} -> {:ok, Repo.preload(updated, :provider)}
+          err -> err
+        end
+    end
+  end
+
+  def deactivate_merchant_connection(connection_id) do
+    update_merchant_connection(connection_id, %{status: "disabled"})
+  end
+
+  def store_merchant_credential(provider_id, merchant_id, mode, credential_map) do
+    {base_url, payload} =
+      case Map.pop(credential_map, "base_url") do
+        {nil, map} -> {Map.get(credential_map, :base_url, ""), Map.delete(map, :base_url)}
+        {url, map} -> {url, map}
+      end
+
+    encrypted = Vault.encrypt_map(payload)
+
+    %ProviderCredential{}
+    |> ProviderCredential.changeset(%{
+      provider_id: provider_id,
+      merchant_id: merchant_id,
+      mode: mode,
+      base_url: base_url,
+      encrypted_payload: encrypted,
+      active: true
+    })
+    |> Repo.insert(
+      on_conflict: {:replace, [:encrypted_payload, :base_url, :active, :updated_at]},
+      conflict_target: [:provider_id, :merchant_id, :mode]
+    )
+  end
+
   # ── Private ──────────────────────────────────────────────────────────────────
 
   # Resolves the simulation provider + credential for the given code.

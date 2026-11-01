@@ -40,7 +40,7 @@ defmodule YagyeCore.RiskTest do
     })
   end
 
-  defp insert_risk_label(payment, attrs \\ []) do
+  defp insert_risk_label(payment, attrs) do
     base = [
       payment_id: payment.id,
       label: "suspicious",

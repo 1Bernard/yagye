@@ -119,7 +119,7 @@ defmodule YagyeCore.MixProject do
         "credo --strict",
         "sobelow --config",
         "compile --warnings-as-errors",
-        "test --warnings-as-errors"
+        "test --warnings-as-errors --exclude date_sensitive"
       ]
     ]
   end

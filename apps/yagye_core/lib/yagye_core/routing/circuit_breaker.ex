@@ -14,17 +14,18 @@ defmodule YagyeCore.Routing.CircuitBreaker do
   # ── Public API ───────────────────────────────────────────────────────────────
 
   def start_link(opts \\ []) do
-    GenServer.start_link(__MODULE__, opts, name: __MODULE__)
+    name = Keyword.get(opts, :name, __MODULE__)
+    GenServer.start_link(__MODULE__, opts, name: name)
   end
 
   @doc "Called after a provider responds successfully. Closes the circuit if it was half-open."
-  def record_success(provider_id) do
-    GenServer.cast(__MODULE__, {:success, provider_id})
+  def record_success(provider_id, server \\ __MODULE__) do
+    GenServer.cast(server, {:success, provider_id})
   end
 
   @doc "Called after a definite or retryable failure. Opens the circuit after the threshold."
-  def record_failure(provider_id) do
-    GenServer.cast(__MODULE__, {:failure, provider_id})
+  def record_failure(provider_id, server \\ __MODULE__) do
+    GenServer.cast(server, {:failure, provider_id})
   end
 
   @doc """
@@ -33,8 +34,10 @@ defmodule YagyeCore.Routing.CircuitBreaker do
   Reads directly from the ETS table — no GenServer round-trip — so it is safe to call
   on every payment dispatch without adding latency.
   """
-  def state(provider_id) do
-    case :ets.lookup(@table, provider_id) do
+  def state(provider_id, server \\ __MODULE__) do
+    table = table_for(server)
+
+    case :ets.lookup(table, provider_id) do
       [] ->
         :closed
 
@@ -53,10 +56,11 @@ defmodule YagyeCore.Routing.CircuitBreaker do
   are intentionally NOT excluded — the next payment to that provider acts as the probe that
   decides whether to close the circuit or re-open it.
   """
-  def open_provider_ids do
+  def open_provider_ids(server \\ __MODULE__) do
+    table = table_for(server)
     now = System.monotonic_time(:millisecond)
 
-    :ets.tab2list(@table)
+    :ets.tab2list(table)
     |> Enum.filter(fn {_id, circuit_state, _count, opened_at} ->
       circuit_state == :open and not is_nil(opened_at) and
         now - opened_at < @recovery_period_ms
@@ -67,21 +71,29 @@ defmodule YagyeCore.Routing.CircuitBreaker do
   # ── GenServer callbacks ───────────────────────────────────────────────────────
 
   @impl GenServer
-  def init(_opts) do
-    :ets.new(@table, [:set, :named_table, :public, read_concurrency: true])
-    {:ok, %{}}
+  def init(opts) do
+    table = Keyword.get(opts, :table, @table)
+    :ets.new(table, [:set, :named_table, :public, read_concurrency: true])
+    {:ok, %{table: table}}
   end
 
   @impl GenServer
-  def handle_cast({:success, provider_id}, gen_state) do
-    case :ets.lookup(@table, provider_id) do
-      [{_id, :half_open, _count, _opened_at}] ->
-        Logger.info("[circuit_breaker] provider=#{provider_id} state=closed (probe succeeded)")
-        :ets.delete(@table, provider_id)
+  def handle_cast({:success, provider_id}, %{table: table} = gen_state) do
+    case :ets.lookup(table, provider_id) do
+      [{_id, :open, _count, opened_at}] when not is_nil(opened_at) ->
+        if elapsed_ms(opened_at) >= @recovery_period_ms do
+          # Recovery period has elapsed — this is the probe success; close the circuit.
+          Logger.info("[circuit_breaker] provider=#{provider_id} state=closed (probe succeeded)")
+          :ets.delete(table, provider_id)
+        else
+          # Success while still in the open window (e.g. a parallel request that snuck
+          # through). Don't close yet — just let it pass.
+          :ok
+        end
 
-      [{_id, :closed, _count, _opened_at}] ->
+      [{_id, :closed, _count, _nil}] ->
         # Any success resets the consecutive failure streak.
-        :ets.delete(@table, provider_id)
+        :ets.delete(table, provider_id)
 
       _ ->
         :ok
@@ -91,12 +103,12 @@ defmodule YagyeCore.Routing.CircuitBreaker do
   end
 
   @impl GenServer
-  def handle_cast({:failure, provider_id}, gen_state) do
+  def handle_cast({:failure, provider_id}, %{table: table} = gen_state) do
     now = System.monotonic_time(:millisecond)
 
-    case :ets.lookup(@table, provider_id) do
+    case :ets.lookup(table, provider_id) do
       [] ->
-        :ets.insert(@table, {provider_id, :closed, 1, nil})
+        :ets.insert(table, {provider_id, :closed, 1, nil})
 
       [{_id, :closed, count, _nil}] ->
         new_count = count + 1
@@ -107,21 +119,31 @@ defmodule YagyeCore.Routing.CircuitBreaker do
               "after #{new_count} consecutive failures"
           )
 
-          :ets.insert(@table, {provider_id, :open, new_count, now})
+          :ets.insert(table, {provider_id, :open, new_count, now})
         else
-          :ets.insert(@table, {provider_id, :closed, new_count, nil})
+          :ets.insert(table, {provider_id, :closed, new_count, nil})
         end
 
-      [{_id, :open, count, _opened_at}] ->
-        # Failure while still in the open window — reset the recovery clock.
-        :ets.insert(@table, {provider_id, :open, count + 1, now})
+      [{_id, :open, count, opened_at}] ->
+        if not is_nil(opened_at) and elapsed_ms(opened_at) >= @recovery_period_ms do
+          # Probe failed — re-open with a fresh recovery clock.
+          Logger.warning("[circuit_breaker] provider=#{provider_id} state=open (probe failed)")
+        end
 
-      [{_id, :half_open, count, _opened_at}] ->
-        Logger.warning("[circuit_breaker] provider=#{provider_id} state=open (probe failed)")
-        :ets.insert(@table, {provider_id, :open, count + 1, now})
+        :ets.insert(table, {provider_id, :open, count + 1, now})
     end
 
     {:noreply, gen_state}
+  end
+
+  # Looks up the ETS table name from the GenServer's state without a full round-trip.
+  defp table_for(__MODULE__), do: @table
+
+  defp table_for(server) do
+    %{table: table} = :sys.get_state(server)
+    table
+  rescue
+    _ -> @table
   end
 
   defp elapsed_ms(opened_at), do: System.monotonic_time(:millisecond) - opened_at

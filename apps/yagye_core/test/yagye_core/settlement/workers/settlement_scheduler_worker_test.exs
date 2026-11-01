@@ -6,7 +6,6 @@ defmodule YagyeCore.Settlement.Workers.SettlementSchedulerWorkerTest do
   alias YagyeCore.Providers.Schemas.Provider
   alias YagyeCore.Repo
   alias YagyeCore.Settlement
-  alias YagyeCore.Settlement.GhanaBusinessDay
   alias YagyeCore.Settlement.Workers.SettlementSchedulerWorker
 
   defp setup_unsettled_payment(merchant, provider) do
@@ -224,18 +223,11 @@ defmodule YagyeCore.Settlement.Workers.SettlementSchedulerWorkerTest do
 
     test "monthly: skips batch creation when today is not the 1st (or next business day)" do
       today = Date.utc_today()
+      # Test config sets always_business_day: true, so the scheduler treats the
+      # calendar 1st as the target regardless of weekday — mirror that here.
       first_of_month = %Date{today | day: 1}
-      # Determine the target day (1st or next business day if 1st is a holiday/weekend)
-      target =
-        if GhanaBusinessDay.business_day?(first_of_month) do
-          first_of_month
-        else
-          Date.add(first_of_month, 1)
-          |> Stream.iterate(&Date.add(&1, 1))
-          |> Enum.find(&GhanaBusinessDay.business_day?/1)
-        end
 
-      if Date.compare(today, target) != :eq do
+      if Date.compare(today, first_of_month) != :eq do
         merchant = Fixtures.merchant_fixture()
         provider = provider_with_past_cutoff()
         setup_unsettled_payment(merchant, provider)

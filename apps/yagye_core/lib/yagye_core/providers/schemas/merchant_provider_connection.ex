@@ -31,4 +31,11 @@ defmodule YagyeCore.Providers.Schemas.MerchantProviderConnection do
     |> foreign_key_constraint(:merchant_id)
     |> foreign_key_constraint(:provider_id)
   end
+
+  def update_changeset(conn, attrs) do
+    conn
+    |> cast(attrs, [:priority, :enabled_methods, :status])
+    |> validate_inclusion(:status, @valid_statuses)
+    |> validate_number(:priority, greater_than_or_equal_to: 1)
+  end
 end

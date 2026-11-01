@@ -24,7 +24,7 @@ defmodule YagyeCore.Reconciliation.Reports.CsvReport do
          provider_id: provider_id,
          mode: mode,
          report_date: report_date,
-         source: "mno_csv",
+         source: "manual_upload",
          raw_uri: "portal://csv_upload/#{checksum}",
          currency: currency,
          reported_total: reported_total,

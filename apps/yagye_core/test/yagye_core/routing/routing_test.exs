@@ -2,6 +2,7 @@ defmodule YagyeCore.Routing.RoutingTest do
   use YagyeCore.DataCase, async: true
 
   alias YagyeCore.{Fixtures, Repo, Routing}
+  alias YagyeCore.Routing.CircuitBreaker
   alias YagyeCore.Routing.Schemas.RoutingRule
 
   # ── create_rule/1 ─────────────────────────────────────────────────────────
@@ -689,6 +690,180 @@ defmodule YagyeCore.Routing.RoutingTest do
       atg_rule = Enum.find(rules, fn r -> hd(r.actions).provider_id == airteltigo.id end)
       assert atg_rule
       assert get_in(hd(atg_rule.conditions).value, ["v"]) == "AIRTELTIGO"
+    end
+  end
+
+  # ── evaluate/4 — circuit breaker integration ─────────────────────────────
+
+  describe "evaluate/4 — open circuit breaker exclusion" do
+    test "skips provider whose circuit breaker is open" do
+      primary = Fixtures.provider_fixture()
+      secondary = Fixtures.provider_fixture()
+
+      {:ok, rule_a} =
+        Routing.create_rule(%{
+          scope: "platform",
+          mode: "simulation",
+          name: "Primary",
+          priority: 0
+        })
+
+      {:ok, rule_b} =
+        Routing.create_rule(%{
+          scope: "platform",
+          mode: "simulation",
+          name: "Secondary",
+          priority: 1
+        })
+
+      for rule <- [rule_a, rule_b] do
+        Routing.add_condition(rule, %{
+          field: "method",
+          operator: "eq",
+          value: %{"v" => "mobile_money"},
+          position: 0
+        })
+      end
+
+      Routing.add_action(rule_a, %{provider_id: primary.id, priority: 0})
+      Routing.add_action(rule_b, %{provider_id: secondary.id, priority: 0})
+
+      # Open the primary's circuit breaker.
+      for _ <- 1..5, do: CircuitBreaker.record_failure(primary.id)
+      # Flush async casts before evaluate reads open_provider_ids.
+      :sys.get_state(CircuitBreaker)
+
+      assert {:ok, {selected, _, _}} =
+               Routing.evaluate(nil, "simulation", %{method: "mobile_money"})
+
+      assert selected == secondary.id
+    end
+  end
+
+  # ── evaluate/4 — merchant with multiple providers ─────────────────────────
+
+  describe "evaluate/4 — merchant multiple-provider routing" do
+    setup do
+      merchant = Fixtures.merchant_fixture()
+      p1 = Fixtures.provider_fixture()
+      p2 = Fixtures.provider_fixture()
+      p3 = Fixtures.provider_fixture()
+
+      # Merchant has a high-priority rule for MoMo → p1, a lower-priority rule → p2.
+      # Platform fallback → p3 for any remaining traffic.
+      {:ok, merchant_rule_a} =
+        Routing.create_rule(%{
+          scope: "merchant",
+          merchant_id: merchant.id,
+          mode: "simulation",
+          name: "Merchant Primary",
+          priority: 0
+        })
+
+      {:ok, merchant_rule_b} =
+        Routing.create_rule(%{
+          scope: "merchant",
+          merchant_id: merchant.id,
+          mode: "simulation",
+          name: "Merchant Secondary",
+          priority: 1
+        })
+
+      {:ok, platform_rule} =
+        Routing.create_rule(%{
+          scope: "platform",
+          mode: "simulation",
+          name: "Platform Fallback",
+          priority: 99
+        })
+
+      for rule <- [merchant_rule_a, merchant_rule_b, platform_rule] do
+        Routing.add_condition(rule, %{
+          field: "method",
+          operator: "eq",
+          value: %{"v" => "mobile_money"},
+          position: 0
+        })
+      end
+
+      Routing.add_action(merchant_rule_a, %{provider_id: p1.id, priority: 0})
+      Routing.add_action(merchant_rule_b, %{provider_id: p2.id, priority: 0})
+      Routing.add_action(platform_rule, %{provider_id: p3.id, priority: 0})
+
+      %{merchant: merchant, p1: p1, p2: p2, p3: p3}
+    end
+
+    test "selects merchant primary provider on first attempt", %{merchant: m, p1: p1} do
+      assert {:ok, {selected, _, _}} =
+               Routing.evaluate(m.id, "simulation", %{method: "mobile_money"})
+
+      assert selected == p1.id
+    end
+
+    test "falls back to merchant secondary when primary is excluded", %{
+      merchant: m,
+      p1: p1,
+      p2: p2
+    } do
+      assert {:ok, {selected, _, _}} =
+               Routing.evaluate(m.id, "simulation", %{method: "mobile_money"}, [p1.id])
+
+      assert selected == p2.id
+    end
+
+    test "falls back to platform provider when both merchant providers are excluded", %{
+      merchant: m,
+      p1: p1,
+      p2: p2,
+      p3: p3
+    } do
+      assert {:ok, {selected, _, _}} =
+               Routing.evaluate(m.id, "simulation", %{method: "mobile_money"}, [p1.id, p2.id])
+
+      assert selected == p3.id
+    end
+
+    test "returns :no_matching_rule when all providers are excluded", %{
+      merchant: m,
+      p1: p1,
+      p2: p2,
+      p3: p3
+    } do
+      assert {:error, :no_matching_rule} =
+               Routing.evaluate(m.id, "simulation", %{method: "mobile_money"}, [
+                 p1.id,
+                 p2.id,
+                 p3.id
+               ])
+    end
+
+    test "platform rule only applies when merchant has no matching rule", %{
+      merchant: m,
+      p3: p3
+    } do
+      # card has no merchant rules, so the platform fallback wins.
+      # First create a platform card rule pointing to p3.
+      {:ok, platform_card} =
+        Routing.create_rule(%{
+          scope: "platform",
+          mode: "simulation",
+          name: "Platform Card",
+          priority: 0
+        })
+
+      Routing.add_condition(platform_card, %{
+        field: "method",
+        operator: "eq",
+        value: %{"v" => "card"},
+        position: 0
+      })
+
+      Routing.add_action(platform_card, %{provider_id: p3.id, priority: 0})
+
+      assert {:ok, {selected, _, _}} =
+               Routing.evaluate(m.id, "simulation", %{method: "card"})
+
+      assert selected == p3.id
     end
   end
 
