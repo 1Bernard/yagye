@@ -51,6 +51,8 @@ defmodule YagyeCore do
       Float.Schemas.MomoFloatBalance,
       Reconciliation,
       Reconciliation.Reports.CsvReport,
+      Reconciliation.Reports.PaystackReport,
+      Reconciliation.Reports.FlutterwaveReport,
       Reconciliation.Schemas.ReconciliationBreak,
       Reconciliation.Schemas.ReconciliationRun,
       BankReconciliation,

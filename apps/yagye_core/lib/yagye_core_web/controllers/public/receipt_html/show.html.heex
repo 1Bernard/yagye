@@ -1,0 +1,383 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Receipt · <%= @data.merchant.trading_name %></title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
+      background: #ebebeb;
+      color: #1a1a1a;
+      min-height: 100vh;
+      display: flex;
+      align-items: flex-start;
+      justify-content: center;
+      padding: 32px 16px 48px;
+    }
+
+    .receipt {
+      background: #fff;
+      width: 100%;
+      max-width: 400px;
+      border-radius: 4px;
+      box-shadow: 0 2px 12px rgba(0,0,0,0.10);
+      overflow: visible;
+      position: relative;
+    }
+
+    /* ── Header ─────────────────────────────── */
+    .receipt-header {
+      padding: 22px 24px 18px;
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      border-bottom: none;
+    }
+
+    .merchant-brand {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .brand-dots {
+      display: grid;
+      grid-template-columns: repeat(3, 5px);
+      grid-template-rows: repeat(3, 5px);
+      gap: 3px;
+      flex-shrink: 0;
+    }
+
+    .brand-dots span {
+      width: 5px;
+      height: 5px;
+      border-radius: 50%;
+      background: #1a1a1a;
+      display: block;
+    }
+
+    .merchant-name {
+      font-size: 15px;
+      font-weight: 700;
+      color: #1a1a1a;
+      letter-spacing: -0.2px;
+    }
+
+    .receipt-meta {
+      text-align: right;
+      flex-shrink: 0;
+    }
+
+    .receipt-meta p {
+      font-size: 12px;
+      color: #888;
+      line-height: 1.6;
+    }
+
+    /* ── Thank-you block ─────────────────────── */
+    .thankyou-block {
+      padding: 18px 24px 22px;
+    }
+
+    .thankyou-block h1 {
+      font-size: 22px;
+      font-weight: 700;
+      color: #1a1a1a;
+      line-height: 1.25;
+      margin-bottom: 10px;
+    }
+
+    .thankyou-block p {
+      font-size: 13.5px;
+      color: #444;
+      line-height: 1.55;
+    }
+
+    .ref-highlight {
+      color: #1a6ef5;
+      font-weight: 600;
+    }
+
+    /* ── Tear line ───────────────────────────── */
+    .tear {
+      position: relative;
+      height: 1px;
+      margin: 0 20px;
+      border: none;
+      border-top: 1.5px dashed #ccc;
+    }
+
+    .tear::before,
+    .tear::after {
+      content: "";
+      position: absolute;
+      top: 50%;
+      transform: translateY(-50%);
+      width: 24px;
+      height: 24px;
+      border-radius: 50%;
+      background: #ebebeb;
+      border: 1.5px dashed #ccc;
+    }
+
+    .tear::before { left: -32px; }
+    .tear::after  { right: -32px; }
+
+    /* ── Line items area (description) ──────── */
+    .items-block {
+      padding: 20px 24px 16px;
+    }
+
+    .item-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 16px;
+      padding: 10px 0;
+      border-bottom: 1px solid #f0f0f0;
+    }
+
+    .item-row:last-child { border-bottom: none; }
+
+    .item-index {
+      font-size: 13px;
+      color: #aaa;
+      flex-shrink: 0;
+      width: 14px;
+    }
+
+    .item-desc {
+      flex: 1;
+      font-size: 13px;
+      color: #1a1a1a;
+      line-height: 1.45;
+    }
+
+    .item-desc small {
+      display: block;
+      color: #888;
+      font-size: 12px;
+      margin-top: 3px;
+    }
+
+    .item-amount {
+      font-size: 13px;
+      font-weight: 500;
+      color: #1a1a1a;
+      text-align: right;
+      white-space: nowrap;
+    }
+
+    /* ── Totals box ──────────────────────────── */
+    .totals-box {
+      background: #f5f5f5;
+      border-radius: 6px;
+      margin: 4px 24px 20px;
+      padding: 16px 18px;
+    }
+
+    .totals-main {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      margin-bottom: 10px;
+    }
+
+    .totals-main .t-label {
+      font-size: 16px;
+      font-weight: 700;
+      color: #1a1a1a;
+    }
+
+    .totals-main .t-value {
+      font-size: 20px;
+      font-weight: 700;
+      color: #1a1a1a;
+      letter-spacing: -0.5px;
+    }
+
+    .totals-row {
+      display: flex;
+      justify-content: space-between;
+      font-size: 13px;
+      color: #666;
+      padding: 3px 0;
+    }
+
+    /* ── Custom note ─────────────────────────── */
+    .note-block {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 16px;
+      padding: 16px 24px 20px;
+    }
+
+    .note-text {
+      font-size: 14px;
+      color: #1a1a1a;
+      font-weight: 600;
+      line-height: 1.45;
+      flex: 1;
+    }
+
+    .note-text small {
+      display: block;
+      font-weight: 400;
+      color: #888;
+      font-size: 12.5px;
+      margin-top: 4px;
+    }
+
+    /* ── Footer ──────────────────────────────── */
+    .receipt-footer {
+      padding: 14px 24px 20px;
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-end;
+      border-top: 1px solid #ebebeb;
+    }
+
+    .footer-left p {
+      font-size: 11.5px;
+      color: #888;
+      line-height: 1.7;
+    }
+
+    .footer-right {
+      text-align: right;
+    }
+
+    .footer-right p {
+      font-size: 11.5px;
+      color: #888;
+    }
+
+    .footer-right a {
+      font-size: 12px;
+      color: #1a6ef5;
+      text-decoration: none;
+    }
+
+    @media (max-width: 440px) {
+      body { padding: 16px 12px 40px; }
+      .tear::before { left: -28px; }
+      .tear::after  { right: -28px; }
+    }
+  </style>
+</head>
+<body>
+  <%
+    payment  = @data.payment
+    merchant = @data.merchant
+    customer = @data.customer
+    settings = merchant.receipt_settings || %{}
+    network  = Map.get(payment.metadata || %{}, "network")
+    short_ref = payment.public_id |> String.slice(-8, 8) |> String.upcase()
+    receipt_no = "No. " <> short_ref
+  %>
+
+  <div class="receipt">
+
+    <!-- Header -->
+    <div class="receipt-header">
+      <div class="merchant-brand">
+        <div class="brand-dots">
+          <%= for _ <- 1..9 do %><span></span><% end %>
+        </div>
+        <span class="merchant-name"><%= merchant.trading_name %></span>
+      </div>
+      <div class="receipt-meta">
+        <p><%= receipt_no %></p>
+        <p><%= format_datetime(payment.inserted_at) %></p>
+      </div>
+    </div>
+
+    <!-- Thank-you -->
+    <div class="thankyou-block">
+      <h1>Thank you for your payment!</h1>
+      <p>
+        Your reference <span class="ref-highlight"><%= payment.public_id |> String.slice(-12, 12) |> String.upcase() %></span> has been confirmed.
+        <%= if customer && customer.name do %>
+          <br/>We appreciate your business, <%= customer.name %>.
+        <% end %>
+      </p>
+    </div>
+
+    <!-- Tear line -->
+    <div class="tear"></div>
+
+    <!-- Item block — description if present, or generic payment line -->
+    <div class="items-block">
+      <div class="item-row">
+        <span class="item-index">1</span>
+        <div class="item-desc">
+          <%= if payment.description && payment.description != "" do %>
+            <%= payment.description %>
+          <% else %>
+            Payment
+          <% end %>
+          <small>
+            <%= format_method(payment.method) %>
+            <%= if network do %> · <%= format_network(network) %><% end %>
+          </small>
+        </div>
+        <span class="item-amount"><%= format_amount(payment.amount, payment.currency) %></span>
+      </div>
+    </div>
+
+    <!-- Totals box -->
+    <div class="totals-box">
+      <div class="totals-main">
+        <span class="t-label">Total</span>
+        <span class="t-value"><%= format_amount(payment.amount, payment.currency) %></span>
+      </div>
+      <div class="totals-row">
+        <span>Payment method</span>
+        <span>
+          <%= format_method(payment.method) %>
+          <%= if network do %>&nbsp;· <%= format_network(network) %><% end %>
+        </span>
+      </div>
+      <%= if Map.get(settings, "show_fee") == true do %>
+        <% fee_val = Map.get(payment.metadata || %{}, "fee_amount") %>
+        <%= if fee_val && fee_val > 0 do %>
+          <div class="totals-row">
+            <span>Processing fee</span>
+            <span><%= format_amount(fee_val, payment.currency) %></span>
+          </div>
+        <% end %>
+      <% end %>
+    </div>
+
+    <!-- Custom note -->
+    <% custom_note = Map.get(settings, "custom_note") %>
+    <%= if custom_note && custom_note != "" do %>
+      <div class="note-block">
+        <div class="note-text">
+          <%= custom_note %>
+          <small>From <%= merchant.trading_name %></small>
+        </div>
+      </div>
+    <% end %>
+
+    <!-- Footer -->
+    <div class="receipt-footer">
+      <div class="footer-left">
+        <p><%= merchant.trading_name %></p>
+        <p><%= merchant.default_currency %> · <%= merchant.country %></p>
+      </div>
+      <div class="footer-right">
+        <%= if Map.get(settings, "show_powered_by") != false do %>
+          <p>Secured by</p>
+          <a href="https://yagye.io" target="_blank" rel="noopener">yagye.io</a>
+        <% end %>
+      </div>
+    </div>
+
+  </div>
+</body>
+</html>

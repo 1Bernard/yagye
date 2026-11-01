@@ -190,7 +190,15 @@ defmodule YagyeCore.Payments do
     |> Multi.run(:fee_record, fn _repo, %{succeeded: p, fee: fee} ->
       record_payment_fee(attempt.id, p, fee)
     end)
-    |> Multi.insert(:succeeded_outbox, fn %{succeeded: p, fee_record: fr} ->
+    |> Multi.run(:payment_customer, fn _repo, %{succeeded: p} ->
+      customer =
+        if p.customer_id,
+          do: Repo.get(YagyeCore.Customers.Schemas.Customer, p.customer_id),
+          else: nil
+
+      {:ok, customer}
+    end)
+    |> Multi.insert(:succeeded_outbox, fn %{succeeded: p, fee_record: fr, payment_customer: c} ->
       Outbox.build_changeset(
         p,
         "payment.succeeded",
@@ -211,6 +219,7 @@ defmodule YagyeCore.Payments do
           checkout_session_id: get_in(p.metadata, ["checkout_session_id"]),
           customer_msisdn: get_in(p.metadata, ["msisdn"]),
           customer_email: get_in(p.metadata, ["customer_email"]),
+          customer_name: c && c.name,
           latency_ms: attempt.latency_ms,
           paid_at: DateTime.utc_now() |> DateTime.to_iso8601()
         },

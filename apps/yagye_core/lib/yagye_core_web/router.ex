@@ -55,6 +55,9 @@ defmodule YagyeCoreWeb.Router do
 
   alias YagyeCoreWeb.Controllers.Internal.DashboardController, as: InternalDashboardController
   alias YagyeCoreWeb.Controllers.Internal.PricingController, as: InternalPricingController
+  alias YagyeCoreWeb.Controllers.Internal.ProviderConnectionsController
+  alias YagyeCoreWeb.Controllers.Internal.ReceiptSettingsController
+  alias YagyeCoreWeb.Controllers.Public.ReceiptController
 
   alias YagyeCoreWeb.Controllers.Internal.SettlementBatchesController,
     as: InternalSettlementBatchesController
@@ -97,9 +100,20 @@ defmodule YagyeCoreWeb.Router do
     plug(:accepts, ["json"])
   end
 
+  pipeline :browser do
+    plug :accepts, ["html"]
+    plug :put_secure_browser_headers
+  end
+
   scope "/" do
     get("/health", YagyeCoreWeb.HealthController, :check)
     get("/metrics", YagyeCoreWeb.MetricsController, :index)
+  end
+
+  # Public receipt pages — no auth required
+  scope "/" do
+    pipe_through :browser
+    get("/r/:public_id", ReceiptController, :show)
   end
 
   scope "/provider-webhooks" do
@@ -148,6 +162,16 @@ defmodule YagyeCoreWeb.Router do
     get("/routing-configurations/:id", RoutingConfigurationsController, :show)
     patch("/routing-configurations/:id", RoutingConfigurationsController, :update)
     post("/routing-configurations/:id/publish", RoutingConfigurationsController, :publish)
+
+    # Provider connections — merchant links to external PSPs (Model B)
+    get("/merchants/:merchant_code/provider-connections", ProviderConnectionsController, :index)
+    post("/merchants/:merchant_code/provider-connections", ProviderConnectionsController, :create)
+    patch("/provider-connections/:id", ProviderConnectionsController, :update)
+    post("/provider-connections/:id/deactivate", ProviderConnectionsController, :deactivate)
+
+    # Receipt settings — merchant controls what appears on public receipts
+    get("/merchants/:merchant_code/receipt-settings", ReceiptSettingsController, :show)
+    put("/merchants/:merchant_code/receipt-settings", ReceiptSettingsController, :update)
 
     # P16 — Hosted checkout (called by yagye_checkout service)
     post("/checkout/sessions/from-link", CheckoutController, :create_from_link)

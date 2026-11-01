@@ -290,6 +290,25 @@ defmodule YagyeCore.Merchants do
     end
   end
 
+  def get_receipt_settings(merchant_code) do
+    case get_merchant(merchant_code) do
+      {:ok, merchant} -> {:ok, merchant.receipt_settings}
+      error -> error
+    end
+  end
+
+  @valid_receipt_keys ~w[show_fee show_address show_phone show_powered_by custom_note]
+
+  def update_receipt_settings(merchant_code, settings) when is_map(settings) do
+    with {:ok, merchant} <- get_merchant(merchant_code) do
+      filtered = Map.take(settings, @valid_receipt_keys)
+
+      merchant
+      |> Merchant.changeset(%{receipt_settings: filtered})
+      |> Repo.update()
+    end
+  end
+
   def upsert_contact(merchant_id, attrs) do
     existing = Repo.get_by(MerchantContact, merchant_id: merchant_id)
     contact = existing || %MerchantContact{merchant_id: merchant_id}

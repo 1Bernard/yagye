@@ -33,6 +33,7 @@ defmodule YagyeCore.Merchants.Schemas.Merchant do
     field :website_url, :string
     field :entitlements, :map, default: %{}
     field :metadata, :map, default: %{}
+    field :receipt_settings, :map, default: %{}
 
     has_many :merchant_modes, YagyeCore.Merchants.Schemas.MerchantMode
     has_many :api_keys, YagyeCore.Merchants.Schemas.ApiKey
@@ -56,6 +57,7 @@ defmodule YagyeCore.Merchants.Schemas.Merchant do
     settlement_schedule
     entitlements
     metadata
+    receipt_settings
   ]a
 
   def changeset(merchant, attrs) do
