@@ -40,3 +40,6 @@ docs/schema/exports/
 *.tfstate.*
 *.tfvars
 !*.tfvars.example
+
+# Jupyter
+.ipynb_checkpoints/

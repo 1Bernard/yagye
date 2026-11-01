@@ -56,14 +56,16 @@ step is completed or a decision is made. Status values: `todo`, `in-progress`, `
 | P14 | Kafka & the Event Backbone | **done** | Core Kafka producer (brod 4.6) + outbox relay + topic routing + Portal consumers already built |
 | P15 | RabbitMQ & Outbound Webhook Delivery | **done** | amqp 4.2 + broadway_rabbitmq 0.8; yagye.webhooks exchange → delivery queue → Broadway processor → HMAC-signed HTTP POST; outbox relay fans out to endpoints; portal WebhookEventsConsumer already wired |
 | P16 | Hosted Checkout, Payment Methods, 3DS | **done** | yagye_checkout LiveView app + checkout layout builder |
+| P16.5 | Escrow / Trust Checkout | **done** | Buyer-held funds, confirm-receipt, open-dispute, auto-release Oban worker, ops dispute resolution, portal + checkout UI |
+| P16.6 | Split Payout Engine | **done** | Configurable revenue distribution across recipient merchant accounts after payment succeeds |
 
 ### Act V — Scale, Data, Risk, Real Money
 | Phase | Name | Status |
 |---|---|---|
-| P17 | Horizontal Scale & Distributed State | todo |
+| P17 | Horizontal Scale & Distributed State | **done** |
 | P18 | Observability II: Tracing & SLOs | **done** |
-| P19 | The Data Platform | todo |
-| P20 | Risk & Machine Learning | todo |
+| P19 | The Data Platform | **in-progress** |
+| P20 | Risk & Machine Learning | **in-progress** |
 | P21 | Security Hardening | todo |
 | P22 | Going Live | todo |
 
@@ -288,7 +290,113 @@ Redpanda config: `localhost:19092` (dev), `KAFKA_BOOTSTRAP_SERVERS` env (prod), 
       `checkout_layout jsonb` added to `payment_links`. Internal API endpoint:
       `PATCH /internal/payment-links/:id/checkout-layout`. Portal: `Checkout::PaymentLinksController`,
       `checkout_layout_controller.js`, index/form/layout Phlex views, sidebar nav item.
-      Enterprise ReactFlow routing-graph entitlement gate deferred to P16.5.
+
+---
+
+### P16.5 — Escrow / Trust Checkout ✓ (2026-11-01)
+
+Buyer-held payment flow: funds are captured but held until the buyer confirms receipt (or
+a dispute window closes), protecting both parties in high-value or unfamiliar transactions.
+
+**Core (yagye_core):**
+- [x] Migration `20261101000001_create_escrow_holds.exs` — `escrow_holds` table: state machine
+      columns (`state` CHECK `held|disputed|released|refunded`), `release_at timestamptz`
+      (auto-release deadline), `dispute_window_ends_at`, `buyer_confirmed_at`,
+      `dispute_opened_at`, `dispute_note`, `dispute_outcome`, `released_at`.
+      Also: `escrow_enabled boolean`, `escrow_auto_release_days int`,
+      `escrow_dispute_window_hours int` added to `payment_links`.
+- [x] `YagyeCore.Escrow.Schemas.EscrowHold` — `esh_` public_id prefix; state field;
+      `belongs_to :payment`.
+- [x] `YagyeCore.Escrow.Escrow` context — `create_hold/3`, `confirm_release/2`,
+      `open_dispute/3`, `resolve_dispute/5` (ops-only), `get_hold/1`, `list_holds/2`.
+      `get_hold_for_update` SELECT FOR UPDATE guard enforces state transition ordering.
+      `resolve_dispute` extracts `post_resolution_ledger/4` private clause (Credo nesting fix).
+- [x] `EscrowAutoReleaseWorker` — Oban cron, queries holds where `release_at <= now()` and
+      `state = "held"`; auto-calls `confirm_release` for each. Idempotent — skips non-held.
+- [x] Ledger additions: `post_escrow_hold/2` (debit customer_payable → credit escrow_payable),
+      `post_escrow_release/3` (debit escrow_payable → credit merchant_payable),
+      `post_escrow_refund/3` (debit escrow_payable → credit customer_payable).
+      All idempotent via `on_conflict: :nothing` + post-fetch.
+- [x] `EscrowController` — 6 internal API routes:
+      `POST /internal/payments/:id/escrow-hold`,
+      `GET /internal/escrow/holds`, `GET /internal/escrow/holds/:id`,
+      `POST /internal/escrow/holds/:id/confirm-release`,
+      `POST /internal/escrow/holds/:id/open-dispute`,
+      `POST /internal/escrow/holds/:id/resolve-dispute`.
+- [x] `handle_standard_payment/3` in `Payments` wires `create_hold` after payment succeeds
+      when `escrow_enabled: true` on the payment link.
+- [x] `YagyeCore` boundary exports updated.
+- [x] 28 tests — create, confirm, auto-release, dispute open, dispute resolve (release/refund),
+      state guard (no double-transition), idempotency.
+
+**Checkout UI (yagye_checkout):**
+- [x] `CoreClient` — `get_escrow_hold/1`, `confirm_escrow_receipt/1`, `open_escrow_dispute/2`.
+- [x] `CheckoutLive` — `finalize_escrow/2` branch when payment poll returns `escrow_held`
+      state; `:escrow_held` LiveView state (amount card, "Confirm receipt" button with modal,
+      dispute textarea + submit); `:escrow_disputed` state (under-review banner).
+      `escrow_show_confirm_modal`, `escrow_hide_confirm_modal`, `escrow_confirm_receipt`,
+      `escrow_open_dispute`, `escrow_change_note` event handlers.
+
+**Portal (yagye_portal):**
+- [x] Payment link form — escrow section toggle (`escrow_enabled` checkbox), config fields
+      (`escrow_auto_release_days`, `escrow_dispute_window_hours`). Preview card shows escrow
+      trust badge. `PaymentLinksController#create` passes escrow params to Core.
+- [x] `CoreApiClient` — `list_escrow_holds`, `get_escrow_hold`, `resolve_escrow_dispute`.
+- [x] `Payments::EscrowHoldsController` — `index` (filterable by state), `show`, `resolve_dispute`.
+- [x] `Payments::EscrowHolds::IndexView` — stat band (held/disputed/released/refunded counts),
+      state tabs, datatable.
+- [x] `Payments::EscrowHolds::ShowView` — hero card, hold details list, activity timeline,
+      ops dispute resolution form (release to merchant / refund buyer) gated to `internal_staff`.
+- [x] `EscrowHoldsPolicy` — `payments.view` for index/show; `internal_staff?` for resolve.
+- [x] Routes: `GET /escrow-holds`, `GET /escrow-holds/:id`,
+      `POST /escrow-holds/:id/resolve-dispute`.
+
+---
+
+### P16.6 — Split Payout Engine ✓ (2026-11-01)
+
+Configurable revenue-splitting: a `split_rule` with percentage or flat legs automatically
+distributes payment revenue across recipient merchant accounts after payment succeeds.
+Model: merchant → other merchant accounts (platform/marketplace splits), not same-merchant
+treasury routing (that is out of PSP scope).
+
+**Core (yagye_core):**
+- [x] Migration `20261101000002_create_split_payout_tables.exs` —
+      `split_rules` (mode CHECK `simulation|sandbox|live`, `active boolean`, `merchant_id` FK);
+      `split_rule_legs` (split_type CHECK `percentage|flat`, `value > 0` CHECK, `recipient_merchant_id` FK);
+      `split_records` (state CHECK `pending|settled|failed`, `amount > 0` CHECK, FK to payment + leg + rule);
+      `split_rule_id` nullable FK column added to `payments`.
+- [x] `SplitRule` schema — `srl_` prefix; `has_many :legs, SplitRuleLeg`; mode inclusion validation.
+- [x] `SplitRuleLeg` schema — `sll_` prefix; `split_type` inclusion; `value > 0` validation.
+- [x] `SplitRecord` schema — `spr_` prefix; `transition_changeset/2` for state changes.
+- [x] `Payment` schema — `belongs_to :split_rule, SplitRule`; FK constraint.
+- [x] `YagyeCore.Splits.Splits` context — `create_rule/2`, `validate_legs/1` (percentage legs
+      must total 10 000 bps = 100%), `create_records_for_payment/2`, `compute_leg_amount/2`.
+      Nesting/complexity kept within Credo limits via `do_create_rule/2`, `do_create_records/2`,
+      `insert_leg_record/3` extractions.
+- [x] `SplitDistributorWorker` — Oban worker (queue: :payments, max_attempts: 3).
+      `distribute/2` iterates records; `settle_record/3` extracted for nesting compliance.
+      Enqueued by `maybe_enqueue_split_job/1` in `Payments` after `handle_standard_payment`
+      when `split_rule_id` is present.
+- [x] `Ledger.post_split_distribution/3` — debit `merchant_payable`, credit `split_payable`;
+      `insert_split_distribution_entry/2` idempotent via `on_conflict: :nothing` + fetch.
+- [x] Internal API: `GET /internal/split-rules`, `POST /internal/split-rules`,
+      `GET /internal/split-rules/:id`, `POST /internal/split-rules/:id/deactivate`.
+- [x] `YagyeCore` boundary exports updated.
+- [x] 20 tests — create rule (valid, invalid legs, percentage sum guard), create records,
+      worker distribute (settled, leg not found), deactivate.
+
+**Portal (yagye_portal):**
+- [x] `CoreApiClient` — `list_split_rules`, `create_split_rule`, `get_split_rule`, `deactivate_split_rule`.
+- [x] `Account::SplitRulesController` — `index`, `new`, `create` (parses leg params), `show`, `deactivate`.
+- [x] `Account::SplitRules::IndexView` — datatable with mode/state badges.
+- [x] `Account::SplitRules::FormView` — dynamic leg builder; Stimulus `split-legs` controller
+      for add/remove legs; percentage/flat type toggle; validation hint box.
+- [x] `Account::SplitRules::ShowView` — hero card, legs breakdown (% or flat amount), recent
+      distributions list, deactivate action card.
+- [x] `SplitRulesPolicy` — `payments.manage` for create/deactivate; `payments.view` for index/show.
+- [x] Routes: `GET/POST settings/split-rules`, `GET settings/split-rules/new`,
+      `GET settings/split-rules/:id`, `POST settings/split-rules/:id/deactivate`.
 
 ---
 
@@ -319,7 +427,7 @@ Redpanda config: `localhost:19092` (dev), `KAFKA_BOOTSTRAP_SERVERS` env (prod), 
 
 ---
 
-### P19 — The Data Platform
+### P19 — The Data Platform **[in-progress — schema registry remaining]**
 
 - [x] **Floci in docker-compose (2026-10-22)** — added to `data` network; `mix yagye.s3.setup`
       now creates all 5 buckets: KYB documents, Bronze (yagye-lake-raw), Silver
@@ -351,7 +459,7 @@ Redpanda config: `localhost:19092` (dev), `KAFKA_BOOTSTRAP_SERVERS` env (prod), 
 
 ---
 
-### P20 — Risk & Machine Learning
+### P20 — Risk & Machine Learning **[in-progress — Steps 0 and 3 done; Steps 1, 2, 4–8 remaining]**
 
 **Code-analysis findings (2026-10-31) — gaps confirmed before implementation:**
 - Circuit breaker already has `:half_open` state (closed → open → half_open → closed). ✓
