@@ -30,6 +30,10 @@ defmodule YagyeCore.PaymentLinks.Schemas.PaymentLink do
     field :expires_at, :utc_datetime_usec
     field :metadata, :map, default: %{}
     field :checkout_layout, :map, default: %{}
+    field :escrow_enabled, :boolean, default: false
+    field :escrow_hold_days, :integer, default: 3
+    field :escrow_dispute_window_hours, :integer, default: 48
+    field :escrow_auto_release_days, :integer, default: 7
 
     has_many :invoices, Invoice, foreign_key: :payment_link_id
 
@@ -38,7 +42,9 @@ defmodule YagyeCore.PaymentLinks.Schemas.PaymentLink do
 
   @required ~w[merchant_id mode url_slug kind currency description]a
   @optional ~w[amount image_url allowed_methods collect_email collect_phone collect_name
-               reusable max_uses use_count active expires_at metadata checkout_layout]a
+               reusable max_uses use_count active expires_at metadata checkout_layout
+               escrow_enabled escrow_hold_days escrow_dispute_window_hours
+               escrow_auto_release_days]a
 
   def changeset(link, attrs) do
     link

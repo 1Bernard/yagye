@@ -638,6 +638,138 @@ defmodule YagyeCore.Ledger do
     end
   end
 
+  @doc """
+  Posts the "escrow_hold" journal entry when a payment is placed in escrow.
+
+  Debit  : settlement_pending — funds owed by provider (asset ↑)
+  Credit : escrow_held        — merchant funds held in trust (liability ↑)
+  """
+  def post_escrow_hold(%Payment{} = payment, %PaymentAttempt{} = attempt, hold_id) do
+    OpenTelemetry.Tracer.with_span "ledger.post_escrow_hold" do
+      with {:ok, settlement_account} <-
+             get_or_create_account(%{
+               account_type: "settlement_pending",
+               normal_balance: "debit",
+               scope_type: "provider",
+               scope_id: attempt.provider_id,
+               currency: payment.currency,
+               mode: payment.mode,
+               allows_negative: false
+             }),
+           {:ok, escrow_account} <-
+             get_or_create_account(%{
+               account_type: "escrow_held",
+               normal_balance: "credit",
+               scope_type: "merchant",
+               scope_id: payment.merchant_id,
+               currency: payment.currency,
+               mode: payment.mode,
+               allows_negative: false
+             }),
+           {:ok, entry} <- insert_escrow_hold_entry(payment, hold_id),
+           {:ok, debit} <-
+             insert_posting(
+               entry,
+               settlement_account,
+               "debit",
+               payment.amount,
+               payment.merchant_id
+             ),
+           {:ok, credit} <-
+             insert_posting(entry, escrow_account, "credit", payment.amount, payment.merchant_id) do
+        apply_balance(settlement_account.id, payment.amount, :debit, debit.id)
+        apply_balance(escrow_account.id, payment.amount, :credit, credit.id)
+        {:ok, entry}
+      end
+    end
+  end
+
+  @doc """
+  Posts the "escrow_release" journal entry when escrow releases to the merchant.
+
+  Debit  : escrow_held      — release funds from trust (liability ↓)
+  Credit : merchant_payable — funds now payable to merchant (liability ↑)
+  """
+  def post_escrow_release(%Payment{} = payment, hold_id) do
+    OpenTelemetry.Tracer.with_span "ledger.post_escrow_release" do
+      with {:ok, escrow_account} <-
+             get_or_create_account(%{
+               account_type: "escrow_held",
+               normal_balance: "credit",
+               scope_type: "merchant",
+               scope_id: payment.merchant_id,
+               currency: payment.currency,
+               mode: payment.mode,
+               allows_negative: false
+             }),
+           {:ok, payable_account} <-
+             get_or_create_account(%{
+               account_type: "merchant_payable",
+               normal_balance: "credit",
+               scope_type: "merchant",
+               scope_id: payment.merchant_id,
+               currency: payment.currency,
+               mode: payment.mode,
+               allows_negative: false
+             }),
+           {:ok, entry} <- insert_escrow_release_entry(payment, hold_id),
+           {:ok, debit} <-
+             insert_posting(entry, escrow_account, "debit", payment.amount, payment.merchant_id),
+           {:ok, credit} <-
+             insert_posting(entry, payable_account, "credit", payment.amount, payment.merchant_id) do
+        apply_balance(escrow_account.id, payment.amount, :debit, debit.id)
+        apply_balance(payable_account.id, payment.amount, :credit, credit.id)
+        {:ok, entry}
+      end
+    end
+  end
+
+  @doc """
+  Posts the "escrow_refund" journal entry when escrow refunds to the buyer (dispute lost).
+
+  Debit  : escrow_held        — release from trust (liability ↓)
+  Credit : settlement_pending — reduce what provider owes us (asset ↓)
+  """
+  def post_escrow_refund(%Payment{} = payment, %PaymentAttempt{} = attempt, hold_id) do
+    OpenTelemetry.Tracer.with_span "ledger.post_escrow_refund" do
+      with {:ok, escrow_account} <-
+             get_or_create_account(%{
+               account_type: "escrow_held",
+               normal_balance: "credit",
+               scope_type: "merchant",
+               scope_id: payment.merchant_id,
+               currency: payment.currency,
+               mode: payment.mode,
+               allows_negative: false
+             }),
+           {:ok, settlement_account} <-
+             get_or_create_account(%{
+               account_type: "settlement_pending",
+               normal_balance: "debit",
+               scope_type: "provider",
+               scope_id: attempt.provider_id,
+               currency: payment.currency,
+               mode: payment.mode,
+               allows_negative: false
+             }),
+           {:ok, entry} <- insert_escrow_refund_entry(payment, hold_id),
+           {:ok, debit} <-
+             insert_posting(entry, escrow_account, "debit", payment.amount, payment.merchant_id),
+           {:ok, credit} <-
+             insert_posting(
+               entry,
+               settlement_account,
+               "credit",
+               payment.amount,
+               payment.merchant_id
+             ) do
+        apply_balance(escrow_account.id, payment.amount, :debit, debit.id)
+        apply_balance(settlement_account.id, payment.amount, :credit, credit.id)
+        {:ok, entry}
+      end
+    end
+  end
+
   # ── Private ──────────────────────────────────────────────────────────────────
 
   defp get_or_create_account(attrs) do
@@ -1106,5 +1238,101 @@ defmodule YagyeCore.Ledger do
          mode: mode
        }) do
     "#{type}:#{scope_id}:#{currency}:#{mode}"
+  end
+
+  defp insert_escrow_hold_entry(%Payment{} = payment, hold_id) do
+    now = DateTime.utc_now()
+
+    Entry.changeset(%Entry{}, %{
+      mode: payment.mode,
+      currency: payment.currency,
+      entry_type: "escrow_hold",
+      source_type: "escrow_hold",
+      source_id: hold_id,
+      description: "Escrow hold created for #{payment.public_id}",
+      correlation_id: payment.public_id,
+      effective_at: now,
+      recorded_at: now
+    })
+    |> Repo.insert(
+      on_conflict: :nothing,
+      conflict_target: [:source_type, :source_id, :entry_type]
+    )
+    |> case do
+      {:ok, _} ->
+        {:ok,
+         Repo.get_by!(Entry,
+           source_type: "escrow_hold",
+           source_id: hold_id,
+           entry_type: "escrow_hold"
+         )}
+
+      {:error, _} = err ->
+        err
+    end
+  end
+
+  defp insert_escrow_release_entry(%Payment{} = payment, hold_id) do
+    now = DateTime.utc_now()
+
+    Entry.changeset(%Entry{}, %{
+      mode: payment.mode,
+      currency: payment.currency,
+      entry_type: "escrow_release",
+      source_type: "escrow_hold",
+      source_id: hold_id,
+      description: "Escrow released for #{payment.public_id}",
+      correlation_id: payment.public_id,
+      effective_at: now,
+      recorded_at: now
+    })
+    |> Repo.insert(
+      on_conflict: :nothing,
+      conflict_target: [:source_type, :source_id, :entry_type]
+    )
+    |> case do
+      {:ok, _} ->
+        {:ok,
+         Repo.get_by!(Entry,
+           source_type: "escrow_hold",
+           source_id: hold_id,
+           entry_type: "escrow_release"
+         )}
+
+      {:error, _} = err ->
+        err
+    end
+  end
+
+  defp insert_escrow_refund_entry(%Payment{} = payment, hold_id) do
+    now = DateTime.utc_now()
+
+    Entry.changeset(%Entry{}, %{
+      mode: payment.mode,
+      currency: payment.currency,
+      entry_type: "escrow_refund",
+      source_type: "escrow_hold",
+      source_id: hold_id,
+      description: "Escrow refunded for #{payment.public_id}",
+      correlation_id: payment.public_id,
+      effective_at: now,
+      recorded_at: now
+    })
+    |> Repo.insert(
+      on_conflict: :nothing,
+      conflict_target: [:source_type, :source_id, :entry_type]
+    )
+    |> case do
+      {:ok, _} ->
+        {:ok,
+         Repo.get_by!(Entry,
+           source_type: "escrow_hold",
+           source_id: hold_id,
+           entry_type: "escrow_refund"
+         )}
+
+      {:error, _} = err ->
+        err
+    end
   end
 end

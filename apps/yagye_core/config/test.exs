@@ -59,3 +59,7 @@ config :yagye_core, :enable_rabbitmq, false
 
 # Pin business-day check to true in tests — settlement scheduler would skip on weekends otherwise
 config :yagye_core, :always_business_day, true
+
+# Internal service-to-service secrets — set here so AuthenticateInternal plug works in controller tests
+System.put_env("CORE_PORTAL_SERVICE_SECRET", "test_portal_service_secret")
+System.put_env("CORE_CHECKOUT_SERVICE_SECRET", "test_checkout_service_secret")

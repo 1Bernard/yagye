@@ -65,6 +65,7 @@ defmodule YagyeCoreWeb.Router do
   alias YagyeCoreWeb.Controllers.Internal.ActivityController, as: InternalActivityController
   alias YagyeCoreWeb.Controllers.Internal.BankStatementsController
   alias YagyeCoreWeb.Controllers.Internal.DisputesController, as: InternalDisputesController
+  alias YagyeCoreWeb.Controllers.Internal.EscrowController
   alias YagyeCoreWeb.Controllers.Internal.KybController
   alias YagyeCoreWeb.Controllers.Internal.PayoutLedgerAuditController
   alias YagyeCoreWeb.Controllers.Internal.RefundsController, as: InternalRefundsController
@@ -464,6 +465,13 @@ defmodule YagyeCoreWeb.Router do
     # P20 — Screening hits cross-merchant view (ops compliance queue)
     get("/risk/screening-hits", RiskController, :list_screening_hits)
     post("/risk/screening-hits/:id/dispose", RiskController, :dispose_hit)
+
+    # Escrow holds — buyer trust checkout management
+    get("/escrow/holds", EscrowController, :index)
+    get("/escrow/holds/:public_id", EscrowController, :show)
+    post("/escrow/holds/:public_id/confirm-release", EscrowController, :confirm_release)
+    post("/escrow/holds/:public_id/open-dispute", EscrowController, :open_dispute)
+    post("/escrow/holds/:public_id/resolve-dispute", EscrowController, :resolve_dispute)
   end
 
   # v1 merchant-facing API

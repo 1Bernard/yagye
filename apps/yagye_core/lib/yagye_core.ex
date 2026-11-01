@@ -85,6 +85,9 @@ defmodule YagyeCore do
       Dashboard,
       Risk,
       Risk.Schemas.RiskLabel,
+      Escrow,
+      Escrow.Schemas.EscrowHold,
+      Escrow.Schemas.EscrowDisputeEvent,
       Repo
     ]
 

@@ -147,103 +147,12 @@ defmodule YagyeCore.Payments do
   defp routing_node_id_for(_), do: "static_priority"
 
   def handle_provider_response(payment, attempt, {:ok, result}) do
-    Multi.new()
-    |> Multi.update(
-      :attempt,
-      PaymentAttempt.result_changeset(attempt, %{
-        state: "succeeded",
-        provider_reference: result.provider_reference,
-        dispatched_at: DateTime.utc_now(),
-        latency_ms: attempt.latency_ms
-      })
-    )
-    |> Multi.update(:authorised, Payment.transition_changeset(payment, "authorised"))
-    |> Multi.run(:authorised_event, fn _repo, %{authorised: p} ->
-      insert_event(p, "payment.authorised", "processing", "authorised")
-    end)
-    |> Multi.insert(:authorised_outbox, fn %{authorised: p} ->
-      Outbox.build_changeset(
-        p,
-        "payment.authorised",
-        %{
-          public_id: p.public_id,
-          state: p.state,
-          merchant_code: merchant_code(p.merchant_id),
-          amount: p.amount,
-          currency: p.currency,
-          method: p.method,
-          mode: p.mode
-        },
-        correlation_id: p.public_id
-      )
-    end)
-    |> Multi.update(:succeeded, fn %{authorised: p} ->
-      Payment.transition_changeset(p, "succeeded")
-    end)
-    |> Multi.run(:succeeded_event, fn _repo, %{succeeded: p} ->
-      insert_event(p, "payment.succeeded", "authorised", "succeeded")
-    end)
-    |> Multi.run(:ledger, fn _repo, %{succeeded: p} ->
-      Ledger.post_payment_settled(p, attempt)
-    end)
-    |> Multi.run(:fee, fn _repo, %{succeeded: p} -> fetch_payment_fee(p) end)
-    |> Multi.run(:fee_record, fn _repo, %{succeeded: p, fee: fee} ->
-      record_payment_fee(attempt.id, p, fee)
-    end)
-    |> Multi.run(:payment_customer, fn _repo, %{succeeded: p} ->
-      customer =
-        if p.customer_id,
-          do: Repo.get(YagyeCore.Customers.Schemas.Customer, p.customer_id),
-          else: nil
+    case YagyeCore.Escrow.escrow_info_for(payment) do
+      {:ok, %{enabled: true, payment_link: link}} ->
+        handle_escrow_payment(payment, attempt, result, link)
 
-      {:ok, customer}
-    end)
-    |> Multi.insert(:succeeded_outbox, fn %{succeeded: p, fee_record: fr, payment_customer: c} ->
-      Outbox.build_changeset(
-        p,
-        "payment.succeeded",
-        %{
-          public_id: p.public_id,
-          state: p.state,
-          mode: p.mode,
-          method: p.method,
-          merchant_code: merchant_code(p.merchant_id),
-          merchant_reference: p.merchant_reference,
-          description: p.description,
-          provider_code: result[:provider_code],
-          network: get_in(p.metadata, ["network"]),
-          provider: network_to_provider(get_in(p.metadata, ["network"])),
-          amount: p.amount,
-          currency: p.currency,
-          net_amount: if(fr, do: p.amount - fr.amount, else: p.amount),
-          checkout_session_id: get_in(p.metadata, ["checkout_session_id"]),
-          customer_msisdn: get_in(p.metadata, ["msisdn"]),
-          customer_email: get_in(p.metadata, ["customer_email"]),
-          customer_name: c && c.name,
-          latency_ms: attempt.latency_ms,
-          paid_at: DateTime.utc_now() |> DateTime.to_iso8601()
-        },
-        correlation_id: p.public_id
-      )
-    end)
-    |> Multi.run(:fee_ledger, fn _repo, %{succeeded: p, fee_record: fr} ->
-      if fr, do: Ledger.post_fee_deduction(p, fr), else: {:ok, nil}
-    end)
-    |> Multi.run(:reserve_hold, fn _repo, %{succeeded: p} ->
-      case Reserves.create_hold(p) do
-        {:ok, result} ->
-          {:ok, result}
-
-        {:error, reason} ->
-          Logger.warning("reserve hold skipped", payment_id: p.id, reason: inspect(reason))
-          {:ok, nil}
-      end
-    end)
-    |> maybe_update_momo_financial_id(payment, result)
-    |> Repo.transaction()
-    |> case do
-      {:ok, %{succeeded: payment}} -> {:ok, payment}
-      {:error, _step, reason, _changes} -> {:error, reason}
+      _ ->
+        handle_standard_payment(payment, attempt, result)
     end
   end
 
@@ -393,6 +302,152 @@ defmodule YagyeCore.Payments do
     |> Repo.transaction()
     |> case do
       {:ok, %{payment: payment}} -> {:ok, payment}
+      {:error, _step, reason, _changes} -> {:error, reason}
+    end
+  end
+
+  defp handle_escrow_payment(payment, attempt, result, link) do
+    Multi.new()
+    |> Multi.update(
+      :attempt,
+      PaymentAttempt.result_changeset(attempt, %{
+        state: "succeeded",
+        provider_reference: result.provider_reference,
+        dispatched_at: DateTime.utc_now(),
+        latency_ms: attempt.latency_ms
+      })
+    )
+    |> Multi.update(:authorised, Payment.transition_changeset(payment, "authorised"))
+    |> Multi.run(:authorised_event, fn _repo, %{authorised: p} ->
+      insert_event(p, "payment.authorised", "processing", "authorised")
+    end)
+    |> Multi.insert(:authorised_outbox, fn %{authorised: p} ->
+      Outbox.build_changeset(
+        p,
+        "payment.authorised",
+        %{
+          public_id: p.public_id,
+          state: p.state,
+          merchant_code: merchant_code(p.merchant_id),
+          amount: p.amount,
+          currency: p.currency,
+          method: p.method,
+          mode: p.mode
+        },
+        correlation_id: p.public_id
+      )
+    end)
+    |> Multi.run(:escrow, fn _repo, %{authorised: p} ->
+      YagyeCore.Escrow.create_hold(p, attempt, link)
+    end)
+    |> maybe_update_momo_financial_id(payment, result)
+    |> Repo.transaction()
+    |> case do
+      {:ok, %{escrow: hold}} ->
+        {:ok, Repo.get!(Payment, hold.payment_id)}
+
+      {:error, _step, reason, _changes} ->
+        {:error, reason}
+    end
+  end
+
+  defp handle_standard_payment(payment, attempt, result) do
+    Multi.new()
+    |> Multi.update(
+      :attempt,
+      PaymentAttempt.result_changeset(attempt, %{
+        state: "succeeded",
+        provider_reference: result.provider_reference,
+        dispatched_at: DateTime.utc_now(),
+        latency_ms: attempt.latency_ms
+      })
+    )
+    |> Multi.update(:authorised, Payment.transition_changeset(payment, "authorised"))
+    |> Multi.run(:authorised_event, fn _repo, %{authorised: p} ->
+      insert_event(p, "payment.authorised", "processing", "authorised")
+    end)
+    |> Multi.insert(:authorised_outbox, fn %{authorised: p} ->
+      Outbox.build_changeset(
+        p,
+        "payment.authorised",
+        %{
+          public_id: p.public_id,
+          state: p.state,
+          merchant_code: merchant_code(p.merchant_id),
+          amount: p.amount,
+          currency: p.currency,
+          method: p.method,
+          mode: p.mode
+        },
+        correlation_id: p.public_id
+      )
+    end)
+    |> Multi.update(:succeeded, fn %{authorised: p} ->
+      Payment.transition_changeset(p, "succeeded")
+    end)
+    |> Multi.run(:succeeded_event, fn _repo, %{succeeded: p} ->
+      insert_event(p, "payment.succeeded", "authorised", "succeeded")
+    end)
+    |> Multi.run(:ledger, fn _repo, %{succeeded: p} ->
+      Ledger.post_payment_settled(p, attempt)
+    end)
+    |> Multi.run(:fee, fn _repo, %{succeeded: p} -> fetch_payment_fee(p) end)
+    |> Multi.run(:fee_record, fn _repo, %{succeeded: p, fee: fee} ->
+      record_payment_fee(attempt.id, p, fee)
+    end)
+    |> Multi.run(:payment_customer, fn _repo, %{succeeded: p} ->
+      customer =
+        if p.customer_id,
+          do: Repo.get(YagyeCore.Customers.Schemas.Customer, p.customer_id),
+          else: nil
+
+      {:ok, customer}
+    end)
+    |> Multi.insert(:succeeded_outbox, fn %{succeeded: p, fee_record: fr, payment_customer: c} ->
+      Outbox.build_changeset(
+        p,
+        "payment.succeeded",
+        %{
+          public_id: p.public_id,
+          state: p.state,
+          mode: p.mode,
+          method: p.method,
+          merchant_code: merchant_code(p.merchant_id),
+          merchant_reference: p.merchant_reference,
+          description: p.description,
+          provider_code: result[:provider_code],
+          network: get_in(p.metadata, ["network"]),
+          provider: network_to_provider(get_in(p.metadata, ["network"])),
+          amount: p.amount,
+          currency: p.currency,
+          net_amount: if(fr, do: p.amount - fr.amount, else: p.amount),
+          checkout_session_id: get_in(p.metadata, ["checkout_session_id"]),
+          customer_msisdn: get_in(p.metadata, ["msisdn"]),
+          customer_email: get_in(p.metadata, ["customer_email"]),
+          customer_name: c && c.name,
+          latency_ms: attempt.latency_ms,
+          paid_at: DateTime.utc_now() |> DateTime.to_iso8601()
+        },
+        correlation_id: p.public_id
+      )
+    end)
+    |> Multi.run(:fee_ledger, fn _repo, %{succeeded: p, fee_record: fr} ->
+      if fr, do: Ledger.post_fee_deduction(p, fr), else: {:ok, nil}
+    end)
+    |> Multi.run(:reserve_hold, fn _repo, %{succeeded: p} ->
+      case Reserves.create_hold(p) do
+        {:ok, result} ->
+          {:ok, result}
+
+        {:error, reason} ->
+          Logger.warning("reserve hold skipped", payment_id: p.id, reason: inspect(reason))
+          {:ok, nil}
+      end
+    end)
+    |> maybe_update_momo_financial_id(payment, result)
+    |> Repo.transaction()
+    |> case do
+      {:ok, %{succeeded: payment}} -> {:ok, payment}
       {:error, _step, reason, _changes} -> {:error, reason}
     end
   end
