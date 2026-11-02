@@ -70,6 +70,7 @@ defmodule YagyeCoreWeb.Router do
   alias YagyeCoreWeb.Controllers.Internal.PayoutLedgerAuditController
   alias YagyeCoreWeb.Controllers.Internal.RefundsController, as: InternalRefundsController
   alias YagyeCoreWeb.Controllers.Internal.ReservesController, as: InternalReservesController
+  alias YagyeCoreWeb.Controllers.Internal.SplitRulesController
 
   alias YagyeCoreWeb.Controllers.Fx.FxRateController
   alias YagyeCoreWeb.Controllers.Invoices.InvoiceController
@@ -472,6 +473,12 @@ defmodule YagyeCoreWeb.Router do
     post("/escrow/holds/:public_id/confirm-release", EscrowController, :confirm_release)
     post("/escrow/holds/:public_id/open-dispute", EscrowController, :open_dispute)
     post("/escrow/holds/:public_id/resolve-dispute", EscrowController, :resolve_dispute)
+
+    # P16.6 — Split rules (portal + ops)
+    get("/split-rules", SplitRulesController, :index)
+    post("/split-rules", SplitRulesController, :create)
+    get("/split-rules/:id", SplitRulesController, :show)
+    post("/split-rules/:id/deactivate", SplitRulesController, :deactivate)
   end
 
   # v1 merchant-facing API

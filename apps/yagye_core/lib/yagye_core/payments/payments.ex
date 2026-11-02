@@ -192,7 +192,9 @@ defmodule YagyeCore.Payments do
           method: p.method,
           mode: p.mode,
           provider_code: provider_code_from_attempt(attempt),
-          latency_ms: attempt.latency_ms
+          latency_ms: attempt.latency_ms,
+          risk_score: p.risk_score,
+          risk_decision: p.risk_decision
         },
         correlation_id: p.public_id
       )
@@ -427,7 +429,9 @@ defmodule YagyeCore.Payments do
           customer_email: get_in(p.metadata, ["customer_email"]),
           customer_name: c && c.name,
           latency_ms: attempt.latency_ms,
-          paid_at: DateTime.utc_now() |> DateTime.to_iso8601()
+          paid_at: DateTime.utc_now() |> DateTime.to_iso8601(),
+          risk_score: p.risk_score,
+          risk_decision: p.risk_decision
         },
         correlation_id: p.public_id
       )
@@ -542,7 +546,9 @@ defmodule YagyeCore.Payments do
           amount: p.amount,
           currency: p.currency,
           method: p.method,
-          mode: p.mode
+          mode: p.mode,
+          risk_score: p.risk_score,
+          risk_decision: p.risk_decision
         },
         correlation_id: p.public_id
       )

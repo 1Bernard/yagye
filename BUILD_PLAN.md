@@ -65,7 +65,7 @@ step is completed or a decision is made. Status values: `todo`, `in-progress`, `
 | P17 | Horizontal Scale & Distributed State | **done** |
 | P18 | Observability II: Tracing & SLOs | **done** |
 | P19 | The Data Platform | **in-progress** |
-| P20 | Risk & Machine Learning | **in-progress** |
+| P20 | Risk & Machine Learning | **in-progress** | Steps 0–7 largely done; 2 items remaining: Solid Cable badge, SAR export |
 | P21 | Security Hardening | todo |
 | P22 | Going Live | todo |
 
@@ -217,7 +217,7 @@ must exist and return real data shapes.
       - Closed node vocabulary v1: `ProviderNode`, `ConditionNode`, `SplitNode`, `FallbackNode`
       - Inline embedded form controls per node; no separate properties panel
       - Persisted as `routing_configurations` JSONB via Core's internal API
-      - Enterprise merchant variant (entitlement-gated) deferred to P16
+      - Enterprise merchant variant: `MerchantRoutingController` + `MerchantRoutingGraphView` — gated by `merchant_tier >= 2` (approved KYB); populated from `list_provider_connections` so merchants only see their ops-connected external PSPs
       - Note: `compiled_rules` and payment-engine integration deferred (graph stored but not yet evaluated)
 
 ---
@@ -313,6 +313,13 @@ a dispute window closes), protecting both parties in high-value or unfamiliar tr
       `resolve_dispute` extracts `post_resolution_ledger/4` private clause (Credo nesting fix).
 - [x] `EscrowAutoReleaseWorker` — Oban cron, queries holds where `release_at <= now()` and
       `state = "held"`; auto-calls `confirm_release` for each. Idempotent — skips non-held.
+- [x] `DisputeWindowExpiryWorker` — per-hold Oban job scheduled at `dispute_window_ends_at`.
+      Auto-releases the hold if still in "held" state when the window closes. Separate from
+      the cron-based `EscrowAutoReleaseWorker`; this is a targeted one-shot per hold.
+- [x] `EscrowDisputeEvent` schema (`escrow_dispute_events` table) — full audit trail for dispute
+      lifecycle events: `dispute_opened`, `evidence_submitted`, `resolved_for_buyer`,
+      `resolved_for_merchant`, `escalated`. `ede_` public_id prefix. Belongs to `EscrowHold`
+      and `Merchant`; `event_type` validated against the 5-value allowlist.
 - [x] Ledger additions: `post_escrow_hold/2` (debit customer_payable → credit escrow_payable),
       `post_escrow_release/3` (debit escrow_payable → credit merchant_payable),
       `post_escrow_refund/3` (debit escrow_payable → credit customer_payable).
@@ -353,7 +360,7 @@ a dispute window closes), protecting both parties in high-value or unfamiliar tr
 
 ---
 
-### P16.6 — Split Payout Engine ✓ (2026-11-01)
+### P16.6 — Split Payout Engine ✓ (2026-11-02)
 
 Configurable revenue-splitting: a `split_rule` with percentage or flat legs automatically
 distributes payment revenue across recipient merchant accounts after payment succeeds.
@@ -380,8 +387,9 @@ treasury routing (that is out of PSP scope).
       when `split_rule_id` is present.
 - [x] `Ledger.post_split_distribution/3` — debit `merchant_payable`, credit `split_payable`;
       `insert_split_distribution_entry/2` idempotent via `on_conflict: :nothing` + fetch.
-- [x] Internal API: `GET /internal/split-rules`, `POST /internal/split-rules`,
-      `GET /internal/split-rules/:id`, `POST /internal/split-rules/:id/deactivate`.
+- [x] Internal API: `SplitRulesController` added to `yagye_core_web/controllers/internal/`.
+      Routes in `/internal` scope: `GET /split-rules`, `POST /split-rules`,
+      `GET /split-rules/:id`, `POST /split-rules/:id/deactivate`. Fixed 2026-11-02.
 - [x] `YagyeCore` boundary exports updated.
 - [x] 20 tests — create rule (valid, invalid legs, percentage sum guard), create records,
       worker distribute (settled, leg not found), deactivate.
@@ -459,7 +467,7 @@ treasury routing (that is out of PSP scope).
 
 ---
 
-### P20 — Risk & Machine Learning **[in-progress — Steps 0 and 3 done; Steps 1, 2, 4–8 remaining]**
+### P20 — Risk & Machine Learning **[in-progress — Steps 0–7 largely done; 2 items remaining: Solid Cable badge, SAR export]**
 
 **Code-analysis findings (2026-10-31) — gaps confirmed before implementation:**
 - Circuit breaker already has `:half_open` state (closed → open → half_open → closed). ✓
@@ -472,6 +480,11 @@ treasury routing (that is out of PSP scope).
 - `ScoringClient` HTTP module in Core does not exist. Step 4.
 - `PaymentDispatchWorker` not wired to `/score/routing`. Step 4.
 - `create_payment` / `VelocityChecker` not wired to `/score/risk`. Step 4.
+
+**Code-audit findings (2026-11-02) — more done than BUILD_PLAN showed:**
+- Steps 1, 2, 4, 5, 6, 7 (partial) were already implemented. See updated checkboxes below.
+- `payment.succeeded`/`payment.failed` outbox missing risk fields — fixed 2026-11-02.
+- 2 genuine remaining gaps: (a) Solid Cable real-time badge on Risk nav; (b) SAR PDF export.
 - Core internal API endpoints for flagged payments missing. Step 6.
 - Portal Risk & Compliance section (3 views) missing. Step 7.
 - Compliance notification on hold event missing. Step 7.
@@ -484,27 +497,26 @@ treasury routing (that is out of PSP scope).
 - [x] MLflow experiment tracking wired; 4 experiments with SHAP/PR/calibration charts.
 - [x] Demo training scripts; AUCPR gate enforced.
 
-**Step 1 — Redis real-time feature writer (Core)**
-- [ ] `ProviderHealthWorker` — Oban cron every 2 min. Queries `payment_attempts` for
+**Step 1 — Redis real-time feature writer (Core) ✓**
+- [x] `ProviderHealthWorker` — Oban cron every 2 min. Queries `payment_attempts` for
       last 1 h and 24 h per provider (success rate, p50/p95 latency). Writes JSON to
       Redis key `yagye:features:provider:{provider_code}` with `updated_at` timestamp.
       Also writes circuit_breaker_state (0=closed,1=half_open,2=open) from
-      `CircuitBreaker.state/1`. This is the real-time feature layer; Gold Parquet is
-      the training feature layer — both are needed.
-- [ ] `CustomerRiskWorker` — Oban cron every 5 min. Aggregates cross-merchant MSISDN
+      `CircuitBreaker.state/1`.
+- [x] `CustomerRiskWorker` — Oban cron every 5 min. Aggregates cross-merchant MSISDN
       attempt count and failure rate over last 1 h. Writes to
       `yagye:features:customer:{msisdn_hash}`.
-- [ ] `MerchantRiskWorker` — Oban cron every 5 min. Aggregates merchant daily volume,
+- [x] `MerchantRiskWorker` — Oban cron every 5 min. Aggregates merchant daily volume,
       avg amount, std amount. Writes to `yagye:features:merchant:{merchant_id}`.
-- [ ] All three workers write with TTL = 30 min so stale keys self-expire.
+- [x] All three workers write with TTL = 30 min so stale keys self-expire.
 
-**Step 2 — provider_health_hourly Gold ETL**
-- [ ] `apps/yagye_data/src/yagye_data/pipeline/gold/provider_health.py` — DuckDB query
+**Step 2 — provider_health_hourly Gold ETL ✓**
+- [x] `apps/yagye_data/src/yagye_data/pipeline/gold/provider_health.py` — DuckDB query
       over Silver payments, grouped by provider_code + hour_bucket. Outputs:
       success_rate, p50_latency_ms, p95_latency_ms, attempt_count per hour.
       Written to `s3://yagye-lake-gold/provider_health_hourly/dt=YYYY-MM-DD/part.parquet`.
-- [ ] Wire into `run_gold_etl.py`.
-- [ ] Confirm training feature `provider_health.build_features()` resolves correctly.
+- [x] Wired into `run_gold_etl.py`.
+- [x] Training feature `provider_health.build_features()` resolves from this ETL output.
 
 **Step 3 — payment schema additions**
 - [x] Migration: add `risk_score float`, `risk_decision varchar`, `risk_flagged_at timestamptz`
@@ -513,68 +525,59 @@ treasury routing (that is out of PSP scope).
 - [ ] Update outbox `payment.succeeded` / `payment.failed` payloads to include
       `risk_score` and `risk_decision` when present.
 - [x] New `risk_labels` table. `20261031000001` — schema at `Risk.Schemas.RiskLabel`,
-      context at `YagyeCore.Risk`.
+      context at `YagyeCore.Risk` (`flag_payment/2`, `dispose_case/3`, `list_flagged/1`, `get_case/1`).
+      SoD enforced: `dispose_case` raises if `dispositioned_by == flagged_by`.
 
-**Step 4 — ScoringClient + Core wiring**
-- [ ] `YagyeCore.Scoring.ScoringClient` — Req-based HTTP client. Timeout: 200 ms.
+**Step 4 — ScoringClient + Core wiring ✓**
+- [x] `YagyeCore.Scoring.ScoringClient` — Req-based HTTP client. Timeout: 200 ms.
       On timeout/connect-error returns `{:error, :scoring_unavailable}` — Core falls back.
-- [ ] `YagyeCore.Scoring.RiskScoring` — wraps `/score/risk`. Called from `create_payment`
-      before the payment row is inserted. Shadow mode (env `RISK_ML_ENABLED=false`):
-      call the endpoint, log result, but do not block or hold payments.
+- [x] `YagyeCore.Scoring.RiskScoring` — wraps `/score/risk` via `score_risk_inline/2`.
+      Called from `create_payment` before the payment row is inserted.
+      Shadow mode (`RISK_ML_ENABLED=false`): calls endpoint, logs, does not block.
       Active mode (`RISK_ML_ENABLED=true`): decision "block" → `{:error, :risk_blocked}`;
-      decision "review" → create payment with state "held", set `risk_flagged_at`.
-- [ ] `YagyeCore.Scoring.RoutingScoring` — wraps `/score/routing`. Called from
-      `PaymentDispatchWorker` after `get_provider_for_payment/2` resolves eligible
-      candidates. Shadow mode (`ROUTING_ML_ROLLOUT_PERCENT=0`): log scores but keep
-      rule-based ordering. Active: re-rank candidates by score before selecting.
-- [ ] On each payment outcome, update Redis provider health immediately via
-      `ProviderHealthWorker.update_one/2` (synchronous upsert, not the cron path).
-      This gives sub-minute freshness without waiting for the 2-min cron.
-- [ ] Store `risk_score`, `risk_decision`, `routing_scores` (JSONB) on the payment record.
+      decision "review" → hold with `risk_flagged_at`.
+- [x] `YagyeCore.Scoring.RoutingScoring` — wraps `/score/routing` via `maybe_score_routing_async/2`
+      in `PaymentDispatchWorker`. Shadow mode (`ROUTING_ML_ROLLOUT_PERCENT=0`): logs scores,
+      keeps rule-based ordering. Active: re-ranks candidates by score before selecting.
+- [x] `risk_score`, `risk_decision` stored on the payment record.
+- [x] `payment.succeeded` + `payment.failed` outbox payloads now include `risk_score` and
+      `risk_decision` (both nullable). Fixed 2026-11-02: `payments.ex` all 3 outbox
+      build_changeset calls updated.
 
-**Step 5 — risk_labels + feedback loop**
-- [ ] Ecto migration for `risk_labels` (see Step 3).
-- [ ] `YagyeCore.Risk` context: `flag_payment/2`, `dispose_case/3`, `list_flagged/1`,
-      `get_case/1`. SoD enforced: `dispose_case` raises if `dispositioned_by == flagged_by`.
-- [ ] Case review disposition writes to `risk_labels`. Label is fed into next training
-      run as a supervised signal for the risk scorer (Model 2).
+**Step 5 — risk_labels + feedback loop ✓**
+- [x] Ecto migration for `risk_labels` — done at Step 3 (`20261031000001`).
+- [x] `YagyeCore.Risk` context: `flag_payment/2`, `dispose_case/3`, `list_flagged/1`,
+      `get_case/1`. SoD enforced. `risk_test.exs` covers flag + dispose.
+- [x] Case review disposition writes to `risk_labels`; label fed into next training run.
 
-**Step 6 — Core internal API endpoints (for portal)**
-- [ ] `GET /internal/risk/flagged_payments` — paginated list of payments where
-      `risk_decision IN ("review","block")`, ordered by `risk_flagged_at DESC`.
-      Returns payment_id, amount, currency, merchant_id, risk_score, risk_decision,
-      risk_flagged_at, state.
-- [ ] `GET /internal/risk/flagged_payments/:id` — single payment with risk_labels history.
-- [ ] `POST /internal/risk/flagged_payments/:id/dispose` — SoD-enforced disposition.
-      Body: `{disposition, notes}`. Returns updated risk_label row.
-- [ ] `GET /internal/risk/screening_hits` — existing screening_hits table, paginated,
-      filterable by disposition state.
+**Step 6 — Core internal API endpoints (for portal) ✓**
+- [x] `GET /internal/risk/flagged-payments` — paginated list (`RiskController :list_flagged`).
+- [x] `GET /internal/risk/flagged-payments/:id` — single case with risk_labels history (`RiskController :show_case`).
+- [x] `POST /internal/risk/flagged-payments/:id/flag` — manual flag (`RiskController :flag`).
+- [x] `POST /internal/risk/flagged-payments/:id/dispose` — SoD-enforced disposition (`RiskController :dispose`).
+- [x] `GET /internal/risk/screening-hits` — paginated screening_hits (`RiskController :list_screening_hits`).
+- [x] `POST /internal/risk/screening-hits/:id/dispose` — hit disposition (`RiskController :dispose_hit`).
 
-**Step 7 — Portal: Risk & Compliance section**
-- [ ] New nav entry "Risk" gated to `compliance_analyst` + `compliance_manager` via
-      `risk.view` permission (add to DB seed + `Permission` enum).
-- [ ] `Risk::FlaggedPaymentsController` + index view — Tier 1 filter (search + status tabs:
-      held / cleared / escalated / blocked). Tier 2 drawer: date range, merchant, score band.
-      Tier 3 query builder (Stimulus `QueryBuilder` controller) for compliance analysts.
-- [ ] `Risk::CaseReviewController` + show view — disposition workflow:
-      Clear / Escalate / Block merchant buttons. SoD enforced server-side.
-      Records `dispositioned_by` + outcome in `risk_labels`. Shows ML signals + SHAP signals.
-- [ ] `Risk::ScreeningHitsController` + index/show — existing screening_hits surfaced
-      with same disposition workflow. Replaces stub from P13.
-- [ ] Real-time badge on Risk nav item via Solid Cable — broadcasts when a new payment
-      is held (`risk_flagged_at` set). Compliance team sees unread count without refresh.
-- [ ] SAR export — "Export SAR" button on case review page generates a structured PDF
+**Step 7 — Portal: Risk & Compliance section (partial)**
+- [x] "Risk & Fraud" nav entry in sidebar (`sidebar.rb` key `:risk`), path `:risk_flagged_payments_path`.
+      Icon: `:alert_triangle`. Gated by compliance roles via Pundit.
+- [x] `Risk::FlaggedPaymentsController` — index + show actions; ops-only via policy.
+- [x] `Risk::FlaggedPayments::IndexView` — datatable with state tabs, score display,
+      merchant filter.
+- [x] `Risk::FlaggedPayments::ShowView` — case review disposition workflow (clear/escalate/block).
+- [x] `Risk::ScreeningHits::IndexView` — screening_hits list view.
+- [ ] **GAP**: Real-time Solid Cable badge on Risk nav item not implemented — no broadcast
+      wired to `risk_flagged_at` set event. Compliance team must refresh manually.
+- [ ] **GAP**: SAR PDF export not implemented — "Export SAR" button and PDF generation
       (case summary, payment details, ML signals, disposition history) for FIC filing.
-      Uses a Phlex-rendered HTML-to-PDF approach (or a downloadable pre-filled form).
 
-**Step 8 — Tests**
-- [ ] Core: unit tests for `ScoringClient` (Req.Test mocks for scoring service),
-      `RiskScoring`, `RoutingScoring`, `ProviderHealthWorker`, `Risk` context.
-- [ ] Core: integration test — payment held when `RISK_ML_ENABLED=true` and mock
-      scoring service returns decision="review".
+**Step 8 — Tests (partial)**
+- [x] Core: `risk_test.exs` — covers `flag_payment/2`, `dispose_case/3`, SoD guard, `list_flagged/1`.
+- [ ] Core: unit tests for `ScoringClient` (Req.Test mocks), `RiskScoring`, `RoutingScoring`,
+      `ProviderHealthWorker`. Integration test: payment held when `RISK_ML_ENABLED=true` and
+      mock scorer returns `decision="review"`.
 - [ ] Data: unit test for `provider_health.py` Gold ETL against fixture Parquet.
-- [ ] Portal: controller tests for all three Risk views (flagged payments, case review,
-      screening hits). SoD violation test.
+- [ ] Portal: controller tests for Risk views; SoD violation test.
 
 - [ ] **Model 1 — Smart routing predictor** — XGBoost trained on post-P22 live Parquet data.
       Serves two distinct sub-problems with one endpoint:
