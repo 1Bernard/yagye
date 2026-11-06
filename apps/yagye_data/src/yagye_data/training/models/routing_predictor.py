@@ -48,17 +48,21 @@ from yagye_data.training.gate import should_promote
 
 logger = get_logger(__name__)
 
-_MODEL_NAME = "routing_predictor"
+_MODEL_NAME = "routing_native_rail"
 _FEATURE_COLS = [
-    "provider_kind_enc",        # 0 = native_rail, 1 = external_psp
-    "success_rate",
-    "p50_latency_ms",
-    "p95_latency_ms",
-    "rolling_24h_success_rate",
-    "attempt_count",
+    # Must match _ROUTING_FEATURES in yagye_scoring/models/routing_predictor.py exactly.
+    "provider_code_enc",
+    "provider_kind_enc",
+    "payment_method_enc",
+    "network_code_enc",
+    "amount_bucket",
     "hour_of_day",
     "day_of_week",
-    "amount_bucket",            # log10(amount_minor) rounded to nearest 0.5
+    "recent_success_rate_1h",
+    "recent_success_rate_24h",
+    "avg_latency_ms_1h",
+    "circuit_breaker_state",
+    "candidate_count",
 ]
 _MIN_TRAINING_ROWS = 100
 
@@ -92,6 +96,8 @@ def _train_inner() -> None:
                 occurred_at,
                 provider_code,
                 COALESCE(provider_kind, 'native_rail')          AS provider_kind,
+                method,
+                network,
                 amount_minor,
                 CASE WHEN event_type = 'payment.succeeded' THEN 1 ELSE 0 END AS label,
                 DATE_TRUNC('hour', occurred_at)                 AS hour_bucket,
@@ -100,14 +106,17 @@ def _train_inner() -> None:
             FROM read_parquet('{silver_glob}', hive_partitioning = true)
             WHERE provider_code IS NOT NULL
         ),
+        provider_codes AS (
+            SELECT provider_code,
+                   ROW_NUMBER() OVER (ORDER BY provider_code) - 1 AS code_enc
+            FROM (SELECT DISTINCT provider_code FROM attempts)
+        ),
         health AS (
             SELECT
                 provider_code,
                 hour                                            AS hour_bucket,
                 success_rate,
-                p50_latency_ms,
-                p95_latency_ms,
-                total_count                                     AS attempt_count,
+                avg_latency_ms,
                 AVG(success_rate) OVER (
                     PARTITION BY provider_code
                     ORDER BY hour
@@ -118,16 +127,30 @@ def _train_inner() -> None:
         SELECT
             a.occurred_at,
             a.label,
+            COALESCE(p.code_enc, -1)::FLOAT                     AS provider_code_enc,
+            CASE a.provider_kind WHEN 'external_psp' THEN 1 ELSE 0 END::FLOAT
+                                                                 AS provider_kind_enc,
+            CASE a.method
+                WHEN 'mobile_money'   THEN 0
+                WHEN 'card'           THEN 1
+                WHEN 'bank_transfer'  THEN 2
+                ELSE -1 END::FLOAT                               AS payment_method_enc,
+            CASE a.network
+                WHEN 'MTN'       THEN 0
+                WHEN 'Telecel'   THEN 1
+                WHEN 'AirtelTigo' THEN 2
+                ELSE -1 END::FLOAT                               AS network_code_enc,
+            ROUND(LOG10(NULLIF(a.amount_minor, 0) + 1) * 2.0) / 2.0
+                                                                 AS amount_bucket,
             a.hour_of_day,
             a.day_of_week,
-            CASE a.provider_kind WHEN 'external_psp' THEN 1 ELSE 0 END     AS provider_kind_enc,
-            ROUND(LOG10(NULLIF(a.amount_minor, 0) + 1) * 2.0) / 2.0        AS amount_bucket,
-            COALESCE(h.success_rate,             0.5)  AS success_rate,
-            COALESCE(h.p50_latency_ms,           0.0)  AS p50_latency_ms,
-            COALESCE(h.p95_latency_ms,           0.0)  AS p95_latency_ms,
-            COALESCE(h.attempt_count,            0)    AS attempt_count,
-            COALESCE(h.rolling_24h_success_rate, 0.5)  AS rolling_24h_success_rate
+            COALESCE(h.success_rate,             0.85) AS recent_success_rate_1h,
+            COALESCE(h.rolling_24h_success_rate, 0.85) AS recent_success_rate_24h,
+            COALESCE(h.avg_latency_ms,           2000.0) AS avg_latency_ms_1h,
+            0.0                                                  AS circuit_breaker_state,
+            1.0                                                  AS candidate_count
         FROM attempts a
+        LEFT JOIN provider_codes p ON a.provider_code = p.provider_code
         LEFT JOIN health h
             ON  a.provider_code = h.provider_code
             AND a.hour_bucket   = h.hour_bucket
@@ -183,6 +206,7 @@ def _train_inner() -> None:
         X_train[:1].values,
         initial_types=[("X", FloatTensorType([None, len(_FEATURE_COLS)]))],
         target_opset={"": 17, "ai.onnx.ml": 3},
+        options={xgb.XGBClassifier: {"zipmap": False}},
     )
 
     if should_promote(_MODEL_NAME, onnx_model, X_val.values, y_val.values):

@@ -71,7 +71,7 @@ defmodule YagyeCore.Payments.Workers.PaymentStatusCheckWorker do
   defp get_attempt(attempt_id) do
     case Repo.get(PaymentAttempt, attempt_id) do
       nil -> {:error, :not_found}
-      attempt -> {:ok, attempt}
+      attempt -> {:ok, Repo.preload(attempt, :provider)}
     end
   end
 
