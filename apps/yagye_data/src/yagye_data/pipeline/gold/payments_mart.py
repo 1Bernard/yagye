@@ -1,9 +1,11 @@
-"""Gold ETL: payments fact mart + provider health dimension.
+"""Gold ETL: payments fact mart.
 
 Outputs:
-  - gold/provider_health_hourly/  — hourly success rate + latency per provider
-      (primary input for the routing predictor and circuit breaker)
-  - gold/payment_facts/           — per-payment grain with all dimensional keys
+  - gold/payment_facts/  — per-payment grain with all dimensional keys
+
+Note: provider_health_hourly is produced by gold/provider_health.py (richer
+schema with provider_kind, method, currency, failure breakdowns). Do not
+write to that prefix here.
 """
 
 from datetime import datetime
@@ -31,39 +33,6 @@ def run(
     logger.info("gold.payments_mart.start", date=ds)
 
     con = con if con is not None else get_connection()
-
-    # ── Provider health (primary ML input) ────────────────────────────────────
-    provider_health_out = s3_uri(
-        settings.gold_bucket, f"provider_health_hourly/dt={ds}/part.parquet"
-    )
-    if provider_health_out.startswith("/"):
-        Path(provider_health_out).parent.mkdir(parents=True, exist_ok=True)
-    con.execute(f"""
-        COPY (
-            SELECT
-                DATE_TRUNC('hour', occurred_at::TIMESTAMPTZ) AS hour_bucket,
-                provider_code,
-                COUNT(*)                                     AS attempt_count,
-                SUM(CASE WHEN event_type = 'payment.succeeded' THEN 1 ELSE 0 END)
-                                                             AS success_count,
-                AVG(CASE WHEN event_type = 'payment.succeeded' THEN 1.0 ELSE 0.0 END)
-                                                             AS success_rate,
-                PERCENTILE_CONT(0.50) WITHIN GROUP (ORDER BY latency_ms)
-                                                             AS p50_latency_ms,
-                PERCENTILE_CONT(0.95) WITHIN GROUP (ORDER BY latency_ms)
-                                                             AS p95_latency_ms,
-                AVG(latency_ms)                              AS avg_latency_ms,
-                '{ds}'::DATE                                 AS dt
-            FROM read_parquet('{silver_glob}')
-            WHERE occurred_at::TIMESTAMPTZ >= TIMESTAMPTZ '{window_start.isoformat()}'
-              AND occurred_at::TIMESTAMPTZ <  TIMESTAMPTZ '{window_end.isoformat()}'
-              AND provider_code IS NOT NULL
-              AND (mode IS NULL OR mode = 'live')
-            GROUP BY 1, 2
-        )
-        TO '{provider_health_out}'
-        (FORMAT parquet, COMPRESSION zstd, ROW_GROUP_SIZE 50000)
-    """)
 
     # ── Payment facts (wide grain for general analytics) ──────────────────────
     payment_facts_out = s3_uri(settings.gold_bucket, f"payment_facts/dt={ds}/part.parquet")

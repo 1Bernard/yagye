@@ -345,7 +345,7 @@ defmodule YagyeCore.MerchantWebhooks.RabbitMQ.DeliveryPipeline do
   defp truncate(body) do
     case Jason.encode(body) do
       {:ok, json} -> String.slice(json, 0, @max_response_body)
-      _ -> inspect(body) |> String.slice(0, @max_response_body)
+      _ -> "[non-serialisable response body]"
     end
   end
 

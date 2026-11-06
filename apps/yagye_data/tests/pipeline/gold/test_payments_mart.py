@@ -55,57 +55,16 @@ def _provider_health_path(tmp_lake: Path, date: str = "2026-10-21") -> Path:
     return tmp_lake / "gold" / "provider_health_hourly" / f"dt={date}" / "part.parquet"
 
 
-def test_provider_health_success_rate(
+def test_payments_mart_does_not_write_provider_health(
     tmp_lake: Path, duckdb_con: duckdb.DuckDBPyConnection
 ) -> None:
-    """3 successes + 1 failure → success_rate = 0.75; p50 of [200,300,400,500] = 350."""
-    rows = [
-        _make_silver_row("payment.succeeded", latency_ms=200),
-        _make_silver_row("payment.succeeded", latency_ms=300),
-        _make_silver_row("payment.succeeded", latency_ms=400),
-        _make_silver_row("payment.failed",    latency_ms=500),
-    ]
+    """payments_mart must NOT write provider_health_hourly — that is provider_health.py's job."""
+    rows = [_make_silver_row("payment.succeeded"), _make_silver_row("payment.failed")]
     _write_silver_payments(tmp_lake, rows)
 
     payments_mart.run(_WINDOW_START, _WINDOW_END, con=duckdb_con)
 
-    table = pq.read_table(str(_provider_health_path(tmp_lake)))
-    assert table.num_rows == 1
-    row = table.to_pydict()
-    assert row["provider_code"][0] == "mtn_momo_gh"
-    assert row["attempt_count"][0] == 4
-    assert abs(row["success_rate"][0] - 0.75) < 0.001
-    assert abs(row["p50_latency_ms"][0] - 350.0) < 0.001
-
-
-def test_provider_health_excludes_null_provider(
-    tmp_lake: Path, duckdb_con: duckdb.DuckDBPyConnection
-) -> None:
-    """Rows with NULL provider_code must be excluded from the health mart."""
-    rows = [
-        _make_silver_row("payment.succeeded"),
-        {**_make_silver_row("payment.succeeded"), "provider_code": None},
-    ]
-    _write_silver_payments(tmp_lake, rows)
-
-    payments_mart.run(_WINDOW_START, _WINDOW_END, con=duckdb_con)
-
-    table = pq.read_table(str(_provider_health_path(tmp_lake)))
-    assert table.num_rows == 1
-
-
-def test_provider_health_excludes_simulation(
-    tmp_lake: Path, duckdb_con: duckdb.DuckDBPyConnection
-) -> None:
-    """Simulation-mode payments must be excluded from Gold analytics."""
-    rows = [
-        _make_silver_row("payment.succeeded", mode="live"),
-        _make_silver_row("payment.succeeded", mode="simulation"),
-    ]
-    _write_silver_payments(tmp_lake, rows)
-
-    payments_mart.run(_WINDOW_START, _WINDOW_END, con=duckdb_con)
-
-    table = pq.read_table(str(_provider_health_path(tmp_lake)))
-    row = table.to_pydict()
-    assert row["attempt_count"][0] == 1
+    assert not _provider_health_path(tmp_lake).exists(), (
+        "payments_mart wrote to provider_health_hourly — "
+        "this causes a schema collision with provider_health.py"
+    )

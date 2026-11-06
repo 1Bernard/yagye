@@ -9,7 +9,7 @@ config :simulator, Simulator.Repo,
 
 config :simulator, Simulator.Web.Endpoint,
   adapter: Bandit.PhoenixAdapter,
-  http: [ip: {127, 0, 0, 1}, port: 4100],
+  http: [ip: {127, 0, 0, 1}, port: String.to_integer(System.get_env("SIMULATOR_PORT", "4100"))],
   server: true,
   secret_key_base: "dev_simulator_secret_key_base_REPLACE_IN_PROD_via_runtime_exs_min64chars!",
   live_view: [signing_salt: "GNLnV4OhGjoHTANi"],
