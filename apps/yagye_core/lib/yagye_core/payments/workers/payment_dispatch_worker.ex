@@ -122,9 +122,22 @@ defmodule YagyeCore.Payments.Workers.PaymentDispatchWorker do
   defp log_routing_score(payment, provider) do
     case ScoringClient.score_routing(payment, [provider]) do
       {:ok, result} ->
+        score =
+          result[:provider_scores]
+          |> List.wrap()
+          |> List.first()
+          |> case do
+            %{"score" => s} -> s
+            %{score: s} -> s
+            _ -> nil
+          end
+
         Logger.debug("scoring.routing.shadow",
           payment_id: payment.id,
-          routing_mode: result[:routing_mode]
+          provider_code: provider.code,
+          score: score,
+          routing_mode: result[:routing_mode],
+          model_version: result[:model_version]
         )
 
       {:error, :scoring_unavailable} ->

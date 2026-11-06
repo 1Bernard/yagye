@@ -261,7 +261,12 @@ defmodule YagyeCore.Providers do
            {:ok, credential_map} <- fetch_platform_credential(provider.id, "simulation") do
         # Keep provider.id as the MNO UUID for correct PaymentAttempt scoping.
         # Override code → "simulator" so ProviderAdapter dispatches SimulatorAdapter.
-        {:ok, {%{provider | code: "simulator"}, credential_map, %{source: :static}}}
+        # Override adapter_module → SimulatorAdapter so for_provider dispatches correctly
+        # in simulation mode, even for providers like MTN that have a real adapter in the DB.
+        # Preserving the real code (mtn_momo_gh etc.) means outbox events and ML scoring
+        # see the actual MNO provider, not the generic "simulator" fallback.
+        sim_adapter = "YagyeCore.Payments.Adapters.SimulatorAdapter"
+        {:ok, {%{provider | adapter_module: sim_adapter}, credential_map, %{source: :static}}}
       end
 
     case result do

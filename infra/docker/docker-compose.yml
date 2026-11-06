@@ -117,6 +117,8 @@ services:
       AWS_S3_HOST: floci
       AWS_S3_PORT: "4566"
       KYB_S3_BUCKET: yagye-kyb-documents
+      # P20 — Scoring service (shadow mode; rollout percent stays 0 until post-P22)
+      SCORING_SERVICE_URL: http://yagye_scoring:8000
     # Run migrations then start server. YagyeCore.Release.migrate/0 is idempotent.
     command: >
       /bin/sh -c "
