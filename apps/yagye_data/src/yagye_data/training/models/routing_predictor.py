@@ -24,9 +24,20 @@ from datetime import datetime
 
 import boto3
 import mlflow
+import onnxmltools
 import xgboost as xgb
-from skl2onnx import to_onnx
+from onnxmltools.convert.xgboost.operator_converters.XGBoost import convert_xgboost
+from skl2onnx import to_onnx, update_registered_converter
 from skl2onnx.common.data_types import FloatTensorType
+from skl2onnx.common.shape_calculator import calculate_linear_classifier_output_shapes
+
+update_registered_converter(
+    xgb.XGBClassifier,
+    "XGBoostXGBClassifier",
+    calculate_linear_classifier_output_shapes,
+    convert_xgboost,
+    options={"nocl": [True, False], "zipmap": [True, False, "columns"]},
+)
 
 from yagye_data.config import settings
 from yagye_data.shared.duckdb_client import get_connection
@@ -88,19 +99,18 @@ def _train_inner() -> None:
                 EXTRACT(dow  FROM occurred_at)::INT             AS day_of_week
             FROM read_parquet('{silver_glob}', hive_partitioning = true)
             WHERE provider_code IS NOT NULL
-              AND (mode IS NULL OR mode = 'live')
         ),
         health AS (
             SELECT
                 provider_code,
-                hour_bucket,
+                hour                                            AS hour_bucket,
                 success_rate,
                 p50_latency_ms,
                 p95_latency_ms,
-                attempt_count,
+                total_count                                     AS attempt_count,
                 AVG(success_rate) OVER (
                     PARTITION BY provider_code
-                    ORDER BY hour_bucket
+                    ORDER BY hour
                     ROWS BETWEEN 23 PRECEDING AND CURRENT ROW
                 ) AS rolling_24h_success_rate
             FROM read_parquet('{gold_glob}', hive_partitioning = true)
@@ -172,6 +182,7 @@ def _train_inner() -> None:
         model,
         X_train[:1].values,
         initial_types=[("X", FloatTensorType([None, len(_FEATURE_COLS)]))],
+        target_opset={"": 17, "ai.onnx.ml": 3},
     )
 
     if should_promote(_MODEL_NAME, onnx_model, X_val.values, y_val.values):

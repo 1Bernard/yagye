@@ -53,8 +53,12 @@ def _train_inner() -> None:
     con = get_connection()
     df = merchant_risk.build_features(con, training_window_days=365).df()
 
-    if df.empty:
-        logger.warning("training.reserve_recommender.skipped", reason="insufficient_data")
+    if df.empty or len(df) < 5:
+        logger.warning(
+            "training.reserve_recommender.skipped",
+            reason="insufficient_data",
+            rows=len(df),
+        )
         return
 
     # Proxy label: rolling_7d_failure_rate as a reserve need signal

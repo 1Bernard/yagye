@@ -71,8 +71,12 @@ def _train_inner() -> None:
     merchant_df = merchant_risk.build_features(con).df()
     customer_df = customer_risk.build_features(con).df()
 
-    if merchant_df.empty:
-        logger.warning("training.risk_scorer.skipped", reason="insufficient_merchant_data")
+    if merchant_df.empty or len(merchant_df) < 5:
+        logger.warning(
+            "training.risk_scorer.skipped",
+            reason="insufficient_merchant_data",
+            rows=len(merchant_df),
+        )
         return
 
     # Placeholder label: failure_rate > 0.3 as a training proxy

@@ -88,7 +88,7 @@ def run(
                 mode                                                AS mode,
                 sha256(NULLIF(json_extract_string(payload, '$.customer_msisdn'), ''))
                                                                     AS customer_msisdn_hash,
-                payload::VARCHAR                                    AS raw_payload,
+                to_json(payload)::VARCHAR                           AS raw_payload,
                 '{ds}'::DATE                                        AS dt
             FROM deduped
             WHERE _rn = 1

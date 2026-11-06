@@ -38,10 +38,17 @@ def run(lookback_hours: int | None = None) -> None:
 
     for module in (payments_mart, risk_mart, ops_mart, provider_health):
         t_mod = time.monotonic()
-        module.run(window_start, window_end)
+        mod_name = module.__name__.split(".")[-1]
+        try:
+            module.run(window_start, window_end)
+        except Exception as exc:
+            if "No files found" in str(exc) or "HTTP 404" in str(exc):
+                logger.info("gold_etl.module_skipped", module=mod_name, reason="no_silver_data")
+            else:
+                logger.warning("gold_etl.module_error", module=mod_name, error=str(exc))
         logger.info(
             "gold_etl.module_done",
-            module=module.__name__.split(".")[-1],
+            module=mod_name,
             duration_s=round(time.monotonic() - t_mod, 2),
         )
 

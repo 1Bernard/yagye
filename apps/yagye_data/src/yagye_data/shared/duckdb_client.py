@@ -15,6 +15,9 @@ from yagye_data.config import settings
 def get_connection() -> duckdb.DuckDBPyConnection:
     """Return a new in-memory DuckDB connection pre-configured for S3/Floci."""
     con = duckdb.connect()
+    # Set a writable home dir before installing extensions — avoids
+    # "Can't find the home directory" errors in containers without /home/<user>.
+    con.execute("SET home_directory='/tmp';")
     con.execute("INSTALL httpfs; LOAD httpfs;")
     con.execute("INSTALL parquet; LOAD parquet;")
 

@@ -38,10 +38,17 @@ def run(lookback_hours: int | None = None) -> None:
 
     for module in (payments, settlements, merchants, reconciliation):
         t_mod = time.monotonic()
-        module.run(window_start, window_end)
+        mod_name = module.__name__.split(".")[-1]
+        try:
+            module.run(window_start, window_end)
+        except Exception as exc:
+            if "No files found" in str(exc):
+                logger.info("silver_etl.module_skipped", module=mod_name, reason="no_bronze_data")
+            else:
+                logger.warning("silver_etl.module_error", module=mod_name, error=str(exc))
         logger.info(
             "silver_etl.module_done",
-            module=module.__name__.split(".")[-1],
+            module=mod_name,
             duration_s=round(time.monotonic() - t_mod, 2),
         )
 
