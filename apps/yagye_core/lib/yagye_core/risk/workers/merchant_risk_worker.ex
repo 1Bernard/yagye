@@ -25,10 +25,21 @@ defmodule YagyeCore.Risk.Workers.MerchantRiskWorker do
   def perform(%Oban.Job{}) do
     since = DateTime.add(DateTime.utc_now(), -@window_days * 86_400, :second)
 
-    merchant_ids = Repo.all(from(m in Merchant, where: m.status == "active", select: m.id))
+    # Merchant.status is "registered" | "approved"; liveness is tracked by activity_state.
+    merchants =
+      Repo.all(
+        from(m in Merchant,
+          where: m.activity_state == "active",
+          select: {m.id, m.inserted_at}
+        )
+      )
 
-    Enum.each(merchant_ids, fn merchant_id ->
-      features = compute_features(merchant_id, since)
+    Enum.each(merchants, fn {merchant_id, merchant_inserted_at} ->
+      features =
+        merchant_id
+        |> compute_features(since)
+        |> Map.merge(scoring_contract_features(merchant_id, merchant_inserted_at))
+
       write_to_redis(merchant_id, features)
     end)
 
@@ -36,6 +47,65 @@ defmodule YagyeCore.Risk.Workers.MerchantRiskWorker do
   end
 
   # ── Private ──────────────────────────────────────────────────────────────────
+
+  # Field names read by apps/yagye_scoring/src/yagye_scoring/features/merchant_risk.py.
+  # Amounts are minor units except monthly_volume_ghs (major units, cedis).
+  defp scoring_contract_features(merchant_id, merchant_inserted_at) do
+    now = DateTime.utc_now()
+    since_180d = DateTime.add(now, -180 * 86_400, :second)
+
+    rows =
+      Repo.all(
+        from(p in Payment,
+          where: p.merchant_id == ^merchant_id,
+          where: p.inserted_at >= ^since_180d,
+          select: %{state: p.state, amount: p.amount, inserted_at: p.inserted_at}
+        )
+      )
+
+    in_window = fn days ->
+      cutoff = DateTime.add(now, -days * 86_400, :second)
+      Enum.filter(rows, &(DateTime.compare(&1.inserted_at, cutoff) != :lt))
+    end
+
+    rate = fn subset, state ->
+      case length(subset) do
+        0 -> 0.0
+        n -> Float.round(Enum.count(subset, &(&1.state == state)) / n, 4)
+      end
+    end
+
+    rows_30d = in_window.(30)
+    rows_90d = in_window.(90)
+    succeeded_30d = Enum.filter(rows_30d, &(&1.state == "succeeded"))
+    amounts = Enum.map(rows_90d, & &1.amount)
+
+    %{
+      monthly_volume_ghs: Enum.reduce(succeeded_30d, 0, &(&1.amount + &2)) / 100,
+      chargeback_rate_30d: rate.(rows_30d, "chargebacked"),
+      chargeback_rate_90d: rate.(rows_90d, "chargebacked"),
+      chargeback_rate_180d: rate.(rows, "chargebacked"),
+      dispute_rate_90d: rate.(rows_90d, "disputed"),
+      avg_payment_amount: mean(amounts),
+      payment_amount_std: std(amounts),
+      merchant_age_days:
+        if(merchant_inserted_at,
+          do: DateTime.diff(now, merchant_inserted_at, :second) |> div(86_400),
+          else: 0
+        )
+    }
+  end
+
+  defp mean([]), do: 0.0
+  defp mean(xs), do: Float.round(Enum.sum(xs) / length(xs), 2)
+
+  defp std(xs) when length(xs) < 2, do: 0.0
+
+  defp std(xs) do
+    m = Enum.sum(xs) / length(xs)
+    var = Enum.reduce(xs, 0.0, fn x, acc -> acc + (x - m) * (x - m) end) / (length(xs) - 1)
+    Float.round(:math.sqrt(var), 2)
+  end
 
   defp compute_features(merchant_id, since) do
     rows =

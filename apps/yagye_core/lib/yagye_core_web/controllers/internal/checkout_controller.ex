@@ -7,18 +7,14 @@ defmodule YagyeCoreWeb.Controllers.Internal.CheckoutController do
 
   alias YagyeCore.Checkout.Schemas.CheckoutSession
   alias YagyeCore.CheckoutSessions
-  alias YagyeCore.Merchants.Schemas.Merchant
   alias YagyeCore.Payments
-  alias YagyeCore.Repo
 
   # GET /internal/checkout/sessions/by-token?token=:raw_token
   def session_by_token(conn, %{"token" => token}) do
     case CheckoutSessions.get_session_by_token(token) do
       {:ok, session} ->
-        checkout_layout =
-          fetch_checkout_layout(session.payment_link_id, session.logo_url, session.merchant_id)
-
-        merchant_name = fetch_merchant_name(session.merchant_id)
+        {checkout_layout, merchant_name} =
+          CheckoutSessions.fetch_session_display_context(session)
 
         conn
         |> put_status(:ok)
@@ -253,7 +249,7 @@ defmodule YagyeCoreWeb.Controllers.Internal.CheckoutController do
     %{
       "msisdn" => params["msisdn"],
       "network" => params["network"] || "MTN",
-      "card_number" => params["card_number"],
+      "card_last4" => extract_card_last4(params["card_number"]),
       "checkout_session_id" => session.public_id,
       "customer_email" => params["customer_email"],
       "customer_phone" => params["customer_phone"],
@@ -261,6 +257,13 @@ defmodule YagyeCoreWeb.Controllers.Internal.CheckoutController do
     }
     |> Enum.reject(fn {_, v} -> is_nil(v) or v == "" end)
     |> Map.new()
+  end
+
+  defp extract_card_last4(nil), do: nil
+
+  defp extract_card_last4(card_number) when is_binary(card_number) do
+    digits = String.replace(card_number, ~r/\D/, "")
+    if byte_size(digits) >= 4, do: String.slice(digits, -4, 4), else: nil
   end
 
   # Only include profile fields the merchant explicitly enabled collecting —
@@ -279,31 +282,6 @@ defmodule YagyeCoreWeb.Controllers.Internal.CheckoutController do
   defp maybe_put_customer_ref(attrs, params) do
     ref = params["msisdn"] || params["customer_phone"] || params["customer_email"]
     if ref, do: Map.put(attrs, :customer_reference, ref), else: attrs
-  end
-
-  defp fetch_checkout_layout(nil, nil, merchant_id) do
-    case CheckoutSessions.get_checkout_config(merchant_id) do
-      {:ok, config} when not is_nil(config.logo_url) -> %{"logo_url" => config.logo_url}
-      _ -> nil
-    end
-  end
-
-  defp fetch_checkout_layout(nil, logo_url, _merchant_id), do: %{"logo_url" => logo_url}
-
-  defp fetch_checkout_layout(payment_link_id, _logo_url, _merchant_id) do
-    alias YagyeCore.PaymentLinks.Schemas.PaymentLink
-
-    case Repo.get(PaymentLink, payment_link_id) do
-      nil -> nil
-      link -> link.checkout_layout
-    end
-  end
-
-  defp fetch_merchant_name(merchant_id) do
-    case Repo.get(Merchant, merchant_id) do
-      nil -> nil
-      merchant -> merchant.trading_name
-    end
   end
 
   defp render_session(%CheckoutSession{} = s) do

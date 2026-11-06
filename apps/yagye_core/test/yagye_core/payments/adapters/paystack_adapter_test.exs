@@ -147,6 +147,25 @@ defmodule YagyeCore.Payments.Adapters.PaystackAdapterTest do
 
       PaystackAdapter.charge(p, attempt(), @credential)
     end
+
+    test "Telecel network maps to vod provider code" do
+      for net <- ["Telecel", "TELECEL", "telecel"] do
+        p = %{payment() | metadata: Map.put(payment().metadata, "network", net)}
+
+        Req.Test.stub(:paystack_http, fn conn ->
+          {:ok, body, conn} = Plug.Conn.read_body(conn)
+          assert Jason.decode!(body)["mobile_money"]["provider"] == "vod"
+
+          Req.Test.json(conn, %{
+            "status" => true,
+            "data" => %{"status" => "pending", "reference" => "ref-telecel"}
+          })
+        end)
+
+        assert {:pending, %{provider_reference: "ref-telecel"}} =
+                 PaystackAdapter.charge(p, attempt("ref-telecel"), @credential)
+      end
+    end
   end
 
   # ── query_charge/2 ───────────────────────────────────────────────────────────

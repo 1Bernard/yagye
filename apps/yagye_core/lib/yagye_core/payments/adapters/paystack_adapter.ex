@@ -42,9 +42,14 @@ defmodule YagyeCore.Payments.Adapters.PaystackAdapter do
   @network_map %{
     "MTN" => "mtn",
     "Vodafone" => "vod",
+    "VODAFONE" => "vod",
+    "Telecel" => "vod",
+    "TELECEL" => "vod",
     "AirtelTigo" => "airteltigo",
+    "AIRTELTIGO" => "airteltigo",
     "mtn" => "mtn",
     "vodafone" => "vod",
+    "telecel" => "vod",
     "airteltigo" => "airteltigo"
   }
 

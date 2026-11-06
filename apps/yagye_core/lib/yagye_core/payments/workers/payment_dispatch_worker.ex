@@ -14,7 +14,11 @@ defmodule YagyeCore.Payments.Workers.PaymentDispatchWorker do
   alias YagyeCore.Routing.CircuitBreaker
 
   @impl Oban.Worker
-  def perform(%Oban.Job{args: %{"payment_id" => payment_id}, attempt: job_attempt}) do
+  def perform(%Oban.Job{
+        args: %{"payment_id" => payment_id},
+        attempt: job_attempt,
+        max_attempts: max_attempts
+      }) do
     OpenTelemetry.Tracer.with_span "payment.dispatch",
                                    %{
                                      attributes: %{
@@ -32,7 +36,7 @@ defmodule YagyeCore.Payments.Workers.PaymentDispatchWorker do
              Providers.get_provider_for_payment(payment, excluded_provider_ids),
            {:ok, attempt} <- Payments.create_attempt(payment, provider.id, routing_meta) do
         # Fire-and-forget routing scoring for shadow mode / logging
-        maybe_score_routing_async(payment)
+        maybe_score_routing_async(payment, provider)
 
         OpenTelemetry.Tracer.set_attributes(%{
           "routing.source" => to_string(routing_meta[:source]),
@@ -58,8 +62,12 @@ defmodule YagyeCore.Payments.Workers.PaymentDispatchWorker do
             ProviderHealthWorker.update_one(provider.id, provider.code)
             Payments.handle_provider_response(payment, attempt, result)
 
-          {:error, %{error_class: class}} = error
-          when class in [:definite_failure, :retryable_error] ->
+          {:error, %{error_class: :retryable_error} = err} = error ->
+            CircuitBreaker.record_failure(provider.id)
+            ProviderHealthWorker.update_one(provider.id, provider.code)
+            handle_retryable_error(payment, attempt, error, err, job_attempt, max_attempts)
+
+          {:error, %{error_class: :definite_failure}} = error ->
             CircuitBreaker.record_failure(provider.id)
             ProviderHealthWorker.update_one(provider.id, provider.code)
             Payments.handle_provider_response(payment, attempt, error)
@@ -67,6 +75,16 @@ defmodule YagyeCore.Payments.Workers.PaymentDispatchWorker do
           other ->
             Payments.handle_provider_response(payment, attempt, other)
         end
+      else
+        {:error, :no_provider_available} = err ->
+          if job_attempt > 1 do
+            Payments.fail_payment_no_provider(payment_id)
+          end
+
+          err
+
+        other ->
+          other
       end
     end
   end
@@ -74,6 +92,15 @@ defmodule YagyeCore.Payments.Workers.PaymentDispatchWorker do
   # Returns a list of provider IDs that have already been attempted on this payment.
   # Called on retry (job_attempt > 1) so we can route around already-failed providers.
   # On the first attempt this is always empty.
+  defp handle_retryable_error(payment, attempt, error, err, job_attempt, max_attempts) do
+    if job_attempt >= max_attempts do
+      Payments.fail_exhausted_retryable_payment(payment, attempt, err)
+      {:error, :retryable_error}
+    else
+      Payments.handle_provider_response(payment, attempt, error)
+    end
+  end
+
   defp previously_attempted_providers(_payment_id, 1), do: []
 
   defp previously_attempted_providers(payment_id, _job_attempt) do
@@ -84,14 +111,16 @@ defmodule YagyeCore.Payments.Workers.PaymentDispatchWorker do
   # Results are logged but not used for provider selection until rollout > 0.
   # When routing_ml_rollout_percent > 0, this switches to synchronous and the
   # hint is passed into the routing layer (P20+ step).
-  defp maybe_score_routing_async(payment) do
+  defp maybe_score_routing_async(payment, provider) do
     cfg = Application.get_env(:yagye_core, :scoring)
     rollout = cfg[:routing_ml_rollout_percent]
-    if rollout >= 0, do: Task.start(fn -> log_routing_score(payment) end)
+    if rollout >= 0, do: Task.start(fn -> log_routing_score(payment, provider) end)
   end
 
-  defp log_routing_score(payment) do
-    case ScoringClient.score_routing(payment, []) do
+  # The selected provider is sent as the single candidate (go/hold signal, Model A).
+  # FastAPI's RoutingScoringRequest requires at least one candidate.
+  defp log_routing_score(payment, provider) do
+    case ScoringClient.score_routing(payment, [provider]) do
       {:ok, result} ->
         Logger.debug("scoring.routing.shadow",
           payment_id: payment.id,

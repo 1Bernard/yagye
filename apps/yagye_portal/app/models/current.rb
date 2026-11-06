@@ -1,8 +1,9 @@
 class Current < ActiveSupport::CurrentAttributes
   attribute :user
-  attribute :permissions  # Set<String> — populated on first permitted? call, cleared between requests
+  attribute :permissions          # Set<String> — populated on first permitted? call, cleared between requests
+  attribute :permissions_user_id  # UUID of the user whose permissions are cached in Current.permissions
   attribute :request_id
   attribute :user_agent
   attribute :ip_address
-  attribute :mode         # "test" | "live" | nil (nil = ops sees all modes)
+  attribute :mode                 # "test" | "live" | nil (nil = ops sees all modes)
 end

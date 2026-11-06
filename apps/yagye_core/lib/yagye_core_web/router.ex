@@ -145,6 +145,7 @@ defmodule YagyeCoreWeb.Router do
 
     # Internal key provisioning — portal uses service token, not merchant API key
     post("/merchants/:code/keys", InternalApiKeysController, :create)
+    delete("/merchants/:code/keys/:key_id", InternalApiKeysController, :delete)
 
     # Ops-initiated payouts — portal approve action calls this after maker-checker
     post("/merchants/:merchant_code/payouts", InternalPayoutsController, :create)
@@ -242,6 +243,10 @@ defmodule YagyeCoreWeb.Router do
       InternalMerchantsController,
       :enable_sandbox
     )
+
+    post("/merchants/:merchant_code/suspend", InternalMerchantsController, :suspend)
+    post("/merchants/:merchant_code/reactivate", InternalMerchantsController, :reactivate)
+    get("/payments/:id/events", InternalMerchantsController, :payment_events)
 
     post("/merchants/:merchant_code/kyb-resubmit", KybController, :resubmit)
 

@@ -83,6 +83,24 @@ defmodule YagyeCore.Payments.Workers.PaymentDispatchWorkerTest do
     assert updated.state == "processing"
   end
 
+  test "transitions payment to failed when retryable error exhausts max_attempts", %{
+    payment: payment
+  } do
+    expect(MockProviderAdapter, :charge, fn _payment, _attempt, _credential ->
+      {:error,
+       %{error_class: :retryable_error, response_code: "GATEWAY_ERROR", response_message: nil}}
+    end)
+
+    assert {:error, :retryable_error} =
+             perform_job(PaymentDispatchWorker, %{payment_id: payment.id},
+               attempt: 3,
+               max_attempts: 3
+             )
+
+    updated = Repo.get!(Payment, payment.id)
+    assert updated.state == "failed"
+  end
+
   test "returns error for unknown payment" do
     assert {:error, :not_found} =
              perform_job(PaymentDispatchWorker, %{payment_id: Uniq.UUID.uuid7()}, [])

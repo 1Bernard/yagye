@@ -16,10 +16,10 @@ module Acl
 
     def core_break_id    = @p["break_id"]
     def proposed_by      = @p["proposed_by"]
-    def proposed_at      = @p["proposed_at"]
+    def proposed_at      = @p["proposed_at"].presence || @p["occurred_at"]
     def proposed_action  = @p["proposed_action"] || {}
     def approved_by      = @p["approved_by"]
-    def approved_at      = @p["approved_at"]
+    def approved_at      = @p["approved_at"].presence || (@p["approved_by"].present? ? @p["occurred_at"] : nil)
     def rejected_reason  = @p["rejected_reason"]
     def event_id         = @p["event_id"].to_s
 

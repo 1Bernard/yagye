@@ -12,6 +12,7 @@ defmodule YagyeCore.CheckoutSessions do
     MerchantCheckoutConfig
   }
 
+  alias YagyeCore.Merchants.Schemas.Merchant
   alias YagyeCore.Outbox
   alias YagyeCore.PaymentLinks
   alias YagyeCore.PaymentLinks.Schemas.PaymentLink
@@ -305,6 +306,38 @@ defmodule YagyeCore.CheckoutSessions do
     end
   end
 
+  @doc """
+  Fetches the checkout layout and merchant display name for a session.
+  """
+  def fetch_session_display_context(%CheckoutSession{} = session) do
+    checkout_layout =
+      fetch_checkout_layout(session.payment_link_id, session.logo_url, session.merchant_id)
+
+    merchant_name =
+      case Repo.get(Merchant, session.merchant_id) do
+        nil -> nil
+        merchant -> merchant.trading_name
+      end
+
+    {checkout_layout, merchant_name}
+  end
+
+  defp fetch_checkout_layout(nil, nil, merchant_id) do
+    case get_checkout_config(merchant_id) do
+      {:ok, config} when not is_nil(config.logo_url) -> %{"logo_url" => config.logo_url}
+      _ -> nil
+    end
+  end
+
+  defp fetch_checkout_layout(nil, logo_url, _merchant_id), do: %{"logo_url" => logo_url}
+
+  defp fetch_checkout_layout(payment_link_id, _logo_url, _merchant_id) do
+    case Repo.get(PaymentLink, payment_link_id) do
+      nil -> nil
+      link -> link.checkout_layout
+    end
+  end
+
   def update_checkout_config(merchant_id, attrs) do
     config =
       Repo.get(MerchantCheckoutConfig, merchant_id) ||
@@ -494,6 +527,17 @@ defmodule YagyeCore.CheckoutSessions do
   end
 
   defp validate_link_usable(%PaymentLink{active: false}), do: {:error, :link_inactive}
+
+  defp validate_link_usable(%PaymentLink{reusable: false, use_count: use_count})
+       when is_integer(use_count) and use_count >= 1 do
+    {:error, :link_inactive}
+  end
+
+  defp validate_link_usable(%PaymentLink{max_uses: max_uses, use_count: use_count})
+       when is_integer(max_uses) and is_integer(use_count) and use_count >= max_uses do
+    {:error, :link_inactive}
+  end
+
   defp validate_link_usable(%PaymentLink{expires_at: nil}), do: :ok
 
   defp validate_link_usable(%PaymentLink{expires_at: exp}) do

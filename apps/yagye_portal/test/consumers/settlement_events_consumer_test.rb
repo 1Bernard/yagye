@@ -214,4 +214,20 @@ class SettlementEventsConsumerTest < ActiveSupport::TestCase
     consume(payload)
     assert_nil PortalMerchantBalance.find_by(merchant_code: "MCH-BAL-NOOP")
   end
+
+  # ── Contract: Core settlement.batch.created sends batch_id + Core modes ──
+
+  test "falls back to batch_id when settlement_code is absent" do
+    batch_id = SecureRandom.uuid
+    consume(base_payload.except("settlement_code").merge("batch_id" => batch_id))
+    assert PortalSettlement.exists?(settlement_code: batch_id)
+  end
+
+  test "normalises Core simulation/sandbox modes to portal test mode" do
+    %w[simulation sandbox].each do |core_mode|
+      payload = base_payload("mode" => core_mode)
+      consume(payload)
+      assert_equal "test", PortalSettlement.find_by!(settlement_code: payload["settlement_code"]).mode
+    end
+  end
 end

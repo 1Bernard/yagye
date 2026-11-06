@@ -210,7 +210,9 @@ defmodule YagyeCore.Reconciliation do
         Outbox.build_changeset(approval, "reconciliation.adjustment.proposed", %{
           approval_id: approval.id,
           break_id: approval.break_id,
+          break_public_id: break.public_id,
           proposed_by: proposed_by,
+          proposed_at: (approval.proposed_at || DateTime.utc_now()) |> DateTime.to_iso8601(),
           proposed_action: proposed_action
         })
       end)
@@ -242,7 +244,10 @@ defmodule YagyeCore.Reconciliation do
           approval_id: approval.id,
           break_id: approval.break_id,
           proposed_by: approval.proposed_by,
-          approved_by: approved_by
+          proposed_at: approval.proposed_at && DateTime.to_iso8601(approval.proposed_at),
+          proposed_action: approval.proposed_action,
+          approved_by: approved_by,
+          approved_at: (approval.approved_at || DateTime.utc_now()) |> DateTime.to_iso8601()
         })
       end)
       |> Repo.transaction()
@@ -277,6 +282,8 @@ defmodule YagyeCore.Reconciliation do
           approval_id: approval.id,
           break_id: approval.break_id,
           proposed_by: approval.proposed_by,
+          proposed_at: approval.proposed_at && DateTime.to_iso8601(approval.proposed_at),
+          proposed_action: approval.proposed_action,
           rejected_by: rejected_by,
           rejected_reason: reason
         })

@@ -119,4 +119,71 @@ defmodule YagyeCore.Risk.ScoringClientTest do
       assert {:error, :scoring_unavailable} = ScoringClient.score_routing(payment(), [])
     end
   end
+
+  # ── Contract with yagye_scoring Pydantic schemas ─────────────────────────────
+
+  describe "request contract" do
+    test "score_risk sends every required RiskScoringRequest field and maps risk_score → score" do
+      Req.Test.stub(:scoring_http, fn conn ->
+        {:ok, raw, conn} = Plug.Conn.read_body(conn)
+        body = Jason.decode!(raw)
+
+        for key <- ~w(payment_id merchant_id customer_msisdn_hash amount_minor hour_of_day
+                      day_of_week customer_kyc_tier) do
+          assert Map.has_key?(body, key), "missing #{key}"
+        end
+
+        assert body["customer_msisdn_hash"] == "abc123hash"
+        assert body["day_of_week"] in 0..6
+
+        Req.Test.json(conn, %{
+          "payment_id" => body["payment_id"],
+          "risk_score" => 0.42,
+          "decision" => "review",
+          "model_version" => "v1",
+          "feature_source" => "realtime"
+        })
+      end)
+
+      assert {:ok, %{score: 0.42, risk_score: 0.42, decision: "review"}} =
+               ScoringClient.score_risk(payment(), merchant())
+    end
+
+    test "score_risk works for the pre-insert payment shell (id: nil)" do
+      Req.Test.stub(:scoring_http, fn conn ->
+        {:ok, raw, conn} = Plug.Conn.read_body(conn)
+        assert "pre_" <> _ = Jason.decode!(raw)["payment_id"]
+        Req.Test.json(conn, %{"decision" => "allow", "risk_score" => 0.01})
+      end)
+
+      assert {:ok, %{decision: "allow"}} =
+               ScoringClient.score_risk(%{payment() | id: nil}, merchant())
+    end
+
+    test "score_routing sends provider_candidates and maps provider_scores → ranking" do
+      Req.Test.stub(:scoring_http, fn conn ->
+        {:ok, raw, conn} = Plug.Conn.read_body(conn)
+        body = Jason.decode!(raw)
+
+        assert body["provider_candidates"] == [
+                 %{"provider_code" => "mtn_momo", "provider_kind" => "native_rail"}
+               ]
+
+        assert body["payment_method"] == "mobile_money"
+
+        Req.Test.json(conn, %{
+          "payment_id" => body["payment_id"],
+          "provider_scores" => [
+            %{"provider_code" => "mtn_momo", "provider_kind" => "native_rail", "score" => 0.9}
+          ],
+          "routing_mode" => "go_hold",
+          "model_version" => "v1",
+          "feature_source" => "realtime"
+        })
+      end)
+
+      assert {:ok, %{ranking: ["mtn_momo"], routing_mode: "go_hold"}} =
+               ScoringClient.score_routing(payment(), [%{code: "mtn_momo", kind: "native_rail"}])
+    end
+  end
 end

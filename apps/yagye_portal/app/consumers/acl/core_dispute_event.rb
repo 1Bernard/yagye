@@ -13,17 +13,17 @@ module Acl
       @p = payload
     end
 
-    def valid? = @p["dispute_id"].present?
+    def valid? = core_dispute_id.present?
 
-    def core_dispute_id  = @p["dispute_id"]
+    def core_dispute_id  = @p["dispute_id"].presence || @p["public_id"]
     def core_payment_id  = @p["payment_id"]
     def merchant_code    = @p["merchant_code"]
     def payment_reference = @p["payment_reference"]
-    def reference        = @p["reference"]
+    def reference        = @p["reference"].presence || core_dispute_id
     def amount           = @p["amount"].to_i
     def currency         = @p["currency"].presence || "GHS"
     def reason           = @p["reason"]
-    def status           = @p["status"]
+    def status           = @p["status"].presence || @p["stage"]
     def customer_msisdn  = @p["customer_msisdn"]
     def network_deadline = @p["network_deadline"]
     def opened_at        = @p["opened_at"]

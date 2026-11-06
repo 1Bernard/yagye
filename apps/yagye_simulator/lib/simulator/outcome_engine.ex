@@ -29,12 +29,23 @@ defmodule Simulator.OutcomeEngine do
     "4000000000000259" => :provider_error
   }
 
+  @fixed_card_last4_outcomes %{
+    "4242" => :authorised,
+    "0002" => {:declined, "DO_NOT_HONOUR"},
+    "9995" => {:declined, "INSUFFICIENT_FUNDS"},
+    "0069" => {:declined, "EXPIRED_CARD"},
+    "0119" => :timeout,
+    "0259" => :provider_error
+  }
+
   @spec card_number_outcome(binary() | nil) :: card_outcome() | {:declined, binary()} | nil
   def card_number_outcome(nil), do: nil
 
   def card_number_outcome(card_number) when is_binary(card_number) do
     normalized = String.replace(card_number, ~r/\s+/, "")
-    Map.get(@fixed_card_outcomes, normalized)
+
+    Map.get(@fixed_card_outcomes, normalized) ||
+      Map.get(@fixed_card_last4_outcomes, normalized)
   end
 
   @spec fixed_card_outcomes() :: map()

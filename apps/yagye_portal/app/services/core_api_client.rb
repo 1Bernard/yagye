@@ -63,9 +63,9 @@ class CoreApiClient
          { rejected_by: rejected_by, reason: reason })
   end
 
-  # GET /v1/payments/:id/events
+  # GET /internal/payments/:id/events
   def get_payment_events(payment_id)
-    get("/v1/payments/#{payment_id}/events")
+    get("/internal/payments/#{payment_id}/events")
   end
 
   # GET /internal/payments/:public_id/reserve-hold
@@ -98,9 +98,13 @@ class CoreApiClient
          { label: label, mode: mode, scopes: scopes, created_by: created_by })
   end
 
-  # DELETE /v1/keys/:key_id
-  def revoke_api_key(key_id, revoked_by:)
-    delete("/v1/keys/#{key_id}", { revoked_by: revoked_by })
+  # DELETE /internal/merchants/:code/keys/:key_id
+  def revoke_api_key(key_id, revoked_by:, merchant_code: nil)
+    if merchant_code.present?
+      delete("/internal/merchants/#{merchant_code}/keys/#{key_id}", { revoked_by: revoked_by })
+    else
+      delete("/v1/keys/#{key_id}", { revoked_by: revoked_by })
+    end
   end
 
   # ── Webhooks ───────────────────────────────────────────────────────────────

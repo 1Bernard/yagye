@@ -166,6 +166,25 @@ defmodule YagyeCore.Payments.Adapters.FlutterwaveAdapterTest do
 
       FlutterwaveAdapter.charge(p, attempt(), @credential)
     end
+
+    test "Telecel network maps to VDF" do
+      for net <- ["Telecel", "TELECEL", "telecel"] do
+        p = %{payment() | metadata: Map.put(payment().metadata, "network", net)}
+
+        Req.Test.stub(:flutterwave_http, fn conn ->
+          {:ok, body, conn} = Plug.Conn.read_body(conn)
+          assert Jason.decode!(body)["network"] == "VDF"
+
+          Req.Test.json(conn, %{
+            "status" => "success",
+            "data" => %{"id" => 1, "status" => "pending"}
+          })
+        end)
+
+        assert {:pending, %{provider_reference: "1"}} =
+                 FlutterwaveAdapter.charge(p, attempt(), @credential)
+      end
+    end
   end
 
   # ── query_charge/2 ───────────────────────────────────────────────────────────

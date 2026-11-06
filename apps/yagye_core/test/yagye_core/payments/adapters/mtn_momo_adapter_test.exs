@@ -125,6 +125,26 @@ defmodule YagyeCore.Payments.Adapters.MTNMomoAdapterTest do
       assert {:error, %{error_class: :retryable_error, response_code: "token_http_401"}} =
                MTNMomoAdapter.charge(payment(), attempt(), @credential)
     end
+
+    test "caches OAuth token in ETS when expires_in is returned" do
+      cached_cred =
+        Map.put(@credential, "api_user_id", "cached-user-#{System.unique_integer([:positive])}")
+
+      token_calls = :counters.new(1, [:atomics])
+
+      Req.Test.stub(:mtn_momo_http, fn conn ->
+        if conn.request_path == "/collection/token/" do
+          :counters.add(token_calls, 1, 1)
+          Req.Test.json(conn, %{"access_token" => "cached-bearer", "expires_in" => 3600})
+        else
+          empty_resp(conn, 202)
+        end
+      end)
+
+      assert {:pending, _} = MTNMomoAdapter.charge(payment(), attempt(), cached_cred)
+      assert {:pending, _} = MTNMomoAdapter.charge(payment(), attempt(), cached_cred)
+      assert :counters.get(token_calls, 1) == 1
+    end
   end
 
   # ── query_charge/2 ───────────────────────────────────────────────────────────

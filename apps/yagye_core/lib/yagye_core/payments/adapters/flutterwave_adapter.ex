@@ -37,9 +37,14 @@ defmodule YagyeCore.Payments.Adapters.FlutterwaveAdapter do
   @network_map %{
     "MTN" => "MTN",
     "Vodafone" => "VDF",
+    "VODAFONE" => "VDF",
+    "Telecel" => "VDF",
+    "TELECEL" => "VDF",
     "AirtelTigo" => "ATL",
+    "AIRTELTIGO" => "ATL",
     "mtn" => "MTN",
     "vodafone" => "VDF",
+    "telecel" => "VDF",
     "airteltigo" => "ATL"
   }
 
@@ -268,7 +273,12 @@ defmodule YagyeCore.Payments.Adapters.FlutterwaveAdapter do
 
   # Flutterwave takes amounts in major currency units (cedis, not pesewas).
   # All other currencies also use their major unit (dollars, not cents, etc.).
-  defp to_major_units(amount_minor, _currency), do: amount_minor / 100
+  defp to_major_units(amount_minor, _currency) when is_integer(amount_minor) do
+    amount_minor
+    |> Decimal.new()
+    |> Decimal.div(100)
+    |> Decimal.to_float()
+  end
 
   defp url(path, %{"base_url" => base_url}), do: base_url <> path
 

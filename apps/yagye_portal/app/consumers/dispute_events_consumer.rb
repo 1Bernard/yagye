@@ -28,7 +28,7 @@ class DisputeEventsConsumer < ApplicationConsumer
       resolved_at:       event.resolved_at,
       last_event_id:     event.event_id,
       last_applied_at:   Time.current
-    }
+    }.compact
 
     Dispute.upsert(attrs, unique_by: :core_dispute_id,
                           update_only: attrs.keys - %i[core_dispute_id])

@@ -31,13 +31,13 @@ module Developers
 
     def edit
       authorize :developers, :manage_webhooks?
-      endpoint = PortalWebhookEndpoint.kept.find_by!(endpoint_id: params[:endpoint_id])
+      endpoint = policy_scope(PortalWebhookEndpoint).kept.find_by!(endpoint_id: params[:endpoint_id])
       render Developers::WebhookFormView.new(mode: endpoint.mode, endpoint: endpoint)
     end
 
     def update
       authorize :developers, :manage_webhooks?
-      endpoint = PortalWebhookEndpoint.kept.find_by!(endpoint_id: params[:endpoint_id])
+      endpoint = policy_scope(PortalWebhookEndpoint).kept.find_by!(endpoint_id: params[:endpoint_id])
       result = CoreApiClient.new.update_webhook_endpoint(
         merchant_code:     current_user.merchant_code,
         endpoint_id:       params[:endpoint_id],
@@ -64,7 +64,7 @@ module Developers
 
     def toggle_active
       authorize :developers, :manage_webhooks?
-      endpoint = PortalWebhookEndpoint.kept.find_by!(endpoint_id: params[:endpoint_id])
+      endpoint = policy_scope(PortalWebhookEndpoint).kept.find_by!(endpoint_id: params[:endpoint_id])
       new_active = !endpoint.active
 
       result = CoreApiClient.new.update_webhook_endpoint(
@@ -94,7 +94,7 @@ module Developers
 
     def disable_modal
       authorize :developers, :manage_webhooks?
-      wh = PortalWebhookEndpoint.kept.find_by!(endpoint_id: params[:endpoint_id])
+      wh = policy_scope(PortalWebhookEndpoint).kept.find_by!(endpoint_id: params[:endpoint_id])
       render UI::ConfirmModal.new(
         title:          "Disable webhook endpoint",
         body:           "No events will be delivered to this endpoint until you re-enable it.",
@@ -107,7 +107,7 @@ module Developers
 
     def remove_modal
       authorize :developers, :manage_webhooks?
-      wh = PortalWebhookEndpoint.kept.find_by!(endpoint_id: params[:endpoint_id])
+      wh = policy_scope(PortalWebhookEndpoint).kept.find_by!(endpoint_id: params[:endpoint_id])
       render UI::ConfirmModal.new(
         title:          "Remove webhook endpoint",
         body:           "This endpoint and all its delivery history will be permanently removed.",
@@ -120,29 +120,31 @@ module Developers
 
     def destroy
       authorize :developers, :manage_webhooks?
+      endpoint = policy_scope(PortalWebhookEndpoint).find_by!(endpoint_id: params[:endpoint_id])
       result = CoreApiClient.new.deregister_webhook_endpoint(
         merchant_code: current_user.merchant_code,
-        endpoint_id:   params[:endpoint_id]
+        endpoint_id:   endpoint.endpoint_id
       )
       # Treat 404 as success — endpoint is already absent from Core, so removing
       # the Portal record is always safe (idempotent delete).
       if result.success? || result.error_code == "not_found"
         audit(action: "webhook.deleted", resource_type: "webhook_endpoint",
-              outcome: "succeeded", resource_code: params[:endpoint_id])
-        PortalWebhookEndpoint.find_by(endpoint_id: params[:endpoint_id])&.soft_delete!
+              outcome: "succeeded", resource_code: endpoint.endpoint_id)
+        endpoint.soft_delete!
         redirect_to developers_path(tab: "webhooks"), notice: "Webhook endpoint removed."
       else
         audit(action: "webhook.deleted", resource_type: "webhook_endpoint",
-              outcome: "failed", resource_code: params[:endpoint_id])
+              outcome: "failed", resource_code: endpoint.endpoint_id)
         redirect_to developers_path(tab: "webhooks"), alert: result.error_message
       end
     end
 
     def test
       authorize :developers, :manage_webhooks?
+      endpoint = policy_scope(PortalWebhookEndpoint).kept.find_by!(endpoint_id: params[:endpoint_id])
       result = CoreApiClient.new.test_webhook_endpoint(
         merchant_code: current_user.merchant_code,
-        endpoint_id:   params[:endpoint_id]
+        endpoint_id:   endpoint.endpoint_id
       )
       if result.success?
         redirect_to developers_path(tab: "webhooks"), notice: "Test event sent."

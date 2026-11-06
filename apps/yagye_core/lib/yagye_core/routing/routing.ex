@@ -270,7 +270,7 @@ defmodule YagyeCore.Routing do
     all_targets = MapSet.new(payload["edges"] || [], & &1["target"])
     roots = Enum.filter(payload["nodes"] || [], fn n -> n["id"] not in all_targets end)
 
-    mode = @default_compile_mode
+    mode = Map.get(payload, "mode") || @default_compile_mode
 
     paths =
       Enum.flat_map(roots, fn root ->

@@ -186,13 +186,25 @@ class User < ApplicationRecord
   private
 
   def permissions_cache
-    Current.permissions ||= load_permissions_set
+    if Current.permissions && Current.permissions_user_id == id
+      Current.permissions
+    else
+      perms = load_permissions_set
+      if Current.user.nil? || Current.user.id == id
+        Current.permissions = perms
+        Current.permissions_user_id = id
+      end
+      perms
+    end
   end
 
   def load_permissions_set
+    scope = UserRole.active.where(user_id: id)
+    if merchant_user? && merchant_code.present?
+      scope = scope.where(merchant_code: [ merchant_code, nil ])
+    end
     Set.new(
-      UserRole.active.where(user_id: id)
-        .joins(role: :role_permissions)
+      scope.joins(role: :role_permissions)
         .pluck("role_permissions.permission_key")
     )
   end

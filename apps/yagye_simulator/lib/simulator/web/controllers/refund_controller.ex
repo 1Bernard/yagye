@@ -39,9 +39,14 @@ defmodule Simulator.Web.Controllers.RefundController do
   defp parse_amount(_), do: {:error, "amount_minor must be a positive integer"}
 
   def show(conn, %{"ref" => ref}) do
+    account = conn.assigns.current_account
+
     case Refunds.get_by_ref(ref) do
-      {:ok, refund} -> json(conn, render_refund(refund))
-      {:error, :not_found} -> conn |> put_status(404) |> json(%{error: "refund_not_found"})
+      {:ok, %{account_id: account_id} = refund} when account_id == account.id ->
+        json(conn, render_refund(refund))
+
+      _ ->
+        conn |> put_status(404) |> json(%{error: "refund_not_found"})
     end
   end
 

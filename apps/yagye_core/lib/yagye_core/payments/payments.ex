@@ -81,19 +81,27 @@ defmodule YagyeCore.Payments do
 
   defp apply_risk_score(attrs, merchant) do
     case ScoringClient.score_risk(build_payment_shell(attrs), merchant) do
-      {:ok, %{decision: decision, score: score}} -> %{risk_score: score, risk_decision: decision}
-      _ -> %{}
+      {:ok, %{decision: decision, risk_score: score}} ->
+        %{risk_score: score, risk_decision: decision}
+
+      {:ok, %{decision: decision, score: score}} ->
+        %{risk_score: score, risk_decision: decision}
+
+      _ ->
+        %{}
     end
   end
 
   defp build_payment_shell(attrs) do
+    metadata = ensure_msisdn_hash(Map.get(attrs, :metadata) || Map.get(attrs, "metadata") || %{})
+
     %{
       id: nil,
       amount: Map.get(attrs, :amount) || Map.get(attrs, "amount"),
       currency: Map.get(attrs, :currency) || Map.get(attrs, "currency"),
       method: Map.get(attrs, :method) || Map.get(attrs, "method"),
       mode: Map.get(attrs, :mode) || Map.get(attrs, "mode"),
-      metadata: Map.get(attrs, :metadata) || Map.get(attrs, "metadata") || %{},
+      metadata: metadata,
       customer_id: Map.get(attrs, :customer_id) || Map.get(attrs, "customer_id")
     }
   end
@@ -192,6 +200,8 @@ defmodule YagyeCore.Payments do
           method: p.method,
           mode: p.mode,
           provider_code: provider_code_from_attempt(attempt),
+          provider_kind: provider_kind_from_attempt(attempt),
+          customer_msisdn: get_in(p.metadata, ["msisdn"]),
           latency_ms: attempt.latency_ms,
           risk_score: p.risk_score,
           risk_decision: p.risk_decision
@@ -235,6 +245,8 @@ defmodule YagyeCore.Payments do
           method: p.method,
           mode: p.mode,
           provider_code: provider_code_from_attempt(attempt),
+          provider_kind: provider_kind_from_attempt(attempt),
+          customer_msisdn: get_in(p.metadata, ["msisdn"]),
           latency_ms: attempt.latency_ms
         },
         correlation_id: p.public_id
@@ -262,6 +274,89 @@ defmodule YagyeCore.Payments do
     |> Repo.update()
 
     {:error, :retryable_error}
+  end
+
+  def fail_exhausted_retryable_payment(payment, attempt, err) do
+    Multi.new()
+    |> Multi.update(
+      :attempt,
+      PaymentAttempt.result_changeset(attempt, %{
+        state: "failed",
+        error_class: Atom.to_string(err.error_class),
+        response_code: err.response_code,
+        response_message: Map.get(err, :response_message),
+        latency_ms: attempt.latency_ms
+      })
+    )
+    |> Multi.update(:payment, Payment.transition_changeset(payment, "failed"))
+    |> Multi.run(:event, fn _repo, %{payment: p} ->
+      insert_event(p, "payment.failed", "processing", "failed")
+    end)
+    |> Multi.insert(:outbox, fn %{payment: p} ->
+      Outbox.build_changeset(
+        p,
+        "payment.failed",
+        %{
+          public_id: p.public_id,
+          state: p.state,
+          merchant_code: merchant_code(p.merchant_id),
+          error_class: Atom.to_string(err.error_class),
+          response_code: err.response_code,
+          amount: p.amount,
+          currency: p.currency,
+          method: p.method,
+          mode: p.mode,
+          provider_code: provider_code_from_attempt(attempt),
+          provider_kind: provider_kind_from_attempt(attempt),
+          customer_msisdn: get_in(p.metadata, ["msisdn"]),
+          latency_ms: attempt.latency_ms,
+          risk_score: p.risk_score,
+          risk_decision: p.risk_decision
+        },
+        correlation_id: p.public_id
+      )
+    end)
+    |> Repo.transaction()
+    |> case do
+      {:ok, %{payment: payment}} -> {:ok, payment}
+      {:error, _step, reason, _changes} -> {:error, reason}
+    end
+  end
+
+  def fail_payment_no_provider(payment_id) do
+    case get_payment_by_id(payment_id) do
+      {:ok, %Payment{state: "processing"} = payment} ->
+        Multi.new()
+        |> Multi.update(:payment, Payment.transition_changeset(payment, "failed"))
+        |> Multi.run(:event, fn _repo, %{payment: p} ->
+          insert_event(p, "payment.failed", "processing", "failed")
+        end)
+        |> Multi.insert(:outbox, fn %{payment: p} ->
+          Outbox.build_changeset(
+            p,
+            "payment.failed",
+            %{
+              public_id: p.public_id,
+              state: p.state,
+              merchant_code: merchant_code(p.merchant_id),
+              error_class: "retryable_error",
+              response_code: "no_provider_available",
+              amount: p.amount,
+              currency: p.currency,
+              method: p.method,
+              mode: p.mode,
+              customer_msisdn: get_in(p.metadata, ["msisdn"]),
+              risk_score: p.risk_score,
+              risk_decision: p.risk_decision
+            },
+            correlation_id: p.public_id
+          )
+        end)
+        |> Repo.transaction()
+
+      _ ->
+        :ok
+    end
   end
 
   def handle_pending_auth(payment, attempt, %{provider_reference: charge_ref} = pending_data) do
@@ -398,14 +493,7 @@ defmodule YagyeCore.Payments do
     |> Multi.run(:fee_record, fn _repo, %{succeeded: p, fee: fee} ->
       record_payment_fee(attempt.id, p, fee)
     end)
-    |> Multi.run(:payment_customer, fn _repo, %{succeeded: p} ->
-      customer =
-        if p.customer_id,
-          do: Repo.get(YagyeCore.Customers.Schemas.Customer, p.customer_id),
-          else: nil
-
-      {:ok, customer}
-    end)
+    |> Multi.run(:payment_customer, fn _repo, %{succeeded: p} -> fetch_payment_customer(p) end)
     |> Multi.insert(:succeeded_outbox, fn %{succeeded: p, fee_record: fr, payment_customer: c} ->
       Outbox.build_changeset(
         p,
@@ -418,7 +506,8 @@ defmodule YagyeCore.Payments do
           merchant_code: merchant_code(p.merchant_id),
           merchant_reference: p.merchant_reference,
           description: p.description,
-          provider_code: result[:provider_code],
+          provider_code: result[:provider_code] || provider_code_from_attempt(attempt),
+          provider_kind: provider_kind_from_attempt(attempt),
           network: get_in(p.metadata, ["network"]),
           provider: network_to_provider(get_in(p.metadata, ["network"])),
           amount: p.amount,
@@ -439,22 +528,30 @@ defmodule YagyeCore.Payments do
     |> Multi.run(:fee_ledger, fn _repo, %{succeeded: p, fee_record: fr} ->
       if fr, do: Ledger.post_fee_deduction(p, fr), else: {:ok, nil}
     end)
-    |> Multi.run(:reserve_hold, fn _repo, %{succeeded: p} ->
-      case Reserves.create_hold(p) do
-        {:ok, result} ->
-          {:ok, result}
-
-        {:error, reason} ->
-          Logger.warning("reserve hold skipped", payment_id: p.id, reason: inspect(reason))
-          {:ok, nil}
-      end
-    end)
+    |> Multi.run(:reserve_hold, fn _repo, %{succeeded: p} -> maybe_create_reserve_hold(p) end)
     |> maybe_enqueue_split_job()
     |> maybe_update_momo_financial_id(payment, result)
     |> Repo.transaction()
     |> case do
       {:ok, %{succeeded: payment}} -> {:ok, payment}
       {:error, _step, reason, _changes} -> {:error, reason}
+    end
+  end
+
+  defp fetch_payment_customer(%{customer_id: nil}), do: {:ok, nil}
+
+  defp fetch_payment_customer(%{customer_id: id}) do
+    {:ok, Repo.get(YagyeCore.Customers.Schemas.Customer, id)}
+  end
+
+  defp maybe_create_reserve_hold(payment) do
+    case Reserves.create_hold(payment) do
+      {:ok, result} ->
+        {:ok, result}
+
+      {:error, reason} ->
+        Logger.warning("reserve hold skipped", payment_id: payment.id, reason: inspect(reason))
+        {:ok, nil}
     end
   end
 
@@ -672,7 +769,11 @@ defmodule YagyeCore.Payments do
           m -> m
         end
 
-      merged = Map.merge(attrs, %{merchant_id: merchant.id, mode: mode})
+      merged =
+        attrs
+        |> Map.merge(%{merchant_id: merchant.id, mode: mode})
+        |> update_metadata_msisdn_hash()
+
       Payment.changeset(%Payment{}, merged)
     end)
     |> Multi.run(:event, fn _repo, %{payment: p} ->
@@ -781,6 +882,39 @@ defmodule YagyeCore.Payments do
   # so in normal flow this always returns the code. Falls back to nil in tests or edge cases.
   defp provider_code_from_attempt(%{provider: %{code: code}}), do: code
   defp provider_code_from_attempt(_attempt), do: nil
+
+  defp provider_kind_from_attempt(%{provider: %{kind: kind}}), do: kind
+  defp provider_kind_from_attempt(_attempt), do: nil
+
+  defp update_metadata_msisdn_hash(attrs) when is_map(attrs) do
+    case Map.get(attrs, :metadata) || Map.get(attrs, "metadata") do
+      meta when is_map(meta) ->
+        updated_meta = ensure_msisdn_hash(meta)
+
+        if Map.has_key?(attrs, :metadata) do
+          Map.put(attrs, :metadata, updated_meta)
+        else
+          Map.put(attrs, "metadata", updated_meta)
+        end
+
+      _ ->
+        attrs
+    end
+  end
+
+  defp ensure_msisdn_hash(meta) when is_map(meta) do
+    msisdn = Map.get(meta, "msisdn") || Map.get(meta, :msisdn)
+    existing_hash = Map.get(meta, "msisdn_hash") || Map.get(meta, :msisdn_hash)
+
+    if is_binary(msisdn) and msisdn != "" and is_nil(existing_hash) do
+      norm = normalise_msisdn_e164(msisdn)
+      Map.put(meta, "msisdn_hash", hash_msisdn(norm))
+    else
+      meta
+    end
+  end
+
+  defp ensure_msisdn_hash(other), do: other
 
   defp current_mode(merchant) do
     cond do

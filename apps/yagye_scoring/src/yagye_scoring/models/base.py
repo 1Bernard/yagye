@@ -46,6 +46,21 @@ class BaseMLModel(ABC):
         try:
             self._session = ort.InferenceSession(path, providers=["CPUExecutionProvider"])
             self._input_name = self._session.get_inputs()[0].name
+            # Training/serving skew guard: refuse a model whose input width does not
+            # match the serving feature vector. Inference would fail on every call;
+            # staying on the rule-based fallback is safer and visible in logs.
+            expected = self._expected_feature_count()
+            shape = self._session.get_inputs()[0].shape
+            width = shape[-1] if shape else None
+            if expected is not None and isinstance(width, int) and width != expected:
+                logger.error(
+                    "model_feature_width_mismatch",
+                    model=self.model_name,
+                    onnx_width=width,
+                    serving_width=expected,
+                )
+                self._session = None
+                return
             self.is_loaded = True
             # Parse version from path: .../routing_native_rail/v1.0.0/model.onnx
             parts = path.split(os.sep)
@@ -57,9 +72,24 @@ class BaseMLModel(ABC):
 
     def _run_onnx(self, feature_vector: np.ndarray) -> float:
         output = self._session.run(None, {self._input_name: feature_vector})
-        # Standard sklearn/XGBoost ONNX output: [labels, probabilities]
-        # probabilities shape: (batch, 2) — index 1 is P(class=1)
-        return float(output[1][0][1])
+        # Classifier ONNX output (sklearn/XGBoost): [labels, probabilities]
+        #   probabilities shape: (batch, 2) — index 1 is P(class=1).
+        #   skl2onnx may emit probabilities as a list of {class: prob} dicts (ZipMap).
+        # Regressor ONNX output: [predictions] with shape (batch, 1) or (batch,).
+        if len(output) >= 2:
+            probs = output[1]
+            first = probs[0]
+            if isinstance(first, dict):
+                return float(first.get(1, first.get("1", 0.0)))
+            return float(np.asarray(first).reshape(-1)[-1])
+        return float(np.asarray(output[0]).reshape(-1)[0])
+
+    def _expected_feature_count(self) -> int | None:
+        """Width of the serving feature vector, or None if unknown."""
+        try:
+            return int(self._build_feature_vector({}).shape[-1])
+        except Exception:
+            return None
 
     @abstractmethod
     def _build_feature_vector(self, features: dict[str, Any]) -> np.ndarray:

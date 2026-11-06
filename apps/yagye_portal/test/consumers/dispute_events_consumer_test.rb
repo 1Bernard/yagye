@@ -212,4 +212,32 @@ class DisputeEventsConsumerTest < ActiveSupport::TestCase
     notif = capture_notification { consume(base_payload("status" => "closed")) }
     assert_nil notif
   end
+
+  # ── Contract: dispute.resolved must not wipe fields only sent on dispute.opened ──
+
+  test "dispute.resolved does not overwrite opened_at, customer_msisdn or network_deadline with nil" do
+    opened = base_payload("status" => "open")
+    consume(opened)
+
+    resolved = opened.except("customer_msisdn", "network_deadline", "opened_at")
+                     .merge("status" => "won", "resolved_at" => Time.current.iso8601,
+                            "event_id" => SecureRandom.uuid)
+    consume(resolved)
+
+    d = Dispute.find_by!(core_dispute_id: opened["dispute_id"])
+    assert_equal "won",         d.status
+    assert_equal "0241000001",  d.customer_msisdn
+    assert_not_nil d.opened_at
+    assert_not_nil d.network_deadline
+    assert_not_nil d.resolved_at
+  end
+
+  test "accepts public_id when dispute_id is absent (dispute.evidence_submitted shape)" do
+    payload = base_payload.except("dispute_id", "reference")
+                          .merge("public_id" => "dsp_#{SecureRandom.hex(4)}", "stage" => "under_review")
+                          .except("status")
+    consume(payload)
+    d = Dispute.find_by!(core_dispute_id: payload["public_id"])
+    assert_equal "under_review", d.status
+  end
 end

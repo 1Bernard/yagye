@@ -8,8 +8,12 @@ defmodule YagyeCore.Webhooks.Workers.WebhookProcessorWorker do
   alias YagyeCore.Payouts
   alias YagyeCore.Payouts.Schemas.Payout
   alias YagyeCore.Repo
+  alias YagyeCore.Risk.Workers.ProviderHealthWorker
+  alias YagyeCore.Routing.CircuitBreaker
   alias YagyeCore.Webhooks
   alias YagyeCore.Webhooks.Schemas.WebhookEvent
+
+  @terminal_payment_states ~w(succeeded failed cancelled refunded partially_refunded)
 
   @impl Oban.Worker
   def perform(%Oban.Job{args: %{"webhook_event_id" => id}}) do
@@ -39,8 +43,7 @@ defmodule YagyeCore.Webhooks.Workers.WebhookProcessorWorker do
     with {:ok, attempt} <- Payments.get_attempt_by_provider_ref(charge_ref),
          {:ok, payment} <- Payments.get_payment_by_id(attempt.payment_id) do
       result = {:ok, %{provider_reference: charge_ref, auth_code: payload["auth_code"]}}
-      Payments.handle_provider_response(payment, attempt, result)
-      :ok
+      process_payment_webhook(attempt, payment, result)
     end
   end
 
@@ -55,8 +58,7 @@ defmodule YagyeCore.Webhooks.Workers.WebhookProcessorWorker do
            response_message: nil
          }}
 
-      Payments.handle_provider_response(payment, attempt, result)
-      :ok
+      process_payment_webhook(attempt, payment, result)
     end
   end
 
@@ -70,8 +72,7 @@ defmodule YagyeCore.Webhooks.Workers.WebhookProcessorWorker do
     with {:ok, attempt} <- Payments.get_attempt_by_provider_ref(id_str),
          {:ok, payment} <- Payments.get_payment_by_id(attempt.payment_id) do
       result = flutterwave_result(data, id_str)
-      Payments.handle_provider_response(payment, attempt, result)
-      :ok
+      process_payment_webhook(attempt, payment, result)
     end
   end
 
@@ -85,8 +86,7 @@ defmodule YagyeCore.Webhooks.Workers.WebhookProcessorWorker do
     with {:ok, attempt} <- Payments.get_attempt_by_provider_ref(ref),
          {:ok, payment} <- Payments.get_payment_by_id(attempt.payment_id) do
       result = {:ok, %{provider_reference: ref, auth_code: nil}}
-      Payments.handle_provider_response(payment, attempt, result)
-      :ok
+      process_payment_webhook(attempt, payment, result)
     end
   end
 
@@ -103,8 +103,7 @@ defmodule YagyeCore.Webhooks.Workers.WebhookProcessorWorker do
            response_message: data["gateway_response"]
          }}
 
-      Payments.handle_provider_response(payment, attempt, result)
-      :ok
+      process_payment_webhook(attempt, payment, result)
     end
   end
 
@@ -171,6 +170,34 @@ defmodule YagyeCore.Webhooks.Workers.WebhookProcessorWorker do
     do: {:error, {:unknown_event, provider, event_type}}
 
   # ── Helpers ───────────────────────────────────────────────────────────────────
+
+  defp process_payment_webhook(attempt, payment, result) do
+    if payment.state in @terminal_payment_states do
+      :ok
+    else
+      attempt = Repo.preload(attempt, :provider)
+
+      case result do
+        {:ok, _} ->
+          CircuitBreaker.record_success(attempt.provider_id)
+
+          if attempt.provider,
+            do: ProviderHealthWorker.update_one(attempt.provider_id, attempt.provider.code)
+
+        {:error, %{error_class: class}} when class in [:definite_failure, :retryable_error] ->
+          CircuitBreaker.record_failure(attempt.provider_id)
+
+          if attempt.provider,
+            do: ProviderHealthWorker.update_one(attempt.provider_id, attempt.provider.code)
+
+        _ ->
+          :ok
+      end
+
+      Payments.handle_provider_response(payment, attempt, result)
+      :ok
+    end
+  end
 
   defp retract_dispute_by_provider_ref(ref) do
     with {:ok, attempt} <- Payments.get_attempt_by_provider_ref(ref),

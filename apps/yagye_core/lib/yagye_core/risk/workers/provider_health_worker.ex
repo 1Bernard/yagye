@@ -18,6 +18,7 @@ defmodule YagyeCore.Risk.Workers.ProviderHealthWorker do
   alias YagyeCore.Payments.Schemas.PaymentAttempt
   alias YagyeCore.Providers.Schemas.Provider
   alias YagyeCore.Repo
+  alias YagyeCore.Routing.CircuitBreaker
 
   @window_hours 2
   @redis_ttl 1_800
@@ -44,22 +45,68 @@ defmodule YagyeCore.Risk.Workers.ProviderHealthWorker do
   # ── Private ──────────────────────────────────────────────────────────────────
 
   defp compute_features(provider_id) do
-    since = DateTime.add(DateTime.utc_now(), -@window_hours * 3600, :second)
+    now = DateTime.utc_now()
+    # Read 24h so we can also emit the 1h/24h fields consumed by
+    # yagye_scoring.features.provider_health; legacy fields stay on the 2h window.
+    since_24h = DateTime.add(now, -24 * 3600, :second)
+    since = DateTime.add(now, -@window_hours * 3600, :second)
+    since_1h = DateTime.add(now, -3600, :second)
 
-    rows =
+    rows_24h =
       Repo.all(
         from(pa in PaymentAttempt,
           where: pa.provider_id == ^provider_id,
-          where: pa.inserted_at >= ^since,
+          where: pa.inserted_at >= ^since_24h,
           where: pa.state in ["succeeded", "failed", "timed_out"],
           select: %{
             state: pa.state,
             latency_ms: pa.latency_ms,
-            error_class: pa.error_class
+            error_class: pa.error_class,
+            inserted_at: pa.inserted_at
           }
         )
       )
 
+    rows = Enum.filter(rows_24h, &(DateTime.compare(&1.inserted_at, since) != :lt))
+    rows_1h = Enum.filter(rows_24h, &(DateTime.compare(&1.inserted_at, since_1h) != :lt))
+
+    provider_id
+    |> legacy_features(rows)
+    |> Map.merge(scoring_contract_features(provider_id, rows_1h, rows_24h))
+  end
+
+  # Field names read by apps/yagye_scoring/src/yagye_scoring/features/provider_health.py.
+  defp scoring_contract_features(provider_id, rows_1h, rows_24h) do
+    latencies_1h = rows_1h |> Enum.map(& &1.latency_ms) |> Enum.reject(&is_nil/1)
+
+    %{
+      success_rate_1h: success_rate(rows_1h, 0.85),
+      success_rate_24h: success_rate(rows_24h, 0.85),
+      avg_latency_ms_1h:
+        if(latencies_1h == [],
+          do: 2000.0,
+          else: Float.round(Enum.sum(latencies_1h) / length(latencies_1h), 1)
+        ),
+      circuit_breaker_state: circuit_breaker_state(provider_id)
+    }
+  end
+
+  defp success_rate([], default), do: default
+
+  defp success_rate(rows, _default),
+    do: Float.round(Enum.count(rows, &(&1.state == "succeeded")) / length(rows), 4)
+
+  defp circuit_breaker_state(provider_id) do
+    case CircuitBreaker.state(provider_id) do
+      :open -> 2
+      :half_open -> 1
+      _ -> 0
+    end
+  rescue
+    _ -> 0
+  end
+
+  defp legacy_features(_provider_id, rows) do
     total = length(rows)
 
     if total == 0 do

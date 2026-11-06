@@ -47,15 +47,12 @@ class ModelRegistry:
     feature_client: FeatureClient
     _redis: aioredis.Redis = field(repr=False)  # type: ignore[type-arg]
 
-    def health_checks(self) -> dict[str, bool]:
+    async def health_checks(self) -> dict[str, bool]:
         redis_ok = False
         try:
-            # Synchronous ping in an async context — acceptable for readiness check
-            import asyncio
-
-            redis_ok = asyncio.get_event_loop().run_until_complete(
-                self._redis.ping()  # type: ignore[attr-defined]
-            )
+            # Awaited directly — the readiness endpoint already runs inside the event loop,
+            # so run_until_complete() would raise "event loop is already running".
+            redis_ok = bool(await self._redis.ping())  # type: ignore[attr-defined]
         except Exception:
             pass
         return {

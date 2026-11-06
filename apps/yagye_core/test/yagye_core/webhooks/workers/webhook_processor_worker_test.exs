@@ -68,6 +68,31 @@ defmodule YagyeCore.Webhooks.Workers.WebhookProcessorWorkerTest do
       assert updated.state == "processed"
       assert updated.processed_at != nil
     end
+
+    test "ignores late failure webhook when payment is already in terminal succeeded state" do
+      %{payment: payment, charge_ref: charge_ref} = pending_auth_fixture()
+      webhook1 = insert_webhook("charge.succeeded", charge_ref)
+      assert :ok = run_worker(webhook1)
+      assert Repo.get!(YagyeCore.Payments.Schemas.Payment, payment.id).state == "succeeded"
+
+      raw_body =
+        Jason.encode!(%{
+          "charge_ref" => charge_ref,
+          "event_type" => "charge.failed",
+          "decline_code" => "late_failure"
+        })
+
+      {:ok, webhook2} =
+        Webhooks.receive_webhook(
+          "simulator",
+          "evt_late_#{System.unique_integer([:positive])}",
+          "charge.failed",
+          raw_body
+        )
+
+      assert :ok = run_worker(webhook2)
+      assert Repo.get!(YagyeCore.Payments.Schemas.Payment, payment.id).state == "succeeded"
+    end
   end
 
   describe "charge.failed" do

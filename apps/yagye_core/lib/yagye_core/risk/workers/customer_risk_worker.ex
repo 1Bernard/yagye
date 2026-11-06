@@ -66,6 +66,9 @@ defmodule YagyeCore.Risk.Workers.CustomerRiskWorker do
 
     amounts = rows |> Enum.map(& &1.amount) |> Enum.sort()
 
+    since_1h = DateTime.add(DateTime.utc_now(), -3600, :second)
+    rows_1h = Enum.filter(rows, &(DateTime.compare(to_utc(&1.inserted_at), since_1h) != :lt))
+
     %{
       txn_count_24h: total,
       txn_succeeded_24h: succeeded,
@@ -75,9 +78,17 @@ defmodule YagyeCore.Risk.Workers.CustomerRiskWorker do
       distinct_merchant_count: merchant_count,
       risk_block_count_24h: flagged_count,
       failure_rate: if(total > 0, do: Float.round(failed / total, 4), else: 0.0),
+      # Field names read by apps/yagye_scoring/src/yagye_scoring/features/customer_risk.py
+      attempt_count_1h: length(rows_1h),
+      fail_count_1h: Enum.count(rows_1h, &(&1.state == "failed")),
+      distinct_merchants_1h: rows_1h |> Enum.map(& &1.merchant_id) |> Enum.uniq() |> length(),
+      amount_total_1h: Enum.reduce(rows_1h, 0, &(&1.amount + &2)),
       updated_at: DateTime.utc_now() |> DateTime.to_iso8601()
     }
   end
+
+  defp to_utc(%DateTime{} = dt), do: dt
+  defp to_utc(%NaiveDateTime{} = ndt), do: DateTime.from_naive!(ndt, "Etc/UTC")
 
   defp write_to_redis(msisdn_hash, features) do
     key = "#{@redis_prefix}:#{msisdn_hash}"

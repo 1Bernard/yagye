@@ -56,6 +56,7 @@ defmodule YagyeCore.PaymentLinks.Schemas.PaymentLink do
     |> validate_amount_for_kind()
     |> validate_number(:max_uses, greater_than: 0)
     |> validate_number(:use_count, greater_than_or_equal_to: 0)
+    |> validate_checkout_layout()
     |> put_public_id()
     |> unique_constraint(:public_id)
     |> unique_constraint(:url_slug)
@@ -63,12 +64,13 @@ defmodule YagyeCore.PaymentLinks.Schemas.PaymentLink do
   end
 
   @updatable ~w[description allowed_methods collect_email collect_phone collect_name
-                max_uses expires_at]a
+                max_uses expires_at checkout_layout]a
 
   def update_changeset(link, attrs) do
     link
     |> cast(attrs, @updatable)
     |> validate_number(:max_uses, greater_than: 0)
+    |> validate_checkout_layout()
   end
 
   def deactivate_changeset(link) do
@@ -98,6 +100,25 @@ defmodule YagyeCore.PaymentLinks.Schemas.PaymentLink do
         add_error(changeset, :amount, "must be nil for customer_specified links")
 
       true ->
+        changeset
+    end
+  end
+
+  @hex_color_regex ~r/^#[0-9A-Fa-f]{6}$/
+
+  defp validate_checkout_layout(changeset) do
+    case get_field(changeset, :checkout_layout) do
+      layout when is_map(layout) ->
+        brand_color = Map.get(layout, "brand_color") || Map.get(layout, :brand_color)
+
+        if is_nil(brand_color) or brand_color == "" or
+             (is_binary(brand_color) and Regex.match?(@hex_color_regex, brand_color)) do
+          changeset
+        else
+          add_error(changeset, :checkout_layout, "brand_color must be a valid 6-digit hex color")
+        end
+
+      _ ->
         changeset
     end
   end

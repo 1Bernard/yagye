@@ -229,6 +229,32 @@ defmodule Simulator.Charges.ChargesTest do
     test "returns not_found for unknown ref" do
       assert {:error, :not_found} = Charges.get_by_ref("gw_doesnotexist")
     end
+
+    test "ChargeController.show rejects cross-account charge access (IDOR protection)" do
+      {account_a, _} = Fixtures.account_with_key_fixture()
+      {account_b, _} = Fixtures.account_with_key_fixture()
+
+      {:ok, charge} =
+        Charges.create_charge(account_a, %{
+          amount_minor: 10_000,
+          currency: "GHS",
+          instrument_type: "CARD"
+        })
+
+      conn_b =
+        Phoenix.ConnTest.build_conn()
+        |> Plug.Conn.assign(:current_account, account_b)
+        |> Simulator.Web.Controllers.ChargeController.show(%{"ref" => charge.charge_ref})
+
+      assert conn_b.status == 404
+
+      conn_a =
+        Phoenix.ConnTest.build_conn()
+        |> Plug.Conn.assign(:current_account, account_a)
+        |> Simulator.Web.Controllers.ChargeController.show(%{"ref" => charge.charge_ref})
+
+      assert conn_a.status == 200
+    end
   end
 
   describe "name_enquiry/2" do

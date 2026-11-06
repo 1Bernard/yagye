@@ -71,6 +71,14 @@ class UserTest < ActiveSupport::TestCase
     assert Current.permissions.include?("payments.export")
   end
 
+  test "permitted? does not leak Current.permissions across different User instances" do
+    owner = create(:user_role).user
+    unprivileged = create(:merchant_user)
+
+    assert owner.permitted?("developers.manage_api_keys")
+    refute unprivileged.permitted?("developers.manage_api_keys")
+  end
+
   # ── merchant_tier ───────────────────────────────────────────────────────────
 
   test "merchant_tier returns nil for internal_staff" do

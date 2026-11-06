@@ -165,7 +165,11 @@ defmodule YagyeCore.Settlement do
       |> Multi.insert(:outbox, fn %{batch: b} ->
         Outbox.build_changeset(b, "settlement.batch.dispatch_approved", %{
           settlement_code: b.id,
-          merchant_code: b.merchant_id,
+          batch_id: b.id,
+          merchant_code: merchant_code(b.merchant_id),
+          provider_code: provider_code(b.provider_id),
+          currency: b.currency,
+          mode: b.mode,
           state: "settled",
           dispatch_approved_by: approver_code
         })
@@ -191,7 +195,11 @@ defmodule YagyeCore.Settlement do
       |> Multi.insert(:outbox, fn %{batch: b} ->
         Outbox.build_changeset(b, "settlement.batch.dispatch_rejected", %{
           settlement_code: b.id,
-          merchant_code: b.merchant_id,
+          batch_id: b.id,
+          merchant_code: merchant_code(b.merchant_id),
+          provider_code: provider_code(b.provider_id),
+          currency: b.currency,
+          mode: b.mode,
           state: "dispatch_rejected",
           dispatch_rejected_by: rejector_code,
           dispatch_rejection_reason: reason
@@ -431,10 +439,15 @@ defmodule YagyeCore.Settlement do
     end)
     |> Multi.insert(:outbox, fn %{batch: batch} ->
       Outbox.build_changeset(batch, "settlement.batch.created", %{
+        settlement_code: batch.id,
         batch_id: batch.id,
         merchant_code: merchant_code(batch.merchant_id),
         provider_code: provider_code(batch.provider_id),
         currency: batch.currency,
+        mode: batch.mode,
+        state: batch.state,
+        period_start: batch.period_start && DateTime.to_iso8601(batch.period_start),
+        period_end: batch.period_end && DateTime.to_iso8601(batch.period_end),
         payment_count: batch.payment_count,
         gross_amount: batch.gross_amount
       })

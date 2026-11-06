@@ -13,12 +13,12 @@ module Acl
       @p = payload
     end
 
-    def valid?           = @p["settlement_code"].present?
+    def valid?           = settlement_code.present?
 
-    def settlement_code  = @p["settlement_code"]
+    def settlement_code  = @p["settlement_code"].presence || @p["batch_id"]
     def merchant_code    = @p["merchant_code"]
     def provider_code    = @p["provider_code"]
-    def mode             = @p["mode"] || "test"
+    def mode             = @p["mode"] == "live" ? "live" : "test"
     def aggregate_version = @p["aggregate_version"].to_i
     def state            = @p["state"]
     def currency         = @p["currency"] || "GHS"

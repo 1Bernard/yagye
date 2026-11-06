@@ -890,8 +890,8 @@ defmodule YagyeCore.Merchants do
     |> Repo.insert(on_conflict: :nothing, conflict_target: [:merchant_id, :mode])
   end
 
-  defp fetch_approvable(public_id) do
-    case Repo.get_by(Merchant, public_id: public_id) do
+  defp fetch_approvable(id_or_public_id) do
+    case find_merchant(id_or_public_id) do
       %Merchant{status: "registered", onboarding_state: "under_review"} = m -> {:ok, m}
       %Merchant{status: "approved"} -> {:error, :invalid_state}
       %Merchant{} -> {:error, :not_kyb_ready}
@@ -905,10 +905,10 @@ defmodule YagyeCore.Merchants do
     "under_review" => "documents_submitted"
   }
 
-  defp transition(name, public_id, changeset_fn) do
+  defp transition(name, id_or_public_id, changeset_fn) do
     expected_predecessor = @onboarding_predecessors[to_string(name)]
 
-    case Repo.get_by(Merchant, public_id: public_id) do
+    case find_merchant(id_or_public_id) do
       %Merchant{onboarding_state: ^expected_predecessor} = merchant ->
         merchant |> changeset_fn.() |> Repo.update()
 
@@ -920,12 +920,23 @@ defmodule YagyeCore.Merchants do
     end
   end
 
-  defp resolve_merchant(public_id) do
-    case Repo.get_by(Merchant, public_id: public_id) do
+  defp resolve_merchant(id_or_public_id) do
+    case find_merchant(id_or_public_id) do
       nil -> {:error, :not_found}
       merchant -> {:ok, merchant}
     end
   end
+
+  defp find_merchant("mch_" <> _ = public_id), do: Repo.get_by(Merchant, public_id: public_id)
+
+  defp find_merchant(id) when is_binary(id) do
+    case Ecto.UUID.cast(id) do
+      {:ok, uuid} -> Repo.get(Merchant, uuid)
+      :error -> Repo.get_by(Merchant, public_id: id)
+    end
+  end
+
+  defp find_merchant(_), do: nil
 
   defp get_active_key_by_prefix(key_prefix) do
     now = DateTime.utc_now()

@@ -76,7 +76,7 @@ defmodule YagyeCore.MerchantWebhooks.RabbitMQ.DeliveryPipeline do
     # `event_type` is already the merchant-facing name (e.g. "payment.paid"),
     # translated by WebhookDispatchWorker before it reaches RabbitMQ.
     livemode = Map.get(body_map, "mode") == "live"
-    data_object = build_data_object(body_map)
+    data_object = build_data_object(body_map, event_type)
 
     envelope_body = %{
       "id" => "evt_#{Uniq.UUID.uuid7()}",
@@ -125,6 +125,7 @@ defmodule YagyeCore.MerchantWebhooks.RabbitMQ.DeliveryPipeline do
       delivery_id: delivery_id,
       event_id: event_id,
       event_type: event_type,
+      mode: Map.get(body_map, "mode") || "live",
       attempt: attempt,
       state: state,
       response_status: response_status,
@@ -204,7 +205,7 @@ defmodule YagyeCore.MerchantWebhooks.RabbitMQ.DeliveryPipeline do
         "aggregate_id" => delivery_attrs[:delivery_id],
         "aggregate_version" => 1,
         "merchant_id" => delivery_attrs.merchant_id,
-        "mode" => "live",
+        "mode" => delivery_attrs[:mode] || "live",
         "occurred_at" => DateTime.utc_now() |> DateTime.to_iso8601(),
         "payload" => %{
           "delivery_id" => delivery_attrs[:delivery_id],
@@ -222,7 +223,7 @@ defmodule YagyeCore.MerchantWebhooks.RabbitMQ.DeliveryPipeline do
           "delivered_at" => delivery_attrs[:delivered_at]
         }
       },
-      mode: "live",
+      mode: delivery_attrs[:mode] || "live",
       occurred_at: DateTime.utc_now()
     }
 
@@ -282,7 +283,14 @@ defmodule YagyeCore.MerchantWebhooks.RabbitMQ.DeliveryPipeline do
   # Maps the raw outbox payload to a clean, stable API-facing data object.
   # Internal field names (public_id, state) are renamed to their merchant-facing
   # equivalents (id, status). Only public fields are included.
-  defp build_data_object(p) do
+  defp build_data_object(p, event_type) do
+    case domain_object_type(event_type) do
+      "payment" -> build_payment_object(p)
+      object_type -> build_generic_object(p, object_type)
+    end
+  end
+
+  defp build_payment_object(p) do
     status =
       case p["state"] do
         "succeeded" -> "paid"
@@ -307,6 +315,30 @@ defmodule YagyeCore.MerchantWebhooks.RabbitMQ.DeliveryPipeline do
     }
     |> Map.reject(fn {_, v} -> is_nil(v) end)
   end
+
+  defp build_generic_object(p, object_type) do
+    id =
+      p["public_id"] || p["id"] || p["dispute_id"] || p["payout_id"] ||
+        p["settlement_code"] || p["merchant_code"]
+
+    p
+    |> Map.drop(["public_id", "state"])
+    |> Map.merge(%{
+      "id" => id,
+      "object" => object_type,
+      "status" => p["state"] || p["status"]
+    })
+    |> Map.reject(fn {_, v} -> is_nil(v) end)
+  end
+
+  defp domain_object_type(event_type) when is_binary(event_type) do
+    case String.split(event_type, ".", parts: 2) do
+      [prefix, _] when prefix in ~w(payment dispute payout refund settlement merchant) -> prefix
+      _ -> "payment"
+    end
+  end
+
+  defp domain_object_type(_), do: "payment"
 
   defp truncate(body) when is_binary(body), do: String.slice(body, 0, @max_response_body)
 

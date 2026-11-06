@@ -32,6 +32,27 @@ defmodule YagyeCoreWeb.Controllers.Internal.ApiKeysController do
     end
   end
 
+  def delete(conn, %{"code" => merchant_code, "key_id" => key_id} = params) do
+    revoked_by = params["revoked_by"] || "portal"
+
+    case Merchants.revoke_api_key(key_id, merchant_code, revoked_by) do
+      {:ok, {api_key, _event}} ->
+        conn
+        |> put_status(200)
+        |> json(ApiKeyJSON.data(api_key))
+
+      {:error, :not_found} ->
+        conn
+        |> put_status(404)
+        |> json(%{error: %{code: "not_found", message: "API key not found"}})
+
+      {:error, reason} ->
+        conn
+        |> put_status(422)
+        |> json(%{error: %{code: "unprocessable", message: inspect(reason)}})
+    end
+  end
+
   # Portal uses "test"/"live"; Core's YagyeMode uses "simulation"/"sandbox"/"live".
   # "test" maps to "simulation" — Yagye's internal simulator, always available with no
   # ops provisioning. "sandbox" (real provider staging) is an explicit advanced step.

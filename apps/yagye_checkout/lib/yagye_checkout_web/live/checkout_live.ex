@@ -2105,7 +2105,7 @@ defmodule YagyeCheckoutWeb.Live.CheckoutLive do
       terms  = layout["terms"] || %{}
       trust  = layout["trust_badges"] || %{}
       assign(sock,
-        brand_color:            layout["brand_color"],
+        brand_color:            sanitize_hex_color(layout["brand_color"]),
         font_family:            layout["font_family"],
         checkout_headline:      layout["headline"],
         cta_text:               layout["cta_text"],
@@ -2350,9 +2350,19 @@ defmodule YagyeCheckoutWeb.Live.CheckoutLive do
     end
   end
 
-  defp external_url?(url) do
-    not String.contains?(url, "localhost") and not String.contains?(url, "pay.yagye.com")
+  @doc false
+  def external_url?(url) when is_binary(url) do
+    case URI.parse(url) do
+      %URI{scheme: scheme, host: host}
+      when scheme in ["http", "https"] and is_binary(host) and host != "" ->
+        host not in ["localhost", "pay.yagye.com"]
+
+      _ ->
+        false
+    end
   end
+
+  def external_url?(_), do: false
 
   defp validate_collection(params, assigns) do
     errors = %{}
@@ -2578,32 +2588,49 @@ defmodule YagyeCheckoutWeb.Live.CheckoutLive do
     |> Enum.map_join(" ", &Enum.join/1)
   end
 
-  defp build_dynamic_style(nil, nil), do: ""
+  @hex_color_regex ~r/^#[0-9A-Fa-f]{6}$/
 
-  defp build_dynamic_style(brand_color, font_family) do
-    root_parts =
-      [
-        if brand_color do
-          hover = darken_color(brand_color)
-          rgb   = hex_to_rgb(brand_color)
-          """
-          --brand: #{brand_color};
-          --brand-hover: #{hover};
-          --brand-subtle: rgba(#{rgb}, 0.08);
-          --brand-glow: rgba(#{rgb}, 0.15);
-          """
-        end,
-        (if font_family, do: "--co-font: #{font_stack(font_family)};", else: nil)
-      ]
-      |> Enum.reject(&is_nil/1)
-      |> Enum.join("\n")
+  @doc false
+  def sanitize_hex_color(color) when is_binary(color) do
+    trimmed = String.trim(color)
+    if Regex.match?(@hex_color_regex, trimmed), do: trimmed, else: nil
+  end
 
-    font_body =
-      if font_family,
-        do: "body, .co-checkout-container { font-family: var(--co-font); }",
-        else: ""
+  def sanitize_hex_color(_), do: nil
 
-    "<style>:root { #{root_parts} } #{font_body}</style>"
+  @doc false
+  def build_dynamic_style(nil, nil), do: ""
+
+  def build_dynamic_style(brand_color, font_family) do
+    safe_color = sanitize_hex_color(brand_color)
+
+    if is_nil(safe_color) and is_nil(font_family) do
+      ""
+    else
+      root_parts =
+        [
+          if safe_color do
+            hover = darken_color(safe_color)
+            rgb   = hex_to_rgb(safe_color)
+            """
+            --brand: #{safe_color};
+            --brand-hover: #{hover};
+            --brand-subtle: rgba(#{rgb}, 0.08);
+            --brand-glow: rgba(#{rgb}, 0.15);
+            """
+          end,
+          (if font_family, do: "--co-font: #{font_stack(font_family)};", else: nil)
+        ]
+        |> Enum.reject(&is_nil/1)
+        |> Enum.join("\n")
+
+      font_body =
+        if font_family,
+          do: "body, .co-checkout-container { font-family: var(--co-font); }",
+          else: ""
+
+      "<style>:root { #{root_parts} } #{font_body}</style>"
+    end
   end
 
   defp darken_color(nil), do: "#323BD8"

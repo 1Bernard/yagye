@@ -648,6 +648,11 @@ treasury routing (that is out of PSP scope).
       dev setup.
 - [ ] Real AWS — swap Floci for real S3 + KMS across all services.
 - [ ] Budget alarm (AWS cost guard).
+- [ ] **Provider management UI (ops portal)** — today providers are added via DB seed + code adapter.
+      Build an ops-only portal section: list providers (name, kind, capabilities, status), add/edit
+      provider form, and a credential vault entry (masked display, ops-only write). Required before
+      Model B (external PSP orchestration) can be self-service. Gated to `internal_staff`.
+      No merchant ever sees the PSP picker — routing is fully automatic via the routing graph.
 
 ---
 

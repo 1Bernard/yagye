@@ -28,6 +28,7 @@ defmodule YagyeCore.Outbox.KafkaProducer do
     {"webhook.", "yagye.webhooks.v1"},
     {"dispute.", "yagye.disputes.v1"},
     {"adjustment_approval.", "yagye.adjustment_approvals.v1"},
+    {"reconciliation.adjustment.", "yagye.adjustment_approvals.v1"},
     {"payout.", "yagye.payouts.v1"},
     {"settlement.", "yagye.settlements.v1"}
   ]

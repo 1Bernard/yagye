@@ -56,7 +56,7 @@ async def ready(request: Request) -> JSONResponse:
     Returns 503 with a check breakdown when any dependency is unhealthy.
     """
     registry: ModelRegistry = request.app.state.registry
-    checks = registry.health_checks()
+    checks = await registry.health_checks()
     all_ok = all(checks.values())
 
     if all_ok:

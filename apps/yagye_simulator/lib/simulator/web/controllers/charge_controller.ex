@@ -34,9 +34,14 @@ defmodule Simulator.Web.Controllers.ChargeController do
   end
 
   def show(conn, %{"ref" => ref}) do
+    account = conn.assigns.current_account
+
     case Charges.get_by_ref(ref) do
-      {:ok, charge} -> json(conn, render_charge(charge))
-      {:error, :not_found} -> conn |> put_status(404) |> json(%{error: "charge_not_found"})
+      {:ok, %{account_id: account_id} = charge} when account_id == account.id ->
+        json(conn, render_charge(charge))
+
+      _ ->
+        conn |> put_status(404) |> json(%{error: "charge_not_found"})
     end
   end
 

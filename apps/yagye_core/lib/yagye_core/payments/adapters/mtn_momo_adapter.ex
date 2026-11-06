@@ -158,34 +158,50 @@ defmodule YagyeCore.Payments.Adapters.MTNMomoAdapter do
 
   # ── Token management ──────────────────────────────────────────────────────────
 
+  @token_cache_table :mtn_momo_oauth_tokens
+
   defp fetch_disbursement_token(credential) do
     base_url = credential["base_url"]
     user_id = credential["disbursement_api_user_id"] || credential["api_user_id"]
     api_key = credential["disbursement_api_key"] || credential["api_key"]
     sub_key = credential["disbursement_subscription_key"] || credential["subscription_key"]
-    encoded = Base.encode64("#{user_id}:#{api_key}")
+    cache_key = {:disbursement, base_url, user_id}
 
-    Req.post(
-      "#{base_url}/disbursement/token/",
-      [
-        body: "",
-        headers: [
-          {"Authorization", "Basic #{encoded}"},
-          {"Ocp-Apim-Subscription-Key", sub_key},
-          {"Content-Length", "0"}
-        ],
-        receive_timeout: 10_000
-      ] ++ extra_req_opts()
-    )
-    |> parse_disbursement_token_response()
+    case get_cached_token(cache_key) do
+      {:ok, token} ->
+        {:ok, token}
+
+      :miss ->
+        encoded = Base.encode64("#{user_id}:#{api_key}")
+
+        Req.post(
+          "#{base_url}/disbursement/token/",
+          [
+            body: "",
+            headers: [
+              {"Authorization", "Basic #{encoded}"},
+              {"Ocp-Apim-Subscription-Key", sub_key},
+              {"Content-Length", "0"}
+            ],
+            receive_timeout: 10_000
+          ] ++ extra_req_opts()
+        )
+        |> parse_disbursement_token_response(cache_key)
+    end
   end
 
   defp parse_disbursement_token_response(
-         {:ok, %Req.Response{status: 200, body: %{"access_token" => token}}}
-       ),
-       do: {:ok, token}
+         {:ok, %Req.Response{status: 200, body: %{"access_token" => token} = body}},
+         cache_key
+       ) do
+    maybe_cache_token(cache_key, token, body["expires_in"])
+    {:ok, token}
+  end
 
-  defp parse_disbursement_token_response({:ok, %Req.Response{status: status, body: body}}) do
+  defp parse_disbursement_token_response(
+         {:ok, %Req.Response{status: status, body: body}},
+         _cache_key
+       ) do
     msg = extract_error_message(body, "token_error")
 
     {:error,
@@ -196,10 +212,10 @@ defmodule YagyeCore.Payments.Adapters.MTNMomoAdapter do
      }}
   end
 
-  defp parse_disbursement_token_response({:error, %{reason: :timeout}}),
+  defp parse_disbursement_token_response({:error, %{reason: :timeout}}, _cache_key),
     do: {:error, %{error_class: :indeterminate, response_code: "timeout", response_message: nil}}
 
-  defp parse_disbursement_token_response({:error, _}),
+  defp parse_disbursement_token_response({:error, _}, _cache_key),
     do:
       {:error,
        %{error_class: :indeterminate, response_code: "network_error", response_message: nil}}
@@ -215,6 +231,15 @@ defmodule YagyeCore.Payments.Adapters.MTNMomoAdapter do
          "api_user_id" => user_id,
          "api_key" => api_key
        }) do
+    cache_key = {:collection, base_url, user_id}
+
+    case get_cached_token(cache_key) do
+      {:ok, token} -> {:ok, token}
+      :miss -> do_token_request(base_url, sub_key, user_id, api_key, cache_key)
+    end
+  end
+
+  defp do_token_request(base_url, sub_key, user_id, api_key, cache_key) do
     credentials = Base.encode64("#{user_id}:#{api_key}")
 
     case Req.post(
@@ -229,11 +254,12 @@ defmodule YagyeCore.Payments.Adapters.MTNMomoAdapter do
              receive_timeout: 10_000
            ] ++ extra_req_opts()
          ) do
-      {:ok, %Req.Response{status: 200, body: %{"access_token" => token}}} ->
+      {:ok, %Req.Response{status: 200, body: %{"access_token" => token} = body}} ->
+        maybe_cache_token(cache_key, token, body["expires_in"])
         {:ok, token}
 
       {:ok, %Req.Response{status: status, body: body}} ->
-        msg = (is_map(body) && (body["message"] || body["error_description"])) || "token_error"
+        msg = extract_error_message(body, "token_error")
 
         {:error,
          %{
@@ -250,6 +276,39 @@ defmodule YagyeCore.Payments.Adapters.MTNMomoAdapter do
          %{error_class: :indeterminate, response_code: "network_error", response_message: nil}}
     end
   end
+
+  defp ensure_token_cache_table do
+    case :ets.whereis(@token_cache_table) do
+      :undefined ->
+        try do
+          :ets.new(@token_cache_table, [:named_table, :public, :set, read_concurrency: true])
+        rescue
+          ArgumentError -> @token_cache_table
+        end
+
+      _ref ->
+        @token_cache_table
+    end
+  end
+
+  defp get_cached_token(cache_key) do
+    ensure_token_cache_table()
+    now = System.system_time(:second)
+
+    case :ets.lookup(@token_cache_table, cache_key) do
+      [{^cache_key, token, expires_at}] when expires_at > now -> {:ok, token}
+      _ -> :miss
+    end
+  end
+
+  defp maybe_cache_token(cache_key, token, expires_in)
+       when is_integer(expires_in) and expires_in > 60 do
+    ensure_token_cache_table()
+    expires_at = System.system_time(:second) + expires_in - 60
+    :ets.insert(@token_cache_table, {cache_key, token, expires_at})
+  end
+
+  defp maybe_cache_token(_cache_key, _token, _expires_in), do: :ok
 
   # ── Response translators ──────────────────────────────────────────────────────
 

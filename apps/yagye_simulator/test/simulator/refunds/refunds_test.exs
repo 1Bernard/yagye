@@ -113,5 +113,26 @@ defmodule Simulator.Refunds.RefundsTest do
     test "returns not_found for unknown ref" do
       assert {:error, :not_found} = Refunds.get_by_ref("RF_doesnotexist")
     end
+
+    test "RefundController.show rejects cross-account refund access (IDOR protection)" do
+      {account_a, _} = Fixtures.account_with_key_fixture()
+      {account_b, _} = Fixtures.account_with_key_fixture()
+      charge = authorised_charge(account_a)
+      {:ok, refund} = Refunds.create_refund(account_a, charge.charge_ref, %{amount_minor: 1_000})
+
+      conn_b =
+        Phoenix.ConnTest.build_conn()
+        |> Plug.Conn.assign(:current_account, account_b)
+        |> Simulator.Web.Controllers.RefundController.show(%{"ref" => refund.refund_ref})
+
+      assert conn_b.status == 404
+
+      conn_a =
+        Phoenix.ConnTest.build_conn()
+        |> Plug.Conn.assign(:current_account, account_a)
+        |> Simulator.Web.Controllers.RefundController.show(%{"ref" => refund.refund_ref})
+
+      assert conn_a.status == 200
+    end
   end
 end

@@ -13,12 +13,18 @@ module Acl
       @p = payload
     end
 
-    def valid?            = application_code.present?
+    def valid?
+      if event_type == "merchant.approved"
+        merchant_code.present?
+      else
+        application_code.present?
+      end
+    end
 
     def event_type        = @p["event_type"]
-    def application_code  = @p["public_id"]
+    def application_code  = @p["public_id"].presence || @p["application_code"].presence || @p["application_id"]
     def aggregate_version = @p["aggregate_version"].to_i
-    def event_id          = @p["event_id"].presence || @p["public_id"]
+    def event_id          = @p["event_id"].presence || application_code || merchant_code
 
     def legal_name         = @p["legal_name"]
     def trading_name       = @p["trading_name"]
@@ -30,8 +36,8 @@ module Acl
     def reviewed_by  = @p["reviewed_by"]
 
     def approved_by  = @p["approved_by"]
-    def merchant_code = @p["merchant_public_id"]
+    def merchant_code = @p["merchant_code"].presence || @p["merchant_public_id"]
 
-    def rejected_reason = @p["reason"]
+    def rejected_reason = @p["reason"].presence || @p["rejected_reason"]
   end
 end

@@ -76,7 +76,7 @@ module Developers
 
     def revoke_modal
       authorize :developers, :manage_keys?
-      key = PortalApiKey.find_by!(key_id: params[:key_id])
+      key = policy_scope(PortalApiKey).find_by!(key_id: params[:key_id])
       render UI::ConfirmModal.new(
         title:          "Revoke API key",
         body:           "\"#{key.label}\" will be permanently revoked. Any integrations using this key will stop working immediately.",
@@ -89,16 +89,20 @@ module Developers
 
     def destroy
       authorize :developers, :manage_keys?
-      result = CoreApiClient.new.revoke_api_key(params[:key_id], revoked_by: current_user.user_code)
+      key = policy_scope(PortalApiKey).find_by!(key_id: params[:key_id])
+      result = CoreApiClient.new.revoke_api_key(
+        key.key_id,
+        merchant_code: current_user.merchant_code,
+        revoked_by:    current_user.user_code
+      )
       if result.success?
         audit(action: "api_key.revoked", resource_type: "api_key",
-              outcome: "succeeded", resource_code: params[:key_id])
-        PortalApiKey.find_by(key_id: params[:key_id])
-                    &.update(revoked_at: Time.current)
+              outcome: "succeeded", resource_code: key.key_id)
+        key.update(revoked_at: Time.current)
         redirect_to developers_path(tab: "api_keys"), notice: "API key revoked."
       else
         audit(action: "api_key.revoked", resource_type: "api_key",
-              outcome: "failed", resource_code: params[:key_id])
+              outcome: "failed", resource_code: key.key_id)
         redirect_to developers_path(tab: "api_keys"), alert: result.error_message
       end
     end

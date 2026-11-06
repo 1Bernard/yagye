@@ -36,9 +36,9 @@ def run(window_start: datetime, window_end: datetime) -> None:
                 SUM(gross_amount_minor)                            AS total_gross_minor,
                 SUM(fee_amount_minor)                              AS total_fee_minor,
                 SUM(net_amount_minor)                              AS total_net_minor,
-                SUM(CASE WHEN event_type = 'settlement_batch.completed' THEN 1 ELSE 0 END)
+                SUM(CASE WHEN event_type IN ('settlement.batch.dispatched', 'settlement.batch.dispatch_approved') THEN 1 ELSE 0 END)
                                                                    AS completed_count,
-                SUM(CASE WHEN event_type = 'settlement_batch.failed' THEN 1 ELSE 0 END)
+                SUM(CASE WHEN event_type = 'settlement.batch.dispatch_rejected' THEN 1 ELSE 0 END)
                                                                    AS failed_count
             FROM read_parquet('{settlement_silver}')
             WHERE occurred_at >= TIMESTAMPTZ '{window_start.isoformat()}'
@@ -59,13 +59,13 @@ def run(window_start: datetime, window_end: datetime) -> None:
                 currency,
                 '{ds}'::DATE                                          AS dt,
                 COUNT(*)                                              AS total_events,
-                SUM(CASE WHEN event_type = 'reconciliation.matched' THEN 1 ELSE 0 END)
+                SUM(CASE WHEN event_type = 'reconciliation.adjustment.approved' THEN 1 ELSE 0 END)
                                                                       AS matched_count,
-                SUM(CASE WHEN event_type = 'reconciliation.unmatched' THEN 1 ELSE 0 END)
+                SUM(CASE WHEN event_type = 'reconciliation.adjustment.rejected' THEN 1 ELSE 0 END)
                                                                       AS unmatched_count,
-                SUM(CASE WHEN event_type = 'reconciliation.disputed' THEN 1 ELSE 0 END)
+                SUM(CASE WHEN event_type = 'reconciliation.adjustment.proposed' THEN 1 ELSE 0 END)
                                                                       AS disputed_count,
-                AVG(CASE WHEN event_type = 'reconciliation.matched' THEN 1.0 ELSE 0.0 END)
+                AVG(CASE WHEN event_type = 'reconciliation.adjustment.approved' THEN 1.0 ELSE 0.0 END)
                                                                       AS match_rate
             FROM read_parquet('{recon_silver}')
             WHERE occurred_at >= TIMESTAMPTZ '{window_start.isoformat()}'
