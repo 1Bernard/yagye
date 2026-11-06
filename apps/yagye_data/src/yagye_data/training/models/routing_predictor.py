@@ -184,7 +184,8 @@ def _train_inner() -> None:
         eval_metric="logloss",
         random_state=42,
     )
-    model.fit(X_train, y_train, eval_set=[(X_val, y_val)], verbose=False)
+    # Use .values so XGBoost assigns f0,f1,... feature names, which onnxmltools requires.
+    model.fit(X_train.values, y_train.values, eval_set=[(X_val.values, y_val.values)], verbose=False)
 
     y_score = model.predict_proba(X_val.values)[:, 1]
     metrics = evaluate_classifier(

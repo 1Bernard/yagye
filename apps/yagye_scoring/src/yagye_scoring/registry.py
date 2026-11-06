@@ -111,7 +111,7 @@ class ModelRegistry:
                     s3.download_fileobj(bucket, model_key, tmp)
                     tmp_path = tmp.name
 
-                model.load_from_path(tmp_path)
+                model.load_from_path(tmp_path, version=version)
                 os.unlink(tmp_path)
 
             except Exception as exc:

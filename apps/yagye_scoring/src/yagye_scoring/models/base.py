@@ -36,7 +36,7 @@ class BaseMLModel(ABC):
         self._session: Any = None  # ort.InferenceSession when loaded
         self._input_name: str = ""
 
-    def load_from_path(self, path: str) -> None:
+    def load_from_path(self, path: str, version: str | None = None) -> None:
         if not _ORT_AVAILABLE:
             logger.warning("onnxruntime not installed — staying on rule-based fallback")
             return
@@ -62,10 +62,13 @@ class BaseMLModel(ABC):
                 self._session = None
                 return
             self.is_loaded = True
-            # Parse version from path: .../routing_native_rail/v1.0.0/model.onnx
-            parts = path.split(os.sep)
-            if "v" in "".join(parts[-3:]):
-                self.version = next((p for p in reversed(parts) if p.startswith("v")), "v0.0.0")
+            if version:
+                self.version = version
+            else:
+                # Fallback: parse version from path: .../routing_native_rail/v1.0.0/model.onnx
+                parts = path.split(os.sep)
+                if "v" in "".join(parts[-3:]):
+                    self.version = next((p for p in reversed(parts) if p.startswith("v")), "v0.0.0")
             logger.info("model_loaded", model=self.model_name, version=self.version)
         except Exception as exc:
             logger.error("model_load_failed", model=self.model_name, error=str(exc))

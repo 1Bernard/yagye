@@ -66,8 +66,8 @@ def _score_onnx_bytes(
     sess = ort.InferenceSession(model_bytes)
     input_name = sess.get_inputs()[0].name
     probs = sess.run(None, {input_name: X_val.astype(np.float32)})[1]
-    # ONNX classifiers return list of dicts [{0: p0, 1: p1}, ...]
-    scores = np.array([p.get(1, 0.0) for p in probs])
+    # zipmap=False returns a 2D ndarray [n_samples, n_classes]; column 1 = P(class=1)
+    scores = probs[:, 1] if hasattr(probs, "ndim") else np.array([p.get(1, 0.0) for p in probs])
     return float(average_precision_score(y_val, scores))
 
 

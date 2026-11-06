@@ -122,6 +122,12 @@ if config_env() == :prod do
     ],
     secret_key_base: secret_key_base
 
+  # Enable HSTS/force-SSL only in real staging/prod.
+  # Omitting it (or setting false) allows HTTP webhooks from the simulator in Docker dev.
+  if System.get_env("FORCE_SSL") == "true" do
+    config :yagye_core, YagyeCoreWeb.Endpoint, force_ssl: [hsts: true]
+  end
+
   # ## SSL Support
   #
   # To get SSL working, you will need to add the `https` key
@@ -167,9 +173,16 @@ if config_env() == :prod do
     download_expiry_seconds: 1800,
     kms_key_arn: kms_key_arn
 
-  # In production the native rail is MTN MoMo (direct integration).
-  # Dev/test use SimulatorAdapter (set in config.exs / test.exs).
-  config :yagye_core, :provider_adapter, YagyeCore.Payments.Adapters.MTNMomoAdapter
+  # Simulator mode: set NATIVE_RAIL_ADAPTER_MODULE to override the global adapter.
+  # Defaults to SimulatorAdapter so local Docker dev works without real PSP credentials.
+  # Set to "YagyeCore.Payments.Adapters.MTNMomoAdapter" in real staging/production.
+  native_rail_mod =
+    System.get_env("NATIVE_RAIL_ADAPTER_MODULE", "YagyeCore.Payments.Adapters.SimulatorAdapter")
+
+  # String.to_atom is safe here — the value comes from our own env var, not user input.
+  config :yagye_core,
+         :provider_adapter,
+         String.to_atom("Elixir." <> native_rail_mod)
 
   config :yagye_core,
     rabbitmq_url: System.get_env("RABBITMQ_URL", "amqp://guest:guest@localhost:5672"),

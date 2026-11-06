@@ -58,7 +58,7 @@ case Repo.get_by(ProviderCredential, provider_id: simulator.id, mode: "simulatio
         provider_id: simulator.id,
         merchant_id: nil,
         mode: "simulation",
-        base_url: "http://localhost:4100",
+        base_url: "http://yagye_simulator:4001",
         encrypted_payload: payload,
         active: true
       })
@@ -341,7 +341,7 @@ case Repo.one(
         provider_id: mtn_provider.id,
         merchant_id: nil,
         mode: "simulation",
-        base_url: "http://localhost:4100",
+        base_url: "http://yagye_simulator:4001",
         encrypted_payload: payload,
         active: true
       })
@@ -400,7 +400,7 @@ case Repo.one(
         provider_id: telecel_provider.id,
         merchant_id: nil,
         mode: "simulation",
-        base_url: "http://localhost:4100",
+        base_url: "http://yagye_simulator:4001",
         encrypted_payload: payload,
         active: true
       })
@@ -459,7 +459,7 @@ case Repo.one(
         provider_id: airteltigo_provider.id,
         merchant_id: nil,
         mode: "simulation",
-        base_url: "http://localhost:4100",
+        base_url: "http://yagye_simulator:4001",
         encrypted_payload: payload,
         active: true
       })

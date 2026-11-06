@@ -9,9 +9,8 @@ config :swoosh, local: false
 # Do not print debug messages in production
 config :logger, level: :info
 
-# Force HTTPS in production — redirects HTTP and sets HSTS headers.
-# SSL termination happens at the load balancer; the app enforces the policy.
-config :yagye_core, YagyeCoreWeb.Endpoint, force_ssl: [hsts: true]
+# force_ssl is set at runtime in config/runtime.exs (gated on FORCE_SSL=true env var)
+# so it can be disabled in Docker dev without requiring a rebuild.
 
 # Runtime production configuration, including reading
 # of environment variables, is done on config/runtime.exs.

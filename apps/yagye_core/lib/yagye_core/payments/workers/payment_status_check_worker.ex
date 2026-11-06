@@ -36,7 +36,7 @@ defmodule YagyeCore.Payments.Workers.PaymentStatusCheckWorker do
          {:requires_action, true} <- {:requires_action, payment.state == "requires_action"},
          {:ok, attempt} <- get_attempt(attempt_id),
          {:ok, credential} <- credential_for_attempt(attempt, payment),
-         {:ok, adapter} <- adapter_for_attempt(attempt) do
+         {:ok, adapter} <- adapter_for_attempt(attempt, payment.mode) do
       case adapter.query_charge(attempt, credential) do
         {:ok, result} ->
           Payments.handle_provider_response(payment, attempt, {:ok, result})
@@ -83,9 +83,12 @@ defmodule YagyeCore.Payments.Workers.PaymentStatusCheckWorker do
   end
 
   # Resolves the adapter module for the provider that handled this attempt.
-  # Required because external PSPs (Flutterwave, Paystack) have their own adapters
-  # and the adapter is determined by the provider record, not global config.
-  defp adapter_for_attempt(%PaymentAttempt{provider_id: provider_id}) do
+  # For simulation mode we always use the globally configured SimulatorAdapter
+  # (same as PaymentDispatchWorker does via resolve_sim_provider code override).
+  # For sandbox/live we use the provider record's adapter_module (real PSP adapter).
+  defp adapter_for_attempt(_attempt, "simulation"), do: {:ok, ProviderAdapter.adapter()}
+
+  defp adapter_for_attempt(%PaymentAttempt{provider_id: provider_id}, _mode) do
     case Providers.get_provider(provider_id) do
       {:ok, provider} -> {:ok, ProviderAdapter.for_provider(provider)}
       {:error, _} = err -> err

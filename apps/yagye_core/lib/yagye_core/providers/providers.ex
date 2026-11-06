@@ -60,7 +60,7 @@ defmodule YagyeCore.Providers do
   # SimulatorAdapter instead of each MNO's (not-yet-built) production adapter.
   def get_provider_for_payment(%{mode: "simulation"} = payment, _excluded) do
     network = get_in(payment.metadata || %{}, ["network"])
-    code = Map.get(@sim_network_providers, network, @simulator_code)
+    code = Map.get(@sim_network_providers, network && String.upcase(network), @simulator_code)
     resolve_sim_provider(code)
   end
 
