@@ -85,10 +85,7 @@ module Help
 
     def hero_section
       div(class: "text-center mb-10") do
-        div(class: "inline-flex items-center gap-[6px] px-3 py-[5px] rounded-full border mb-5 status-operational") do
-          div(class: "w-[7px] h-[7px] rounded-full flex-shrink-0 status-dot")
-          span(class: "text-[12px] font-semibold status-text") { plain "All systems operational" }
-        end
+        span(class: "#{BADGE} #{STATUS_SUCCESS} mb-5") { plain "All systems operational" }
 
         h1(class: "text-[28px] font-bold text-gray-900 tracking-[-0.03em] mb-2") { plain "How can we help?" }
         p(class: "#{TYPE_BODY} max-w-md mx-auto mb-7") do
@@ -242,10 +239,10 @@ module Help
     end
 
     SLA_TIERS = [
-      { badge: "Emergency", desc: "Service is completely down",       val: "< 1",  unit: "hour",          color: "#dc2626", palette: "red"   },
-      { badge: "Urgent",    desc: "Payments aren't going through",    val: "< 4",  unit: "hours",         color: "#d97706", palette: "amber" },
-      { badge: "Standard",  desc: "A feature isn't working as expected", val: "< 1", unit: "business day", color: "#3D47F5", palette: "brand" },
-      { badge: "General",   desc: "You have a question or need guidance", val: "< 3", unit: "business days", color: "#6B7280", palette: "gray" }
+      { badge: "Emergency", desc: "Service is completely down",           val: "< 1", unit: "hour",          color: "#dc2626", status: STATUS_FAILED  },
+      { badge: "Urgent",    desc: "Payments aren't going through",        val: "< 4", unit: "hours",         color: "#d97706", status: STATUS_WARNING },
+      { badge: "Standard",  desc: "A feature isn't working as expected",  val: "< 1", unit: "business day",  color: "#3D47F5", status: STATUS_INFO    },
+      { badge: "General",   desc: "You have a question or need guidance", val: "< 3", unit: "business days", color: "#6B7280", status: STATUS_NEUTRAL }
     ].freeze
 
     def sla_card
@@ -287,9 +284,7 @@ module Help
              style: "background:#{tier[:color]}") { }
         # Label + scenario
         div(class: "flex-1 min-w-0") do
-          span(class: "badge-#{tier[:palette]} text-[11px] font-semibold px-[8px] py-[2px] rounded-full") do
-            plain tier[:badge]
-          end
+          span(class: "#{BADGE} #{tier[:status]}") { plain tier[:badge] }
           p(class: "#{TYPE_CAPTION} mt-[4px] leading-snug") { plain tier[:desc] }
         end
         # Time
