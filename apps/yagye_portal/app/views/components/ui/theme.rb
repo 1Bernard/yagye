@@ -299,6 +299,7 @@ module UI
       # ── Green: terminal success ──────────────────────────────────────────
       "settled"            => STATUS_SUCCESS,
       "paid"               => STATUS_SUCCESS,
+      "succeeded"          => STATUS_SUCCESS,
       "success"            => STATUS_SUCCESS,
       "completed"          => STATUS_SUCCESS,
       "approved"           => STATUS_SUCCESS,
