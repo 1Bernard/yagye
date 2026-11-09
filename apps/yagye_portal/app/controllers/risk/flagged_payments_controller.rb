@@ -10,7 +10,13 @@ module Risk
 
       tab     = params[:tab].presence_in(%w[review block]) || "review"
       result  = core_api.list_flagged_payments(decision: tab, limit: 25, after: params[:after])
-      records = result.success? ? result.body["data"] : []
+
+      unless result.success?
+        flash.now[:alert] = "Could not load flagged payments: #{result.error_message} (#{result.error_code})"
+        Rails.logger.error("[risk] Core API error code=#{result.error_code} msg=#{result.error_message}")
+      end
+
+      records   = result.success? ? result.body["data"] : []
       pagy_meta = result.success? ? result.body : {}
 
       render Risk::FlaggedPayments::IndexView.new(
