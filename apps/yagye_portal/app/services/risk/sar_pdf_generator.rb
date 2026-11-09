@@ -129,7 +129,7 @@ module Risk
 
     def render_table(pdf, rows)
       pdf.table(rows, cell_style: { size: 10, padding: [4, 8] },
-                column_widths: [130, 380]) do
+                column_widths: [120, 375]) do
         column(0).style(font_style: :bold, background_color: LABEL_BG)
       end
       pdf.move_down 14
