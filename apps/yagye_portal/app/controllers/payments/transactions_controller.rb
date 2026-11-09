@@ -235,10 +235,10 @@ module Payments
 
     def mode_scoped_base
       if @is_ops
-        mode = params[:mode].presence_in(%w[live test]) || "live"
-        policy_scope(Payment).where(mode: mode)
+        portal_mode = params[:mode].presence_in(%w[live test]) || "live"
+        policy_scope(Payment).for_portal_mode(portal_mode)
       else
-        policy_scope(Payment)
+        policy_scope(Payment).for_portal_mode(Current.mode || "live")
       end
     end
 

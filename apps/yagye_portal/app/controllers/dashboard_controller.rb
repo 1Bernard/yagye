@@ -93,6 +93,7 @@ class DashboardController < ApplicationController
       Payment.where(mode: "live")
     else
       Payment.for_merchant(current_user.merchant_code)
+             .for_portal_mode(Current.mode || "live")
     end
   end
 
@@ -153,18 +154,18 @@ class DashboardController < ApplicationController
   def merchant_chart_data
     return nil if current_user.internal_staff?
 
-    code  = current_user.merchant_code
-    mode  = Current.mode.presence || "live"
-    from  = Payments::VolumeSummaryQuery::CHART_DAYS.days.ago.to_date
-    rows  = PortalDailyMetric.where(merchant_code: code, mode: mode)
-                              .where(day: from..)
-                              .order(:day)
+    code   = current_user.merchant_code
+    modes  = (Current.mode || "live") == "live" ? ["live"] : Payment::TEST_MODES
+    from   = Payments::VolumeSummaryQuery::CHART_DAYS.days.ago.to_date
+    rows   = PortalDailyMetric.where(merchant_code: code, mode: modes)
+                               .where(day: from..)
+                               .order(:day)
     return nil unless rows.any?
 
     by_day = rows.group_by(&:day)
     days   = Payments::VolumeSummaryQuery::CHART_DAYS
     dates  = (0...days).map { |i| (from + i).strftime("%-d %b") }
-    values = (0...days).map { |i| (by_day[from + i]&.first&.gross_volume || 0) / 100.0 }
+    values = (0...days).map { |i| (by_day[from + i]&.sum(&:gross_volume) || 0) / 100.0 }
     { dates: dates, values: values }
   rescue StandardError
     nil
@@ -173,9 +174,9 @@ class DashboardController < ApplicationController
   def wallet_balance_data
     return nil if current_user.internal_staff?
 
-    code = current_user.merchant_code
-    mode = Current.mode.presence || "live"
-    rows = PortalMerchantBalance.for_merchant(code, mode: mode).to_a
+    code  = current_user.merchant_code
+    modes = (Current.mode || "live") == "live" ? ["live"] : Payment::TEST_MODES
+    rows  = PortalMerchantBalance.for_merchant(code, mode: modes).to_a
     return nil if rows.empty?
 
     currency  = rows.first.currency

@@ -87,7 +87,7 @@ class PaymentEventsConsumer < ApplicationConsumer
   end
 
   def broadcast_to_feed(payment)
-    stream = "dashboard_feed_#{payment.merchant_code}_#{payment.mode}"
+    stream = "dashboard_feed_#{payment.merchant_code}_#{payment.portal_mode}"
     html   = ApplicationController.render(
       Dashboard::FeedRowComponent.new(payment: payment),
       layout: false
@@ -161,7 +161,7 @@ class PaymentEventsConsumer < ApplicationConsumer
   end
 
   def broadcast_status_update(payment)
-    stream  = "payments_#{payment.merchant_code}_#{payment.mode}"
+    stream  = "payments_#{payment.merchant_code}_#{payment.portal_mode}"
     target  = "payment-status-#{payment.id}"
     badge   = UI::StatusBadge.new(status: payment.status).call
     html    = "<div id=\"#{target}\">#{badge}</div>"

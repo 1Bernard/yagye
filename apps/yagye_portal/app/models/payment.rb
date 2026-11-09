@@ -3,7 +3,9 @@ class Payment < ApplicationRecord
 
   self.table_name = "portal_payments"
 
-  STATUSES = %w[created processing requires_action paid failed cancelled indeterminate refunded disputed].freeze
+  STATUSES   = %w[created processing requires_action paid failed cancelled indeterminate refunded disputed].freeze
+  TEST_MODES = %w[simulation sandbox].freeze
+
   PROVIDERS = {
     "mtn_momo"     => "MTN MoMo",
     "telecel_cash" => "Telecel Cash",
@@ -21,10 +23,14 @@ class Payment < ApplicationRecord
     "card" => "visa.svg"
   }.freeze
 
-  scope :for_merchant, ->(code) { where(merchant_code: code) }
-  scope :by_status,    ->(s)    { where(status: s) }
-  scope :search_ref,   ->(q)    { where("reference ILIKE ? OR customer_msisdn LIKE ?", "%#{sanitize_sql_like(q)}%", "%#{sanitize_sql_like(q)}%") }
-  scope :recent,               -> { order(created_at: :desc) }
+  scope :for_merchant,    ->(code) { where(merchant_code: code) }
+  scope :by_status,       ->(s)    { where(status: s) }
+  scope :search_ref,      ->(q)    { where("reference ILIKE ? OR customer_msisdn LIKE ?", "%#{sanitize_sql_like(q)}%", "%#{sanitize_sql_like(q)}%") }
+  scope :recent,                   -> { order(created_at: :desc) }
+  scope :for_portal_mode, ->(m)    { m == "live" ? where(mode: "live") : where(mode: TEST_MODES) }
+
+  # Maps the DB mode ("simulation"/"sandbox"/"live") to the two-state portal toggle ("test"/"live").
+  def portal_mode = TEST_MODES.include?(mode) ? "test" : "live"
 
   def masked_msisdn
     return nil unless customer_msisdn.present?
