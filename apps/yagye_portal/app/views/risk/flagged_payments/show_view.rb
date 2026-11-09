@@ -75,7 +75,7 @@ module Risk
                       icon: :wallet, color: GREEN, tint: TINT_GREEN)
             stat_cell("Currency", @payment["currency"] || "—",
                       icon: :globe, color: PURPLE, tint: TINT_PURPLE)
-            stat_cell("Method",   @payment["method"]&.upcase || "—",
+            stat_cell("Method",   @payment["method"]&.gsub("_", " ")&.capitalize || "—",
                       icon: :smartphone, color: AMBER, tint: TINT_AMBER)
             stat_cell("State",    @payment["state"]&.capitalize || "—",
                       icon: :check_circle, color: GREEN, tint: TINT_GREEN)

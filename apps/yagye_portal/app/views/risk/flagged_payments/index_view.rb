@@ -84,7 +84,7 @@ module Risk
           end
 
           t.column("Method") do |r|
-            span(class: TYPE_CAPTION) { plain r["method"]&.upcase || "—" }
+            span(class: TYPE_CAPTION) { plain r["method"]&.gsub("_", " ")&.capitalize || "—" }
           end
 
           t.column("Decision") do |r|
