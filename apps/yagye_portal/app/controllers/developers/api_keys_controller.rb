@@ -54,10 +54,16 @@ module Developers
 
     def create
       authorize :developers, :manage_keys?
+      requested_mode = key_params[:mode].presence_in(%w[live test]) || "test"
+      if requested_mode == "live" && !live_mode_allowed?
+        redirect_to developers_url(tab: "api_keys"),
+                    alert: "Live mode has not been enabled for your account yet."
+        return
+      end
       result = CoreApiClient.new.create_api_key(
         merchant_code: current_user.merchant_code,
         label:         key_params[:label],
-        mode:          key_params[:mode].presence_in(%w[live test]) || "test",
+        mode:          requested_mode,
         scopes:        Array(key_params[:scopes]),
         created_by:    current_user.user_code
       )
@@ -111,6 +117,11 @@ module Developers
 
     def current_portal_mode
       session[:portal_mode] || "test"
+    end
+
+    def live_mode_allowed?
+      return false unless current_user.merchant_user?
+      PortalMerchant.find_for(current_user.merchant_code)&.live_mode_enabled? || false
     end
 
     def key_params
