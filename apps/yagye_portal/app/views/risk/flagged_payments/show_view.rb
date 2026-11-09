@@ -85,7 +85,7 @@ module Risk
             div do
               p(class: "text-[10.5px] text-gray-400 font-medium uppercase tracking-wide") { plain "Risk Score" }
               p(class: "text-[18px] font-bold tabular-nums text-gray-900 mt-[2px]") do
-                plain score ? format("%.4f", score.to_f) : "—"
+                plain score ? "%.4f" % score.to_f : "—"
               end
             end
 

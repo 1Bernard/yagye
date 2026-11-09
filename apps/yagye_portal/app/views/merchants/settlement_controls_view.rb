@@ -729,12 +729,12 @@ module Merchants
 
     def minimum_payout_ghs
       pesewas = @controls["minimum_payout_pesewas"]
-      pesewas ? format("%.2f", pesewas.to_f / 100) : "50.00"
+      pesewas ? "%.2f" % (pesewas.to_f / 100) : "50.00"
     end
 
     def reserve_rate_pct
       bps = @controls["reserve_rate_bps"]
-      bps ? format("%.2f", bps.to_f / 100) : "0.00"
+      bps ? "%.2f" % (bps.to_f / 100) : "0.00"
     end
 
     def reserve_release_days

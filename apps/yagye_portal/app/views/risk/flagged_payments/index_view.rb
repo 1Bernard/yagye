@@ -96,7 +96,7 @@ module Risk
           t.column("Score") do |r|
             score = r["risk_score"]
             if score
-              span(class: "#{TYPE_MONO} text-[12px]") { plain format("%.3f", score.to_f) }
+              span(class: "#{TYPE_MONO} text-[12px]") { plain "%.3f" % score.to_f }
             else
               span(class: TYPE_CAPTION) { plain "—" }
             end
