@@ -202,28 +202,29 @@ defmodule YagyeCore.Merchants do
   end
 
   # Returns {:ok, api_key} where api_key has :merchant preloaded, or {:error, :invalid_credentials}.
-  # Runs Argon2.no_user_verify/0 on miss to prevent timing-based key enumeration.
+  # On miss, hashes the key anyway to normalise timing and prevent prefix-enumeration.
   def authenticate(raw_key) do
     key_prefix = String.slice(raw_key, 0, 24)
+    computed_hash = sha256_hex(raw_key)
 
     case get_active_key_by_prefix(key_prefix) do
       {:ok, %ApiKey{kind: "publishable"} = api_key} ->
-        if raw_key == api_key.key_prefix do
+        if Plug.Crypto.secure_compare(raw_key, api_key.key_prefix) do
           {:ok, api_key}
         else
-          Argon2.no_user_verify()
           {:error, :invalid_credentials}
         end
 
       {:ok, %ApiKey{kind: "secret"} = api_key} ->
-        if Argon2.verify_pass(raw_key, api_key.secret_hash) do
+        if Plug.Crypto.secure_compare(computed_hash, api_key.secret_hash) do
           {:ok, api_key}
         else
           {:error, :invalid_credentials}
         end
 
       {:error, :not_found} ->
-        Argon2.no_user_verify()
+        # Consume the already-computed hash so timing mirrors the found-key path.
+        _ = computed_hash
         {:error, :invalid_credentials}
     end
   end
@@ -951,11 +952,10 @@ defmodule YagyeCore.Merchants do
     one_or_error(query)
   end
 
-  # Secret keys: 32 random bytes base64-encoded → 43-char key; first 24 stored as prefix.
-  # Key format: ysk_{mode}_{random} for secret, ypk_{mode}_{random} for publishable.
-  # mode_tag is "live" for :live, "test" for :simulation/:sandbox.
-  # Secret keys: prefix = first 24 chars (used for DB lookup); full key is Argon2-hashed.
-  # Publishable keys: exactly 24 chars total — the whole key IS the prefix (no hash needed).
+  # Key format: ysk_{mode}_{random} (52 chars) for secret, ypk_{mode}_{random} (24 chars) for publishable.
+  # Secret keys: first 24 chars stored as prefix for O(1) DB lookup; full key is SHA-256 hashed.
+  # SHA-256 is correct here — the key already has 256 bits of entropy so slow hashing adds no security,
+  # only latency. Publishable keys: 24 chars total — the whole key IS the prefix (no hash needed).
   defp generate_key_material(kind, mode) when is_atom(kind),
     do: generate_key_material(to_string(kind), mode)
 
@@ -964,7 +964,7 @@ defmodule YagyeCore.Merchants do
     random = :crypto.strong_rand_bytes(32) |> Base.encode64(padding: false)
     raw = "ysk_#{mode_tag}_#{random}"
     prefix = String.slice(raw, 0, 24)
-    hash = Argon2.hash_pwd_salt(raw)
+    hash = sha256_hex(raw)
     {raw, prefix, hash}
   end
 
@@ -976,6 +976,9 @@ defmodule YagyeCore.Merchants do
     raw = "ypk_#{mode_tag}_#{random}"
     {raw, raw, nil}
   end
+
+  defp sha256_hex(value),
+    do: :crypto.hash(:sha256, value) |> Base.encode16(case: :lower)
 
   defp one_or_error(query) do
     case Repo.one(query) do

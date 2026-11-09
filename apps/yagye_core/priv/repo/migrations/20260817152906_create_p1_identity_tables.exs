@@ -73,7 +73,7 @@ defmodule YagyeCore.Repo.Migrations.CreateP1IdentityTables do
     execute "ALTER TABLE merchant_modes ADD PRIMARY KEY (merchant_id, mode)"
 
     # API keys. publishable keys are safe for client-side use (no secret_hash).
-    # secret keys are shown once; only the argon2id hash is stored.
+    # secret keys are shown once; only the SHA-256 hex hash is stored.
     # key_prefix is the first 24 chars — displayed in logs and the portal so
     # ops can identify which key was used without exposing the secret.
     create table(:api_keys, primary_key: false) do

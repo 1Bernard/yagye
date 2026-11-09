@@ -66,7 +66,6 @@ defmodule YagyeCore.MixProject do
       {:stream_data, "~> 1.4", only: [:test]},
       {:boundary, "~> 0.10", runtime: false},
       {:uniq, "~> 0.6.3"},
-      {:argon2_elixir, "~> 4.0"},
       {:open_api_spex, "~> 3.21"},
       {:tzdata, "~> 1.1"},
       {:oban, "~> 2.23"},
