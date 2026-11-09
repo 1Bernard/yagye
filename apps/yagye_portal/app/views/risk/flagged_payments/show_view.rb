@@ -199,6 +199,7 @@ module Risk
             end
             a(href: sar_risk_flagged_payment_path(@payment["id"]),
               class: "#{BTN_SECONDARY} w-full justify-center",
+              target: "_blank", rel: "noopener",
               data: { turbo: false }) do
               span(style: "display:flex;width:13px;height:13px;flex-shrink:0") do
                 render UI::Icon.new(:file, class: "w-full h-full")
