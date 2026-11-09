@@ -840,6 +840,22 @@ class CoreApiClient
     {}
   end
 
+  # GET /internal/risk/flagged-payments
+  def list_flagged_payments(decision:, limit: 25, after: nil)
+    get("/internal/risk/flagged-payments", { decision: decision, limit: limit, after: after }.compact)
+  end
+
+  # GET /internal/risk/flagged-payments/:id
+  def get_flagged_payment(id)
+    get("/internal/risk/flagged-payments/#{id}")
+  end
+
+  # POST /internal/risk/flagged-payments/:id/dispose
+  def dispose_flagged_payment(id, label:, dispositioned_by:, note: nil)
+    post("/internal/risk/flagged-payments/#{id}/dispose",
+         { label: label, dispositioned_by: dispositioned_by, note: note }.compact)
+  end
+
   private
 
   NETWORK_ERRORS = [

@@ -9,7 +9,7 @@ module Risk
       skip_authorization
 
       tab     = params[:tab].presence_in(%w[review block]) || "review"
-      result  = core_api.get("/internal/risk/flagged-payments", decision: tab, limit: 25, after: params[:after])
+      result  = core_api.list_flagged_payments(decision: tab, limit: 25, after: params[:after])
       records = result.success? ? result.body["data"] : []
       pagy_meta = result.success? ? result.body : {}
 
@@ -25,7 +25,7 @@ module Risk
     def show
       skip_authorization
 
-      result = core_api.get("/internal/risk/flagged-payments/#{params[:id]}")
+      result = core_api.get_flagged_payment(params[:id])
       return redirect_to risk_flagged_payments_path, alert: "Not found." unless result.success?
 
       payment = result.body["payment"]
@@ -41,7 +41,7 @@ module Risk
     def sar
       skip_authorization
 
-      result = core_api.get("/internal/risk/flagged-payments/#{params[:id]}")
+      result = core_api.get_flagged_payment(params[:id])
       return redirect_to risk_flagged_payments_path, alert: "Not found." unless result.success?
 
       payment = result.body["payment"]
@@ -59,11 +59,11 @@ module Risk
       skip_authorization
       raise Pundit::NotAuthorizedError unless current_user.permitted?("risk.disposition")
 
-      result = core_api.post(
-        "/internal/risk/flagged-payments/#{params[:id]}/dispose",
-        label:             params[:label],
-        dispositioned_by:  current_user.user_code,
-        note:              params[:note]
+      result = core_api.dispose_flagged_payment(
+        params[:id],
+        label:            params[:label],
+        dispositioned_by: current_user.user_code,
+        note:             params[:note]
       )
 
       if result.success?
