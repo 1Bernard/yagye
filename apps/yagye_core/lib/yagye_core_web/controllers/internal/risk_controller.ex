@@ -66,7 +66,7 @@ defmodule YagyeCoreWeb.Controllers.Internal.RiskController do
       currency: payment.currency,
       state: payment.state,
       method: payment.method,
-      risk_score: payment.risk_score,
+      risk_score: payment.risk_score && Decimal.to_float(payment.risk_score),
       risk_decision: payment.risk_decision,
       risk_flagged_at: payment.risk_flagged_at,
       inserted_at: payment.inserted_at
