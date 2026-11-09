@@ -806,4 +806,68 @@ else
   IO.puts("Demo payout destination: already seeded (#{demo_dest_count} unverified) — skipping")
 end
 
+# ── 10. Demo flagged payments for Risk & Fraud analyst queue ──────────────────
+alias YagyeCore.Payments.Schemas.Payment
+alias YagyeCore.Risk.Schemas.RiskLabel
+
+flagged_count =
+  Repo.aggregate(
+    from(p in Payment, where: not is_nil(p.risk_flagged_at)),
+    :count
+  )
+
+if flagged_count == 0 do
+  # Grab up to 5 succeeded simulation payments to flag
+  payments =
+    Repo.all(
+      from(p in Payment,
+        where: p.state == "succeeded" and p.mode == "simulation",
+        order_by: [desc: p.inserted_at],
+        limit: 5
+      )
+    )
+
+  flagged_at = DateTime.utc_now()
+
+  # Flag 3 as "review" with varying risk scores
+  review_attrs = [
+    %{risk_score: Decimal.new("0.72"), risk_decision: "review"},
+    %{risk_score: Decimal.new("0.65"), risk_decision: "review"},
+    %{risk_score: Decimal.new("0.81"), risk_decision: "review"}
+  ]
+
+  # Flag 2 as "block" (high-risk)
+  block_attrs = [
+    %{risk_score: Decimal.new("0.91"), risk_decision: "block"},
+    %{risk_score: Decimal.new("0.88"), risk_decision: "block"}
+  ]
+
+  all_attrs = review_attrs ++ block_attrs
+
+  payments
+  |> Enum.zip(all_attrs)
+  |> Enum.each(fn {payment, attrs} ->
+    payment
+    |> Payment.risk_changeset(Map.put(attrs, :risk_flagged_at, flagged_at))
+    |> Repo.update!()
+  end)
+
+  # Add a disposition label on the first review payment so the show view has data
+  if first_review = Enum.at(payments, 0) do
+    %RiskLabel{}
+    |> RiskLabel.changeset(%{
+      payment_id: first_review.id,
+      label: "suspicious",
+      labelled_by: "analyst@yagye.com",
+      note: "Multiple rapid transactions from same device fingerprint."
+    })
+    |> Repo.insert!()
+  end
+
+  seeded = min(length(payments), 5)
+  IO.puts("Demo risk cases       : flagged #{seeded} payments (3 review, #{seeded - 3} block)")
+else
+  IO.puts("Demo risk cases       : already seeded (#{flagged_count} flagged) — skipping")
+end
+
 IO.puts("=== Done ===\n")
