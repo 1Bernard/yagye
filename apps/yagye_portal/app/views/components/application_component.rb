@@ -119,9 +119,11 @@ class ApplicationComponent < Phlex::HTML
     end
   end
 
-  def fmt_datetime(ts) = ts&.strftime("%d %b %Y, %H:%M") || "—"
-  def fmt_datetime_utc(ts) = ts&.strftime("%d %b %Y at %H:%M UTC") || "—"
-  def fmt_date(ts) = ts&.strftime("%d %b %Y") || "—"
+  def fmt_datetime(ts) = parse_ts(ts)&.strftime("%d %b %Y, %H:%M") || "—"
+  def fmt_datetime_utc(ts) = parse_ts(ts)&.strftime("%d %b %Y at %H:%M UTC") || "—"
+  def fmt_date(ts) = parse_ts(ts)&.strftime("%d %b %Y") || "—"
+
+  def parse_ts(ts) = ts.is_a?(String) ? Time.parse(ts) : ts
 
   def format_money(minor_units, currency: "GHS")
     n = minor_units.to_f / 100
