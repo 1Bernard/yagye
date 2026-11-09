@@ -60,7 +60,8 @@ module Risk
       end
 
       def payments_list
-        can_dispose = @can_dispose
+        can_dispose   = @can_dispose
+        score_color   = SCORE_COLOR
 
         render UI::Datatable.new(records: @records, empty_message: "No flagged payments in this queue.") do |t|
           t.column("Payment ID") do |r|
@@ -81,7 +82,25 @@ module Risk
           end
 
           t.column("Risk Score") do |r|
-            score_bar(r["risk_score"])
+            score = r["risk_score"]
+            if score
+              pct = (score.to_f * 100).round
+              _, color, bg = score_color.find { |threshold, _, _| score.to_f >= threshold }
+              color ||= "#0a7cff"
+              bg    ||= "#f9fafb"
+              div(class: "flex items-center gap-2") do
+                div(class: "w-16 h-1.5 rounded-full overflow-hidden flex-shrink-0",
+                    style: "background:#{bg}") do
+                  div(class: "h-full rounded-full",
+                      style: "width:#{pct}%;background:#{color}")
+                end
+                span(class: "#{TYPE_MONO} text-[11.5px]", style: "color:#{color}") do
+                  plain "%.2f" % score.to_f
+                end
+              end
+            else
+              span(class: TYPE_CAPTION) { plain "—" }
+            end
           end
 
           t.column("Decision") do |r|
@@ -113,29 +132,6 @@ module Risk
         end
       end
 
-      # Mini risk bar: filled portion + score label, color-coded by threshold
-      def score_bar(score)
-        return span(class: TYPE_CAPTION) { plain "—" } unless score
-
-        pct   = (score.to_f * 100).round
-        color, bg = score_colors(score.to_f)
-
-        div(class: "flex items-center gap-2") do
-          div(class: "w-16 h-1.5 rounded-full overflow-hidden flex-shrink-0",
-              style: "background:#{bg}") do
-            div(class: "h-full rounded-full",
-                style: "width:#{pct}%;background:#{color}")
-          end
-          span(class: "#{TYPE_MONO} text-[11.5px]", style: "color:#{color}") do
-            plain "%.2f" % score.to_f
-          end
-        end
-      end
-
-      def score_colors(score)
-        _, color, bg = SCORE_COLOR.find { |threshold, _, _| score >= threshold }
-        [ color || BRAND, bg || "#f9fafb" ]
-      end
     end
   end
 end
