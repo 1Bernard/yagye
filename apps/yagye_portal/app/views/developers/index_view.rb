@@ -100,17 +100,9 @@ module Developers
                   p(class: TYPE_TITLE) { plain "#{live ? 'Live' : 'Test'} API keys" }
                   unless live
                     if sandbox_enabled?
-                      span(class: "inline-flex items-center gap-1 px-2 py-[3px] rounded-full " \
-                                  "bg-indigo-50 border border-indigo-200 text-[10px] font-semibold text-indigo-700") do
-                        span(class: "w-[5px] h-[5px] rounded-full bg-indigo-500 flex-shrink-0 inline-block")
-                        plain "PSP Sandbox"
-                      end
+                      span(class: "#{BADGE} #{STATUS_INFO}") { plain "PSP Sandbox" }
                     else
-                      span(class: "inline-flex items-center gap-1 px-2 py-[3px] rounded-full " \
-                                  "bg-gray-100 border border-gray-200 text-[10px] font-semibold text-gray-500") do
-                        span(class: "w-[5px] h-[5px] rounded-full bg-gray-400 flex-shrink-0 inline-block")
-                        plain "Simulation"
-                      end
+                      span(class: "#{BADGE} #{STATUS_NEUTRAL}") { plain "Simulation" }
                     end
                   end
                 end
@@ -911,7 +903,7 @@ module Developers
     end
 
     def qs_response_viewer(label, json_str)
-      details(class: "mt-3",
+      details(class: "mt-3", open: true,
               style: "border-radius:12px;overflow:hidden;border:1px solid #30363d;background:#0d1117") do
         summary(class: "flex items-center gap-2 px-4 py-[9px] cursor-pointer select-none",
                 style: "color:#8b949e;list-style:none") do
@@ -1192,17 +1184,9 @@ module Developers
             p(class: "text-[12.5px] font-bold text-gray-800") { plain "Test environment" }
           end
           if sandbox
-            span(class: "inline-flex items-center gap-1.5 px-2.5 py-[4px] rounded-full " \
-                        "bg-indigo-50 border border-indigo-200 text-[11px] font-semibold text-indigo-700") do
-              span(class: "w-[6px] h-[6px] rounded-full bg-indigo-500 flex-shrink-0 inline-block")
-              plain "PSP Sandbox active"
-            end
+            span(class: "#{BADGE} #{STATUS_INFO}") { plain "PSP Sandbox active" }
           else
-            span(class: "inline-flex items-center gap-1.5 px-2.5 py-[4px] rounded-full " \
-                        "bg-gray-100 border border-gray-200 text-[11px] font-semibold text-gray-500") do
-              span(class: "w-[6px] h-[6px] rounded-full bg-gray-400 flex-shrink-0 inline-block")
-              plain "Yagye Simulation"
-            end
+            span(class: "#{BADGE} #{STATUS_NEUTRAL}") { plain "Yagye Simulation" }
           end
         end
 
