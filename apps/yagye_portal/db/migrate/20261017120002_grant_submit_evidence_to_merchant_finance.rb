@@ -2,8 +2,9 @@
 
 class GrantSubmitEvidenceToMerchantFinance < ActiveRecord::Migration[8.0]
   def up
-    perm = Permission.find_by!(key: "disputes.submit_evidence")
-    role = Role.find_by!(key: "merchant_finance")
+    perm = Permission.find_by(key: "disputes.submit_evidence")
+    role = Role.find_by(key: "merchant_finance")
+    return unless perm && role
     return if role.permissions.include?(perm)
 
     RolePermission.create!(role_key: role.key, permission_key: perm.key, granted_at: Time.current)
