@@ -85,27 +85,48 @@ defmodule YagyeCore.Risk do
         {:error, :not_flagged}
 
       payment ->
-        %RiskLabel{}
-        |> RiskLabel.changeset(%{
-          payment_id: payment.id,
-          label: label,
-          labelled_by: dispositioned_by,
-          note: note
-        })
-        |> Repo.insert()
-        |> tap(fn
-          {:ok, rl} ->
-            Logger.info("risk.case_disposed",
-              payment_id: payment_id,
-              label: rl.label,
-              dispositioned_by: dispositioned_by
-            )
-
-          _ ->
-            :ok
-        end)
+        Repo.transaction(fn -> do_dispose(payment, label, dispositioned_by, note) end)
     end
   end
+
+  defp do_dispose(payment, label, dispositioned_by, note) do
+    case %RiskLabel{}
+         |> RiskLabel.changeset(%{
+           payment_id: payment.id,
+           label: label,
+           labelled_by: dispositioned_by,
+           note: note
+         })
+         |> Repo.insert() do
+      {:ok, rl} ->
+        maybe_resolve_decision(payment, label)
+
+        Logger.info("risk.case_disposed",
+          payment_id: payment.id,
+          label: rl.label,
+          dispositioned_by: dispositioned_by,
+          resolved_decision: resolved_decision(label)
+        )
+
+        rl
+
+      {:error, changeset} ->
+        Repo.rollback(changeset)
+    end
+  end
+
+  defp maybe_resolve_decision(payment, label) do
+    case resolved_decision(label) do
+      nil -> :ok
+      decision -> payment |> Payment.risk_changeset(%{risk_decision: decision}) |> Repo.update!()
+    end
+  end
+
+  # confirmed_fraud → block; false_positive/legitimate → allow; suspicious → stays in review
+  defp resolved_decision("confirmed_fraud"), do: "block"
+  defp resolved_decision("false_positive"), do: "allow"
+  defp resolved_decision("legitimate"), do: "allow"
+  defp resolved_decision(_), do: nil
 
   @doc """
   List payments currently flagged for risk review.
