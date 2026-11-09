@@ -16,6 +16,13 @@ module Risk
         "block"  => STATUS_FAILED
       }.freeze
 
+      # Risk score thresholds → color
+      SCORE_COLOR = [
+        [ 0.7, RED,   "#fef2f2" ],
+        [ 0.4, AMBER, "#fffbeb" ],
+        [ 0.0, GREEN, "#f0fdf4" ]
+      ].freeze
+
       def initialize(tab: "review", records: [], has_more: false, next_cursor: nil, can_dispose: false)
         @tab         = tab
         @records     = records
@@ -35,25 +42,12 @@ module Risk
             subtitle: "Flagged payments requiring analyst review."
           )
 
-          stat_band
           tab_bar
           payments_list
         end
       end
 
       private
-
-      def stat_band
-        review_count = @records.count { |r| r["risk_decision"] == "review" }
-        block_count  = @records.count { |r| r["risk_decision"] == "block" }
-
-        render UI::Grid.new(columns: 4) do
-          stat_cell("For Review",    review_count.to_s, icon: :eye,           color: AMBER,  tint: TINT_AMBER)
-          stat_cell("Blocked",       block_count.to_s,  icon: :alert_triangle, color: RED,    tint: TINT_RED)
-          stat_cell("Showing",       @records.length.to_s, icon: :list,        color: PURPLE, tint: TINT_PURPLE)
-          stat_cell("Has More",      @has_more ? "Yes" : "No", icon: :arrow_right, color: GREEN, tint: TINT_GREEN)
-        end
-      end
 
       def tab_bar
         render UI::Tabs.new do |t|
@@ -78,28 +72,22 @@ module Risk
 
           t.column("Amount") do |r|
             span(class: "text-[13px] font-semibold text-gray-800 tabular-nums") do
-              plain format_money(r["amount"])
+              plain format_money(r["amount"].to_i, currency: r["currency"] || "GHS")
             end
-            span(class: "#{TYPE_CAPTION} ml-1") { plain r["currency"] }
           end
 
           t.column("Method") do |r|
             span(class: TYPE_CAPTION) { plain r["method"]&.gsub("_", " ")&.capitalize || "—" }
           end
 
+          t.column("Risk Score") do |r|
+            score_bar(r["risk_score"])
+          end
+
           t.column("Decision") do |r|
             decision = r["risk_decision"]
             badge_class = DECISION_BADGE[decision] || STATUS_NEUTRAL
             span(class: "#{BADGE} #{badge_class}") { plain decision&.capitalize || "—" }
-          end
-
-          t.column("Score") do |r|
-            score = r["risk_score"]
-            if score
-              span(class: "#{TYPE_MONO} text-[12px]") { plain "%.3f" % score.to_f }
-            else
-              span(class: TYPE_CAPTION) { plain "—" }
-            end
           end
 
           t.column("Flagged") do |r|
@@ -123,6 +111,30 @@ module Risk
             end
           end
         end
+      end
+
+      # Mini risk bar: filled portion + score label, color-coded by threshold
+      def score_bar(score)
+        return span(class: TYPE_CAPTION) { plain "—" } unless score
+
+        pct   = (score.to_f * 100).round
+        color, bg = score_colors(score.to_f)
+
+        div(class: "flex items-center gap-2") do
+          div(class: "w-16 h-1.5 rounded-full overflow-hidden flex-shrink-0",
+              style: "background:#{bg}") do
+            div(class: "h-full rounded-full",
+                style: "width:#{pct}%;background:#{color}")
+          end
+          span(class: "#{TYPE_MONO} text-[11.5px]", style: "color:#{color}") do
+            plain "%.2f" % score.to_f
+          end
+        end
+      end
+
+      def score_colors(score)
+        _, color, bg = SCORE_COLOR.find { |threshold, _, _| score >= threshold }
+        [ color || BRAND, bg || "#f9fafb" ]
       end
     end
   end
