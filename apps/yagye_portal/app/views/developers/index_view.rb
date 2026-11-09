@@ -183,7 +183,7 @@ module Developers
     end
 
     def quick_start_card(live)
-      env_prefix  = live ? "sk_live" : "sk_test"
+      env_prefix  = live ? "ysk_live" : "ysk_test"
       first_key   = @api_keys.select { |k| k.active? && k.kind == "secret" }.first ||
                     @api_keys.select(&:active?).first
       display_key = first_key ? "#{first_key.key_prefix}..." : "#{env_prefix}_YOUR_SECRET_KEY"
@@ -279,7 +279,7 @@ module Developers
     # ── Quickstart panel ──────────────────────────────────────────────────────
 
     def quickstart_panel
-      env_prefix  = Current.mode == "live" ? "sk_live" : "sk_test"
+      env_prefix  = Current.mode == "live" ? "ysk_live" : "ysk_test"
       first_key   = @api_keys.select { |k| k.active? && k.kind == "secret" }.first ||
                     @api_keys.select(&:active?).first
       display_key = first_key ? "#{first_key.key_prefix}..." : "#{env_prefix}_YOUR_SECRET_KEY"
@@ -309,9 +309,7 @@ module Developers
           p(class: TYPE_CAPTION) do
             plain "Go to "
             a(href: developers_path(tab: "api_keys"), class: "text-[#3D47F5] font-medium no-underline") { plain "API Keys" }
-            plain " and generate a test key. It starts with "
-            code(class: TYPE_MONO) { plain "sk_test_" }
-            plain ". Store it securely — it's only shown once."
+            plain " and generate a key. Copy it immediately — the full key is only shown once at creation. Only the prefix is stored after that."
           end
           unless first_key
             div(class: "mt-3") do
@@ -329,6 +327,7 @@ module Developers
           curl -X POST https://api.yagye.com/v1/checkout-sessions \\
             -H "Authorization: Bearer #{display_key}" \\
             -H "Content-Type: application/json" \\
+            -H "Idempotency-Key: $(uuidgen)" \\
             -d '{
               "currency": "GHS",
               "subtotal_amount": 25000,
@@ -350,6 +349,171 @@ module Developers
             }'
         CURL
 
+        node_session_snippet = <<~JS.strip
+          // Node.js (native fetch, Node 18+)
+          const response = await fetch('https://api.yagye.com/v1/checkout-sessions', {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${apiKey}`,
+              'Content-Type': 'application/json',
+              'Idempotency-Key': crypto.randomUUID(),
+            },
+            body: JSON.stringify({
+              currency: 'GHS',
+              subtotal_amount: 25000,
+              total_amount: 25000,
+              description: 'Order #001',
+              success_url: 'https://yourstore.com/success?session_id={CHECKOUT_SESSION_ID}',
+              cancel_url: 'https://yourstore.com/cart',
+              collect_email: true,
+              line_items: [{
+                kind: 'item',
+                description: 'Blue Sneakers – Size 42',
+                quantity: 1,
+                unit_amount: 25000,
+                total_amount: 25000,
+              }],
+              metadata: { order_id: 'ord_789' },
+            }),
+          });
+          const session = await response.json();
+          // Redirect your customer to the hosted checkout page
+          window.location.href = session.checkout_url;
+        JS
+
+        python_session_snippet = <<~PY.strip
+          # Python (httpx; install: pip install httpx)
+          import httpx, uuid
+
+          r = httpx.post(
+              "https://api.yagye.com/v1/checkout-sessions",
+              headers={
+                  "Authorization": f"Bearer {api_key}",
+                  "Idempotency-Key": str(uuid.uuid4()),
+              },
+              json={
+                  "currency": "GHS",
+                  "subtotal_amount": 25000,
+                  "total_amount": 25000,
+                  "description": "Order #001",
+                  "success_url": "https://yourstore.com/success?session_id={CHECKOUT_SESSION_ID}",
+                  "cancel_url": "https://yourstore.com/cart",
+                  "collect_email": True,
+                  "line_items": [{
+                      "kind": "item",
+                      "description": "Blue Sneakers – Size 42",
+                      "quantity": 1,
+                      "unit_amount": 25000,
+                      "total_amount": 25000,
+                  }],
+                  "metadata": {"order_id": "ord_789"},
+              },
+          )
+          session = r.json()
+          # Redirect your customer to: session["checkout_url"]
+        PY
+
+        php_session_snippet = <<~'PHP'.strip
+          <?php
+          // PHP (Guzzle + ramsey/uuid: composer require guzzlehttp/guzzle ramsey/uuid)
+          use GuzzleHttp\Client;
+          use Ramsey\Uuid\Uuid;
+
+          $client   = new Client();
+          $response = $client->post('https://api.yagye.com/v1/checkout-sessions', [
+              'headers' => [
+                  'Authorization'   => 'Bearer ' . $apiKey,
+                  'Content-Type'    => 'application/json',
+                  'Idempotency-Key' => Uuid::uuid4()->toString(),
+              ],
+              'json' => [
+                  'currency'        => 'GHS',
+                  'subtotal_amount' => 25000,
+                  'total_amount'    => 25000,
+                  'description'     => 'Order #001',
+                  'success_url'     => 'https://yourstore.com/success?session_id={CHECKOUT_SESSION_ID}',
+                  'cancel_url'      => 'https://yourstore.com/cart',
+                  'collect_email'   => true,
+                  'line_items'      => [[
+                      'kind'         => 'item',
+                      'description'  => 'Blue Sneakers – Size 42',
+                      'quantity'     => 1,
+                      'unit_amount'  => 25000,
+                      'total_amount' => 25000,
+                  ]],
+                  'metadata'        => ['order_id' => 'ord_789'],
+              ],
+          ]);
+          $session = json_decode($response->getBody(), true);
+          // Redirect your customer:
+          header('Location: ' . $session['checkout_url']);
+        PHP
+
+        ruby_session_snippet = <<~'RUBY'.strip
+          # Ruby (stdlib only — no gems needed)
+          require 'net/http'
+          require 'json'
+          require 'securerandom'
+
+          uri  = URI('https://api.yagye.com/v1/checkout-sessions')
+          http = Net::HTTP.new(uri.host, uri.port)
+          http.use_ssl = true
+
+          req = Net::HTTP::Post.new(uri)
+          req['Authorization']   = "Bearer #{api_key}"
+          req['Content-Type']    = 'application/json'
+          req['Idempotency-Key'] = SecureRandom.uuid
+
+          req.body = {
+            currency:        'GHS',
+            subtotal_amount: 25_000,
+            total_amount:    25_000,
+            description:     'Order #001',
+            success_url:     'https://yourstore.com/success?session_id={CHECKOUT_SESSION_ID}',
+            cancel_url:      'https://yourstore.com/cart',
+            collect_email:   true,
+            line_items:      [{
+              kind:         'item',
+              description:  'Blue Sneakers – Size 42',
+              quantity:     1,
+              unit_amount:  25_000,
+              total_amount: 25_000
+            }],
+            metadata:        { order_id: 'ord_789' }
+          }.to_json
+
+          res     = http.request(req)
+          session = JSON.parse(res.body)
+          # Redirect your customer to: session['checkout_url']
+        RUBY
+
+        session_response_json = <<~JSON.strip
+          {
+            "id":               "cks_a1b2c3d4e5f6a7b8c9d0",
+            "object":           "checkout_session",
+            "status":           "open",
+            "mode":             "test",
+            "currency":         "GHS",
+            "subtotal_amount":  25000,
+            "total_amount":     25000,
+            "description":      "Order #001",
+            "checkout_url":     "https://pay.yagye.com/s/cks_a1b2c3d4e5f6a7b8c9d0",
+            "success_url":      "https://yourstore.com/success?session_id={CHECKOUT_SESSION_ID}",
+            "cancel_url":       "https://yourstore.com/cart",
+            "collect_email":    true,
+            "line_items": [{
+              "kind":           "item",
+              "description":    "Blue Sneakers – Size 42",
+              "quantity":       1,
+              "unit_amount":    25000,
+              "total_amount":   25000
+            }],
+            "metadata":         { "order_id": "ord_789" },
+            "created_at":       "2026-11-08T10:00:00Z",
+            "expires_at":       "2026-11-08T10:30:00Z"
+          }
+        JSON
+
         qs_step("2", "Create a checkout session", :credit_card, "icon-brand") do
           p(class: TYPE_CAPTION) do
             plain "Call "
@@ -358,7 +522,14 @@ module Developers
             code(class: TYPE_MONO) { plain "checkout_url" }
             plain " — redirect your customer there."
           end
-          qs_code_block(session_snippet, display_key, key_color, "Create checkout session") do
+          lang_snippets = {
+            "curl"   => session_snippet,
+            "node"   => node_session_snippet,
+            "python" => python_session_snippet,
+            "php"    => php_session_snippet,
+            "ruby"   => ruby_session_snippet
+          }
+          qs_multi_lang_block(lang_snippets) do
             span(class: "text-[#79c0ff]") { plain "curl" }
             span(class: "text-[#ff7b72]") { plain " -X POST" }
             plain " "
@@ -374,6 +545,10 @@ module Developers
             plain " \""
             span(class: "text-[#ffa657]") { plain "Content-Type" }
             plain ": application/json\" \\\n"
+            span(class: "text-[#ff7b72]") { plain "  -H" }
+            plain " \""
+            span(class: "text-[#ffa657]") { plain "Idempotency-Key" }
+            plain ": $(uuidgen)\" \\\n"
             span(class: "text-[#ff7b72]") { plain "  -d" }
             plain " '{\n"
             plain "    \""
@@ -451,10 +626,9 @@ module Developers
             plain "\" }\n"
             plain "  }'"
           end
-          div(class: "mt-3 grid grid-cols-1 sm:grid-cols-2 gap-3") do
-            qs_response_field("checkout_url", "https://pay.yagye.com/s/cks_01j...", "Redirect your customer here")
-            qs_response_field("id",           "cks_01j7x4k2-8b3c-7e1f-9a2d-c4e5f6a7b8c9", "Store this to verify payment later")
-          end
+          qs_idempotency_note
+          qs_response_viewer("Expected response — 201 Created", session_response_json)
+          qs_sandbox_run_section if current_user&.merchant_user?
         end
 
         # Step 3 — redirect
@@ -498,10 +672,6 @@ module Developers
 
         # Step 4 — webhook
         webhook_snippet = <<~JSON.strip
-          # Verify the signature before processing:
-          # X-Yagye-Signature: sha256=<hmac>
-
-          POST /your-webhook-handler
           {
             "id":         "evt_01j7x4k2-...",
             "object":     "event",
@@ -538,13 +708,7 @@ module Developers
             plain " header (HMAC-SHA256) before fulfilling the order."
           end
           qs_code_block(webhook_snippet, display_key, key_color, "Copy event payload", lang: :json) do
-            span(class: "text-[#8b949e]") { plain "# Verify the signature before processing:\n" }
-            span(class: "text-[#8b949e]") { plain "# X-Yagye-Signature: sha256=<hmac>" }
-            plain "\n\n"
-            span(class: "text-[#ff7b72]") { plain "POST" }
-            plain " "
-            span(class: "text-[#a5d6ff]") { plain "/your-webhook-handler" }
-            plain "\n{\n"
+            plain "{\n"
             plain "  \""
             span(class: "text-[#79c0ff]") { plain "id" }
             plain "\":         \""
@@ -631,11 +795,6 @@ module Developers
             span(class: "text-[#a5d6ff]") { plain "2026-09-22T10:30:00Z" }
             plain "\"\n  } }\n}"
           end
-          div(class: "mt-3 grid grid-cols-1 sm:grid-cols-3 gap-3") do
-            qs_response_field("amount",     "25000",               "Total charged (pesewas)")
-            qs_response_field("net_amount", "24250",               "After Yagye fees")
-            qs_response_field("livemode",   "false in test mode",  "true only for real transactions")
-          end
         end
 
         # OpenAPI reference link
@@ -694,6 +853,153 @@ module Developers
         p(class: "text-[11px] font-mono font-semibold text-gray-700") { plain key }
         p(class: "text-[12px] font-mono text-[#3D47F5] mt-[2px] truncate") { plain value }
         p(class: "#{TYPE_CAPTION} mt-1") { plain hint }
+      end
+    end
+
+    LANG_LABELS = {
+      "curl"   => "curl",
+      "node"   => "Node.js",
+      "python" => "Python",
+      "php"    => "PHP",
+      "ruby"   => "Ruby"
+    }.freeze
+
+    # snippets = { "curl" => code_string, "node" => code_string, ... }
+    # curl panel gets Phlex syntax-highlighting via block; others plain text.
+    def qs_multi_lang_block(snippets, &block)
+      div(class: "mt-3 bg-[#0d1117] rounded-xl overflow-hidden",
+          data: { controller: "code-tabs" }) do
+        div(class: "flex items-center justify-between px-4 py-2 border-b border-[#30363d]") do
+          div(class: "flex gap-1 flex-wrap") do
+            snippets.each_key do |lang|
+              button(type: "button",
+                     class: "text-[11px] font-mono px-[10px] py-[3px] rounded-md transition-colors cursor-pointer border-0",
+                     style: "background:transparent;color:#8b949e",
+                     data: { code_tabs_target: "tab",
+                             code_tabs_lang_param: lang,
+                             action: "click->code-tabs#switch" }) do
+                plain LANG_LABELS.fetch(lang, lang)
+              end
+            end
+          end
+          div(class: "flex items-center flex-shrink-0") do
+            snippets.each do |lang, snippet|
+              div(data: { code_tabs_target: "copyArea", lang: lang }) do
+                button(type: "button",
+                       class: "flex items-center gap-[5px] text-[11px] text-[#8b949e] " \
+                              "hover:text-[#c9d1d9] transition-colors cursor-pointer bg-transparent border-0",
+                       data: { controller: "clipboard", clipboard_text_value: snippet,
+                               action: "click->clipboard#copy" }) do
+                  render UI::Icon.new(:copy, class: "w-[11px] h-[11px]")
+                  span(data: { clipboard_target: "label" }) { plain "Copy" }
+                end
+              end
+            end
+          end
+        end
+
+        div(class: "px-5 py-4 overflow-x-auto", data: { code_tabs_target: "panel", lang: "curl" }) do
+          pre(class: "text-[12px] leading-[1.7] font-mono m-0 whitespace-pre text-[#c9d1d9]") { yield }
+        end
+        snippets.reject { |l, _| l == "curl" }.each do |lang, snippet|
+          div(class: "px-5 py-4 overflow-x-auto", data: { code_tabs_target: "panel", lang: lang }) do
+            pre(class: "text-[12px] leading-[1.7] font-mono m-0 whitespace-pre text-[#c9d1d9]",
+                data: { controller: "code-highlight", code_highlight_lang_value: lang }) { plain snippet }
+          end
+        end
+      end
+    end
+
+    def qs_response_viewer(label, json_str)
+      details(class: "mt-3",
+              style: "border-radius:12px;overflow:hidden;border:1px solid #30363d;background:#0d1117") do
+        summary(class: "flex items-center gap-2 px-4 py-[9px] cursor-pointer select-none",
+                style: "color:#8b949e;list-style:none") do
+          span(class: "flex w-[11px] h-[11px]") { render UI::Icon.new(:chev_right, class: "w-full h-full") }
+          span(class: "text-[10.5px] font-mono") { plain label }
+        end
+        div(class: "px-5 py-4 overflow-x-auto", style: "border-top:1px solid #30363d") do
+          pre(class: "text-[11.5px] leading-[1.6] font-mono m-0 whitespace-pre text-[#c9d1d9]") do
+            render_highlighted_json(json_str)
+          end
+        end
+      end
+    end
+
+    def render_highlighted_json(json_str)
+      json_str.each_line do |raw|
+        line = raw.chomp
+        if (m = line.match(/\A(\s*)("(?:[^"\\]|\\.)*")(\s*:\s*)(.*?)(,?)\z/))
+          indent, key, sep, raw_val, comma = m[1], m[2], m[3], m[4].strip, m[5]
+          plain indent
+          span(style: "color:#79c0ff") { plain key }
+          plain sep
+          render_json_token(raw_val)
+          plain comma
+        else
+          plain line
+        end
+        plain "\n"
+      end
+    end
+
+    def render_json_token(token)
+      case token
+      when /\A"(?:[^"\\]|\\.)*"\z/
+        span(style: "color:#a5d6ff") { plain token }
+      when /\A-?\d+(\.\d+)?\z/
+        span(style: "color:#a5d6ff") { plain token }
+      when "true", "false", "null"
+        span(style: "color:#79c0ff") { plain token }
+      else
+        plain token
+      end
+    end
+
+    def qs_idempotency_note
+      div(class: "mt-2 flex items-start gap-2") do
+        span(class: "flex w-[13px] h-[13px] text-indigo-400 flex-shrink-0 mt-[2px]") do
+          render UI::Icon.new(:info_circle, class: "w-full h-full")
+        end
+        p(class: "text-[11.5px] text-gray-500 leading-[1.5]") do
+          span(class: "font-semibold text-gray-700") { plain "Idempotency-Key" }
+          plain " prevents duplicate charges on retries. Use "
+          code(class: TYPE_MONO) { plain "uuidgen" }
+          plain " (macOS/Linux), "
+          code(class: TYPE_MONO) { plain "crypto.randomUUID()" }
+          plain " (Node 19+), or "
+          code(class: TYPE_MONO) { plain "uuid.uuid4()" }
+          plain " (Python). Expires in 24 hours."
+        end
+      end
+    end
+
+    def qs_sandbox_run_section
+      div(class: "mt-5 pt-4 border-t border-gray-100",
+          data: { controller: "sandbox-run",
+                  sandbox_run_url_value: developers_sandbox_run_path }) do
+        div(class: "flex items-center gap-3") do
+          button(type: "button",
+                 class: "flex items-center gap-[6px] text-[12px] font-semibold text-[#3D47F5] " \
+                        "border border-indigo-200 rounded-lg px-3 py-[6px] bg-indigo-50 " \
+                        "hover:bg-indigo-100 transition-colors cursor-pointer",
+                 data: { sandbox_run_target: "btn", action: "click->sandbox-run#run" }) do
+            span(class: "flex w-[13px] h-[13px]") { render UI::Icon.new(:arrow_right, class: "w-full h-full") }
+            plain "Run in sandbox"
+          end
+          span(class: "text-[11.5px] text-gray-400") { plain "Creates a live test session and shows the real response" }
+        end
+        div(class: "mt-3 bg-[#0d1117] rounded-xl overflow-hidden",
+            style: "display:none",
+            data: { sandbox_run_target: "result" }) do
+          div(class: "flex items-center justify-between px-4 py-2 border-b border-[#30363d]") do
+            span(class: "text-[10.5px] font-mono text-[#8b949e]") { plain "RESPONSE  201 Created" }
+          end
+          div(class: "px-5 py-4 overflow-x-auto") do
+            pre(class: "text-[12px] leading-[1.6] font-mono m-0 whitespace-pre text-[#c9d1d9]",
+                data: { sandbox_run_target: "code" }) { }
+          end
+        end
       end
     end
 

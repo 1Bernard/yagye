@@ -38,6 +38,23 @@ module Risk
       )
     end
 
+    def sar
+      skip_authorization
+
+      result = core_api.get("/internal/risk/flagged-payments/#{params[:id]}")
+      return redirect_to risk_flagged_payments_path, alert: "Not found." unless result.success?
+
+      payment = result.body["payment"]
+      labels  = result.body["labels"]
+
+      pdf = Risk::SarPdfGenerator.new(payment: payment, labels: labels).generate
+
+      send_data pdf.render,
+                filename:    "SAR-#{payment['public_id']}-#{Date.today}.pdf",
+                type:        "application/pdf",
+                disposition: "attachment"
+    end
+
     def dispose
       skip_authorization
       raise Pundit::NotAuthorizedError unless current_user.permitted?("risk.disposition")

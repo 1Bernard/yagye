@@ -13,7 +13,11 @@ module Payments
 
       query_scope = @is_ops ? Payments::TransactionsQuery.with_merchant_name(base_scope) : base_scope
 
-      @filtered = Payments::TransactionsQuery.new(query_scope).call(filters)
+      f = filters
+      base_filtered = Payments::TransactionsQuery.new(query_scope).call(f)
+      @filtered = Payments::PaymentFilterTranslator.apply(
+        base_filtered, f[:vqb_conditions], merchant: !@is_ops
+      )
 
       respond_to do |format|
         format.html do
@@ -31,8 +35,9 @@ module Payments
             mode_filter:        @is_ops ? (params[:mode].presence_in(%w[live test]) || "live") : nil,
             from:               params[:from],
             to:                 params[:to],
-            query:              params[:q],
-            payments_stream_key: payments_stream_key
+            query:               params[:q],
+            payments_stream_key: payments_stream_key,
+            filters_conditions:  f[:vqb_conditions]
           )
         end
         format.csv do
@@ -55,6 +60,7 @@ module Payments
     def filter
       authorize Payment, :index?
       saved = current_user.saved_filters.where(namespace: "Payments").order(created_at: :desc).to_a
+      vqb  = params[:filters].present? ? params[:filters].map { |f| f.permit(:field, :op, :value).to_h } : []
       render Payments::FilterView.new(
         query:         params[:q],
         status:        params[:status],
@@ -62,7 +68,9 @@ module Payments
         provider:      params[:provider],
         from:          params[:from],
         to:            params[:to],
-        saved_filters: saved
+        saved_filters: saved,
+        conditions:    vqb,
+        merchant:      !current_user.internal_staff?
       )
     end
 
@@ -203,7 +211,9 @@ module Payments
     end
 
     def filters
-      params.permit(:status, :q, :from, :to, :provider, :method, :mode).to_h.symbolize_keys
+      base = params.permit(:status, :q, :from, :to, :provider, :method, :mode).to_h.symbolize_keys
+      vqb  = params[:filters].present? ? params[:filters].map { |f| f.permit(:field, :op, :value).to_h } : []
+      base.merge(vqb_conditions: vqb)
     end
 
     def customer_other_payments(payment)

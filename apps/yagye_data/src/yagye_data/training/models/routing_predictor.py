@@ -48,6 +48,21 @@ from yagye_data.training.gate import should_promote
 
 logger = get_logger(__name__)
 
+# Stable provider code encoding — must match PROVIDER_CODE_ENC in
+# yagye_scoring/models/routing_predictor.py exactly.
+# NEVER re-order or remove entries; only append new ones at the end.
+# Using -1.0 at inference for any code not in this map (safe: tree routes to
+# the "unknown provider" branch learned from training rows where code_enc=-1).
+_PROVIDER_CODE_MAP = {
+    "mtn_momo_gh":         0,
+    "telecel_cash_gh":     1,
+    "airteltigo_money_gh": 2,
+    "simulator":           3,
+    # External PSPs added at P13+
+    "stripe_gh":           4,
+    "paystack_gh":         5,
+}
+
 _MODEL_NAME = "routing_native_rail"
 _FEATURE_COLS = [
     # Must match _ROUTING_FEATURES in yagye_scoring/models/routing_predictor.py exactly.
@@ -89,6 +104,13 @@ def _train_inner() -> None:
     silver_glob = s3_uri(settings.silver_bucket, "payments/**/*.parquet")
     gold_glob = s3_uri(settings.gold_bucket, "provider_health_hourly/**/*.parquet")
 
+    # Build stable CASE expression from _PROVIDER_CODE_MAP so encoding never
+    # shifts when a new provider is added (ROW_NUMBER would re-assign all codes).
+    provider_case = "\n".join(
+        f"WHEN '{code}' THEN {enc}"
+        for code, enc in _PROVIDER_CODE_MAP.items()
+    )
+
     df = con.execute(f"""
         WITH attempts AS (
             SELECT
@@ -106,11 +128,6 @@ def _train_inner() -> None:
             FROM read_parquet('{silver_glob}', hive_partitioning = true)
             WHERE provider_code IS NOT NULL
         ),
-        provider_codes AS (
-            SELECT provider_code,
-                   ROW_NUMBER() OVER (ORDER BY provider_code) - 1 AS code_enc
-            FROM (SELECT DISTINCT provider_code FROM attempts)
-        ),
         health AS (
             SELECT
                 provider_code,
@@ -127,7 +144,9 @@ def _train_inner() -> None:
         SELECT
             a.occurred_at,
             a.label,
-            COALESCE(p.code_enc, -1)::FLOAT                     AS provider_code_enc,
+            CASE a.provider_code
+                {provider_case}
+                ELSE -1 END::FLOAT                               AS provider_code_enc,
             CASE a.provider_kind WHEN 'external_psp' THEN 1 ELSE 0 END::FLOAT
                                                                  AS provider_kind_enc,
             CASE a.method
@@ -150,7 +169,6 @@ def _train_inner() -> None:
             0.0                                                  AS circuit_breaker_state,
             1.0                                                  AS candidate_count
         FROM attempts a
-        LEFT JOIN provider_codes p ON a.provider_code = p.provider_code
         LEFT JOIN health h
             ON  a.provider_code = h.provider_code
             AND a.hour_bucket   = h.hour_bucket

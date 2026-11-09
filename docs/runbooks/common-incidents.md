@@ -343,6 +343,144 @@ YagyeCore.MerchantWebhooks.update_endpoint(endpoint, %{"active" => true})
 
 ---
 
+## 9. ML Scoring Service Returns Rule-Based Fallback
+
+**Symptoms:** Grafana logs show `model_version: rule_based_fallback` on every
+`scoring.routing.shadow` log line. Scores are always `0.85` regardless of
+provider or time of day. The scoring service `/ready` endpoint returns healthy.
+
+**Confirm:**
+```bash
+# Check model status at startup
+docker logs docker-yagye_scoring-1 2>&1 | grep model_status
+
+# Expected when ONNX loaded:
+#   model_status model=routing_native_rail loaded=true version=v20261106_195509
+# Fallback (no ONNX):
+#   model_status model=routing_native_rail loaded=false version=rule_based_fallback
+```
+
+**Likely causes:**
+1. **No champion.flag in S3** — no model has been trained and promoted yet.
+   This is expected before the first training run.
+2. **Model not promoted after training** — training completed but the gate
+   blocked promotion (challenger AUC-PR did not exceed champion by ≥ 0.5%).
+3. **S3 unreachable at startup** — the scoring container cannot reach Floci/AWS;
+   model load silently skipped (see `model_s3_skip` log entries).
+4. **Wrong version logged despite model loaded** — model is loaded (is_loaded=True,
+   real score visible in logs) but version shows `rule_based_fallback`. This
+   means `load_from_path` was called without the `version=` parameter and tried
+   to parse the version from the temp file path which contains no version segment.
+
+**Investigation:**
+```bash
+# Check S3 for the champion flag
+aws --endpoint-url http://localhost:4566 s3 ls s3://yagye-ml-models/routing_native_rail/
+
+# Check what champion.flag contains
+aws --endpoint-url http://localhost:4566 s3 cp \
+  s3://yagye-ml-models/routing_native_rail/champion.flag -
+```
+
+**Resolution:**
+- **No flag yet:** Run the full Bronze → Silver → Gold → training pipeline.
+  The gate will promote the first model automatically (no existing champion
+  to compare against).
+- **Flag exists but model still shows fallback:** Restart the scoring container;
+  it only loads models at startup. `docker restart docker-yagye_scoring-1`.
+- **Wrong version logged:** This is a `load_from_path` bug — ensure `version=`
+  is passed from the champion flag content, not omitted. The model IS serving
+  real ONNX scores despite the wrong version label.
+- **S3 unreachable:** Check `AWS_S3_HOST`, `AWS_ACCESS_KEY_ID`, and
+  `AWS_SECRET_ACCESS_KEY` env vars in the scoring container. Verify Floci is
+  running: `docker ps | grep floci`.
+
+---
+
+## 10. Payments Returning 307 Redirect on Webhook Delivery
+
+**Symptoms:** Simulator webhooks reach Core but are redirected (307). Payment
+stays in `processing`. Logs show `redirect_response` or HTTP 307 from Core.
+Only occurs in Docker dev (not staging/prod with real TLS).
+
+**Confirm:**
+```bash
+# From inside the simulator container, test Core's webhook endpoint directly
+docker exec docker-yagye_simulator-1 \
+  curl -v http://yagye_core:4000/webhooks/provider/simulator \
+  -d '{}' -H 'Content-Type: application/json'
+# A 307 response means force_ssl is active and upgrading HTTP → HTTPS.
+```
+
+**Root cause:** `force_ssl: [hsts: true]` was set at compile time in `config/prod.exs`
+instead of at runtime in `config/runtime.exs`. Compile-time `force_ssl` cannot
+be overridden at runtime — it is baked into the release binary. Inside Docker,
+the simulator sends plain HTTP webhooks to Core; with force_ssl active, Core
+redirects every request to HTTPS, which the simulator cannot follow (no TLS
+in dev).
+
+**Correct configuration (`config/runtime.exs`):**
+```elixir
+# Only enable force_ssl when FORCE_SSL=true is set (staging/prod only)
+if System.get_env("FORCE_SSL") == "true" do
+  config :yagye_core, YagyeCoreWeb.Endpoint, force_ssl: [hsts: true]
+end
+```
+
+**Resolution:**
+1. Remove `force_ssl` from `config/prod.exs` if it appears there.
+2. Add the `FORCE_SSL`-gated block to `config/runtime.exs`.
+3. Rebuild the Docker image with `--no-cache` (compile-time config change):
+   ```bash
+   docker compose build --no-cache yagye_core
+   docker compose up -d yagye_core
+   ```
+4. Confirm: `docker logs docker-yagye_core-1 | grep force_ssl` should not appear.
+   Re-test webhook delivery — payment should reach `succeeded` within ~5 seconds.
+
+**Note:** `FORCE_SSL=true` must still be set in staging and production environments
+where real HTTPS is used. The Docker dev `docker-compose.yml` must NOT set it.
+
+---
+
+## 11. Docker Containers Cannot Reach Each Other via `localhost`
+
+**Symptoms:** One service (e.g. Core) cannot connect to another (e.g. Simulator
+or Scoring) even though both are running. Errors show connection refused on
+`localhost:PORT`. Curl from outside Docker works fine.
+
+**Root cause:** Inside a Docker container, `localhost` refers to that container
+itself, not the host machine or any sibling container. Containers communicate
+using their Docker Compose **service names** as hostnames, which Docker's
+internal DNS resolves to container IPs.
+
+**Port mapping vs. container addressing:**
+```
+docker-compose.yml:
+  yagye_simulator:
+    ports:
+      - "4100:4001"   ← Mac host uses localhost:4100
+                        Other containers use yagye_simulator:4001
+```
+
+**Common misconfigurations and their fixes:**
+
+| Wrong | Correct |
+|---|---|
+| `SCORING_SERVICE_URL=http://localhost:8001` | `http://yagye_scoring:8000` |
+| `base_url: "http://localhost:4001"` (Core seeds) | `http://yagye_simulator:4001` |
+| `base_url: "http://localhost:4000"` (Simulator seeds) | `http://yagye_core:4000` |
+
+**Resolution:**
+1. Use service names (not `localhost`) for all inter-container URLs in
+   docker-compose env vars and in seed data.
+2. Add `SCORING_SERVICE_URL: http://yagye_scoring:8000` to the `yagye_core`
+   service's `environment:` block in `docker-compose.yml`.
+3. Reseed with Docker service hostnames where the seed data contains URLs.
+4. Restart affected containers after changing env vars.
+
+---
+
 ## Operational Contacts
 
 | System | Who to contact |

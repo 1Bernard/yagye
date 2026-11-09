@@ -19,13 +19,20 @@ module UI
   class Datatable < ApplicationComponent
     include UI::Theme
 
+    # empty_cta: { label: "Create payment link", href: new_payment_link_path }
+    # empty_cta: { label: "Add endpoint", href: new_path, turbo_frame: "drawer-frame" }
+    # Compat: passing only empty_message uses it as the title (old behaviour).
+    # Passing empty_title + empty_message gives the full title + subtitle layout.
     def initialize(records:, selectable: false, pagy: nil,
-                   empty_message: "No records found.", empty_icon: :layers)
+                   empty_message: nil, empty_title: nil, empty_icon: :layers,
+                   empty_cta: nil)
       @records       = records
       @selectable    = selectable
       @pagy          = pagy
       @empty_message = empty_message
+      @empty_title   = empty_title
       @empty_icon    = empty_icon
+      @empty_cta     = empty_cta
       @columns       = []
       @actions       = nil
       @header_block  = nil
@@ -86,13 +93,50 @@ module UI
     end
 
     def empty_state
-      div(class: "py-14 flex flex-col items-center justify-center gap-2 text-center") do
-        div(class: "w-10 h-10 rounded-xl bg-gray-100 flex items-center justify-center mb-1") do
-          span(class: "flex w-5 h-5 text-gray-400") do
+      # Resolve title/subtitle — backward-compat with legacy empty_message-only callers.
+      if @empty_title
+        title    = @empty_title
+        subtitle = @empty_message
+      elsif @empty_message
+        title    = @empty_message  # old callers: message becomes the heading
+        subtitle = nil
+      else
+        title    = "No records yet"
+        subtitle = nil
+      end
+
+      div(class: "py-16 flex flex-col items-center justify-center text-center px-6",
+          style: "background:radial-gradient(ellipse 55% 35% at 50% 25%,rgba(61,71,245,0.035) 0%,transparent 100%)") do
+        # Icon — card container with shadow and border
+        div(class: "relative w-[52px] h-[52px] flex items-center justify-center") do
+          div(class: "absolute inset-0 rounded-2xl border border-gray-200 bg-white shadow-sm")
+          span(class: "relative flex w-[22px] h-[22px] text-gray-400") do
             render UI::Icon.new(@empty_icon, class: "w-full h-full")
           end
         end
-        p(class: TYPE_BODY_MD) { plain @empty_message }
+
+        # Title
+        p(class: "mt-4 text-[14.5px] font-semibold text-gray-800 leading-snug tracking-[-0.01em]") do
+          plain title
+        end
+
+        # Subtitle (only shown when there is a true two-level hierarchy)
+        if subtitle
+          p(class: "mt-1.5 text-[12.5px] text-gray-400 max-w-[260px] leading-relaxed") do
+            plain subtitle
+          end
+        end
+
+        # Optional CTA button
+        if @empty_cta
+          cta = @empty_cta
+          link_opts = { href: cta[:href], class: "mt-5 #{BTN_PRIMARY}" }
+          link_opts[:data] = { turbo_frame: cta[:turbo_frame] } if cta[:turbo_frame]
+          a(**link_opts) do
+            render UI::Icon.new(cta[:icon], class: ICON_SM) if cta[:icon]
+            plain cta[:label]
+          end
+        end
       end
     end
 

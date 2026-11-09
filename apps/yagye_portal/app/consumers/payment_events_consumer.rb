@@ -33,7 +33,10 @@ class PaymentEventsConsumer < ApplicationConsumer
       net_amount:             event.net_amount,
       fulfilment_type:        event.fulfilment_type,
       shipping_country:       event.shipping_country,
-      billing_shipping_match: event.billing_shipping_match
+      billing_shipping_match: event.billing_shipping_match,
+      risk_decision:          event.risk_decision,
+      risk_score:             event.risk_score,
+      risk_flagged_at:        event.risk_flagged_at
     }.compact
 
     Payment.find_or_initialize_by(core_payment_id: event.public_id).tap do |p|
@@ -44,6 +47,7 @@ class PaymentEventsConsumer < ApplicationConsumer
       notify_payment(p, event)
       update_balance(event) if event.status == "paid"
       deduct_refund_balance(p, event) if event.status == "refunded"
+      broadcast_risk_badge if event.event_type == "payment.risk_flagged"
     end
   end
 
@@ -191,6 +195,29 @@ class PaymentEventsConsumer < ApplicationConsumer
     end
   rescue StandardError => e
     Rails.logger.warn("[PaymentEventsConsumer] receipt dispatch failed: #{e.message}")
+  end
+
+  def broadcast_risk_badge
+    count = Payment.where(risk_decision: "review").count
+    html  = risk_badge_html(count)
+    Turbo::StreamsChannel.broadcast_replace_to(
+      "risk_ops_global",
+      target: "risk-nav-badge",
+      html:   html
+    )
+  rescue StandardError => e
+    Rails.logger.warn("[PaymentEventsConsumer] risk badge broadcast failed: #{e.message}")
+  end
+
+  def risk_badge_html(count)
+    if count.positive?
+      style = "display:inline-flex;align-items:center;justify-content:center;min-width:16px;" \
+              "height:16px;border-radius:8px;background:#ef4444;color:#fff;font-size:9px;" \
+              "font-weight:700;padding:0 4px;margin-left:4px;flex-shrink:0;"
+      %(<span id="risk-nav-badge" style="#{style}">#{count}</span>)
+    else
+      %(<span id="risk-nav-badge" style="display:none;"></span>)
+    end
   end
 
   def format_minor_units(minor_units, currency_code = "GHS")

@@ -78,5 +78,12 @@ module Acl
     def fulfilment_type        = @p["fulfilment_type"].presence
     def shipping_country       = @p["shipping_country"].presence
     def billing_shipping_match = @p.key?("billing_shipping_match") ? @p["billing_shipping_match"] : nil
+
+    # ── ML risk signals ───────────────────────────────────────────────────────
+    # Present on payment.risk_flagged events; may also appear on payment.succeeded
+    # when the scoring service returns a decision alongside the payment state.
+    def risk_decision  = @p["risk_decision"].presence
+    def risk_score     = @p.key?("risk_score") && !@p["risk_score"].nil? ? @p["risk_score"].to_f : nil
+    def risk_flagged_at = @p["risk_flagged_at"]
   end
 end

@@ -195,7 +195,7 @@ defmodule YagyeCore.Merchants.MerchantsTest do
       assert api_key.merchant_id == merchant.id
       assert String.starts_with?(api_key.public_id, "key_")
       assert is_nil(api_key.revoked_at)
-      assert String.length(raw_key) == 43
+      assert String.length(raw_key) == 52
       assert String.slice(raw_key, 0, 24) == api_key.key_prefix
     end
 

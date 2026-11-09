@@ -122,4 +122,40 @@ class PaymentEventsConsumerTest < ActiveSupport::TestCase
     consume(payload)
     assert_equal true, payment.reload.billing_shipping_match
   end
+
+  # ── risk signals ──────────────────────────────────────────────────────────
+
+  test "persists risk_decision and risk_score from payment.risk_flagged event" do
+    payload = base_payload(
+      "event_type"  => "payment.risk_flagged",
+      "risk_decision" => "review",
+      "risk_score"    => 0.9231,
+      "state"         => "succeeded"
+    )
+    consume(payload)
+    p = Payment.find_by!(core_payment_id: payload["public_id"])
+    assert_equal "review",  p.risk_decision
+    assert_in_delta 0.9231, p.risk_score, 0.0001
+  end
+
+  test "leaves risk_decision nil when absent from payload" do
+    payload = base_payload
+    consume(payload)
+    p = Payment.find_by!(core_payment_id: payload["public_id"])
+    assert_nil p.risk_decision
+  end
+
+  test "leaves risk_score nil when risk_score key absent" do
+    payload = base_payload("risk_decision" => "review")
+    consume(payload)
+    p = Payment.find_by!(core_payment_id: payload["public_id"])
+    assert_nil p.risk_score
+  end
+
+  test "leaves risk_score nil when risk_score value is explicitly null" do
+    payload = base_payload("risk_score" => nil)
+    consume(payload)
+    p = Payment.find_by!(core_payment_id: payload["public_id"])
+    assert_nil p.risk_score
+  end
 end

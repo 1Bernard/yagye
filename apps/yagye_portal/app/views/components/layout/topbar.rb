@@ -91,8 +91,24 @@ module Layout
 
     def right_actions
       div(style: "display:flex;align-items:center;gap:2px;flex-shrink:0") do
+        ai_btn
         notif_btn
         user_menu
+      end
+    end
+
+    def ai_btn
+      return unless current_user
+      button(type: "button",
+             class: "topbar-icon-btn",
+             style: "width:34px;height:34px;border-radius:7px;display:flex;" \
+                    "align-items:center;justify-content:center;color:#{MUTED_TEXT};" \
+                    "background:none;border:none;cursor:pointer",
+             title: "AI Assistant",
+             data: { controller: "ai-btn", action: "click->ai-btn#toggle" }) do
+        span(style: "display:flex;width:16px;height:16px") do
+          render UI::Icon.new(:chart, class: "w-full h-full")
+        end
       end
     end
 

@@ -1,6 +1,6 @@
 # ML Architecture
 
-**Last updated:** 2026-10-21
+**Last updated:** 2026-11-06
 
 Yagye's ML layer (planned for P20) adds four models to the payment processing
 pipeline. This document is the definitive reference for what each model does,
@@ -154,11 +154,38 @@ consistently outperform linear models on this problem type. Neural networks are
 not warranted — the feature space is small and interpretability is important for
 ops to trust routing decisions.
 
-Two separate model instances are trained and served:
-- `routing_native_rail` — trained on Model A payment data (single aggregator
-  path per network). Optimises the go/hold decision.
-- `routing_external_psp` — trained on Model B payment data (multiple PSP
-  options exercised). Optimises provider selection across PSPs.
+**One model, all payment rails.** The routing model trains on all Silver
+payment events regardless of `method` (mobile_money, card, bank_transfer).
+`payment_method_enc`, `provider_kind_enc`, and `network_code_enc` are features
+the tree uses to learn method-specific success patterns. When card payments go
+live at P13+, those rows enter Silver and the weekly retrain automatically
+incorporates them — no code changes needed.
+
+The name `routing_native_rail` reflects the data it was first trained on
+(MoMo-only simulation data). The model is NOT method-specific.
+
+Two model *instances* are served, selected at inference time by provider kind:
+- `routing_native_rail` — selected when all candidates are `native_rail`.
+  Optimises the go/hold decision for MoMo aggregators.
+- `routing_external_psp` — selected when any candidate is `external_psp`.
+  Optimises provider selection across PSPs (Stripe, Paystack, etc.).
+
+Both instances share the same training code and feature set. The only
+difference is the data they see: native_rail rows vs external_psp rows.
+
+#### Known placeholder values in training (fix before full ML rollout)
+
+| Feature | Current training value | Should be |
+|---|---|---|
+| `circuit_breaker_state` | Always `0.0` (closed) | Historical CB state from Bronze events |
+| `candidate_count` | Always `1.0` | Real candidate count passed at inference ✓ |
+
+`circuit_breaker_state` is `0.0` in training because historical CB state is not
+in Silver. At inference it comes from Redis (real value). This training/inference
+mismatch means the model implicitly assumes normal (closed) state; a live CB
+trip will produce a score the model hasn't been trained to handle. This is an
+acceptable MVP limitation — the rule-based fallback (health-rate proxy) covers
+degraded provider scenarios.
 
 The correct instance is selected at inference time based on `provider_kind` in
 the request candidates.
@@ -412,22 +439,55 @@ For Gold table population: this SQL runs over the last 1 hour, writes to
 ### Categorical feature encoding
 
 Tree models handle categorical features natively if encoded consistently.
-Yagye uses integer encoding (not one-hot) for categories with cardinality > 10:
+Yagye uses a **stable static integer map** for all categorical columns — not
+`OrdinalEncoder`, which recomputes ordinals from the training data and shifts
+existing assignments when a new category appears.
+
+The maps are defined as constants in both the training module and the scoring
+service and must be kept identical. They are **append-only**: to add a new
+provider or payment method, append a new entry — never change existing indices.
 
 ```python
-from sklearn.preprocessing import OrdinalEncoder
+# yagye_data/training/models/routing_predictor.py  (source of truth)
+# yagye_scoring/models/routing_predictor.py         (mirror — keep in sync)
 
-encoder = OrdinalEncoder(
-    handle_unknown="use_encoded_value",
-    unknown_value=-1
-)
+PROVIDER_CODE_ENC = {
+    "mtn_momo_gh":         0,
+    "telecel_cash_gh":     1,
+    "airteltigo_money_gh": 2,
+    "simulator":           3,
+    "stripe_gh":           4,   # P13+
+    "paystack_gh":         5,   # P13+
+}
 
-categorical_features = ["provider_code", "network_code", "merchant_sector"]
-X[categorical_features] = encoder.fit_transform(X[categorical_features])
+PAYMENT_METHOD_ENC = {
+    "mobile_money":  0,
+    "card":          1,
+    "bank_transfer": 2,
+}
+
+NETWORK_CODE_ENC = {
+    "MTN":        0,
+    "Telecel":    1,
+    "AirtelTigo": 2,
+}
+
+PROVIDER_KIND_ENC = {
+    "native_rail":  0,
+    "external_psp": 1,
+}
 ```
 
-The fitted encoder is saved as part of the model artifact (alongside the ONNX
-model) so that serving uses the same category → integer mapping.
+Unknown values map to `-1.0` via `.get(key, -1)`.  The ONNX model's tree
+routes -1 to the "unknown" branch it learned from rows where the provider
+code was not in the training set.
+
+**Why not OrdinalEncoder?**  An encoder fitted on `{mtn, telecel}` assigns
+`mtn=0, telecel=1`. When a retraining run sees `{mtn, telecel, airteltigo}`,
+the encoder assigns `airteltigo=0, mtn=1, telecel=2` — existing codes shift.
+The promoted ONNX model then misclassifies `mtn_momo_gh` because its training
+tree branched on `provider_code_enc < 0.5` (meaning "is mtn?") but at inference
+it now receives `1.0`. A static map makes this class of bug impossible.
 
 ### Missing feature handling
 
@@ -540,12 +600,41 @@ model = xgb.XGBClassifier(
     tree_method="hist",   # fast training
 )
 
+# IMPORTANT: Pass .values (numpy arrays), NOT the DataFrame, to model.fit().
+# onnxmltools converts XGBoost → ONNX using the model's stored feature names.
+# XGBoost records the DataFrame column names (e.g. "provider_code_enc") when
+# a DataFrame is passed. onnxmltools then rejects these because it expects
+# positional names "f0", "f1", ... from a booster trained on plain arrays.
+# Passing .values strips the column names; the resulting ONNX model uses f0/f1/…
+# and inference works correctly.
 model.fit(
-    X_train, y_train,
-    eval_set=[(X_val, y_val)],
+    X_train.values, y_train.values,
+    eval_set=[(X_val.values, y_val.values)],
     verbose=50
 )
 ```
+
+### Gold ETL date-window alignment
+
+The Gold ETL pipeline's `--hours` parameter controls how far back the Silver
+data window starts. The default is `--hours 25`, which anchors to
+`window_start.strftime("%Y-%m-%d")` — a **full calendar-day partition from
+yesterday**. If Silver data was written today (same-day simulation or test
+run), yesterday's partition will not contain it and training will fail silently
+with zero rows.
+
+Use `--hours 2` when running against same-day Silver data:
+
+```bash
+# Production (default — yesterday's full partition)
+python -m yagye_data.etl.gold --hours 25
+
+# Same-day testing (anchors to current hour, picks up today's Silver)
+python -m yagye_data.etl.gold --hours 2
+```
+
+This matters most when seeding a fresh environment and running the full
+Bronze → Silver → Gold → Training pipeline in a single day.
 
 ### Time-based train/validation split
 
@@ -589,7 +678,7 @@ champion on both:
 champion_auc = evaluate_model(champion_model, X_val, y_val)
 challenger_auc = evaluate_model(challenger_model, X_val, y_val)
 
-if challenger_auc > champion_auc + 0.02:  # 2% improvement threshold
+if challenger_auc > champion_auc + 0.005:  # 0.5% improvement threshold
     register_as_candidate(challenger_model)
     start_shadow_mode(challenger_model)
 else:
@@ -597,8 +686,10 @@ else:
     log_no_improvement(champion_auc, challenger_auc)
 ```
 
-The 2% improvement threshold prevents constant model churn from noise in the
-validation metrics.
+The 0.5% improvement threshold is intentionally low to allow incremental
+model improvements to reach production. A higher threshold (e.g. 2%) risks
+blocking legitimate improvements when training data is limited and validation
+set variance is high — a common situation in the early months after launch.
 
 ### Feature importance and interpretability
 
@@ -680,6 +771,15 @@ The serving layer (FastAPI) always loads the model version pinned in the
 `champion.flag` marker. Promoting a new champion is an S3 write — no code
 deployment required.
 
+**Model loading implementation note:** The registry reads `champion.flag` to
+get the version string (e.g. `v20261106_195509`), downloads the ONNX file to
+a temp path (`/tmp/tmpXXX.onnx`), and calls `model.load_from_path(tmp_path,
+version=version)`. The `version=` parameter must be passed explicitly — if
+omitted, `load_from_path` tries to parse the version from the file path, which
+fails for temp paths that contain no version segment, and the model logs
+`version: rule_based_fallback` even though it is fully loaded. Always pass
+`version=` from the flag content, not from the path.
+
 ---
 
 ## 7. ONNX Export and Serving
@@ -700,12 +800,18 @@ model.
 # Export XGBoost → ONNX
 from skl2onnx.common.data_types import FloatTensorType
 import onnxmltools
+import xgboost as xgb
 
 initial_type = [("float_input", FloatTensorType([None, len(feature_cols)]))]
 onnx_model = onnxmltools.convert_xgboost(
     model,
     initial_types=initial_type,
-    target_opset=17
+    target_opset=17,
+    # zipmap=False is critical: without it, ONNX Runtime returns probabilities
+    # as a list of dicts [{0: p0, 1: p1}, ...]. With zipmap=False it returns
+    # a 2D ndarray of shape [n_samples, n_classes]. The ndarray form is faster,
+    # more predictable, and required for the inference code below.
+    options={xgb.XGBClassifier: {"zipmap": False}},
 )
 
 with open("model.onnx", "wb") as f:
@@ -740,8 +846,22 @@ class RoutingPredictor:
         ]], dtype=np.float32)
 
         output = self.session.run(None, {self.input_name: x})
-        return float(output[1][0][1])  # probability of class 1 (success)
+        # output[0] = predicted class labels [n_samples]
+        # output[1] = probability matrix [n_samples, n_classes] (zipmap=False)
+        # Column 1 is P(class=1) = P(success). First sample = [0].
+        return float(output[1][0][1])
+
+    def predict_batch(self, X: np.ndarray) -> np.ndarray:
+        """Return P(success) for every row in X."""
+        probs = self.session.run(None, {self.input_name: X.astype(np.float32)})[1]
+        # probs is a 2D ndarray [n_samples, n_classes]; column 1 = P(success)
+        return probs[:, 1]
 ```
+
+**zipmap=False is mandatory.** If the ONNX model was exported without this
+option, `output[1]` will be a list of dicts (`[{0: p0, 1: p1}, ...]`). Calling
+`probs[:, 1]` on a list of dicts raises `AttributeError: 'list' object has no
+attribute 'ndim'`. Always verify the export flag before serving a new model.
 
 ONNX Runtime inference is:
 - **Fast.** Single-row inference in < 1ms on CPU. The p99 SLA (10ms) includes
@@ -1070,6 +1190,17 @@ Activation is a DB flag (`routing_ml_rollout_percent`) — no code deployment.
 Set to 0 (shadow only) → 5 → 20 → 50 → 100 over 14 days. Instant rollback by
 setting back to 0.
 
+**Shadow mode at `routing_ml_rollout_percent = 0`:** Even at 0, Core fires a
+background `Task` on every payment dispatch that calls `/score/routing` and
+logs the result at `debug` level with fields `payment_id`, `provider_code`,
+`score`, `routing_mode`, and `model_version`. This builds a comparison log
+without touching real routing decisions. The scoring service is therefore called
+in production from day one of P20 launch — make sure `SCORING_SERVICE_URL` is
+set in docker-compose and production env vars to `http://yagye_scoring:8000`
+(the Docker service name, not `localhost` — containers cannot reach each other
+via localhost). An unset or wrong URL causes all shadow calls to silently fail
+with `:scoring_unavailable`, which is logged but generates no training labels.
+
 ### Shadow mode: the safe way to validate a new model version
 
 Once ML is active as champion, a new model version runs in shadow mode before
@@ -1384,8 +1515,8 @@ degraded challenger:
 ```python
 # training/gate.py
 def should_promote(champion_metrics, challenger_metrics):
-    # Challenger must improve by at least 2%
-    if challenger_metrics["auc_pr"] <= champion_metrics["auc_pr"] + 0.02:
+    # Challenger must improve by at least 0.5%
+    if challenger_metrics["auc_pr"] <= champion_metrics["auc_pr"] + 0.005:
         return False, "insufficient_improvement"
 
     # Challenger must not be worse than champion on any major subgroup

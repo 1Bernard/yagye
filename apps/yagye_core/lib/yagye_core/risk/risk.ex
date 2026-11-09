@@ -12,6 +12,7 @@ defmodule YagyeCore.Risk do
 
   import Ecto.Query
 
+  alias YagyeCore.Outbox
   alias YagyeCore.Payments.Schemas.Payment
   alias YagyeCore.Repo
   alias YagyeCore.Risk.Schemas.RiskLabel
@@ -47,6 +48,20 @@ defmodule YagyeCore.Risk do
               payment_id: payment_id,
               flagged_by: flagged_by,
               decision: updated.risk_decision
+            )
+
+            Outbox.emit(
+              updated,
+              "payment.risk_flagged",
+              %{
+                public_id: updated.public_id,
+                risk_decision: updated.risk_decision,
+                risk_score: updated.risk_score && Decimal.to_float(updated.risk_score),
+                merchant_id: to_string(updated.merchant_id),
+                risk_flagged_at:
+                  updated.risk_flagged_at && DateTime.to_iso8601(updated.risk_flagged_at)
+              },
+              destination: "kafka:yagye.payments.v1"
             )
 
           _ ->

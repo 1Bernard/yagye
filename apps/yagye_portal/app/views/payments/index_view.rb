@@ -8,7 +8,7 @@ module Payments
                    can_view_pii: false, can_export: false,
                    status_filter: nil, method_filter: nil, provider_filter: nil,
                    mode_filter: nil, from: nil, to: nil, query: nil,
-                   payments_stream_key: nil)
+                   payments_stream_key: nil, filters_conditions: nil)
       @payments            = payments
       @pagy                = pagy
       @stats               = stats
@@ -23,6 +23,7 @@ module Payments
       @to                  = to
       @query               = query
       @payments_stream_key = payments_stream_key
+      @filters_conditions  = Array(filters_conditions)
     end
 
     def view_template
@@ -170,8 +171,9 @@ module Payments
     # ── Toolbar ───────────────────────────────────────────────────────────────
 
     def toolbar_content
+      vqb_active   = @filters_conditions.any? { |c| c["field"].present? || c[:field].present? }
       filter_count = [ @status_filter.present?, @method_filter.present?,
-                       @from.present?, @to.present? ].count(true)
+                       @from.present?, @to.present?, vqb_active ].count(true)
 
       form(action: payments_path, method: "get",
            data: { controller: "filter-form", filter_form_target: "form" }) do
@@ -227,7 +229,8 @@ module Payments
     def filter_btn(filter_count)
       a(href: filter_payments_path(q: @query, status: @status_filter,
                                    method: @method_filter, provider: @provider_filter,
-                                   from: @from, to: @to),
+                                   from: @from, to: @to,
+                                   filters: @filters_conditions.presence),
         class: "inline-flex items-center gap-[5px] px-3 h-8 border rounded-[9px] " \
                "text-[12.5px] font-medium bg-white cursor-pointer transition-colors no-underline " \
                "#{filter_count > 0 ? 'border-gray-400 text-gray-900' : 'border-gray-200 text-gray-600'} " \

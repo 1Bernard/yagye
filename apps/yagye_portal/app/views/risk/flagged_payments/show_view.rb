@@ -40,6 +40,18 @@ module Risk
             subtitle: "Transaction risk assessment and analyst disposition."
           )
 
+          div(class: "flex justify-end mb-4") do
+            a(href: sar_risk_flagged_payment_path(@payment["id"]),
+              class: "inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl " \
+                     "border border-gray-200 bg-white text-[12px] font-medium text-gray-600 " \
+                     "hover:bg-gray-50 transition-colors no-underline") do
+              span(style: "display:flex;width:13px;height:13px;flex-shrink:0") do
+                render UI::Icon.new(:file, class: "w-full h-full")
+              end
+              plain "Export SAR"
+            end
+          end
+
           payment_detail_card
           disposition_card if @can_dispose
           labels_history

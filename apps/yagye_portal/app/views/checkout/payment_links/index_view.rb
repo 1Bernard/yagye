@@ -174,7 +174,12 @@ module Checkout
     def links_list_section
       fmt_n = ->(m) { fmt_num(m) }
 
-      render UI::Datatable.new(records: @links, empty_message: "No payment links found.") do |t|
+      render UI::Datatable.new(records: @links,
+                               empty_title:   "No payment links yet",
+                               empty_message: "Create a link to start accepting payments without any integration.",
+                               empty_icon:    :link,
+                               empty_cta:     { label: "Create payment link", href: new_payment_link_path,
+                                                icon: :plus, turbo_frame: "drawer-frame" }) do |t|
         t.header { toolbar_content }
 
         t.column("#", class: "text-gray-400 tabular-nums text-right w-8") do |_, i|

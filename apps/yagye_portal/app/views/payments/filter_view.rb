@@ -27,7 +27,8 @@ module Payments
       [ "AirtelTigo Money", "airteltigo" ]
     ].freeze
 
-    def initialize(query: nil, status: nil, method: nil, provider: nil, from: nil, to: nil, saved_filters: [])
+    def initialize(query: nil, status: nil, method: nil, provider: nil, from: nil, to: nil,
+                   saved_filters: [], conditions: nil, merchant: false)
       @query         = query
       @status        = status
       @method        = method
@@ -35,6 +36,8 @@ module Payments
       @from          = from
       @to            = to
       @saved_filters = saved_filters
+      @conditions    = Array(conditions).map(&:to_h)
+      @merchant      = merchant
     end
 
     def view_template
@@ -99,8 +102,15 @@ module Payments
           end
 
           # Date range with presets (kept from current design)
-          render UI::Drawer::Section.new(title: "Date range", icon: :calendar, palette: "amber", border: false) do
+          render UI::Drawer::Section.new(title: "Date range", icon: :calendar, palette: "amber", border: true) do
             render UI::Filter::DateRange.new(from: @from, to: @to)
+          end
+
+          # Advanced: Visual Query Builder — ops only
+          unless @merchant
+            render UI::Drawer::Section.new(title: "Advanced conditions", icon: :filter, palette: "brand", border: false) do
+              render UI::QueryBuilder.new(conditions: @conditions, merchant: false)
+            end
           end
         end
 
@@ -117,11 +127,13 @@ module Payments
     private
 
     def active_count
+      vqb_count = !@merchant && @conditions.count { |c| c["field"].present? }
       [
         @status.presence,
         @method.presence,
         @provider.presence,
-        (@from.presence || @to.presence)
+        (@from.presence || @to.presence),
+        (vqb_count.positive? ? true : nil)
       ].compact.count
     end
 

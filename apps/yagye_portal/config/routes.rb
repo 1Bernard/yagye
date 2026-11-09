@@ -129,9 +129,10 @@ Rails.application.routes.draw do
 
   # ── Risk & Fraud (internal_staff only, compliance + ops roles) ──────────────
   scope module: "risk" do
-    get  "risk/flagged-payments",            to: "flagged_payments#index",   as: :risk_flagged_payments
-    get  "risk/flagged-payments/:id",        to: "flagged_payments#show",    as: :risk_flagged_payment
+    get  "risk/flagged-payments",             to: "flagged_payments#index",   as: :risk_flagged_payments
+    get  "risk/flagged-payments/:id",         to: "flagged_payments#show",    as: :risk_flagged_payment
     post "risk/flagged-payments/:id/dispose", to: "flagged_payments#dispose", as: :dispose_risk_flagged_payment
+    get  "risk/flagged-payments/:id/sar",     to: "flagged_payments#sar",     as: :sar_risk_flagged_payment
 
     get  "risk/screening-hits",              to: "screening_hits#index",     as: :risk_screening_hits
     post "risk/screening-hits/:id/dispose",  to: "screening_hits#dispose",   as: :dispose_risk_screening_hit
@@ -235,6 +236,7 @@ get "payouts/:id/statement",            to: "payouts#statement",               a
     patch  "developers/webhooks/:endpoint_id",        to: "webhooks#update",  as: :developers_webhook
     delete "developers/webhooks/:endpoint_id",        to: "webhooks#destroy"
     post   "developers/webhooks/:endpoint_id/test",   to: "webhooks#test",    as: :test_developers_webhook
+    post   "developers/sandbox-run",                  to: "sandbox_runs#create", as: :developers_sandbox_run
     post   "developers/deliveries/:id/retry",         to: "webhook_deliveries#retry",         as: :retry_developers_delivery
     patch  "developers/webhooks/:endpoint_id/toggle", to: "webhooks#toggle_active",            as: :toggle_developers_webhook
     get    "developers/webhooks/:endpoint_id/disable-modal", to: "webhooks#disable_modal", as: :disable_modal_developers_webhook
@@ -402,4 +404,15 @@ get "payouts/:id/statement",            to: "payouts#statement",               a
             controller: "sso_configurations",
             only:       %i[new create edit update destroy],
             as:         :settings_sso
+
+  # ── AI Analytics Chatbot ──────────────────────────────────────────────────
+  scope module: "ai" do
+    # Ops chatbot — internal_staff only (enforced in controller)
+    get  "ai/ops-chat",  to: "ops_chat#index",  as: :ai_ops_chat
+    post "ai/ops-chat",  to: "ops_chat#create"
+
+    # Merchant chatbot — merchant scope enforced in controller
+    get  "ai/chat",      to: "merchant_chat#index",  as: :ai_merchant_chat
+    post "ai/chat",      to: "merchant_chat#create"
+  end
 end

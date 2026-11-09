@@ -684,7 +684,7 @@ defmodule YagyeCore.Merchants do
   end
 
   defp dispatch(%IssueApiKey{} = cmd) do
-    {raw_key, key_prefix, secret_hash} = generate_key_material(cmd.kind)
+    {raw_key, key_prefix, secret_hash} = generate_key_material(cmd.kind, cmd.mode)
 
     Multi.new()
     |> Multi.run(:merchant, fn _repo, _changes ->
@@ -952,20 +952,30 @@ defmodule YagyeCore.Merchants do
   end
 
   # Secret keys: 32 random bytes base64-encoded → 43-char key; first 24 stored as prefix.
-  # Publishable keys: 18 random bytes → 24-char base64 = the entire key (not secret, no hash).
-  defp generate_key_material("secret") do
-    raw = :crypto.strong_rand_bytes(32) |> Base.encode64(padding: false)
+  # Key format: ysk_{mode}_{random} for secret, ypk_{mode}_{random} for publishable.
+  # mode_tag is "live" for :live, "test" for :simulation/:sandbox.
+  # Secret keys: prefix = first 24 chars (used for DB lookup); full key is Argon2-hashed.
+  # Publishable keys: exactly 24 chars total — the whole key IS the prefix (no hash needed).
+  defp generate_key_material(kind, mode) when is_atom(kind),
+    do: generate_key_material(to_string(kind), mode)
+
+  defp generate_key_material("secret", mode) do
+    mode_tag = if mode == :live, do: "live", else: "test"
+    random = :crypto.strong_rand_bytes(32) |> Base.encode64(padding: false)
+    raw = "ysk_#{mode_tag}_#{random}"
     prefix = String.slice(raw, 0, 24)
     hash = Argon2.hash_pwd_salt(raw)
     {raw, prefix, hash}
   end
 
-  defp generate_key_material("publishable") do
-    raw = :crypto.strong_rand_bytes(18) |> Base.encode64(padding: false)
+  defp generate_key_material("publishable", mode) do
+    mode_tag = if mode == :live, do: "live", else: "test"
+
+    # "ypk_test_" or "ypk_live_" = 9 chars; 15 random chars → total 24 chars = whole key = prefix.
+    random = :crypto.strong_rand_bytes(12) |> Base.encode64(padding: false) |> String.slice(0, 15)
+    raw = "ypk_#{mode_tag}_#{random}"
     {raw, raw, nil}
   end
-
-  defp generate_key_material(kind) when is_atom(kind), do: generate_key_material(to_string(kind))
 
   defp one_or_error(query) do
     case Repo.one(query) do

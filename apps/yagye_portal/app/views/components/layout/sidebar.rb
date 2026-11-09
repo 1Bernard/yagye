@@ -4,6 +4,8 @@ module Layout
   class Sidebar < ApplicationComponent
     include UI::Theme
 
+    register_element :turbo_cable_stream_source
+
     NAV_SECTIONS = [
       {
         label: nil,
@@ -67,6 +69,8 @@ module Layout
           { key: :settings,   icon: :settings, label: "Settings",       path: :settings_path },
           { key: :settings_pricing, icon: :tag, label: "Pricing & Fees", path: :settings_pricing_path,
             merchant_only: true },
+          { key: :ai_chat,    icon: :chart,    label: "AI Assistant",   path: :ai_merchant_chat_path,
+            merchant_only: true },
           { key: :help,       icon: :headset,  label: "Help & Support", path: :help_path }
         ]
       }
@@ -77,6 +81,16 @@ module Layout
     end
 
     def view_template
+      # Ops-only Turbo Stream subscription for the real-time risk badge.
+      # Broadcasts arrive on "risk_ops_global" when payment.risk_flagged events are consumed.
+      if internal_staff?
+        signed = Turbo::StreamsChannel.signed_stream_name("risk_ops_global")
+        turbo_cable_stream_source(
+          channel: "Turbo::StreamsChannel",
+          signed_stream_name: signed
+        )
+      end
+
       # Width is managed by .sidebar-wrapper CSS (240px) and .sidebar-collapsed (64px).
       # h-full fills the h-screen overflow-hidden parent set in Shell.
       nav(class: "sidebar-wrapper bg-white border-r border-gray-100 flex flex-col h-full flex-shrink-0",
@@ -161,7 +175,22 @@ module Layout
           render UI::Icon.new(item[:icon], class: ICON_NAV)
         end
         span(class: "sidebar-nav-label") { item[:label] }
+        risk_nav_badge if item[:key] == :risk
       end
+    end
+
+    def risk_nav_badge
+      count = Payment.where(risk_decision: "review").count
+      style = "display:inline-flex;align-items:center;justify-content:center;min-width:16px;" \
+              "height:16px;border-radius:8px;background:#ef4444;color:#fff;font-size:9px;" \
+              "font-weight:700;padding:0 4px;margin-left:4px;flex-shrink:0;"
+      if count.positive?
+        span(id: "risk-nav-badge", class: "sidebar-nav-label", style: style) { plain count.to_s }
+      else
+        span(id: "risk-nav-badge", style: "display:none;")
+      end
+    rescue StandardError
+      span(id: "risk-nav-badge", style: "display:none;")
     end
 
     # ── Merchant tier card ──────────────────────────────────────────────────────

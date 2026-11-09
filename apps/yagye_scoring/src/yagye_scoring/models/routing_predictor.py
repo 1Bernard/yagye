@@ -18,6 +18,36 @@ import numpy as np
 
 from yagye_scoring.models.base import BaseMLModel
 
+# Stable categorical encoding maps.
+# These MUST match the constants in yagye_data/training/models/routing_predictor.py.
+# Append-only: never re-order or remove entries — the ONNX model bakes these ordinals.
+PROVIDER_CODE_ENC: dict[str, int] = {
+    "mtn_momo_gh":         0,
+    "telecel_cash_gh":     1,
+    "airteltigo_money_gh": 2,
+    "simulator":           3,
+    # External PSPs added at P13+
+    "stripe_gh":           4,
+    "paystack_gh":         5,
+}
+
+PAYMENT_METHOD_ENC: dict[str, int] = {
+    "mobile_money":  0,
+    "card":          1,
+    "bank_transfer": 2,
+}
+
+NETWORK_CODE_ENC: dict[str, int] = {
+    "MTN":        0,
+    "Telecel":    1,
+    "AirtelTigo": 2,
+}
+
+PROVIDER_KIND_ENC: dict[str, int] = {
+    "native_rail":  0,
+    "external_psp": 1,
+}
+
 # Feature columns in training order — must match the ONNX input schema exactly.
 # Changing this list is a MAJOR version bump on the model.
 _ROUTING_FEATURES = [

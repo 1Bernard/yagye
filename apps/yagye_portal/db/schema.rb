@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_10_27_000001) do
+ActiveRecord::Schema[8.1].define(version: 2026_11_08_000001) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pgcrypto"
@@ -357,6 +357,9 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_27_000001) do
     t.text "payment_method"
     t.text "provider"
     t.text "reference"
+    t.text "risk_decision"
+    t.datetime "risk_flagged_at"
+    t.float "risk_score"
     t.datetime "settled_at"
     t.text "shipping_country"
     t.text "status", null: false
@@ -368,6 +371,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_27_000001) do
     t.index ["mode"], name: "index_portal_payments_on_mode"
     t.index ["payment_method"], name: "index_portal_payments_on_payment_method"
     t.index ["reference"], name: "index_portal_payments_on_reference"
+    t.index ["risk_decision"], name: "index_portal_payments_on_risk_decision"
     t.index ["status"], name: "index_portal_payments_on_status"
   end
 

@@ -65,7 +65,7 @@ step is completed or a decision is made. Status values: `todo`, `in-progress`, `
 | P17 | Horizontal Scale & Distributed State | **done** |
 | P18 | Observability II: Tracing & SLOs | **done** |
 | P19 | The Data Platform | **in-progress** |
-| P20 | Risk & Machine Learning | **in-progress** | Steps 0–7 largely done; 2 items remaining: Solid Cable badge, SAR export |
+| P20 | Risk & Machine Learning | **in-progress** | Steps 0–7 done; remaining: scoring unit tests, portal risk controller tests, provider_health ETL unit test |
 | P21 | Security Hardening | todo |
 | P22 | Going Live | todo |
 
@@ -467,7 +467,7 @@ treasury routing (that is out of PSP scope).
 
 ---
 
-### P20 — Risk & Machine Learning **[in-progress — Steps 0–7 largely done; 2 items remaining: Solid Cable badge, SAR export]**
+### P20 — Risk & Machine Learning **[in-progress — Steps 0–7 done; remaining: scoring unit tests, portal risk controller tests, provider_health ETL unit test]**
 
 **Code-analysis findings (2026-10-31) — gaps confirmed before implementation:**
 - Circuit breaker already has `:half_open` state (closed → open → half_open → closed). ✓
@@ -484,11 +484,10 @@ treasury routing (that is out of PSP scope).
 **Code-audit findings (2026-11-02) — more done than BUILD_PLAN showed:**
 - Steps 1, 2, 4, 5, 6, 7 (partial) were already implemented. See updated checkboxes below.
 - `payment.succeeded`/`payment.failed` outbox missing risk fields — fixed 2026-11-02.
-- 2 genuine remaining gaps: (a) Solid Cable real-time badge on Risk nav; (b) SAR PDF export.
-- Core internal API endpoints for flagged payments missing. Step 6.
-- Portal Risk & Compliance section (3 views) missing. Step 7.
-- Compliance notification on hold event missing. Step 7.
-- SAR PDF export missing. Step 7.
+- Both originally-flagged gaps are now closed (verified 2026-11-09): Solid Cable risk badge wired in `payment_events_consumer.rb` + `sidebar.rb`; SAR PDF export implemented via `Risk::SarPdfGenerator` + flagged payments controller.
+- Core internal API endpoints for flagged payments — done. Step 6.
+- Portal Risk & Compliance section (3 views) — done. Step 7.
+- Compliance notification on hold event — done. Step 7.
 
 **Step 0 — already done (2026-09-25)**
 - [x] `yagye_scoring` FastAPI service scaffolded with `/score/routing`, `/score/risk`,
@@ -566,10 +565,8 @@ treasury routing (that is out of PSP scope).
       merchant filter.
 - [x] `Risk::FlaggedPayments::ShowView` — case review disposition workflow (clear/escalate/block).
 - [x] `Risk::ScreeningHits::IndexView` — screening_hits list view.
-- [ ] **GAP**: Real-time Solid Cable badge on Risk nav item not implemented — no broadcast
-      wired to `risk_flagged_at` set event. Compliance team must refresh manually.
-- [ ] **GAP**: SAR PDF export not implemented — "Export SAR" button and PDF generation
-      (case summary, payment details, ML signals, disposition history) for FIC filing.
+- [x] Real-time Solid Cable badge on Risk nav — `payment_events_consumer.rb` broadcasts on `payment.risk_flagged`; sidebar renders and updates `#risk-nav-badge` via Turbo Stream.
+- [x] SAR PDF export — `Risk::SarPdfGenerator` generates case summary + ML signals PDF; "Export SAR" button in `ShowView` streams it as download.
 
 **Step 8 — Tests (partial)**
 - [x] Core: `risk_test.exs` — covers `flag_payment/2`, `dispose_case/3`, SoD guard, `list_flagged/1`.

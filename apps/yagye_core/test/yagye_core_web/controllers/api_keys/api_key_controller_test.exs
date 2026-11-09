@@ -33,7 +33,7 @@ defmodule YagyeCoreWeb.Controllers.ApiKeys.ApiKeyControllerTest do
       assert body["label"] == ""
       # raw key present on creation only
       assert is_binary(body["key"])
-      assert String.length(body["key"]) == 43
+      assert String.length(body["key"]) == 52
     end
 
     test "accepts a label and returns it in the response", %{

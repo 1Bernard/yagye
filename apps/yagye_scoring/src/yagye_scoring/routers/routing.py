@@ -10,6 +10,12 @@ from fastapi import APIRouter
 from yagye_scoring.config import settings
 from yagye_scoring.dependencies import Registry
 from yagye_scoring.features.provider_health import get_provider_features
+from yagye_scoring.models.routing_predictor import (
+    NETWORK_CODE_ENC,
+    PAYMENT_METHOD_ENC,
+    PROVIDER_CODE_ENC,
+    PROVIDER_KIND_ENC,
+)
 from yagye_scoring.schemas.routing import (
     ProviderScore,
     RoutingScoringRequest,
@@ -39,15 +45,23 @@ async def score_routing(req: RoutingScoringRequest, registry: Registry) -> Routi
         else registry.routing_native_rail
     )
 
+    n_candidates = len(req.provider_candidates)
+    payment_method_enc = float(PAYMENT_METHOD_ENC.get(req.payment_method, -1))
+    network_code_enc   = float(NETWORK_CODE_ENC.get(req.network_code or "", -1))
+
     scores: list[ProviderScore] = []
     for candidate in req.provider_candidates:
         provider_features = raw_features.get(candidate.provider_code, {})
         features = {
             **provider_features,
-            "amount_bucket": req.amount_minor // 10_000,
-            "hour_of_day": req.hour_of_day,
-            "day_of_week": req.day_of_week,
-            "candidate_count": len(req.provider_candidates),
+            "provider_code_enc":   float(PROVIDER_CODE_ENC.get(candidate.provider_code, -1)),
+            "provider_kind_enc":   float(PROVIDER_KIND_ENC.get(candidate.provider_kind, 0)),
+            "payment_method_enc":  payment_method_enc,
+            "network_code_enc":    network_code_enc,
+            "amount_bucket":       req.amount_minor // 10_000,
+            "hour_of_day":         req.hour_of_day,
+            "day_of_week":         req.day_of_week,
+            "candidate_count":     float(n_candidates),
         }
         score = model.predict(features)
         scores.append(

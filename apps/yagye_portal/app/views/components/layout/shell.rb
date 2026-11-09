@@ -31,6 +31,7 @@ module Layout
       render UI::Flash.new(flash: flash)
       drawer_shell
       modal_shell
+      render Layout::AiChatPanel.new(user: current_user) if current_user
       div(id: "sidebar-nav-tooltip")
 
       if current_user
