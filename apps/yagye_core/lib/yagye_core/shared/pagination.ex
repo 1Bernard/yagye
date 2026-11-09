@@ -19,7 +19,11 @@ defmodule YagyeCore.Shared.Pagination do
   @default_limit 25
   @max_limit 100
 
-  @spec paginate(Ecto.Query.t(), atom(), keyword()) :: %{data: list(), has_more: boolean()}
+  @spec paginate(Ecto.Query.t(), atom(), keyword()) :: %{
+          data: list(),
+          has_more: boolean(),
+          next: term() | nil
+        }
   def paginate(base_query, cursor_field, opts) do
     limit = min(Keyword.get(opts, :limit, @default_limit), @max_limit)
     starting_after = Keyword.get(opts, :starting_after)
@@ -61,6 +65,7 @@ defmodule YagyeCore.Shared.Pagination do
           {Enum.take(records, limit), length(records) > limit}
       end
 
-    %{data: data, has_more: has_more}
+    next = if has_more, do: Map.get(List.last(data), cursor_field), else: nil
+    %{data: data, has_more: has_more, next: next}
   end
 end

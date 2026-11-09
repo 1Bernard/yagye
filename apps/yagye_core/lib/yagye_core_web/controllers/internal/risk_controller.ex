@@ -12,7 +12,7 @@ defmodule YagyeCoreWeb.Controllers.Internal.RiskController do
   def list_flagged(conn, params) do
     opts = [
       decision: params["decision"],
-      after: params["after"],
+      starting_after: params["after"],
       limit: parse_limit(params["limit"])
     ]
 
