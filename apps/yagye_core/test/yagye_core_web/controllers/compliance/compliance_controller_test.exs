@@ -235,7 +235,7 @@ defmodule YagyeCoreWeb.Controllers.Compliance.ComplianceControllerTest do
     } do
       resp =
         json_post(conn, raw_key, "/v1/merchants/#{merchant.public_id}/documents", %{
-          kind: "incorporation",
+          kind: "certificate_of_incorporation",
           s3_key: "kyb/mch_abc/cert.pdf",
           checksum: "abc123def456",
           uploaded_by: "user:usr_test"
@@ -244,7 +244,7 @@ defmodule YagyeCoreWeb.Controllers.Compliance.ComplianceControllerTest do
       assert resp.status == 201
       body = Jason.decode!(resp.resp_body)
       assert body["object"] == "kyb_document"
-      assert body["kind"] == "incorporation"
+      assert body["kind"] == "certificate_of_incorporation"
     end
 
     test "returns 201 and generates s3_key when omitted", %{
@@ -340,7 +340,7 @@ defmodule YagyeCoreWeb.Controllers.Compliance.ComplianceControllerTest do
       read_key: read_key
     } do
       json_post(conn, raw_key, "/v1/merchants/#{merchant.public_id}/documents", %{
-        kind: "incorporation",
+        kind: "certificate_of_incorporation",
         checksum: "c1",
         uploaded_by: "u"
       })

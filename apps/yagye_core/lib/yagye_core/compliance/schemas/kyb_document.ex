@@ -20,9 +20,8 @@ defmodule YagyeCore.Compliance.Schemas.KybDocument do
     timestamps(updated_at: false)
   end
 
-  @valid_kinds ~w[incorporation id proof_of_address bank_confirmation
-                  form_a certificate_of_incorporation business_registration
-                  tax_clearance utility_bill bank_statement]
+  @valid_kinds ~w[id form_a certificate_of_incorporation business_registration
+                  tax_clearance bank_statement proof_of_address]
 
   @valid_statuses ~w[pending_upload uploaded under_review approved rejected]
 

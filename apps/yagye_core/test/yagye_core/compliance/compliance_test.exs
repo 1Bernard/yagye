@@ -224,14 +224,14 @@ defmodule YagyeCore.Compliance.ComplianceTest do
     test "creates a KYB document record and returns it", %{merchant: merchant} do
       assert {:ok, doc} =
                Compliance.upload_document(merchant.public_id, %{
-                 kind: "incorporation",
+                 kind: "certificate_of_incorporation",
                  s3_key: "kyb/mch_abc/cert.pdf",
                  checksum: "abc123def456",
                  uploaded_by: "user:usr_test"
                })
 
       assert doc.merchant_id == merchant.id
-      assert doc.kind == "incorporation"
+      assert doc.kind == "certificate_of_incorporation"
       assert doc.s3_key == "kyb/mch_abc/cert.pdf"
       assert doc.checksum == "abc123def456"
     end
@@ -251,7 +251,7 @@ defmodule YagyeCore.Compliance.ComplianceTest do
     test "emits compliance.kyb_document_uploaded outbox event", %{merchant: merchant} do
       {:ok, doc} =
         Compliance.upload_document(merchant.public_id, %{
-          kind: "incorporation",
+          kind: "certificate_of_incorporation",
           checksum: "csum",
           uploaded_by: "user:usr_test"
         })
@@ -267,7 +267,15 @@ defmodule YagyeCore.Compliance.ComplianceTest do
     end
 
     test "accepts all valid document kinds", %{merchant: merchant} do
-      for kind <- ["incorporation", "id", "proof_of_address", "bank_confirmation"] do
+      for kind <- [
+            "id",
+            "form_a",
+            "certificate_of_incorporation",
+            "business_registration",
+            "tax_clearance",
+            "bank_statement",
+            "proof_of_address"
+          ] do
         assert {:ok, doc} =
                  Compliance.upload_document(merchant.public_id, %{
                    kind: kind,
@@ -315,7 +323,7 @@ defmodule YagyeCore.Compliance.ComplianceTest do
     test "returns all documents for the merchant", %{merchant: merchant} do
       {:ok, _} =
         Compliance.upload_document(merchant.public_id, %{
-          kind: "incorporation",
+          kind: "certificate_of_incorporation",
           checksum: "c1",
           uploaded_by: "u"
         })

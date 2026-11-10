@@ -72,14 +72,14 @@ defmodule YagyeCore.Integration.OnboardingJourneyTest do
     # Step 5 — a KYB document is uploaded
     assert {:ok, doc} =
              Compliance.upload_document(merchant.public_id, %{
-               kind: "incorporation",
+               kind: "certificate_of_incorporation",
                s3_key: "kyb/#{merchant.public_id}/cert_of_incorporation.pdf",
                checksum: "sha256:abc123",
                uploaded_by: "user:usr_compliance_agent"
              })
 
     assert doc.merchant_id == merchant.id
-    assert doc.kind == "incorporation"
+    assert doc.kind == "certificate_of_incorporation"
 
     # Phase gate — merchant is now in basic_info_submitted; a reviewer can move to under_review
     {:ok, final} = Merchants.get_merchant(merchant.public_id)

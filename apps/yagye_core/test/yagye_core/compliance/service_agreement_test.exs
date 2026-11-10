@@ -92,7 +92,7 @@ defmodule YagyeCore.Compliance.ServiceAgreementTest do
 
       {:ok, doc} =
         Compliance.upload_document(merchant.public_id, %{
-          kind: "incorporation",
+          kind: "certificate_of_incorporation",
           s3_key: "kyb/test/doc.pdf",
           checksum: "abc123",
           uploaded_by: "user:owner"
@@ -181,7 +181,7 @@ defmodule YagyeCore.Compliance.ServiceAgreementTest do
       merchant = Fixtures.merchant_fixture()
 
       for kind <- ~w[form_a certificate_of_incorporation business_registration
-                     tax_clearance utility_bill bank_statement] do
+                     tax_clearance bank_statement proof_of_address] do
         assert {:ok, doc} =
                  Compliance.upload_document(merchant.public_id, %{
                    kind: kind,

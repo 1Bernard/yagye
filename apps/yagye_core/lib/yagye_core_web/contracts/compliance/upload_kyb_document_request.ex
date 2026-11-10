@@ -11,7 +11,15 @@ defmodule YagyeCoreWeb.Contracts.Compliance.UploadKybDocumentRequest do
     properties: %{
       kind: %Schema{
         type: :string,
-        enum: ["incorporation", "id", "proof_of_address", "bank_confirmation"],
+        enum: [
+          "id",
+          "form_a",
+          "certificate_of_incorporation",
+          "business_registration",
+          "tax_clearance",
+          "bank_statement",
+          "proof_of_address"
+        ],
         description: "Document type"
       },
       s3_key: %Schema{
@@ -32,7 +40,7 @@ defmodule YagyeCoreWeb.Contracts.Compliance.UploadKybDocumentRequest do
       }
     },
     example: %{
-      "kind" => "incorporation",
+      "kind" => "certificate_of_incorporation",
       "checksum" => "a3f5e8b2c1d4",
       "uploaded_by" => "user:usr_018e4a1b"
     }

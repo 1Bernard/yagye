@@ -272,7 +272,7 @@ Table beneficial_owners [headercolor: #B4531F] {
 Table kyb_documents [headercolor: #B4531F] {
   id uuid [pk]
   merchant_id uuid [not null]
-  kind text [not null, note: 'form_a|business_name_cert|certificate_of_incorporation|commencement_of_business|tin_certificate|id|proof_of_address|bank_confirmation — kind drives the required_for_business_types gate']
+  kind text [not null, note: 'id|form_a|certificate_of_incorporation|business_registration|tax_clearance|bank_statement|proof_of_address — kind drives the required_for_business_types gate; proof_of_address is ops-only (utility bill fallback); bank_statement covers both banking and address proof for merchant-facing uploads']
   label text [not null, note: 'human-readable name shown in the portal, e.g. "Form A — Sole Proprietorship Registration"']
   required_for_business_types text[] [note: 'NULL = required for all business types. e.g. [sole_proprietorship] means only sole props must upload this; [registered_business] means Ltd/Partnership/NGO only.']
   s3_key text [note: '[PII][EVD] SSE-KMS, private, presigned access only. NULL until upload is initiated.']

@@ -13,41 +13,39 @@ module Onboarding
         "certificate_of_incorporation" => { label: "Certificate of Incorporation",     description: "Company registration from RGD" },
         "business_registration"        => { label: "Business Registration",            description: "Certificate of registration (sole prop. / partnership)" },
         "tax_clearance"                => { label: "Tax Clearance Certificate",        description: "From Ghana Revenue Authority" },
-        "proof_of_address"             => { label: "Proof of Address",                 description: "Utility bill or bank statement — not older than 3 months" },
-        "bank_statement"               => { label: "Bank Statement",                   description: "Last 3 months — shows business name" },
-        "bank_confirmation"            => { label: "Bank Confirmation Letter",         description: "Signed letter on bank letterhead" }
+        "bank_statement"               => { label: "Bank Statement",                   description: "Last 3 months, shows business name — also accepted as proof of address" }
       }.freeze
 
       BUSINESS_REQUIREMENTS = {
         "sole_proprietorship" => {
-          required: %w[id business_registration],
-          optional: %w[form_a tax_clearance proof_of_address bank_statement]
+          required: %w[id business_registration bank_statement],
+          optional: %w[form_a tax_clearance]
         },
         "partnership" => {
-          required: %w[id form_a],
-          optional: %w[business_registration tax_clearance proof_of_address bank_statement bank_confirmation]
+          required: %w[id form_a bank_statement],
+          optional: %w[business_registration tax_clearance]
         },
         "llc" => {
-          required: %w[id certificate_of_incorporation form_a],
-          optional: %w[tax_clearance proof_of_address bank_statement bank_confirmation]
+          required: %w[id certificate_of_incorporation form_a bank_statement],
+          optional: %w[tax_clearance]
         },
         "private_limited" => {
-          required: %w[id certificate_of_incorporation form_a],
-          optional: %w[tax_clearance proof_of_address bank_statement bank_confirmation]
+          required: %w[id certificate_of_incorporation form_a bank_statement],
+          optional: %w[tax_clearance]
         },
         "public_limited" => {
-          required: %w[id certificate_of_incorporation form_a],
-          optional: %w[tax_clearance proof_of_address bank_statement bank_confirmation]
+          required: %w[id certificate_of_incorporation form_a bank_statement],
+          optional: %w[tax_clearance]
         },
         "ngo" => {
-          required: %w[id certificate_of_incorporation],
-          optional: %w[form_a tax_clearance proof_of_address bank_statement]
+          required: %w[id certificate_of_incorporation bank_statement],
+          optional: %w[form_a tax_clearance]
         }
       }.freeze
 
       DEFAULT_REQUIREMENTS = {
-        required: DOCUMENT_KINDS.keys,
-        optional: []
+        required: %w[id bank_statement],
+        optional: DOCUMENT_KINDS.keys - %w[id bank_statement]
       }.freeze
 
       # approved > under_review > uploaded > rejected > pending_upload
