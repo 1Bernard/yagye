@@ -127,7 +127,7 @@ module Payments
     private
 
     def active_count
-      vqb_count = !@merchant && @conditions.count { |c| c["field"].present? }
+      vqb_count = @merchant ? 0 : @conditions.count { |c| c["field"].present? }
       [
         @status.presence,
         @method.presence,
