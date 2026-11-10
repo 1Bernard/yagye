@@ -103,6 +103,7 @@ services:
       DATABASE_URL: ecto://postgres:postgres@db/yagye_core_dev
       SECRET_KEY_BASE: dev_secret_key_base_replace_in_production_min_64_chars_long_abc123
       CORE_PORTAL_SERVICE_SECRET: dev_portal_service_secret_change_in_production
+      CORE_CHECKOUT_SERVICE_SECRET: dev_checkout_service_secret_change_in_production
       RABBITMQ_URL: amqp://guest:guest@rabbitmq:5672
       REDIS_URL: redis://redis:6379/0
       PORT: "4000"
@@ -117,6 +118,8 @@ services:
       AWS_S3_HOST: floci
       AWS_S3_PORT: "4566"
       KYB_S3_BUCKET: yagye-kyb-documents
+      # Checkout service — public URL as seen by browsers (host-side port mapping)
+      CHECKOUT_BASE_URL: "http://localhost:4010"
       # P20 — Scoring service (shadow mode; rollout percent stays 0 until post-P22)
       SCORING_SERVICE_URL: http://yagye_scoring:8000
     # Run migrations then start server. YagyeCore.Release.migrate/0 is idempotent.

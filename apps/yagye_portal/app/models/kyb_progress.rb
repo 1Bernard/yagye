@@ -15,8 +15,8 @@ class KybProgress
 
   def steps
     @steps ||= [
-      Step.new(key: "profile",    label: "Business Profile",   description: "Type, category, and TIN",               icon: :building, complete: profile_complete?),
-      Step.new(key: "contact",    label: "Contact Details",    description: "Emails, phone, and address",            icon: :mail,     complete: contact_complete?),
+      Step.new(key: "profile",    label: "Business Profile",   description: "Type, category, TIN, and registration number", icon: :building, complete: profile_complete?),
+      Step.new(key: "contact",    label: "Contact Details",    description: "Emails, phone, and registered address",      icon: :mail,     complete: contact_complete?),
       Step.new(key: "settlement", label: "Settlement Account", description: "MoMo number or bank account",           icon: :bank,     complete: settlement_complete?),
       Step.new(key: "documents",  label: "Documents",          description: "Upload required business documents",    icon: :file,     complete: documents_complete?),
       Step.new(key: "agreement",  label: "Service Agreement",  description: "Review and accept the merchant terms",  icon: :check,    complete: agreement_complete?)

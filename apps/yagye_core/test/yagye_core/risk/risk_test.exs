@@ -153,7 +153,7 @@ defmodule YagyeCore.RiskTest do
       payment = insert_payment(risk_flagged_at: DateTime.utc_now())
       insert_risk_label(payment, label: "suspicious")
 
-      assert {:ok, {fetched, labels}} = Risk.get_case(payment.id)
+      assert {:ok, %{payment: fetched, labels: labels}} = Risk.get_case(payment.id)
       assert fetched.id == payment.id
       assert length(labels) == 1
       assert hd(labels).label == "suspicious"

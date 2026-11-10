@@ -3,7 +3,8 @@ import { Controller } from "@hotwired/stimulus"
 export default class extends Controller {
   static targets = [
     "input", "previewSlide", "replaceSlide", "deleteSlide",
-    "filename", "filesize", "submitBtn", "btnLabel", "pickRow"
+    "filename", "filesize", "submitBtn", "btnLabel", "pickRow", "pickBtn",
+    "cardContent", "progressBar"
   ]
 
   pick() {
@@ -19,7 +20,10 @@ export default class extends Controller {
     event.stopPropagation()
     this.inputTarget.value = ""
     delete this.previewSlideTarget.dataset.open
-    if (this.hasPickRowTarget) this.pickRowTarget.hidden = false
+    if (this.hasPickRowTarget)    this.pickRowTarget.hidden = false
+    if (this.hasPickBtnTarget)    this.pickBtnTarget.hidden = false
+    if (this.hasCardContentTarget) this.cardContentTarget.hidden = false
+    if (this.hasProgressBarTarget) this.progressBarTarget.hidden = true
   }
 
   // ── Uploaded card ─────────────────────────────────────────────────────────
@@ -80,16 +84,19 @@ export default class extends Controller {
   }
 
   submitting() {
-    if (this.hasSubmitBtnTarget) this.submitBtnTarget.disabled = true
-    if (this.hasBtnLabelTarget) this.btnLabelTarget.textContent = "Uploading…"
+    if (this.hasSubmitBtnTarget)   this.submitBtnTarget.disabled = true
+    if (this.hasBtnLabelTarget)    this.btnLabelTarget.textContent = "Uploading…"
+    if (this.hasProgressBarTarget) this.progressBarTarget.hidden = false
   }
 
   // ── Private ───────────────────────────────────────────────────────────────
 
   #showPreview(file) {
-    if (this.hasFilenameTarget) this.filenameTarget.textContent = file.name
-    if (this.hasFilesizeTarget) this.filesizeTarget.textContent = this.#formatSize(file.size)
-    if (this.hasPickRowTarget) this.pickRowTarget.hidden = true
+    if (this.hasFilenameTarget)   this.filenameTarget.textContent = file.name
+    if (this.hasFilesizeTarget)   this.filesizeTarget.textContent = this.#formatSize(file.size)
+    if (this.hasPickRowTarget)    this.pickRowTarget.hidden = true
+    if (this.hasPickBtnTarget)    this.pickBtnTarget.hidden = true
+    if (this.hasCardContentTarget) this.cardContentTarget.hidden = true
     this.previewSlideTarget.dataset.open = ""
   }
 

@@ -18,14 +18,16 @@ module Checkout
 
       def view_template
         render Layout::Shell.new(
-          active_nav: :invoices,
-          title:      @inv["number"] || @inv["id"],
-          padded:     false
+          active_nav:   :invoices,
+          title:        @inv["number"] || @inv["id"],
+          padded:       false,
+          hide_sidebar: true,
+          hide_topbar:  true
         ) do
           style { raw safe(canvas_css) }
           div(id: "inv-show-canvas",
               class: "relative w-full overflow-hidden",
-              style: "height: calc(100vh - 56px)") do
+              style: "height: 100vh") do
             floating_toolbar
             div(class: "absolute top-[76px] left-0 right-0 bottom-0") do
               left_panel

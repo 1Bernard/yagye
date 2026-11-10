@@ -286,7 +286,9 @@ defmodule YagyeCore.Merchants do
   def update_merchant_profile(public_id, attrs) do
     with {:ok, merchant} <- get_merchant(public_id) do
       merchant
-      |> Merchant.changeset(Map.take(attrs, ~w[business_type registration_type category tin]a))
+      |> Merchant.changeset(
+        Map.take(attrs, ~w[business_type registration_type category tin registration_number]a)
+      )
       |> Repo.update()
     end
   end
@@ -467,6 +469,14 @@ defmodule YagyeCore.Merchants do
         trading_name: merchant.trading_name,
         country: merchant.country,
         default_currency: merchant.default_currency
+      })
+    end)
+    |> Multi.insert(:outbox_approved, fn %{approved_application: application, merchant: merchant} ->
+      Outbox.build_changeset(application, "merchant.application.approved", %{
+        public_id: application.public_id,
+        merchant_id: merchant.id,
+        merchant_code: merchant.public_id,
+        approved_by: cmd.approved_by
       })
     end)
     |> Repo.transaction()

@@ -144,8 +144,8 @@ module Checkout
       )
 
       if result.success?
-        redirect_to payment_link_layout_path(result.body["id"]),
-                    notice: "Payment link created. Configure the checkout layout below."
+        redirect_to payment_link_path(result.body["id"]),
+                    notice: "Payment link created."
       else
         render Checkout::PaymentLinks::FormView.new(errors: [ result.error_message ], mode: Current.mode),
                status: :unprocessable_entity

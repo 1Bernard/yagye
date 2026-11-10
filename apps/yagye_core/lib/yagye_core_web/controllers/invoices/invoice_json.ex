@@ -1,8 +1,6 @@
 defmodule YagyeCoreWeb.Controllers.Invoices.InvoiceJSON do
   @moduledoc false
 
-  @base_url Application.compile_env(:yagye_core, :checkout_base_url, "https://pay.yagye.com")
-
   alias YagyeCore.Invoices.Schemas.Invoice
 
   def data(%Invoice{} = invoice) do
@@ -39,10 +37,10 @@ defmodule YagyeCoreWeb.Controllers.Invoices.InvoiceJSON do
       payment_link_id: invoice.payment_link_id,
       payment_link_checkout_url:
         case invoice.payment_link do
-          %{url_slug: slug} -> "#{@base_url}/#{slug}"
+          %{url_slug: slug} -> "#{checkout_base_url()}/#{slug}"
           _ -> nil
         end,
-      invoice_view_url: "#{@base_url}/inv/#{invoice.public_id}",
+      invoice_view_url: "#{checkout_base_url()}/inv/#{invoice.public_id}",
       line_items: line_items,
       sent_at: invoice.sent_at,
       paid_at: invoice.paid_at,
@@ -64,4 +62,7 @@ defmodule YagyeCoreWeb.Controllers.Invoices.InvoiceJSON do
   def list(%{data: invoices, has_more: has_more}) do
     %{object: "list", data: Enum.map(invoices, &data/1), has_more: has_more}
   end
+
+  defp checkout_base_url,
+    do: Application.get_env(:yagye_core, :checkout_base_url, "https://pay.yagye.com")
 end

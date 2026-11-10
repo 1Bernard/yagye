@@ -8,8 +8,6 @@ defmodule YagyeCoreWeb.Controllers.Internal.InvoiceViewController do
   alias YagyeCore.PaymentLinks.Schemas.PaymentLink
   alias YagyeCore.Repo
 
-  @base_url Application.compile_env(:yagye_core, :checkout_base_url, "https://pay.yagye.com")
-
   # GET /internal/invoices/:public_id/view
   # No merchant auth — public_id is the capability. Draft invoices return 404.
   def show(conn, %{"public_id" => public_id}) do
@@ -75,7 +73,7 @@ defmodule YagyeCoreWeb.Controllers.Internal.InvoiceViewController do
         logo_url: logo_url
       },
       payment_link_slug: payment_link_slug,
-      checkout_url: payment_link_slug && "#{@base_url}/#{payment_link_slug}",
+      checkout_url: payment_link_slug && "#{checkout_base_url()}/#{payment_link_slug}",
       line_items:
         (invoice.line_items || [])
         |> Enum.map(fn item ->
@@ -91,4 +89,7 @@ defmodule YagyeCoreWeb.Controllers.Internal.InvoiceViewController do
         |> Enum.sort_by(& &1.position)
     }
   end
+
+  defp checkout_base_url,
+    do: Application.get_env(:yagye_core, :checkout_base_url, "https://pay.yagye.com")
 end

@@ -7,6 +7,7 @@ defmodule YagyeCore.Compliance.Schemas.KybDocument do
     belongs_to :merchant, YagyeCore.Merchants.Schemas.Merchant
     field :kind, :string
     field :label, :string
+    field :filename, :string
     field :status, :string, default: "pending_upload"
     field :required_for_business_types, {:array, :string}, default: []
     field :s3_key, :string
@@ -31,6 +32,7 @@ defmodule YagyeCore.Compliance.Schemas.KybDocument do
       :merchant_id,
       :kind,
       :label,
+      :filename,
       :status,
       :required_for_business_types,
       :s3_key,

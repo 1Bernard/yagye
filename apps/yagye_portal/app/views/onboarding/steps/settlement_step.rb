@@ -41,7 +41,12 @@ module Onboarding
         div do
           step_header
 
-          div(data: { controller: "tabs", tabs_active_value: active }) do
+          div(data: {
+            controller:          "tabs",
+            tabs_active_value:   active,
+            tabs_active_class:   "bg-white text-[#3D47F5] font-semibold shadow-sm",
+            tabs_inactive_class: "text-gray-500 font-medium"
+          }) do
             div(class: "px-6 pt-5") do
               tab_header(active)
             end
@@ -83,13 +88,10 @@ module Onboarding
         end
       end
 
-      def tab_btn(key, text, is_active)
+      def tab_btn(key, text, _is_active)
         button(
           type:  "button",
-          class: "flex-1 py-2 px-4 rounded-lg text-[13px] font-medium transition-all",
-          style: is_active ?
-                   "background: white; color: #{BRAND}; box-shadow: 0 1px 2px rgba(0,0,0,0.08)" :
-                   "color: #6B7280",
+          class: "flex-1 py-2 px-4 rounded-lg text-[13px] transition-all",
           data: { action: "click->tabs#show", tabs_target: "tab", tabs_panel_param: key }
         ) { plain text }
       end

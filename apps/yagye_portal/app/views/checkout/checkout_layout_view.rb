@@ -94,8 +94,19 @@ module Checkout
     RAIL_FREE_METHODS = %w[card bank_transfer].freeze
 
     def methods_to_render
-      saved = @link["checkout_layout"]&.fetch("methods", nil)
-      methods = saved.present? ? saved : DEFAULT_METHODS
+      saved_methods = @link["checkout_layout"]&.fetch("methods", nil)
+      allowed       = Array(@link["allowed_methods"])
+
+      # `allowed_methods` is authoritative for visibility — it's configured on the
+      # settings page. The saved layout only carries tile_style and rails config.
+      methods = DEFAULT_METHODS.map do |default|
+        saved   = saved_methods&.find { |m| m["id"] == default["id"] } || {}
+        visible = allowed.include?(default["id"])
+        default
+          .merge(saved)
+          .merge("visible" => visible)
+      end
+
       methods.map do |m|
         RAIL_FREE_METHODS.include?(m["id"]) ? m.merge("rails" => []) : m
       end
@@ -153,11 +164,18 @@ module Checkout
                  "bg-gray-100 text-gray-500"
         ) { plain (@link["mode"] || "simulation").capitalize }
 
-        # Intent badge — tells the user they are editing
-        span(class: "text-[10.5px] font-semibold px-[8px] py-[2px] rounded-full flex items-center gap-[4px]",
-             style: "background:rgba(61,71,245,0.10);color:#3D47F5;border:1px solid rgba(61,71,245,0.20)") do
-          span(class: "flex w-[10px] h-[10px]") { render UI::Icon.new(:edit, class: "w-full h-full") }
-          plain "Editing layout"
+        # Navigation — Overview | Layout
+        a(href: payment_link_path(@link["id"]),
+          class: "flex items-center gap-[5px] px-[9px] py-[5px] rounded-xl text-[12px] font-medium " \
+                 "text-gray-500 hover:bg-gray-100 hover:text-gray-700 transition-colors no-underline") do
+          span(class: "flex w-[11px] h-[11px]") { render UI::Icon.new(:eye, class: "w-full h-full") }
+          plain "Overview"
+        end
+        span(class: "flex items-center gap-[5px] px-[9px] py-[5px] rounded-xl text-[12px] font-semibold " \
+                    "text-[#3D47F5]",
+             style: "background:rgba(61,71,245,0.10);border:1px solid rgba(61,71,245,0.20)") do
+          span(class: "flex w-[11px] h-[11px]") { render UI::Icon.new(:edit, class: "w-full h-full") }
+          plain "Layout"
         end
 
         if @all_links.size > 1
@@ -581,18 +599,19 @@ module Checkout
         style: "left: 348px"
       ) do
         # Share URL pill
+        wa_text = CGI.escape("#{@link["description"].presence || "Pay here"}: #{@link["checkout_url"]}")
         div(
-          class: "flex items-center gap-0 mb-5 bg-white border border-gray-200/80 " \
+          class: "w-full max-w-[460px] flex items-center gap-0 mb-5 bg-white border border-gray-200/80 " \
                  "rounded-2xl overflow-hidden shadow-[0_4px_20px_rgba(0,0,0,0.06)] select-none"
         ) do
-          div(class: "flex items-center gap-2.5 px-4 py-[9px]") do
+          div(class: "flex items-center gap-2.5 flex-1 min-w-0 px-4 py-[9px]") do
             span(class: "text-[10px] font-bold uppercase tracking-[0.1em] text-gray-300 flex-shrink-0") { plain "Share" }
             span(class: "w-px h-3 bg-gray-200 flex-shrink-0")
             a(
               href:   @link["checkout_url"],
               target: "_blank",
               rel:    "noopener noreferrer",
-              class:  "font-mono text-[11px] text-[#3D47F5] hover:underline max-w-[260px] truncate",
+              class:  "font-mono text-[11px] text-[#3D47F5] hover:underline truncate",
               data:   { checkout_layout_target: "checkoutUrl" }
             ) { plain @link["checkout_url"] }
           end
@@ -609,6 +628,32 @@ module Checkout
             render UI::Icon.new(:copy, class: "w-3.5 h-3.5")
             plain "Copy"
           end
+
+          span(class: "w-px h-5 bg-gray-100 flex-shrink-0")
+
+          a(
+            href:   "https://wa.me/?text=#{wa_text}",
+            target: "_blank",
+            rel:    "noopener noreferrer",
+            class:  "flex items-center gap-[5px] px-3.5 py-[9px] text-[11.5px] font-medium " \
+                    "text-gray-500 hover:bg-gray-50 hover:text-gray-700 transition-colors no-underline"
+          ) do
+            span(class: "text-[13px] leading-none") { plain "💬" }
+            plain "WhatsApp"
+          end
+
+          span(class: "w-px h-5 bg-gray-100 flex-shrink-0")
+
+          a(
+            href:   payment_link_display_path(@link["id"]),
+            target: "_blank",
+            rel:    "noopener noreferrer",
+            class:  "flex items-center gap-[5px] px-3.5 py-[9px] text-[11.5px] font-medium " \
+                    "text-gray-500 hover:bg-gray-50 hover:text-gray-700 transition-colors no-underline"
+          ) do
+            render UI::Icon.new(:qr_code, class: "w-3.5 h-3.5")
+            plain "QR"
+          end
         end
 
         checkout_card_preview
@@ -616,10 +661,13 @@ module Checkout
     end
 
     def checkout_card_preview
+      saved_color = @link.dig("checkout_layout", "brand_color").presence || "#3D47F5"
       div(
-        class: "w-[360px] bg-white rounded-2xl border border-gray-200/70 " \
+        class: "w-full max-w-[460px] bg-white rounded-2xl border border-gray-200/70 " \
                "overflow-x-hidden overflow-y-auto max-h-[calc(100vh-200px)] " \
-               "shadow-[0_8px_32px_rgba(0,0,0,0.07),0_2px_8px_rgba(0,0,0,0.04)]"
+               "shadow-[0_8px_32px_rgba(0,0,0,0.07),0_2px_8px_rgba(0,0,0,0.04)]",
+        style: "--preview-brand:#{saved_color}",
+        data:  { checkout_layout_target: "previewCard" }
       ) do
         # Header
         div(class: "px-5 pt-5 pb-[18px]") do
@@ -636,7 +684,8 @@ module Checkout
                 )
               else
                 div(
-                  class: "w-7 h-7 rounded-lg bg-[#3D47F5] flex items-center justify-center",
+                  class: "w-7 h-7 rounded-lg flex items-center justify-center",
+                  style: "background:var(--preview-brand, #3D47F5)",
                   data:  { checkout_layout_target: "previewLogoImg" }
                 ) do
                   span(class: "flex w-[13px] h-[13px] text-white") { render UI::Icon.new(:shield, class: "w-full h-full") }
@@ -682,7 +731,34 @@ module Checkout
           ) { plain saved_headline.to_s }
         end
 
+        # Collect fields — appear BEFORE method selection, matching the actual checkout layout
+        collect_any = @link["collect_email"] || @link["collect_phone"] || @link["collect_name"]
+        if collect_any
+          div(class: "h-px bg-gray-100")
+          div(class: "px-4 pt-3 pb-2 flex flex-col gap-[5px]") do
+            p(class: "text-[9px] font-bold uppercase tracking-[0.14em] text-gray-400 mb-1") do
+              plain "Your details"
+            end
+            if @link["collect_name"]
+              div(class: "h-[34px] rounded-lg bg-gray-50 border border-gray-100 flex items-center px-3") do
+                span(class: "text-[11px] text-gray-300") { plain "Full name" }
+              end
+            end
+            if @link["collect_email"]
+              div(class: "h-[34px] rounded-lg bg-gray-50 border border-gray-100 flex items-center px-3") do
+                span(class: "text-[11px] text-gray-300") { plain "Email address" }
+              end
+            end
+            if @link["collect_phone"]
+              div(class: "h-[34px] rounded-lg bg-gray-50 border border-gray-100 flex items-center px-3") do
+                span(class: "text-[11px] text-gray-300") { plain "Phone number" }
+              end
+            end
+          end
+        end
+
         # Method list
+        div(class: "h-px bg-gray-100") if collect_any
         div(
           class: "px-4 pt-4 pb-3 flex flex-col gap-[6px]",
           data:  { checkout_layout_target: "previewList" }
@@ -698,9 +774,31 @@ module Checkout
           ) { plain "No methods enabled" }
         end
 
+        # Terms row (shown only when enabled)
+        terms_config   = @link.dig("checkout_layout", "terms") || {}
+        terms_enabled  = terms_config["enabled"] == true
+        terms_label    = terms_config["label"].presence || "I agree to the Terms & Conditions"
+        terms_url      = terms_config["url"].to_s
+        div(
+          class: "px-4 pb-3",
+          data:  { preview_terms_row: "" },
+          hidden: !terms_enabled
+        ) do
+          div(class: "flex items-start gap-[8px] px-3 py-[9px] bg-gray-50 rounded-xl border border-gray-100") do
+            div(
+              class: "w-[13px] h-[13px] mt-[1px] rounded-[3px] border-[2px] flex-shrink-0",
+              style: "border-color:var(--preview-brand, #3D47F5)"
+            ) { }
+            span(
+              class: "text-[11px] leading-snug flex-1 #{terms_url.present? ? 'underline' : 'text-gray-500'}",
+              style: terms_url.present? ? "color:var(--preview-brand, #3D47F5)" : "",
+              data:  { preview_terms_label: "" }
+            ) { plain terms_label }
+          end
+        end
+
         # Pay button
-        div(class: "px-4 pb-4") do
-          saved_color  = @link.dig("checkout_layout", "brand_color").presence || "#3D47F5"
+        div(class: "px-4 pb-4 pt-3") do
           saved_cta    = @link.dig("checkout_layout", "cta_text").presence
           button_label = if saved_cta
             saved_cta
@@ -712,7 +810,7 @@ module Checkout
           div(
             class: "w-full py-[11px] rounded-xl text-[13px] font-semibold text-white " \
                    "flex items-center justify-center gap-[6px] pointer-events-none select-none",
-            style: "background:#{saved_color}",
+            style: "background:var(--preview-brand, #3D47F5)",
             data:  { checkout_layout_target: "previewPayBtn", default_label: button_label }
           ) do
             plain button_label
@@ -724,7 +822,7 @@ module Checkout
         div(class: "px-4 py-3 border-t border-gray-100 flex items-center justify-center gap-[5px]") do
           span(class: "flex w-[10px] h-[10px] text-gray-300") { render UI::Icon.new(:lock, class: "w-full h-full") }
           span(class: "text-[9.5px] text-gray-300") { plain "Secured by" }
-          span(class: "text-[9.5px] font-bold text-[#3D47F5]") { plain "Yagye" }
+          span(class: "text-[9.5px] font-bold", style: "color:var(--preview-brand, #3D47F5)") { plain "Yagye" }
         end
       end
     end
@@ -735,12 +833,10 @@ module Checkout
       expanded = method["tile_style"] == "expanded"
 
       div(
-        class: if expanded
-          "rounded-xl overflow-hidden bg-white border-2 border-[#3D47F5] " \
-          "shadow-[0_4px_20px_rgba(61,71,245,0.13)]"
-               else
-          "rounded-xl overflow-hidden bg-white border border-gray-200"
-               end,
+        class: expanded ? "rounded-xl overflow-hidden bg-white" \
+                        : "rounded-xl overflow-hidden bg-white border border-gray-200",
+        style: expanded ? "border: 2px solid var(--preview-brand, #3D47F5); box-shadow: 0 4px 16px rgba(0,0,0,0.09)" \
+                        : "",
         data: { preview_method: method["id"] }
       ) do
         # Header row
@@ -748,7 +844,8 @@ module Checkout
           # Radio — data attr lets JS update it without class-string surgery
           div(
             class: "w-[17px] h-[17px] rounded-full flex items-center justify-center flex-shrink-0 border-2 " \
-                   "#{expanded ? 'bg-[#3D47F5] border-[#3D47F5]' : 'border-gray-300'}",
+                   "#{expanded ? '' : 'border-gray-300'}",
+            style: expanded ? "background:var(--preview-brand, #3D47F5); border-color:var(--preview-brand, #3D47F5)" : "",
             data: { preview_tile_radio: "" }
           ) do
             # Dot always in DOM; hidden when compact
@@ -772,8 +869,11 @@ module Checkout
             data: { preview_tile_label: "" }
           ) { plain method["label"] }
 
-          span(class: "flex w-[15px] h-[15px] flex-shrink-0 " \
-                      "#{expanded ? 'text-[#3D47F5]' : 'text-gray-400'}") do
+          span(
+            class: "flex w-[15px] h-[15px] flex-shrink-0 #{expanded ? '' : 'text-gray-400'}",
+            style: expanded ? "color:var(--preview-brand, #3D47F5)" : "",
+            data:  { preview_tile_chevron: "" }
+          ) do
             render UI::Icon.new(expanded ? :chev_up : :chev, class: "w-full h-full")
           end
         end
@@ -868,7 +968,7 @@ module Checkout
       when "telecel_cash"
         %(<svg width="22" height="22" viewBox="0 0 32 32" fill="none"><circle cx="16" cy="16" r="16" fill="#E60000"/><circle cx="16" cy="16" r="10" stroke="#FFF" stroke-width="2.5" fill="none"/><path d="M16 11v10M12 15h8" stroke="#FFF" stroke-width="2.5" stroke-linecap="round"/></svg>)
       when "airteltigo"
-        %(<svg width="22" height="22" viewBox="0 0 32 32" fill="none"><circle cx="16" cy="16" r="16" fill="#1A2B4C"/><path d="M0 16a16 16 0 0 0 32 0H0z" fill="#ED1C24"/><text x="16" y="19" font-family="Inter,sans-serif" font-size="12" font-weight="900" fill="#FFF" text-anchor="middle">at</text></svg>)
+        %(<svg width="22" height="22" viewBox="0 0 32 32" fill="none"><circle cx="16" cy="16" r="16" fill="#1A2B4C"/><path d="M0 16a16 16 0 0 0 32 0H0z" fill="#ED1C24"/><path d="M10 23L16 10L22 23" stroke="#FFF" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" fill="none"/><path d="M12.5 18.5h7" stroke="#FFF" stroke-width="2.5" stroke-linecap="round"/></svg>)
       else
         %(<svg width="22" height="22" viewBox="0 0 32 32" fill="none"><circle cx="16" cy="16" r="16" fill="#E5E7EB"/></svg>)
       end

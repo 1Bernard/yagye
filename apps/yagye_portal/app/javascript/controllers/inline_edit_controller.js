@@ -3,6 +3,12 @@ import { Controller } from "@hotwired/stimulus"
 export default class extends Controller {
   static targets = ["display", "form", "trigger"]
 
+  connect() {
+    if (new URLSearchParams(window.location.search).get("edit") === "1") {
+      this.edit()
+    }
+  }
+
   edit() {
     this.displayTarget.hidden = true
     this.formTarget.hidden = false

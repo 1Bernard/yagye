@@ -24,10 +24,11 @@ module Onboarding
       result = CoreApiClient.new.update_kyb_profile(
         merchant_code,
         {
-          business_type:     params[:business_type].presence,
-          registration_type: params[:registration_type].presence,
-          category:          params[:category].presence,
-          tin:               params[:tin].presence
+          business_type:       params[:business_type].presence,
+          registration_type:   params[:registration_type].presence,
+          category:            params[:category].presence,
+          tin:                 params[:tin].presence,
+          registration_number: params[:registration_number].presence
         }.compact
       )
       handle_step_result(result, current_step: "profile", next_step: "contact")
@@ -36,8 +37,17 @@ module Onboarding
     def update_contact
       authorize :onboarding, :update?
       result = CoreApiClient.new.update_merchant_contact(merchant_code, contact_params)
-      if result.success? && address_params.any?
-        CoreApiClient.new.update_merchant_address(merchant_code, "office", address_params)
+      if result.success?
+        reg_params = registered_address_params
+        CoreApiClient.new.update_merchant_address(merchant_code, "registered", reg_params) if reg_params.any?
+
+        office_params =
+          if params[:office_same_as_registered] == "1"
+            reg_params
+          else
+            office_address_params
+          end
+        CoreApiClient.new.update_merchant_address(merchant_code, "office", office_params) if office_params.any?
       end
       handle_step_result(result, current_step: "contact", next_step: "settlement")
     end
@@ -90,7 +100,7 @@ module Onboarding
                            alert: "Could not initiate upload. Please try again."
       end
 
-      presigned_url = intent.body["presigned_url"]
+      presigned_url = rewrite_presigned_url(intent.body["presigned_url"])
       document_id   = intent.body["document_id"]
 
       # Step 2: read file, compute checksum, upload to S3 via presigned PUT URL
@@ -136,6 +146,20 @@ module Onboarding
       else
         redirect_to verify_step_path("documents"),
                     alert: result.error_message || "Could not remove document."
+      end
+    end
+
+    def document_preview
+      authorize :onboarding, :show?
+      # Verify the document belongs to this merchant before proxying
+      doc = kyb_progress.documents.find { |d| d["id"] == params[:document_id] }
+      return head :not_found unless doc
+
+      result = CoreApiClient.new.get_document_download_url(params[:document_id])
+      if result.success?
+        redirect_to rewrite_presigned_url(result.body["url"]), allow_other_host: true, status: :found
+      else
+        head :not_found
       end
     end
 
@@ -231,13 +255,23 @@ module Onboarding
       }.compact
     end
 
-    def address_params
+    def registered_address_params
       {
-        country:        params[:country].presence,
-        region:         params[:region].presence,
-        city:           params[:city].presence,
-        street_address: params[:street_address].presence,
-        gps_address:    params[:gps_address].presence
+        country:        params[:registered_country].presence,
+        region:         params[:registered_region].presence,
+        city:           params[:registered_city].presence,
+        street_address: params[:registered_street_address].presence,
+        gps_address:    params[:registered_gps_address].presence
+      }.compact
+    end
+
+    def office_address_params
+      {
+        country:        params[:office_country].presence,
+        region:         params[:office_region].presence,
+        city:           params[:office_city].presence,
+        street_address: params[:office_street_address].presence,
+        gps_address:    params[:office_gps_address].presence
       }.compact
     end
 

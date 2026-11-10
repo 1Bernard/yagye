@@ -6,7 +6,7 @@
 #   mix run priv/repo/seeds.exs     (seeds only, after migrations)
 
 alias YagyeCore.Merchants
-alias YagyeCore.Merchants.Schemas.{Merchant, MerchantMode}
+alias YagyeCore.Merchants.Schemas.{Merchant, MerchantApplication, MerchantMode}
 alias YagyeCore.Providers.Schemas.{Provider, ProviderCredential}
 alias YagyeCore.Shared.Vault
 alias YagyeCore.Customers
@@ -222,6 +222,35 @@ case Repo.get_by(Merchant, public_id: "MCH_DEMO_001") do
     │  Or create a fresh key from the portal Developers page.         │
     └──────────────────────────────────────────────────────────────────┘
     """)
+end
+
+# ── 6b. Demo KYB application (APP_DEMO_001) — matches portal seed ─────────────
+# Portal seed creates PortalMerchantApplication with application_code: "APP_DEMO_001".
+# Core needs a matching MerchantApplication so the ops approval flow works.
+
+case Repo.get_by(MerchantApplication, public_id: "APP_DEMO_001") do
+  %MerchantApplication{} = a ->
+    IO.puts("Demo KYB application  : already exists (#{a.public_id} status=#{a.status})")
+
+  nil ->
+    merchant = Repo.get_by!(Merchant, public_id: "MCH_DEMO_001")
+
+    Repo.insert!(%MerchantApplication{
+      public_id: "APP_DEMO_001",
+      merchant_id: merchant.id,
+      status: "under_review",
+      first_name: "Kofi",
+      last_name: "Mensah",
+      email: "owner@kofibuilds.com",
+      legal_name: "Kofi Builds Ltd",
+      trading_name: "KofiBuild",
+      country: "GH",
+      default_currency: "GHS",
+      industry: "technology",
+      employee_range: "11-50"
+    })
+
+    IO.puts("Demo KYB application  : created (APP_DEMO_001 status=under_review)")
 end
 
 # ── 7. External PSP providers (Model B — no platform credentials) ─────────────

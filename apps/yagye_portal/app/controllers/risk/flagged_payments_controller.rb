@@ -34,12 +34,18 @@ module Risk
       result = core_api.get_flagged_payment(params[:id])
       return redirect_to risk_flagged_payments_path, alert: "Not found." unless result.success?
 
-      payment = result.body["payment"]
-      labels  = result.body["labels"]
+      payment  = result.body["payment"]
+      labels   = result.body["labels"]
+      customer = result.body["customer"]
+      history  = result.body["payment_history"] || []
+      signals  = result.body["signals"] || {}
 
       render Risk::FlaggedPayments::ShowView.new(
         payment:     payment,
         labels:      labels,
+        customer:    customer,
+        history:     history,
+        signals:     signals,
         can_dispose: current_user.permitted?("risk.disposition")
       )
     end

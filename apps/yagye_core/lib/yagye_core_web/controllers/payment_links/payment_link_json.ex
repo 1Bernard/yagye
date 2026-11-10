@@ -3,15 +3,13 @@ defmodule YagyeCoreWeb.Controllers.PaymentLinks.PaymentLinkJSON do
 
   alias YagyeCore.PaymentLinks.Schemas.PaymentLink
 
-  @base_url Application.compile_env(:yagye_core, :checkout_base_url, "https://pay.yagye.com")
-
   def data(%PaymentLink{} = link) do
     %{
       id: link.public_id,
       object: "payment_link",
       mode: link.mode,
       url_slug: link.url_slug,
-      checkout_url: "#{@base_url}/#{link.url_slug}",
+      checkout_url: "#{checkout_base_url()}/#{link.url_slug}",
       kind: link.kind,
       amount: link.amount,
       currency: link.currency,
@@ -35,4 +33,7 @@ defmodule YagyeCoreWeb.Controllers.PaymentLinks.PaymentLinkJSON do
   def list(%{data: links, has_more: has_more}) do
     %{object: "list", data: Enum.map(links, &data/1), has_more: has_more}
   end
+
+  defp checkout_base_url,
+    do: Application.get_env(:yagye_core, :checkout_base_url, "https://pay.yagye.com")
 end

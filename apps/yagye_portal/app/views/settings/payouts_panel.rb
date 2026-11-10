@@ -153,12 +153,7 @@ module Settings
           unless is_default
             form(action: settings_payout_destination_default_path(dest["id"]), method: "post") do
               input(type: "hidden", name: "authenticity_token", value: form_authenticity_token)
-              button(type: "submit",
-                     class: "text-[12px] font-medium text-gray-500 hover:text-gray-700 " \
-                            "border border-gray-200 rounded-[8px] px-3 py-1.5 bg-white " \
-                            "transition-colors cursor-pointer") do
-                plain "Set default"
-              end
+              button(type: "submit", class: BTN_SECONDARY) { plain "Set default" }
             end
           end
 
@@ -193,74 +188,67 @@ module Settings
     end
 
     def add_destination_form
-      div(data: { controller: "tabs" }) do
-        # Tab switcher
-        div(class: "flex gap-1 p-1 rounded-xl bg-gray-100 mb-4") do
-          [ [ "mobile_money", "Mobile Money" ], [ "bank", "Bank Account" ] ].each_with_index do |(key, label), i|
-            active = i.zero?
+      div(data: {
+        controller: "tabs",
+        tabs_active_value: "mobile_money",
+        tabs_active_class: "bg-white shadow-sm text-gray-900 font-semibold",
+        tabs_inactive_class: "text-gray-500 font-medium"
+      }) do
+        # Tab switcher — pill style
+        div(class: "flex gap-1 p-1 rounded-xl bg-gray-100 mb-5") do
+          [ [ "mobile_money", "Mobile Money" ], [ "bank", "Bank Account" ] ].each do |(key, label)|
             button(type: "button",
-                   class: "flex-1 py-2 px-4 rounded-lg text-[13px] font-medium transition-all",
-                   style: active ?
-                            "background:white;color:#{BRAND};box-shadow:0 1px 2px rgba(0,0,0,0.08)" :
-                            "color:#6B7280",
-                   data: { action: "click->tabs#switch", tabs_target: "tab", tab_key: key }) do
-              plain label
-            end
+                   class: "flex-1 py-2 px-4 rounded-lg text-[13px] transition-all",
+                   data: {
+                     action:            "click->tabs#show",
+                     tabs_target:       "tab",
+                     tabs_panel_param:  key
+                   }) { plain label }
           end
         end
 
         # MoMo form
         form(action: settings_payout_destinations_path, method: "post",
-             data: { tabs_target: "panel", tab_key: "mobile_money" }) do
+             data: { tabs_target: "panel", tabs_id: "mobile_money" }) do
           input(type: "hidden", name: "authenticity_token", value: form_authenticity_token)
           input(type: "hidden", name: "kind",               value: "mobile_money")
-          div(class: "space-y-3") do
+          div(class: "space-y-4") do
             div do
-              label(class: "block #{TYPE_CAPTION} mb-1.5") { plain "Network" }
-              select(name: "network",
-                     class: "w-full h-9 border border-gray-200 rounded-[9px] px-3 text-[13px] " \
-                            "text-gray-700 bg-white outline-none focus:ring-1 focus:ring-[#{BRAND}]") do
+              label(class: "block #{TYPE_LABEL} mb-1.5") { plain "Network" }
+              select(name: "network", class: SELECT_FIELD) do
                 NETWORK_LABELS.each { |key, lbl| option(value: key) { plain lbl } }
               end
             end
             div do
-              label(class: "block #{TYPE_CAPTION} mb-1.5") { plain "Mobile Money Number" }
-              input(type: "tel", name: "msisdn", placeholder: "024 000 0000",
-                    class: "w-full h-9 border border-gray-200 rounded-[9px] px-3 text-[13px] " \
-                           "text-gray-700 bg-white outline-none focus:ring-1 focus:ring-[#{BRAND}]")
+              label(class: "block #{TYPE_LABEL} mb-1.5") { plain "Mobile Money Number" }
+              input(type: "tel", name: "msisdn", placeholder: "024 000 0000", class: INPUT_FIELD)
             end
-            render UI::Button.new(variant: :primary, type: "submit") { plain "Add account" }
+            button(type: "submit", class: "#{BTN_PRIMARY} w-full justify-center") { plain "Add account" }
           end
         end
 
-        # Bank form
+        # Bank form — hidden until tab switch
         form(action: settings_payout_destinations_path, method: "post",
-             class: "hidden",
-             data: { tabs_target: "panel", tab_key: "bank" }) do
+             hidden: true,
+             data: { tabs_target: "panel", tabs_id: "bank" }) do
           input(type: "hidden", name: "authenticity_token", value: form_authenticity_token)
           input(type: "hidden", name: "kind",               value: "bank")
-          div(class: "space-y-3") do
+          div(class: "space-y-4") do
             div do
-              label(class: "block #{TYPE_CAPTION} mb-1.5") { plain "Bank" }
-              select(name: "bank_code",
-                     class: "w-full h-9 border border-gray-200 rounded-[9px] px-3 text-[13px] " \
-                            "text-gray-700 bg-white outline-none focus:ring-1 focus:ring-[#{BRAND}] cursor-pointer") do
+              label(class: "block #{TYPE_LABEL} mb-1.5") { plain "Bank" }
+              select(name: "bank_code", class: SELECT_FIELD) do
                 GHANA_BANKS.each { |(lbl, val)| option(value: val) { plain lbl } }
               end
             end
             div do
-              label(class: "block #{TYPE_CAPTION} mb-1.5") { plain "Account Number" }
-              input(type: "text", name: "account_number", placeholder: "1234567890",
-                    class: "w-full h-9 border border-gray-200 rounded-[9px] px-3 text-[13px] " \
-                           "text-gray-700 bg-white outline-none focus:ring-1 focus:ring-[#{BRAND}]")
+              label(class: "block #{TYPE_LABEL} mb-1.5") { plain "Account Number" }
+              input(type: "text", name: "account_number", placeholder: "1234567890", class: INPUT_FIELD)
             end
             div do
-              label(class: "block #{TYPE_CAPTION} mb-1.5") { plain "Account Name" }
-              input(type: "text", name: "account_name", placeholder: "Business name on account",
-                    class: "w-full h-9 border border-gray-200 rounded-[9px] px-3 text-[13px] " \
-                           "text-gray-700 bg-white outline-none focus:ring-1 focus:ring-[#{BRAND}]")
+              label(class: "block #{TYPE_LABEL} mb-1.5") { plain "Account Name" }
+              input(type: "text", name: "account_name", placeholder: "Business name on account", class: INPUT_FIELD)
             end
-            render UI::Button.new(variant: :primary, type: "submit") { plain "Add account" }
+            button(type: "submit", class: "#{BTN_PRIMARY} w-full justify-center") { plain "Add account" }
           end
         end
       end

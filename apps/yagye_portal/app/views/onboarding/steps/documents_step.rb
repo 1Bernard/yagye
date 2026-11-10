@@ -7,45 +7,49 @@ module Onboarding
 
       BRAND = UI::Theme::BRAND
 
+      # Business documents — shown in "Required" and "Optional" sections
       DOCUMENT_KINDS = {
-        "id"                           => { label: "Government-issued ID",             description: "Ghana Card, Passport, or Voter's ID" },
         "form_a"                       => { label: "Form A / Particulars of Business", description: "RGD certificate of business particulars" },
         "certificate_of_incorporation" => { label: "Certificate of Incorporation",     description: "Company registration from RGD" },
         "business_registration"        => { label: "Business Registration",            description: "Certificate of registration (sole prop. / partnership)" },
-        "tax_clearance"                => { label: "Tax Clearance Certificate",        description: "From Ghana Revenue Authority" },
         "bank_statement"               => { label: "Bank Statement",                   description: "Last 3 months, shows business name — also accepted as proof of address" }
+      }.freeze
+
+      # Owner documents — shown in a separate "Directors & Owners" section
+      OWNER_KINDS = {
+        "id" => { label: "Director / Owner ID", description: "Ghana Card, Passport, or Voter's ID of the business owner or director" }
       }.freeze
 
       BUSINESS_REQUIREMENTS = {
         "sole_proprietorship" => {
-          required: %w[id business_registration bank_statement],
-          optional: %w[form_a tax_clearance]
+          required: %w[business_registration],
+          optional: %w[form_a bank_statement]
         },
         "partnership" => {
-          required: %w[id form_a bank_statement],
-          optional: %w[business_registration tax_clearance]
+          required: %w[form_a],
+          optional: %w[business_registration bank_statement]
         },
         "llc" => {
-          required: %w[id certificate_of_incorporation form_a bank_statement],
-          optional: %w[tax_clearance]
+          required: %w[certificate_of_incorporation form_a],
+          optional: %w[bank_statement]
         },
         "private_limited" => {
-          required: %w[id certificate_of_incorporation form_a bank_statement],
-          optional: %w[tax_clearance]
+          required: %w[certificate_of_incorporation form_a],
+          optional: %w[bank_statement]
         },
         "public_limited" => {
-          required: %w[id certificate_of_incorporation form_a bank_statement],
-          optional: %w[tax_clearance]
+          required: %w[certificate_of_incorporation form_a],
+          optional: %w[bank_statement]
         },
         "ngo" => {
-          required: %w[id certificate_of_incorporation bank_statement],
-          optional: %w[form_a tax_clearance]
+          required: %w[certificate_of_incorporation],
+          optional: %w[form_a bank_statement]
         }
       }.freeze
 
       DEFAULT_REQUIREMENTS = {
-        required: %w[id bank_statement],
-        optional: DOCUMENT_KINDS.keys - %w[id bank_statement]
+        required: [],
+        optional: DOCUMENT_KINDS.keys
       }.freeze
 
       # approved > under_review > uploaded > rejected > pending_upload
@@ -68,6 +72,7 @@ module Onboarding
 
             doc_section("Required Documents", required_kinds, required: true)
             doc_section("Optional Documents", optional_kinds, required: false) if optional_kinds.any?
+            owners_section
           end
 
           step_footer
@@ -86,6 +91,18 @@ module Onboarding
           p(class: TYPE_HEADING + " mb-3") { plain title }
           div(class: "space-y-2") do
             present.each { |kind, info| document_card(kind, info, required: required) }
+          end
+        end
+      end
+
+      def owners_section
+        div do
+          p(class: TYPE_HEADING + " mb-1") { plain "Director / Owner Identification" }
+          p(class: "#{TYPE_CAPTION} mb-3") do
+            plain "Upload a valid government-issued ID for the primary business owner or authorised director."
+          end
+          div(class: "space-y-2") do
+            OWNER_KINDS.each { |kind, info| document_card(kind, info, required: true) }
           end
         end
       end
@@ -140,50 +157,54 @@ module Onboarding
               data:   { "doc-upload-target": "input", action: "change->doc-upload#picked" }
             )
 
-            # Compact header row — always visible
-            div(class: "flex items-center gap-3 px-4 py-3") do
-              card_icon(done: false, rejected: is_rejected)
-              div(class: "flex-1 min-w-0") do
-                div(class: "flex items-center gap-1.5 flex-wrap") do
-                  span(class: "text-[13px] font-semibold text-gray-900 leading-tight") { plain info[:label] }
-                  required_badge(required)
-                  span(class: "text-[10px] font-semibold px-[7px] py-[2px] rounded-full bg-red-50 text-red-600") { plain "Rejected" } if is_rejected
+            # Card header + rejection note — hidden when file is picked
+            div(data: { "doc-upload-target": "cardContent" }) do
+              div(class: "flex items-center gap-3 px-4 py-3") do
+                card_icon(done: false, rejected: is_rejected)
+                div(class: "flex-1 min-w-0") do
+                  div(class: "flex items-center gap-1.5 flex-wrap") do
+                    span(class: "text-[13px] font-semibold text-gray-900 leading-tight") { plain info[:label] }
+                    required_badge(required)
+                    span(class: "text-[10px] font-semibold px-[7px] py-[2px] rounded-full bg-red-50 text-red-600") { plain "Rejected" } if is_rejected
+                  end
+                  p(class: "#{TYPE_CAPTION} mt-0.5") { plain info[:description] }
+                  p(class: "text-[10.5px] text-gray-400 mt-0.5") { plain "PDF, JPG, PNG · max 10 MB" }
                 end
-                p(class: "#{TYPE_CAPTION} mt-0.5") { plain info[:description] }
+                button(
+                  type:  "button",
+                  class: "flex-shrink-0 #{BTN_SECONDARY} gap-1.5",
+                  data:  { action: "click->doc-upload#pick", "doc-upload-target": "pickBtn" }
+                ) do
+                  span(class: "flex w-[11px] h-[11px]") { render UI::Icon.new(:upload, class: "w-full h-full") }
+                  plain is_rejected ? "Re-upload" : "Upload"
+                end
               end
-              button(
-                type:  "button",
-                class: "flex-shrink-0 #{BTN_SECONDARY} gap-1.5",
-                data:  { action: "click->doc-upload#pick" }
-              ) do
-                span(class: "flex w-[11px] h-[11px]") { render UI::Icon.new(:upload, class: "w-full h-full") }
-                plain is_rejected ? "Re-upload" : "Upload"
+
+              if is_rejected && existing&.dig("reviewer_notes").present?
+                div(class: "mx-4 mb-3 px-3 py-2 rounded-lg bg-red-50 border border-red-100") do
+                  p(class: "text-[11px] font-semibold uppercase tracking-wide text-red-400") { plain "Rejection reason" }
+                  p(class: "text-[12px] text-red-700 mt-0.5 leading-snug") { plain existing["reviewer_notes"] }
+                end
               end
             end
 
-            # Rejection note
-            if is_rejected && existing&.dig("reviewer_notes").present?
-              div(class: "mx-4 mb-3 px-3 py-2 rounded-lg bg-red-50 border border-red-100") do
-                p(class: "text-[11px] font-semibold uppercase tracking-wide text-red-400") { plain "Rejection reason" }
-                p(class: "text-[12px] text-red-700 mt-0.5 leading-snug") { plain existing["reviewer_notes"] }
-              end
-            end
-
-            # Preview bar — animated slide-in (doc-slide + inner wrapper)
+            # Preview row — slides in after file is picked, card header above is hidden
             div(class: "doc-slide", data: { "doc-upload-target": "previewSlide" }) do
               div do
-                div(class: "flex items-center gap-2.5 border-t border-gray-100 px-4 py-2.5") do
-                  div(class: "w-6 h-6 flex-shrink-0 rounded bg-indigo-50 border border-indigo-100 flex items-center justify-center") do
-                    span(class: "flex w-[10px] h-[10px] text-indigo-500") { render UI::Icon.new(:file, class: "w-full h-full") }
+                div(class: "flex items-center gap-2.5 px-4 py-3") do
+                  div(class: "w-7 h-7 flex-shrink-0 rounded-lg bg-indigo-50 border border-indigo-100/80 flex items-center justify-center") do
+                    span(class: "flex w-[11px] h-[11px] text-indigo-500") { render UI::Icon.new(:file, class: "w-full h-full") }
                   end
-                  span(
-                    class: "flex-1 min-w-0 text-[12.5px] font-medium text-gray-900 truncate",
-                    data:  { "doc-upload-target": "filename" }
-                  ) { }
-                  span(
-                    class: "text-[11px] text-gray-400 flex-shrink-0 mr-1",
-                    data:  { "doc-upload-target": "filesize" }
-                  ) { }
+                  div(class: "flex-1 min-w-0") do
+                    span(
+                      class: "block text-[12.5px] font-medium text-gray-900 truncate",
+                      data:  { "doc-upload-target": "filename" }
+                    ) { }
+                    span(
+                      class: "block text-[11px] text-gray-400",
+                      data:  { "doc-upload-target": "filesize" }
+                    ) { }
+                  end
                   button(
                     type:  "button",
                     class: "flex-shrink-0 p-1 rounded text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors",
@@ -191,12 +212,20 @@ module Onboarding
                   ) { render UI::Icon.new(:x, class: "w-3.5 h-3.5") }
                   button(
                     type:  "submit",
-                    class: "flex-shrink-0 #{BTN_PRIMARY} ml-0.5",
+                    class: "flex-shrink-0 #{BTN_PRIMARY} ml-1",
                     data:  { "doc-upload-target": "submitBtn" }
                   ) do
                     span(class: "flex w-[11px] h-[11px]") { render UI::Icon.new(:upload, class: "w-full h-full") }
                     span(data: { "doc-upload-target": "btnLabel" }) { plain "Upload" }
                   end
+                end
+                # Indeterminate progress stripe — shown by doc_upload_controller on submit
+                div(
+                  class: "h-[2px] overflow-hidden bg-indigo-50",
+                  hidden: true,
+                  data:   { "doc-upload-target": "progressBar" }
+                ) do
+                  div(class: "doc-progress-inner")
                 end
               end
             end
@@ -206,9 +235,13 @@ module Onboarding
 
       # ── Uploaded card (replace + delete) ───────────────────────────────────
 
+      IMAGE_EXTS = %w[.jpg .jpeg .png .webp].freeze
+
       def uploaded_card(kind, info, existing, required:)
         date_str    = parse_date(existing&.dig("inserted_at"))
         document_id = existing&.dig("id")
+        filename    = existing&.dig("filename")
+        is_image    = filename.present? && IMAGE_EXTS.include?(File.extname(filename).downcase)
 
         div(
           class: "rounded-xl border border-gray-200 overflow-hidden bg-white transition-colors duration-150 " \
@@ -219,35 +252,38 @@ module Onboarding
             action:     "dragover->doc-upload#dragover dragleave->doc-upload#dragleave drop->doc-upload#drop"
           }
         ) do
-          # Uploaded info row — stays visible, not toggled
           div(class: "flex items-center gap-3 px-4 py-3") do
             card_icon(done: true)
             div(class: "flex-1 min-w-0") do
               div(class: "flex items-center gap-1.5 flex-wrap") do
                 span(class: "text-[13px] font-semibold text-gray-900 leading-tight") { plain info[:label] }
                 required_badge(required)
-                span(class: "text-[10px] font-semibold px-[7px] py-[2px] rounded-full bg-blue-50 text-blue-600") { plain "Uploaded" }
+                span(class: "text-[10px] font-semibold px-[7px] py-[2px] rounded-full bg-green-50 text-green-700") { plain "Uploaded" }
               end
               p(class: "#{TYPE_CAPTION} mt-0.5") do
-                plain date_str ? "Uploaded #{date_str}" : "Document uploaded"
+                parts = [ filename.presence, date_str ? "#{date_str}" : nil ].compact
+                plain parts.any? ? parts.join(" · ") : "Document uploaded"
               end
             end
-            div(class: "flex items-center gap-2 flex-shrink-0") do
-              button(
-                type:  "button",
-                class: "inline-flex items-center gap-1.5 text-[11.5px] font-medium " \
-                       "text-gray-500 hover:text-gray-700 border border-gray-200 hover:border-gray-300 " \
-                       "rounded-lg px-2.5 py-1.5 transition-colors",
-                data:  { action: "click->doc-upload#replace" }
-              ) do
-                span(class: "flex w-[10px] h-[10px]") { render UI::Icon.new(:refresh, class: "w-full h-full") }
-                plain "Replace"
+            div(class: "flex items-center gap-3 flex-shrink-0") do
+              if document_id.present?
+                a(
+                  href:   kyb_document_preview_path(document_id),
+                  target: "_blank",
+                  class:  "text-[11.5px] font-medium text-indigo-500 hover:text-indigo-700 " \
+                          "hover:underline transition-colors"
+                ) { plain "View" }
               end
+              span(class: "text-gray-200 select-none") { plain "|" }
               button(
                 type:  "button",
-                class: "inline-flex items-center text-[11.5px] font-medium " \
-                       "text-red-400 hover:text-red-600 border border-red-100 hover:border-red-300 " \
-                       "rounded-lg px-2.5 py-1.5 transition-colors hover:bg-red-50",
+                class: "text-[11.5px] font-medium text-gray-500 hover:text-gray-700 transition-colors",
+                data:  { action: "click->doc-upload#replace" }
+              ) { plain "Replace" }
+              span(class: "text-gray-200 select-none") { plain "|" }
+              button(
+                type:  "button",
+                class: "text-[11.5px] font-medium text-red-400 hover:text-red-600 transition-colors",
                 data:  { action: "click->doc-upload#showDelete" }
               ) { plain "Remove" }
             end
@@ -297,17 +333,19 @@ module Onboarding
                 div(class: "doc-slide", data: { "doc-upload-target": "previewSlide" }) do
                   div do
                     div(class: "flex items-center gap-2.5 border-t border-gray-100 px-4 py-2.5") do
-                      div(class: "w-6 h-6 flex-shrink-0 rounded bg-indigo-50 border border-indigo-100 flex items-center justify-center") do
-                        span(class: "flex w-[10px] h-[10px] text-indigo-500") { render UI::Icon.new(:file, class: "w-full h-full") }
+                      div(class: "w-7 h-7 flex-shrink-0 rounded-lg bg-indigo-50 border border-indigo-100/80 flex items-center justify-center") do
+                        span(class: "flex w-[11px] h-[11px] text-indigo-500") { render UI::Icon.new(:file, class: "w-full h-full") }
                       end
-                      span(
-                        class: "flex-1 min-w-0 text-[12.5px] font-medium text-gray-900 truncate",
-                        data:  { "doc-upload-target": "filename" }
-                      ) { }
-                      span(
-                        class: "text-[11px] text-gray-400 flex-shrink-0 mr-1",
-                        data:  { "doc-upload-target": "filesize" }
-                      ) { }
+                      div(class: "flex-1 min-w-0") do
+                        span(
+                          class: "block text-[12.5px] font-medium text-gray-900 truncate",
+                          data:  { "doc-upload-target": "filename" }
+                        ) { }
+                        span(
+                          class: "block text-[11px] text-gray-400",
+                          data:  { "doc-upload-target": "filesize" }
+                        ) { }
+                      end
                       button(
                         type:  "button",
                         class: "flex-shrink-0 p-1 rounded text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors",
@@ -315,12 +353,19 @@ module Onboarding
                       ) { render UI::Icon.new(:x, class: "w-3.5 h-3.5") }
                       button(
                         type:  "submit",
-                        class: "flex-shrink-0 #{BTN_PRIMARY} ml-0.5",
+                        class: "flex-shrink-0 #{BTN_PRIMARY} ml-1",
                         data:  { "doc-upload-target": "submitBtn" }
                       ) do
                         span(class: "flex w-[11px] h-[11px]") { render UI::Icon.new(:upload, class: "w-full h-full") }
                         span(data: { "doc-upload-target": "btnLabel" }) { plain "Upload" }
                       end
+                    end
+                    div(
+                      class: "h-[2px] overflow-hidden bg-indigo-50",
+                      hidden: true,
+                      data:   { "doc-upload-target": "progressBar" }
+                    ) do
+                      div(class: "doc-progress-inner")
                     end
                   end
                 end
@@ -368,6 +413,9 @@ module Onboarding
       def readonly_card(kind, info, existing, status, required:)
         is_approved = status == "approved"
         date_str    = parse_date(existing&.dig("inserted_at"))
+        filename    = existing&.dig("filename")
+        document_id = existing&.dig("id")
+        is_image    = filename.present? && IMAGE_EXTS.include?(File.extname(filename).downcase)
 
         div(
           class: "rounded-xl border overflow-hidden " \
@@ -386,8 +434,17 @@ module Onboarding
                 end
               end
               p(class: "#{TYPE_CAPTION} mt-0.5") do
-                plain date_str ? "Uploaded #{date_str}" : "Document uploaded"
+                parts = [ filename.presence, date_str ? "#{date_str}" : nil ].compact
+                plain parts.any? ? parts.join(" · ") : "Document uploaded"
               end
+            end
+            if document_id.present?
+              a(
+                href:   kyb_document_preview_path(document_id),
+                target: "_blank",
+                class:  "flex-shrink-0 text-[11.5px] font-medium text-indigo-500 " \
+                        "hover:text-indigo-700 hover:underline transition-colors"
+              ) { plain "View" }
             end
           end
         end
@@ -461,15 +518,13 @@ module Onboarding
       end
 
       def step_footer
-        has_docs = @documents.any? { |d| %w[uploaded under_review approved].include?(d["status"]) }
-
         div(class: "px-6 py-4 border-t border-gray-100 flex items-center justify-between") do
           a(href: verify_step_path("settlement"), class: BTN_SECONDARY) do
             render UI::Icon.new(:arrow_left, class: ICON_SM)
             plain "Back"
           end
 
-          if has_docs
+          if required_docs_complete?
             a(href: verify_step_path("agreement"), class: BTN_PRIMARY) do
               plain "Continue to Agreement"
               render UI::Icon.new(:arrow_right, class: ICON_SM)
@@ -477,13 +532,24 @@ module Onboarding
           else
             span(
               class: "#{BTN_PRIMARY} opacity-40 cursor-not-allowed pointer-events-none",
-              title: "Upload at least one document to continue"
+              title: "Upload all required documents to continue"
             ) do
               plain "Continue to Agreement"
               render UI::Icon.new(:arrow_right, class: ICON_SM)
             end
           end
         end
+      end
+
+      def required_docs_complete?
+        reqs           = BUSINESS_REQUIREMENTS.fetch(@business_type.to_s, DEFAULT_REQUIREMENTS)
+        required_kinds = reqs[:required] + OWNER_KINDS.keys
+
+        uploaded_kinds = @documents
+                           .select { |d| %w[uploaded under_review approved].include?(d["status"]) }
+                           .map    { |d| d["kind"] }
+
+        required_kinds.all? { |k| uploaded_kinds.include?(k) }
       end
     end
   end

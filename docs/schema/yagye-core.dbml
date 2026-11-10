@@ -97,6 +97,7 @@ Table merchants [headercolor: #1A2B4C] {
   employee_range text [note: '1-5|6-10|11-50|51-200|201-500|500+']
   annual_tpv_estimate bigint [note: 'self-reported projected annual sales volume in pesewas — drives initial reserve tier and risk review']
   tin text [note: 'Ghana Tax Identification Number — format C0001234567. Required for all registered businesses; stored plain (not PII-vaulted, it is a public company identifier).']
+  registration_number text [note: 'Business registration / RC number from RGD or GRA — the identifier on the official registration certificate. Used by compliance to cross-check against registry records. Stored plain (public company identifier).']
 
   // Activity tracking
   activity_state text [not null, note: 'active|quiet|dormant|inactive|blind. BLIND is not a lifecycle state — it means WE cannot see their data and must say so on their dashboard.']
@@ -272,8 +273,9 @@ Table beneficial_owners [headercolor: #B4531F] {
 Table kyb_documents [headercolor: #B4531F] {
   id uuid [pk]
   merchant_id uuid [not null]
-  kind text [not null, note: 'id|form_a|certificate_of_incorporation|business_registration|tax_clearance|bank_statement|proof_of_address — kind drives the required_for_business_types gate; proof_of_address is ops-only (utility bill fallback); bank_statement covers both banking and address proof for merchant-facing uploads']
+  kind text [not null, note: 'id|form_a|certificate_of_incorporation|business_registration|tax_clearance|bank_statement|proof_of_address — merchant-facing UI: form_a/certificate_of_incorporation/business_registration/bank_statement (business docs) + id (Directors & Owners section); tax_clearance and proof_of_address are ops-only (TIN is a text field on merchants; utility bill fallback)']
   label text [not null, note: 'human-readable name shown in the portal, e.g. "Form A — Sole Proprietorship Registration"']
+  filename text [note: 'original filename as uploaded by the merchant, e.g. "ghana_card_front.jpg". Stored from upload intent and surfaced back in the portal uploaded/reviewed states.']
   required_for_business_types text[] [note: 'NULL = required for all business types. e.g. [sole_proprietorship] means only sole props must upload this; [registered_business] means Ltd/Partnership/NGO only.']
   s3_key text [note: '[PII][EVD] SSE-KMS, private, presigned access only. NULL until upload is initiated.']
   checksum text [note: 'sha256 of the file. NULL until uploaded.']

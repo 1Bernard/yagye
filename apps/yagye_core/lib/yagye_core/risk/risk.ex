@@ -155,11 +155,11 @@ defmodule YagyeCore.Risk do
   end
 
   @doc """
-  Fetch a single flagged payment with its risk labels.
-  Returns {:ok, {payment, labels}} | {:error, :not_found}.
+  Fetch a single flagged payment with its risk labels, customer context, payment history, and signals.
+  Returns {:ok, %{payment, labels, history, signals}} | {:error, :not_found}.
   """
   def get_case(payment_id) do
-    case Repo.get(Payment, payment_id) do
+    case Repo.get(Payment, payment_id) |> Repo.preload(:customer) do
       nil ->
         {:error, :not_found}
 
@@ -172,7 +172,31 @@ defmodule YagyeCore.Risk do
             )
           )
 
-        {:ok, {payment, labels}}
+        {history, signals} =
+          case payment.customer do
+            nil ->
+              {[], default_signals()}
+
+            customer ->
+              history =
+                Repo.all(
+                  from(p in Payment,
+                    where: p.customer_id == ^customer.id and p.id != ^payment.id,
+                    order_by: [desc: p.inserted_at],
+                    limit: 20
+                  )
+                )
+
+              {history, compute_signals(payment, history)}
+          end
+
+        {:ok,
+         %{
+           payment: payment,
+           labels: labels,
+           history: history,
+           signals: signals
+         }}
     end
   end
 
@@ -188,5 +212,53 @@ defmodule YagyeCore.Risk do
       note: note
     })
     |> Repo.insert()
+  end
+
+  # ── Signal computation ───────────────────────────────────────────────────────
+
+  defp default_signals do
+    %{
+      tx_count_7d: 0,
+      tx_count_30d: 0,
+      avg_amount_30d: 0,
+      amount_vs_avg: nil,
+      unusual_method: false,
+      new_customer: true
+    }
+  end
+
+  defp compute_signals(payment, history) do
+    now = DateTime.utc_now()
+    seven_ago = DateTime.add(now, -7 * 86_400, :second)
+    thirty_ago = DateTime.add(now, -30 * 86_400, :second)
+
+    count_7d = Enum.count(history, &(DateTime.compare(&1.inserted_at, seven_ago) != :lt))
+    count_30d = Enum.count(history, &(DateTime.compare(&1.inserted_at, thirty_ago) != :lt))
+
+    recent_amounts =
+      history
+      |> Enum.filter(&(DateTime.compare(&1.inserted_at, thirty_ago) != :lt))
+      |> Enum.map(& &1.amount)
+
+    avg =
+      if Enum.empty?(recent_amounts),
+        do: 0,
+        else: Enum.sum(recent_amounts) / length(recent_amounts)
+
+    method_counts = Enum.frequencies_by(history, & &1.method)
+
+    usual_method =
+      if Enum.empty?(method_counts),
+        do: nil,
+        else: method_counts |> Enum.max_by(fn {_k, v} -> v end) |> elem(0)
+
+    %{
+      tx_count_7d: count_7d,
+      tx_count_30d: count_30d,
+      avg_amount_30d: round(avg),
+      amount_vs_avg: if(avg > 0, do: Float.round(payment.amount / avg, 1), else: nil),
+      unusual_method: usual_method != nil and payment.method != usual_method,
+      new_customer: Enum.empty?(history)
+    }
   end
 end

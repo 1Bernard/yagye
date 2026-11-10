@@ -18,7 +18,7 @@ module Compliance
           end
         end
 
-        form(action: approve_kyb_review_path(@app), method: "post") do
+        form(action: approve_kyb_review_path(@app), method: "post", data: { turbo_frame: "_top" }) do
           div(class: MODAL_BODY) do
             p(class: TYPE_BODY) do
               plain "You are about to approve "

@@ -48,7 +48,7 @@ defmodule YagyeCoreWeb.Controllers.Internal.KybController do
   def update_kyb_profile(conn, %{"merchant_code" => code} = params) do
     attrs =
       params
-      |> Map.take(~w[business_type registration_type category tin])
+      |> Map.take(~w[business_type registration_type category tin registration_number])
       |> Map.new(fn {k, v} -> {String.to_existing_atom(k), v} end)
 
     case Merchants.update_merchant_profile(code, attrs) do
@@ -262,7 +262,8 @@ defmodule YagyeCoreWeb.Controllers.Internal.KybController do
       business_type: m.business_type,
       registration_type: m.registration_type,
       category: m.category,
-      tin: m.tin
+      tin: m.tin,
+      registration_number: m.registration_number
     }
   end
 
@@ -300,6 +301,7 @@ defmodule YagyeCoreWeb.Controllers.Internal.KybController do
       id: d.id,
       kind: d.kind,
       label: d.label,
+      filename: d.filename,
       status: d.status,
       required_for_business_types: d.required_for_business_types,
       s3_key: d.s3_key,

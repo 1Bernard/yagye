@@ -27,6 +27,7 @@ defmodule YagyeCore.Merchants.Schemas.Merchant do
     field :registration_type, :string
     field :category, :string
     field :tin, :string
+    field :registration_number, :string
     field :industry, :string
     field :employee_range, :string
     field :annual_tpv_estimate, :integer
@@ -48,6 +49,7 @@ defmodule YagyeCore.Merchants.Schemas.Merchant do
     registration_type
     category
     tin
+    registration_number
     industry
     employee_range
     annual_tpv_estimate

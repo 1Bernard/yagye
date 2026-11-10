@@ -17,7 +17,7 @@ module Compliance
             render UI::Icon.new(:x, class: ICON_SM)
           end
         end
-        form(action: reject_kyb_review_path(@app), method: "post") do
+        form(action: reject_kyb_review_path(@app), method: "post", data: { turbo_frame: "_top" }) do
           div(class: MODAL_BODY) do
             p(class: "#{TYPE_BODY} mb-4") do
               plain "Provide a reason for rejecting "

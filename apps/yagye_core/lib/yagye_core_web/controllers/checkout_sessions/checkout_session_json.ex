@@ -3,8 +3,6 @@ defmodule YagyeCoreWeb.Controllers.CheckoutSessions.CheckoutSessionJSON do
 
   alias YagyeCore.Checkout.Schemas.{CheckoutLineItem, CheckoutSession}
 
-  @base_url Application.compile_env(:yagye_core, :checkout_base_url, "https://pay.yagye.com")
-
   def data(%CheckoutSession{} = session, url_token \\ nil) do
     %{
       id: session.public_id,
@@ -41,8 +39,11 @@ defmodule YagyeCoreWeb.Controllers.CheckoutSessions.CheckoutSessionJSON do
   defp payment_public_id(nil), do: nil
   defp payment_public_id(payment), do: payment.public_id
 
-  defp checkout_url(session, nil), do: "#{@base_url}/s/#{session.public_id}"
-  defp checkout_url(_session, token), do: "#{@base_url}/s/#{token}"
+  defp checkout_url(session, nil), do: "#{checkout_base_url()}/s/#{session.public_id}"
+  defp checkout_url(_session, token), do: "#{checkout_base_url()}/s/#{token}"
+
+  defp checkout_base_url,
+    do: Application.get_env(:yagye_core, :checkout_base_url, "https://pay.yagye.com")
 
   defp line_items(%CheckoutSession{line_items: items}) when is_list(items) do
     Enum.map(items, &line_item/1)

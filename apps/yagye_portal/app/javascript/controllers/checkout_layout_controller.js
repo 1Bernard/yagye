@@ -1,7 +1,7 @@
 import { Controller } from "@hotwired/stimulus"
 
 export default class extends Controller {
-  static targets = ["methodList", "previewList", "emptyPreview", "saveBtn", "savedBadge", "checkoutUrl", "logoUrlInput", "previewLogoImg", "copyUrlBtn", "previewPayBtn"]
+  static targets = ["methodList", "previewList", "emptyPreview", "saveBtn", "savedBadge", "checkoutUrl", "logoUrlInput", "previewLogoImg", "copyUrlBtn", "previewPayBtn", "previewCard"]
   static values  = {
     saveUrl:  String,
     csrf:     String,
@@ -13,6 +13,7 @@ export default class extends Controller {
     this._drag  = null
     this._setupDrag()
     this._syncPreview()
+    this._setSavedState()
   }
 
   disconnect() {
@@ -218,22 +219,31 @@ export default class extends Controller {
   updateBrandColor(event) {
     const hex = event.currentTarget.value.trim()
     if (!/^#[0-9a-fA-F]{6}$/.test(hex)) return
-    // Sync color picker
     const picker = this.element.querySelector("input[type='color']")
     if (picker) picker.value = hex
-    // Update preview button bg
-    if (this.hasPreviewPayBtnTarget) this.previewPayBtnTarget.style.background = hex
+    this._applyBrandColor(hex)
     this._markDirty()
   }
 
   syncColorHex(event) {
     const hex = event.currentTarget.value
-    // Sync text hex input
     const hexInput = this.element.querySelector("[data-preview-color-hex]")
     if (hexInput) hexInput.value = hex
-    // Update preview button bg
-    if (this.hasPreviewPayBtnTarget) this.previewPayBtnTarget.style.background = hex
+    this._applyBrandColor(hex)
     this._markDirty()
+  }
+
+  _applyBrandColor(hex) {
+    if (this.hasPreviewCardTarget) this.previewCardTarget.style.setProperty('--preview-brand', hex)
+    if (this.hasPreviewPayBtnTarget) this.previewPayBtnTarget.style.background = hex
+  }
+
+  _currentBrand() {
+    if (this.hasPreviewCardTarget) {
+      const v = this.previewCardTarget.style.getPropertyValue('--preview-brand').trim()
+      if (v) return v
+    }
+    return '#3D47F5'
   }
 
   updateFont(event) {
@@ -276,11 +286,27 @@ export default class extends Controller {
   toggleTerms(event) {
     const fields = this.element.querySelector("[data-terms-fields]")
     if (fields) fields.style.display = event.currentTarget.checked ? "" : "none"
+    const previewRow = this.element.querySelector("[data-preview-terms-row]")
+    if (previewRow) previewRow.hidden = !event.currentTarget.checked
     this._markDirty()
   }
 
-  updateTermsLabel(event) { this._markDirty() }
-  updateTermsUrl(event)   { this._markDirty() }
+  updateTermsLabel(event) {
+    const previewLabel = this.element.querySelector("[data-preview-terms-label]")
+    if (previewLabel) previewLabel.textContent = event.currentTarget.value.trim() || "I agree to the Terms & Conditions"
+    this._markDirty()
+  }
+
+  updateTermsUrl(event) {
+    const previewLabel = this.element.querySelector("[data-preview-terms-label]")
+    if (previewLabel) {
+      const hasUrl = event.currentTarget.value.trim().length > 0
+      previewLabel.classList.toggle("underline", hasUrl)
+      previewLabel.classList.toggle("text-gray-500", !hasUrl)
+      previewLabel.style.color = hasUrl ? "var(--preview-brand, #3D47F5)" : ""
+    }
+    this._markDirty()
+  }
 
   toggleMethod(event) {
     const toggle  = event.currentTarget
@@ -320,17 +346,25 @@ export default class extends Controller {
     if (editorTile && this.hasPreviewListTarget && methodId) {
       const pt = this.previewListTarget.querySelector(`[data-preview-method="${methodId}"]`)
       if (pt) {
+        const brand = this._currentBrand()
+
         // Tile border + shadow
-        pt.className = expanded
-          ? "rounded-xl overflow-hidden bg-white border-2 border-[#3D47F5] shadow-[0_4px_20px_rgba(61,71,245,0.13)]"
-          : "rounded-xl overflow-hidden bg-white border border-gray-200"
+        if (expanded) {
+          pt.className = "rounded-xl overflow-hidden bg-white"
+          pt.style.border = `2px solid ${brand}`
+          pt.style.boxShadow = "0 4px 16px rgba(0,0,0,0.09)"
+        } else {
+          pt.className = "rounded-xl overflow-hidden bg-white border border-gray-200"
+          pt.style.border = ""
+          pt.style.boxShadow = ""
+        }
 
         // Radio circle fill
         const radio = pt.querySelector("[data-preview-tile-radio]")
         if (radio) {
-          radio.className = `w-[17px] h-[17px] rounded-full flex items-center justify-center flex-shrink-0 border-2 ${
-            expanded ? "bg-[#3D47F5] border-[#3D47F5]" : "border-gray-300"
-          }`
+          radio.className = `w-[17px] h-[17px] rounded-full flex items-center justify-center flex-shrink-0 border-2 ${expanded ? "" : "border-gray-300"}`
+          radio.style.background = expanded ? brand : ""
+          radio.style.borderColor = expanded ? brand : ""
           const dot = radio.querySelector("[data-preview-tile-radio-dot]")
           if (dot) dot.hidden = !expanded
         }
@@ -339,6 +373,13 @@ export default class extends Controller {
         const label = pt.querySelector("[data-preview-tile-label]")
         if (label) {
           label.className = `flex-1 text-[13.5px] font-semibold ${expanded ? "text-gray-900" : "text-gray-700"}`
+        }
+
+        // Chevron colour
+        const chevron = pt.querySelector("[data-preview-tile-chevron]")
+        if (chevron) {
+          chevron.style.color = expanded ? brand : ""
+          chevron.className = `flex w-[15px] h-[15px] flex-shrink-0 ${expanded ? "" : "text-gray-400"}`
         }
 
         // Show / hide expanded content block
@@ -367,8 +408,7 @@ export default class extends Controller {
       .then(data => {
         if (data.ok) {
           this._dirty = false
-          this.saveBtnTarget.textContent = "Save layout"
-          this.saveBtnTarget.disabled = false
+          this._setSavedState()
           if (this.hasSavedBadgeTarget) {
             this.savedBadgeTarget.hidden = false
             setTimeout(() => { this.savedBadgeTarget.hidden = true }, 3000)
@@ -390,9 +430,20 @@ export default class extends Controller {
     alert(msg || "Failed to save layout.")
   }
 
+  _setSavedState() {
+    this.saveBtnTarget.disabled = true
+    this.saveBtnTarget.textContent = "Saved"
+    this.saveBtnTarget.style.opacity = "0.55"
+    this.saveBtnTarget.style.cursor  = "default"
+  }
+
   _markDirty() {
+    if (this._dirty) return
     this._dirty = true
     this.saveBtnTarget.disabled = false
+    this.saveBtnTarget.textContent = "Save layout"
+    this.saveBtnTarget.style.opacity = ""
+    this.saveBtnTarget.style.cursor  = ""
   }
 
   _collectLayout() {

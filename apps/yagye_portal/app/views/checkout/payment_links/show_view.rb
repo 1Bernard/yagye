@@ -33,7 +33,8 @@ module Checkout
             { label: @link["description"] || @link["id"].to_s.first(16) }
           ],
           padded:       false,
-          hide_sidebar: true
+          hide_sidebar: true,
+          hide_topbar:  true
         ) do
           canvas_styles
 
@@ -45,6 +46,8 @@ module Checkout
               preview_area
             end
           end
+
+          preview_sync_script
         end
       end
 
@@ -110,12 +113,6 @@ module Checkout
             end
           end
 
-          a(href: payment_link_layout_path(@link["id"]),
-            class: "flex items-center gap-[5px] px-[10px] py-[5px] rounded-xl text-[12.5px] font-semibold " \
-                   "bg-[#3D47F5] hover:bg-[#2e38d4] text-white transition-colors no-underline") do
-            render UI::Icon.new(:edit, class: "w-3.5 h-3.5")
-            plain @link["kind"] == "invoice" ? "Edit checkout" : "Edit layout"
-          end
 
           if @link["active"] && @link["kind"] != "invoice"
             div(class: "w-px h-5 bg-gray-200 flex-shrink-0")
@@ -433,7 +430,8 @@ module Checkout
 
         form(
           action: payment_link_settings_path(@link["id"]),
-          method: "post"
+          method: "post",
+          data:   { preview_form: "" }
         ) do
           input(type: "hidden", name: "_method",            value: "patch")
           input(type: "hidden", name: "authenticity_token", value: form_authenticity_token)
@@ -574,6 +572,37 @@ module Checkout
           div(class: "min-h-full pb-10 flex flex-col items-center pt-0 px-5") do
             share_pill(url)
             checkout_preview_card
+            if can?(:manage_layout?, :checkout)
+              cl = @link["checkout_layout"] || {}
+              customised = cl.any? { |_k, v| v.present? }
+              brand_color = cl["brand_color"].presence || "#3D47F5"
+              div(class: "w-full max-w-[460px] mt-3 flex items-center justify-center") do
+                a(
+                  href:  payment_link_layout_path(@link["id"]),
+                  class: "flex items-center gap-[6px] px-4 py-[8px] rounded-xl text-[12.5px] font-semibold " \
+                         "bg-white border border-gray-200/80 text-gray-600 " \
+                         "hover:border-[#3D47F5] hover:text-[#3D47F5] hover:bg-[#3D47F5]/[0.03] " \
+                         "shadow-[0_2px_8px_rgba(0,0,0,0.05)] transition-all no-underline"
+                ) do
+                  if customised
+                    div(
+                      class: "w-[14px] h-[14px] rounded-[4px] flex-shrink-0 border border-white/20",
+                      style: "background:#{brand_color}"
+                    ) { }
+                  else
+                    render UI::Icon.new(:edit, class: "w-3.5 h-3.5")
+                  end
+                  plain "Customise checkout design"
+                  if customised
+                    span(
+                      class: "text-[10px] font-semibold px-[6px] py-[2px] rounded-full " \
+                             "bg-green-50 text-green-600 border border-green-100 flex-shrink-0"
+                    ) { plain "Customised" }
+                  end
+                  span(class: "flex w-[13px] h-[13px] opacity-50") { render UI::Icon.new(:chev_right, class: "w-full h-full") }
+                end
+              end
+            end
           end
         end
 
@@ -665,13 +694,18 @@ module Checkout
       # ── Checkout preview card ─────────────────────────────────────────────────
 
       def checkout_preview_card
-        sym       = CURRENCY_SYMBOLS.fetch(@link["currency"].to_s, @link["currency"].to_s)
-        fixed     = @link["kind"] == "fixed_amount"
-        amt       = @link["amount"].to_i
-        methods   = Array(@link["allowed_methods"])
-        saved_logo    = @link.dig("checkout_layout", "logo_url").to_s
-        merchant_name = current_user.active_membership&.merchant_name.to_s.presence || "Your business"
+        sym           = CURRENCY_SYMBOLS.fetch(@link["currency"].to_s, @link["currency"].to_s)
+        fixed         = @link["kind"] == "fixed_amount"
+        amt           = @link["amount"].to_i
+        methods       = Array(@link["allowed_methods"])
+        layout        = @link["checkout_layout"] || {}
+        brand_color   = layout["brand_color"].presence || "#3D47F5"
+        saved_logo    = layout["logo_url"].to_s
+        default_name  = current_user.active_membership&.merchant_name.to_s.presence || "Your business"
+        merchant_name = layout["business_name"].presence || default_name
         initials      = merchant_name.split.first(2).map { |w| w[0].upcase }.join
+        headline      = layout["headline"].presence
+        cta_text      = layout["cta_text"].presence
 
         div(class: "w-full max-w-[460px]") do
           div(
@@ -684,7 +718,8 @@ module Checkout
                 img(src: saved_logo, alt: "Logo",
                     class: "w-7 h-7 rounded-lg object-cover border border-gray-100 flex-shrink-0")
               else
-                div(class: "w-7 h-7 rounded-lg bg-[#3D47F5] flex items-center justify-center flex-shrink-0") do
+                div(class: "w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0",
+                    style: "background:#{brand_color}") do
                   span(class: "text-[10px] font-bold text-white") { plain initials }
                 end
               end
@@ -707,7 +742,10 @@ module Checkout
                   p(class: "text-[12.5px] text-gray-300") { plain "Enter amount..." }
                 end
               end
-              p(class: "text-[13.5px] font-medium text-gray-500 leading-snug") do
+              if headline
+                p(class: "text-[14px] font-semibold text-gray-800 mb-1 leading-snug") { plain headline }
+              end
+              p(id: "pl-preview-desc", class: "text-[13.5px] font-medium text-gray-500 leading-snug") do
                 plain @link["description"].presence || "Payment"
               end
             end
@@ -716,7 +754,7 @@ module Checkout
 
             div(class: "px-6 py-5") do
               p(class: "text-[9.5px] font-bold uppercase tracking-[0.12em] text-gray-400 mb-3") { plain "Pay with" }
-              div(class: "flex flex-wrap gap-2") do
+              div(id: "pl-preview-methods", class: "flex flex-wrap gap-2") do
                 methods.each do |m|
                   meta = METHOD_META[m] || { label: m.humanize, icon: "•" }
                   div(class: "flex items-center gap-1.5 px-3 py-[7px] rounded-[10px] border border-gray-200 " \
@@ -729,24 +767,27 @@ module Checkout
             end
 
             collect_any = @link["collect_email"] || @link["collect_phone"] || @link["collect_name"]
-            if collect_any
+            div(id: "pl-preview-collect-wrapper", hidden: !collect_any) do
               div(class: "h-px bg-gray-100 mx-6")
               div(class: "px-6 py-5 flex flex-col gap-2.5") do
-                preview_input_placeholder("Full name",     "Your name")       if @link["collect_name"]
-                preview_input_placeholder("Email address", "you@example.com") if @link["collect_email"]
-                preview_input_placeholder("Phone number",  "+233 24 000 0000") if @link["collect_phone"]
+                div(id: "pl-collect-name",  hidden: !@link["collect_name"])  { preview_input_placeholder("Full name",     "Your name") }
+                div(id: "pl-collect-email", hidden: !@link["collect_email"]) { preview_input_placeholder("Email address", "you@example.com") }
+                div(id: "pl-collect-phone", hidden: !@link["collect_phone"]) { preview_input_placeholder("Phone number",  "+233 24 000 0000") }
               end
             end
 
             div(class: "px-6 pb-6") do
-              pay_label = fixed && amt > 0 ? "Pay #{sym}#{fmt_num(amt)}" : "Pay now"
-              div(class: "w-full py-3.5 rounded-[10px] bg-[#3D47F5] flex items-center justify-center " \
-                         "text-[13.5px] font-bold text-white cursor-default select-none") { plain pay_label }
+              default_label = fixed && amt > 0 ? "Pay #{sym}#{fmt_num(amt)}" : "Pay now"
+              pay_label = cta_text || default_label
+              div(class: "w-full py-3.5 rounded-[10px] flex items-center justify-center " \
+                         "text-[13.5px] font-bold text-white cursor-default select-none",
+                  style: "background:#{brand_color}") { plain pay_label }
             end
 
             div(class: "px-6 pb-5 flex items-center justify-center gap-[5px]") do
               span(class: "text-[10px] text-gray-300") { plain "Powered by" }
-              span(class: "text-[10px] font-bold text-[#3D47F5]/60") { plain "Yagye" }
+              span(class: "text-[10px] font-bold",
+                   style: "color:#{brand_color};opacity:0.6") { plain "Yagye" }
             end
           end
         end
@@ -757,6 +798,63 @@ module Checkout
           p(class: "text-[9.5px] font-bold uppercase tracking-[0.12em] text-gray-400 mb-1.5") { plain label_text }
           div(class: "w-full h-[38px] border border-gray-200 rounded-[10px] px-3 flex items-center " \
                      "text-[12.5px] text-gray-300") { plain placeholder }
+        end
+      end
+
+      def preview_sync_script
+        script(nonce: content_security_policy_nonce) do
+          raw safe(<<~JS)
+            (function () {
+              var METHOD_LABEL = {
+                mobile_money:  { label: "Mobile Money",  icon: "📱" },
+                card:          { label: "Card",           icon: "💳" },
+                bank_transfer: { label: "Bank transfer",  icon: "🏦" }
+              };
+
+              function pill(id) {
+                var m = METHOD_LABEL[id] || { label: id, icon: "•" };
+                return '<div class="flex items-center gap-1.5 px-3 py-[7px] rounded-[10px] border border-gray-200 text-[12px] font-medium text-gray-700 bg-white">' +
+                       '<span class="text-[14px]">' + m.icon + '</span>' + m.label + '</div>';
+              }
+
+              function syncMethods(form) {
+                var checked = Array.from(form.querySelectorAll('input[name="allowed_methods[]"]:checked')).map(function (cb) { return cb.value; });
+                var container = document.getElementById('pl-preview-methods');
+                if (container) container.innerHTML = checked.map(pill).join('');
+              }
+
+              function syncCollect(form) {
+                var map = { collect_name: 'pl-collect-name', collect_email: 'pl-collect-email', collect_phone: 'pl-collect-phone' };
+                var any = false;
+                Object.keys(map).forEach(function (name) {
+                  var cb = form.querySelector('input[name="' + name + '"]');
+                  var el = document.getElementById(map[name]);
+                  if (cb && el) { el.hidden = !cb.checked; if (cb.checked) any = true; }
+                });
+                var wrapper = document.getElementById('pl-preview-collect-wrapper');
+                if (wrapper) wrapper.hidden = !any;
+              }
+
+              function syncDesc(form) {
+                var ta = form.querySelector('textarea[name="description"]');
+                var el = document.getElementById('pl-preview-desc');
+                if (ta && el) el.textContent = ta.value.trim() || 'Payment';
+              }
+
+              document.addEventListener('change', function (e) {
+                var form = e.target.closest('[data-preview-form]');
+                if (!form) return;
+                if (e.target.name === 'allowed_methods[]') syncMethods(form);
+                if (e.target.name === 'collect_email' || e.target.name === 'collect_phone' || e.target.name === 'collect_name') syncCollect(form);
+              });
+
+              document.addEventListener('input', function (e) {
+                var form = e.target.closest('[data-preview-form]');
+                if (!form) return;
+                if (e.target.name === 'description') syncDesc(form);
+              });
+            })();
+          JS
         end
       end
     end

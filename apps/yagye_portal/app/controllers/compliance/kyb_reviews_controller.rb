@@ -116,7 +116,7 @@ module Compliance
       authorize :kyb_reviews, :show?
       result = CoreApiClient.new.get_document_download_url(params[:document_id])
       if result.success?
-        redirect_to result.body["url"], allow_other_host: true
+        redirect_to rewrite_presigned_url(result.body["url"]), allow_other_host: true
       else
         redirect_to kyb_review_path(params[:id]), alert: "Document not available."
       end

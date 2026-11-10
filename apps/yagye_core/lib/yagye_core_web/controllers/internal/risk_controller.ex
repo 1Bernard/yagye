@@ -7,7 +7,7 @@ defmodule YagyeCoreWeb.Controllers.Internal.RiskController do
   alias YagyeCore.Risk
   alias YagyeCoreWeb.Response
 
-  action_fallback YagyeCoreWeb.FallbackController
+  action_fallback(YagyeCoreWeb.FallbackController)
 
   def list_flagged(conn, params) do
     opts = [
@@ -27,11 +27,15 @@ defmodule YagyeCoreWeb.Controllers.Internal.RiskController do
   end
 
   def show_case(conn, %{"payment_id" => payment_id}) do
-    with {:ok, {payment, labels}} <- Risk.get_case(payment_id) do
+    with {:ok, %{payment: payment, labels: labels, history: history, signals: signals}} <-
+           Risk.get_case(payment_id) do
       Response.ok(conn, %{
         object: "risk_case",
         payment: render_flagged_payment(payment),
-        labels: Enum.map(labels, &render_label/1)
+        labels: Enum.map(labels, &render_label/1),
+        customer: payment.customer && render_customer(payment.customer),
+        payment_history: Enum.map(history, &render_payment_summary/1),
+        signals: signals
       })
     end
   end
@@ -132,6 +136,33 @@ defmodule YagyeCoreWeb.Controllers.Internal.RiskController do
       dispositioned_by: hit.dispositioned_by,
       dispositioned_at: hit.dispositioned_at,
       inserted_at: hit.inserted_at
+    }
+  end
+
+  defp render_customer(customer) do
+    %{
+      id: customer.id,
+      public_id: customer.public_id,
+      name: customer.name,
+      email: customer.email,
+      phone: customer.phone,
+      kyc_tier: customer.kyc_tier,
+      kyc_verified_at: customer.kyc_verified_at && DateTime.to_iso8601(customer.kyc_verified_at),
+      customer_since: DateTime.to_iso8601(customer.inserted_at)
+    }
+  end
+
+  defp render_payment_summary(payment) do
+    %{
+      id: payment.id,
+      public_id: payment.public_id,
+      amount: payment.amount,
+      currency: payment.currency,
+      method: payment.method,
+      state: payment.state,
+      risk_decision: payment.risk_decision,
+      risk_score: payment.risk_score && Decimal.to_float(payment.risk_score),
+      inserted_at: DateTime.to_iso8601(payment.inserted_at)
     }
   end
 

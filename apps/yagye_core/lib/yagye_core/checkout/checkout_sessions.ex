@@ -459,12 +459,6 @@ defmodule YagyeCore.CheckoutSessions do
 
   # ── Private ──────────────────────────────────────────────────────────────────
 
-  @checkout_base_url Application.compile_env(
-                       :yagye_core,
-                       :checkout_base_url,
-                       "https://pay.yagye.com"
-                     )
-
   defp build_link_session_attrs(link, attrs, url_token_hash) do
     n = normalize_attrs(link, attrs)
 
@@ -502,8 +496,8 @@ defmodule YagyeCore.CheckoutSessions do
       shipping_amount: Map.get(attrs, :shipping_amount, 0),
       discount_amount: Map.get(attrs, :discount_amount, 0),
       merchant_reference: Map.get(attrs, :merchant_reference) || generate_reference(),
-      success_url: Map.get(attrs, :success_url) || @checkout_base_url,
-      cancel_url: Map.get(attrs, :cancel_url) || @checkout_base_url
+      success_url: Map.get(attrs, :success_url) || checkout_base_url(),
+      cancel_url: Map.get(attrs, :cancel_url) || checkout_base_url()
     }
   end
 
@@ -618,4 +612,7 @@ defmodule YagyeCore.CheckoutSessions do
       nil -> {:ok, nil}
     end
   end
+
+  defp checkout_base_url,
+    do: Application.get_env(:yagye_core, :checkout_base_url, "https://pay.yagye.com")
 end

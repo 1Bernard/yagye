@@ -102,6 +102,7 @@ defmodule YagyeCore.Compliance do
         merchant_id: merchant.id,
         kind: kind,
         label: label || filename,
+        filename: filename,
         status: "pending_upload",
         s3_key: store.s3_key,
         checksum: nil,

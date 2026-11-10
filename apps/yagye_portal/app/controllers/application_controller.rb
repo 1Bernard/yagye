@@ -153,4 +153,18 @@ class ApplicationController < ActionController::Base
   def invalidate_kyb_banner_cache
     session.delete(:kyb_progress_cache)
   end
+
+  # In dev, Core issues presigned URLs with its internal Docker hostname (e.g. floci:4566).
+  # S3_PRESIGNED_URL_HOST rewrites that to a host the portal process can actually reach.
+  def rewrite_presigned_url(url)
+    override = ENV["S3_PRESIGNED_URL_HOST"].presence
+    return url unless override
+
+    uri          = URI.parse(url)
+    override_uri = URI.parse(override.start_with?("http") ? override : "http://#{override}")
+    uri.scheme   = override_uri.scheme
+    uri.host     = override_uri.host
+    uri.port     = override_uri.port
+    uri.to_s
+  end
 end

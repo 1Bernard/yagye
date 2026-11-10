@@ -75,6 +75,15 @@ module Onboarding
                         value: @merchant["tin"], placeholder: "C0000000000",
                         class: INPUT_FIELD)
                 end
+
+                div(class: "sm:col-span-2") do
+                  form_field(name: "registration_number", label: "Business Registration Number",
+                             hint: "RC number from RGD or reference number from GRA.") do
+                    input(type: "text", name: "registration_number", id: "registration_number",
+                          value: @merchant["registration_number"], placeholder: "BN-12345",
+                          class: INPUT_FIELD)
+                  end
+                end
               end
             end
 

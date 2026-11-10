@@ -4,8 +4,9 @@ import { Controller } from "@hotwired/stimulus"
 // and data-tabs-id="panel-name". Each tab button needs data-tabs-panel-param="panel-name".
 // Optionally set data-tabs-active-value on the controller element to pre-select a tab.
 export default class extends Controller {
-  static targets = ["tab", "panel"]
-  static values  = { active: String }
+  static targets  = ["tab", "panel"]
+  static values   = { active: String }
+  static classes  = ["active", "inactive"]
 
   connect() {
     this._activate(this.activeValue || this.tabTargets[0]?.dataset.tabsPanelParam)
@@ -19,12 +20,18 @@ export default class extends Controller {
     if (!panelId) return
     this.tabTargets.forEach(tab => {
       const active = tab.dataset.tabsPanelParam === panelId
-      tab.classList.toggle("border-[#3D47F5]", active)
-      tab.classList.toggle("text-gray-900",     active)
-      tab.classList.toggle("font-semibold",     active)
-      tab.classList.toggle("border-transparent", !active)
-      tab.classList.toggle("text-gray-400",     !active)
-      tab.classList.toggle("font-medium",       !active)
+      // Support two styles: class-driven (data-tabs-active-class) or hardcoded underline defaults.
+      if (this.hasActiveClass) {
+        this.activeClasses.forEach(c  => tab.classList.toggle(c, active))
+        this.inactiveClasses.forEach(c => tab.classList.toggle(c, !active))
+      } else {
+        tab.classList.toggle("border-[#3D47F5]",   active)
+        tab.classList.toggle("text-gray-900",       active)
+        tab.classList.toggle("font-semibold",       active)
+        tab.classList.toggle("border-transparent",  !active)
+        tab.classList.toggle("text-gray-400",       !active)
+        tab.classList.toggle("font-medium",         !active)
+      }
     })
     this.panelTargets.forEach(panel => {
       panel.hidden = panel.dataset.tabsId !== panelId

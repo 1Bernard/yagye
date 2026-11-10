@@ -280,6 +280,7 @@ get "payouts/:id/statement",            to: "payouts#statement",               a
     patch "verify/settlement",         to: "verify#update_settlement", as: :update_kyb_settlement
     post  "verify/documents",                         to: "verify#upload_document",   as: :upload_kyb_document
     delete "verify/documents/:document_id",           to: "verify#destroy_document",  as: :delete_kyb_document
+    get   "verify/documents/:document_id/preview",    to: "verify#document_preview",  as: :kyb_document_preview
     post  "verify/agreement",          to: "verify#submit_agreement",  as: :submit_kyb_agreement
     post  "verify/resubmit",           to: "verify#resubmit",          as: :resubmit_kyb
     get   "onboarding/kyb-banner",     to: "verify#banner",            as: :kyb_banner

@@ -300,9 +300,6 @@ defmodule YagyeCheckoutWeb.Live.CheckoutLive do
   @impl true
   def render(assigns) do
     ~H"""
-    <%= if @brand_color || @font_family do %>
-      {raw(build_dynamic_style(@brand_color, @font_family))}
-    <% end %>
     <div class="co-checkout-container">
 
       <%!-- ── Terminal Screens ── --%>
@@ -583,32 +580,6 @@ defmodule YagyeCheckoutWeb.Live.CheckoutLive do
                   </div>
                 <% end %>
 
-                <div class="co-panel-header">
-                  <div class="co-panel-title-wrap">
-                    <div class="co-title-icon">
-                      <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                        <rect x="1" y="4" width="22" height="16" rx="2" ry="2"/>
-                        <line x1="1" y1="10" x2="23" y2="10"/>
-                      </svg>
-                    </div>
-                    <h1 class="co-panel-title">Select Payment Option</h1>
-                  </div>
-                  <span class="co-methods-count">
-                    {length(@methods)} {if length(@methods) == 1, do: "option", else: "options"} available
-                  </span>
-                </div>
-
-                <%= if @error do %>
-                  <div class="co-alert co-alert--error">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                      <circle cx="12" cy="12" r="10"/>
-                      <line x1="12" y1="8" x2="12" y2="12"/>
-                      <line x1="12" y1="16" x2="12.01" y2="16"/>
-                    </svg>
-                    <span>{@error}</span>
-                  </div>
-                <% end %>
-
                 <form phx-submit="submit_checkout" class="co-options-form">
 
                   <%!-- ── Customer Details ── --%>
@@ -699,6 +670,33 @@ defmodule YagyeCheckoutWeb.Live.CheckoutLive do
                           </div>
                         <% end %>
                       </div>
+                    </div>
+                  <% end %>
+
+                  <%!-- ── Payment method selector header ── --%>
+                  <div class="co-panel-header co-panel-header--methods">
+                    <div class="co-panel-title-wrap">
+                      <div class="co-title-icon">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                          <rect x="1" y="4" width="22" height="16" rx="2" ry="2"/>
+                          <line x1="1" y1="10" x2="23" y2="10"/>
+                        </svg>
+                      </div>
+                      <h2 class="co-panel-title">Select Payment Option</h2>
+                    </div>
+                    <span class="co-methods-count">
+                      {length(@methods)} {if length(@methods) == 1, do: "option", else: "options"} available
+                    </span>
+                  </div>
+
+                  <%= if @error do %>
+                    <div class="co-alert co-alert--error">
+                      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <circle cx="12" cy="12" r="10"/>
+                        <line x1="12" y1="8" x2="12" y2="12"/>
+                        <line x1="12" y1="16" x2="12.01" y2="16"/>
+                      </svg>
+                      <span>{@error}</span>
                     </div>
                   <% end %>
 
@@ -1324,6 +1322,7 @@ defmodule YagyeCheckoutWeb.Live.CheckoutLive do
         display: flex; align-items: center; justify-content: space-between;
         margin-bottom: 1.5rem;
       }
+      .co-panel-header--methods { margin-top: 1.5rem; }
 
       .co-panel-title-wrap { display: flex; align-items: center; gap: 0.625rem; }
       .co-title-icon { color: var(--brand); display: flex; align-items: center; }
@@ -2066,6 +2065,9 @@ defmodule YagyeCheckoutWeb.Live.CheckoutLive do
         color: var(--brand); text-decoration: underline; text-underline-offset: 2px;
       }
     </style>
+    <%= if @brand_color || @font_family do %>
+      {raw(build_dynamic_style(@brand_color, @font_family))}
+    <% end %>
     """
   end
 
@@ -2075,7 +2077,7 @@ defmodule YagyeCheckoutWeb.Live.CheckoutLive do
     now_unix = System.os_time(:second)
     expires = parse_expires(session["expires_at"])
     page_state = resolve_state(session["state"], expires, now_unix)
-    methods = parse_methods(session["checkout_layout"])
+    methods = parse_methods(session["checkout_layout"], session["allowed_methods"])
     line_items = session["line_items"] || []
 
     socket
@@ -2123,18 +2125,26 @@ defmodule YagyeCheckoutWeb.Live.CheckoutLive do
     |> maybe_start_poll(page_state)
   end
 
-  defp parse_methods(nil), do: default_methods()
+  # `allowed_methods` from the session is authoritative for which methods appear.
+  # `checkout_layout.methods` carries visual config (tile_style, rails) only.
+  defp parse_methods(layout, allowed) do
+    allowed_ids = if is_list(allowed) and allowed != [], do: allowed, else: ~w[mobile_money card bank_transfer]
+    layout_methods = (layout || %{})["methods"] || []
 
-  defp parse_methods(%{"methods" => methods}) when is_list(methods) and methods != [] do
-    visible =
-      methods
-      |> Enum.filter(& &1["visible"] != false)
-      |> Enum.filter(& &1["id"] in ~w[mobile_money card bank_transfer])
+    base = [
+      %{"id" => "mobile_money",  "label" => "Mobile Money"},
+      %{"id" => "card",          "label" => "Credit / Debit Card"},
+      %{"id" => "bank_transfer", "label" => "Bank Transfer"}
+    ]
 
-    if visible == [], do: default_methods(), else: visible
+    base
+    |> Enum.filter(& &1["id"] in allowed_ids)
+    |> Enum.map(fn m ->
+      saved = Enum.find(layout_methods, & &1["id"] == m["id"]) || %{}
+      Map.merge(m, Map.take(saved, ["tile_style", "rails"]))
+    end)
+    |> then(fn ms -> if ms == [], do: default_methods(), else: ms end)
   end
-
-  defp parse_methods(_), do: default_methods()
 
   defp default_methods do
     [
