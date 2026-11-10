@@ -562,9 +562,11 @@ class CoreApiClient
   end
 
   # PATCH /internal/merchants/:merchant_code/checkout-config
-  def update_checkout_config(merchant_code, allowed_methods:)
-    patch("/internal/merchants/#{merchant_code}/checkout-config",
-          { allowed_methods: allowed_methods })
+  # Accepts any subset of: allowed_methods, brand_colour, display_name, default_locale,
+  # support_email, support_phone, website_url, terms_url, privacy_url, refund_policy_url
+  # Pass nil values to explicitly clear a field (e.g. logo_url: nil removes the logo).
+  def update_checkout_config(merchant_code, **attrs)
+    patch("/internal/merchants/#{merchant_code}/checkout-config", attrs)
   end
 
   # PATCH /internal/merchants/:merchant_code/checkout-config (refund policy fields)
@@ -582,6 +584,20 @@ class CoreApiClient
   def update_checkout_logo(merchant_code, logo_url:)
     patch("/internal/merchants/#{merchant_code}/checkout-config/logo",
           { logo_url: logo_url })
+  end
+
+  # ── Checkout template ─────────────────────────────────────────────────────
+
+  # GET /internal/merchants/:merchant_code/checkout-template?mode=live
+  def get_checkout_template(merchant_code, mode: "live")
+    get("/internal/merchants/#{merchant_code}/checkout-template", { mode: mode })
+  end
+
+  # PATCH /internal/merchants/:merchant_code/checkout-template
+  # Accepts: mode, font_family, brand_color, methods
+  # Always auto-publishes after updating the draft.
+  def update_checkout_template(merchant_code, **attrs)
+    patch("/internal/merchants/#{merchant_code}/checkout-template", attrs.compact)
   end
 
   # GET /internal/merchants/:merchant_code/checkout-analytics

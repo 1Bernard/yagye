@@ -9,6 +9,7 @@ defmodule YagyeCore.CheckoutSessions do
     CheckoutEvent,
     CheckoutLineItem,
     CheckoutSession,
+    CheckoutTemplate,
     MerchantCheckoutConfig
   }
 
@@ -307,35 +308,95 @@ defmodule YagyeCore.CheckoutSessions do
   end
 
   @doc """
-  Fetches the checkout layout and merchant display name for a session.
+  Assembles the checkout display context for a session.
+  Branding (brand_color, logo_url, display_name) comes from merchant_checkout_configs.
+  Font family comes from the merchant's published checkout template.
+  Per-link overrides (headline, cta_text, terms, methods) come from payment_link.checkout_layout.
+  Falls back to session.logo_url and legacy link layout fields when MCC is unpopulated.
   """
   def fetch_session_display_context(%CheckoutSession{} = session) do
-    checkout_layout =
-      fetch_checkout_layout(session.payment_link_id, session.logo_url, session.merchant_id)
+    mcc = fetch_mcc(session.merchant_id)
+    template_theme = published_template_theme(session.merchant_id, session.mode)
+    link_layout = fetch_link_layout(session.payment_link_id)
+    merchant_name = fetch_merchant_name(session.merchant_id)
 
-    merchant_name =
-      case Repo.get(Merchant, session.merchant_id) do
-        nil -> nil
-        merchant -> merchant.trading_name
-      end
+    # Assemble checkout_layout map — MCC is authoritative for branding;
+    # fall back to legacy link layout fields for backwards compatibility.
+    checkout_layout =
+      %{}
+      |> put_branding(:brand_color, mcc && mcc.brand_colour, link_layout["brand_color"])
+      |> put_branding(:logo_url, mcc && mcc.logo_url, session.logo_url || link_layout["logo_url"])
+      |> put_branding(:business_name, mcc && mcc.display_name, link_layout["business_name"])
+      |> put_if_present(:font_family, template_theme["font_family"] || link_layout["font_family"])
+      |> merge_link_overrides(link_layout)
 
     {checkout_layout, merchant_name}
   end
 
-  defp fetch_checkout_layout(nil, nil, merchant_id) do
+  defp fetch_mcc(merchant_id) do
     case get_checkout_config(merchant_id) do
-      {:ok, config} when not is_nil(config.logo_url) -> %{"logo_url" => config.logo_url}
+      {:ok, config} -> config
       _ -> nil
     end
   end
 
-  defp fetch_checkout_layout(nil, logo_url, _merchant_id), do: %{"logo_url" => logo_url}
+  defp fetch_link_layout(nil), do: %{}
 
-  defp fetch_checkout_layout(payment_link_id, _logo_url, _merchant_id) do
-    case Repo.get(PaymentLink, payment_link_id) do
-      nil -> nil
-      link -> link.checkout_layout
+  defp fetch_link_layout(link_id) do
+    case Repo.get(PaymentLink, link_id) do
+      nil -> %{}
+      link -> link.checkout_layout || %{}
     end
+  end
+
+  defp fetch_merchant_name(merchant_id) do
+    case Repo.get(Merchant, merchant_id) do
+      nil -> nil
+      merchant -> merchant.trading_name
+    end
+  end
+
+  # Returns the published template's theme map for the given mode, or empty map.
+  defp published_template_theme(merchant_id, mode) do
+    case Repo.one(
+           from t in CheckoutTemplate,
+             where:
+               t.merchant_id == ^merchant_id and
+                 t.mode == ^mode and
+                 t.status == "published",
+             limit: 1
+         ) do
+      nil -> %{}
+      template -> template.theme || %{}
+    end
+  end
+
+  # Prefer the primary value; fall back to the legacy value when primary is blank.
+  defp put_branding(map, _key, nil, nil), do: map
+  defp put_branding(map, _key, "", ""), do: map
+
+  defp put_branding(map, key, nil, legacy) when not is_nil(legacy) and legacy != "",
+    do: Map.put(map, to_string(key), legacy)
+
+  defp put_branding(map, key, "", legacy) when not is_nil(legacy) and legacy != "",
+    do: Map.put(map, to_string(key), legacy)
+
+  defp put_branding(map, key, primary, _legacy),
+    do: Map.put(map, to_string(key), primary)
+
+  defp put_if_present(map, _key, nil), do: map
+  defp put_if_present(map, _key, ""), do: map
+  defp put_if_present(map, key, value), do: Map.put(map, to_string(key), value)
+
+  # Carry through per-link display overrides from the link's checkout_layout JSONB.
+  defp merge_link_overrides(base, link_layout) do
+    ~w[headline cta_text terms methods]
+    |> Enum.reduce(base, fn key, acc ->
+      case Map.fetch(link_layout, key) do
+        {:ok, v} when not is_nil(v) -> Map.put(acc, key, v)
+        _ -> acc
+      end
+    end)
   end
 
   def update_checkout_config(merchant_id, attrs) do

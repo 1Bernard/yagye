@@ -160,26 +160,52 @@ module Checkout
       return redirect_to payment_links_path, alert: "Payment link not found." if @current.nil?
 
       branding = current_user.merchant_user? ? PortalMerchantBranding.find_or_initialize_for(current_user.merchant_code) : nil
-      render Checkout::CheckoutLayoutView.new(link: @current, all_links: @links, branding: branding)
+
+      link_mode   = @current["mode"].presence || "live"
+      config_res  = core.get_checkout_config(current_user.merchant_code)
+      template_res = core.get_checkout_template(current_user.merchant_code, mode: link_mode)
+      checkout_config   = config_res.success?   ? config_res.body   : {}
+      checkout_template = template_res.success? ? template_res.body : {}
+
+      render Checkout::CheckoutLayoutView.new(
+        link:              @current,
+        all_links:         @links,
+        branding:          branding,
+        checkout_config:   checkout_config,
+        checkout_template: checkout_template
+      )
     end
 
     def update_layout
       authorize :checkout, :manage_layout?
-      raw = params[:layout]
+      raw    = params[:layout]
       layout = raw.is_a?(String) ? JSON.parse(raw) : raw&.to_unsafe_h || {}
+      mode   = layout["mode"].presence || "live"
 
-      # Logo is managed via Settings branding, not user-typed URLs — inject server-side
+      # 1. Merchant-level branding → merchant_checkout_configs
+      branding_attrs = {}
+      branding_attrs[:brand_colour] = layout["brand_color"] if layout["brand_color"].present?
+      branding_attrs[:display_name] = layout["business_name"] if layout["business_name"].present?
+      core.update_checkout_config(current_user.merchant_code, **branding_attrs) if branding_attrs.any?
+
+      # 2. Template theme (font, method visual config) → checkout_template (auto-publishes)
+      template_attrs = { mode: mode }
+      template_attrs[:font_family] = layout["font_family"] if layout["font_family"].present?
+      template_attrs[:methods]     = layout["methods"]     if layout["methods"].present?
+      core.update_checkout_template(current_user.merchant_code, **template_attrs) if template_attrs.size > 1
+
+      # 3. Per-link display fields → payment_link.checkout_layout JSONB
+      #    Logo is server-injected from PortalMerchantBranding (never from user input).
       branding = current_user.merchant_user? ? PortalMerchantBranding.find_or_initialize_for(current_user.merchant_code) : nil
+      per_link = layout.slice("headline", "cta_text", "terms", "methods")
       if branding&.logo&.attached?
-        layout = layout.merge("logo_url" => branding.logo_url)
-      else
-        layout = layout.except("logo_url")
+        per_link = per_link.merge("logo_url" => branding.logo_url)
       end
 
       result = core.update_payment_link_layout(
         params[:id],
         merchant_code: current_user.merchant_code,
-        layout:        layout
+        layout:        per_link
       )
 
       if result.success?

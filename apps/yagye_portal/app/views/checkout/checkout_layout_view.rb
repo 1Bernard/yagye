@@ -44,10 +44,12 @@ module Checkout
       "bank_transfer" => { bg: "rgba(245,158,11,0.09)", icon: "#f59e0b" }
     }.freeze
 
-    def initialize(link:, all_links:, branding: nil)
-      @link      = link
-      @all_links = all_links
-      @branding  = branding
+    def initialize(link:, all_links:, branding: nil, checkout_config: {}, checkout_template: {})
+      @link              = link
+      @all_links         = all_links
+      @branding          = branding
+      @checkout_config   = checkout_config
+      @checkout_template = checkout_template
     end
 
     def view_template
@@ -70,7 +72,8 @@ module Checkout
           data: {
             controller:                     "checkout-layout",
             checkout_layout_save_url_value: update_layout_url,
-            checkout_layout_csrf_value:     form_authenticity_token
+            checkout_layout_csrf_value:     form_authenticity_token,
+            checkout_layout_mode_value:     @link["mode"].presence || "live"
           }
         ) do
           div(id: "checkout-canvas", class: "absolute inset-0")
@@ -329,9 +332,13 @@ module Checkout
     end
 
     def appearance_section
-      saved_color  = @link.dig("checkout_layout", "brand_color").to_s
-      saved_color  = "#3D47F5" if saved_color.blank?
-      saved_font   = @link.dig("checkout_layout", "font_family").to_s
+      # Brand color: MCC is authoritative; fall back to link layout for existing links
+      saved_color = @checkout_config["brand_colour"].presence ||
+                    @link.dig("checkout_layout", "brand_color").presence ||
+                    "#3D47F5"
+      # Font: template theme is authoritative; fall back to link layout for existing links
+      saved_font = @checkout_template.dig("theme", "font_family").to_s.presence ||
+                   @link.dig("checkout_layout", "font_family").to_s
 
       div(class: "px-3 pt-2 pb-3 flex-shrink-0") do
         section_label("Appearance")
@@ -371,7 +378,9 @@ module Checkout
     end
 
     def content_section
-      saved_name     = @link.dig("checkout_layout", "business_name").to_s
+      # Display name: MCC is authoritative; fall back to link layout for existing links
+      saved_name     = @checkout_config["display_name"].presence ||
+                       @link.dig("checkout_layout", "business_name").to_s
       saved_headline = @link.dig("checkout_layout", "headline").to_s
 
       div(class: "px-3 pt-2 pb-3 flex-shrink-0") do
@@ -661,7 +670,9 @@ module Checkout
     end
 
     def checkout_card_preview
-      saved_color = @link.dig("checkout_layout", "brand_color").presence || "#3D47F5"
+      saved_color = @checkout_config["brand_colour"].presence ||
+                    @link.dig("checkout_layout", "brand_color").presence ||
+                    "#3D47F5"
       div(
         class: "w-full max-w-[460px] bg-white rounded-2xl border border-gray-200/70 " \
                "overflow-x-hidden overflow-y-auto max-h-[calc(100vh-200px)] " \
@@ -673,8 +684,9 @@ module Checkout
         div(class: "px-5 pt-5 pb-[18px]") do
           div(class: "flex items-center justify-between mb-4") do
             div(class: "flex items-center gap-2") do
-              # Logo: shows img when URL set, icon bubble otherwise
-              saved_logo = @link.dig("checkout_layout", "logo_url").to_s
+              # Logo: MCC is authoritative; fall back to link layout for existing links
+              saved_logo = @checkout_config["logo_url"].presence ||
+                           @link.dig("checkout_layout", "logo_url").to_s
               if saved_logo.present?
                 img(
                   src:   saved_logo,
@@ -691,12 +703,14 @@ module Checkout
                   span(class: "flex w-[13px] h-[13px] text-white") { render UI::Icon.new(:shield, class: "w-full h-full") }
                 end
               end
-              default_biz = @branding&.display_name.presence || "Your business"
+              default_biz = @checkout_config["display_name"].presence ||
+                            @branding&.display_name.presence || "Your business"
               span(
                 class: "text-[12px] font-bold text-gray-900 tracking-tight",
                 data:  { preview_biz_name: "", default_name: default_biz }
               ) do
-                plain @link.dig("checkout_layout", "business_name").presence || default_biz
+                plain @checkout_config["display_name"].presence ||
+                      @link.dig("checkout_layout", "business_name").presence || default_biz
               end
             end
             span(

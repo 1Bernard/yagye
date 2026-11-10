@@ -5,7 +5,8 @@ export default class extends Controller {
   static values  = {
     saveUrl:  String,
     csrf:     String,
-    layout:   { type: Object, default: {} }
+    layout:   { type: Object, default: {} },
+    mode:     { type: String, default: "live" }
   }
 
   connect() {
@@ -499,6 +500,7 @@ export default class extends Controller {
     }
 
     return {
+      mode: this.modeValue,
       methods,
       ...(logo_url    ? { logo_url }    : {}),
       ...(brand_color ? { brand_color } : {}),

@@ -5,7 +5,7 @@ defmodule YagyeCore.Checkout.Schemas.CheckoutTemplateComponent do
   import Ecto.Changeset
 
   @valid_component_types ~w[order_summary payment_methods customer_fields
-                            coupon_input trust_badges submit_button]
+                            coupon_input trust_badges submit_button terms_checkbox]
 
   schema "checkout_template_components" do
     field :template_id, Uniq.UUID
