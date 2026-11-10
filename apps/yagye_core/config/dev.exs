@@ -113,3 +113,8 @@ config :ex_aws, :secretsmanager,
 config :ex_aws, :hackney_opts,
   follow_redirect: true,
   recv_timeout: 30_000
+
+# When Core runs in Docker (AWS_S3_HOST=floci) but the portal/client is on the host
+# machine, presigned URLs must use a host the client can reach (e.g. localhost:4566).
+# Set KYB_PRESIGNED_HOST=localhost:4566 locally to rewrite the host in generated URLs.
+config :yagye_core, :document_store, presigned_host_override: System.get_env("KYB_PRESIGNED_HOST")

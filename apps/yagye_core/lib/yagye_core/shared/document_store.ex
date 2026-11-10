@@ -15,7 +15,7 @@ defmodule YagyeCore.Shared.DocumentStore do
       {:ok, url} ->
         {:ok,
          %{
-           presigned_url: url,
+           presigned_url: rewrite_host(url),
            s3_key: key,
            expires_at: DateTime.utc_now() |> DateTime.add(expiry, :second)
          }}
@@ -32,7 +32,7 @@ defmodule YagyeCore.Shared.DocumentStore do
     expiry = download_expiry()
 
     case ExAws.S3.presigned_url(cfg, :get, bucket, s3_key, expires_in: expiry) do
-      {:ok, url} -> {:ok, url}
+      {:ok, url} -> {:ok, rewrite_host(url)}
       {:error, reason} -> {:error, reason}
     end
   end
@@ -52,4 +52,25 @@ defmodule YagyeCore.Shared.DocumentStore do
     do: Application.fetch_env!(:yagye_core, :document_store)[:download_expiry_seconds]
 
   defp ex_aws_config, do: ExAws.Config.new(:s3)
+
+  # Rewrites the host (and port) in a presigned URL when KYB_PRESIGNED_HOST is set.
+  # Needed when Core talks to S3 via a Docker-internal hostname (e.g. "floci") but
+  # the presigned URL must be reachable by an external client (e.g. "localhost:4566").
+  defp rewrite_host(url) do
+    case Application.get_env(:yagye_core, :document_store)[:presigned_host_override] do
+      nil ->
+        url
+
+      override ->
+        uri = URI.parse(url)
+
+        {host, port} =
+          case String.split(override, ":") do
+            [h, p] -> {h, String.to_integer(p)}
+            [h] -> {h, uri.port}
+          end
+
+        %{uri | host: host, port: port} |> URI.to_string()
+    end
+  end
 end

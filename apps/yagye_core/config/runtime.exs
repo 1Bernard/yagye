@@ -171,7 +171,8 @@ if config_env() == :prod do
     bucket: System.get_env("KYB_S3_BUCKET", "yagye-kyb-documents"),
     upload_expiry_seconds: 900,
     download_expiry_seconds: 1800,
-    kms_key_arn: kms_key_arn
+    kms_key_arn: kms_key_arn,
+    presigned_host_override: System.get_env("KYB_PRESIGNED_HOST")
 
   # Simulator mode: set NATIVE_RAIL_ADAPTER_MODULE to override the global adapter.
   # Defaults to SimulatorAdapter so local Docker dev works without real PSP credentials.

@@ -124,7 +124,8 @@ config :yagye_core, :document_store,
   bucket: System.get_env("KYB_S3_BUCKET", "yagye-kyb-documents"),
   upload_expiry_seconds: 900,
   download_expiry_seconds: 1800,
-  kms_key_arn: nil
+  kms_key_arn: nil,
+  presigned_host_override: nil
 
 config :yagye_core, :aml_provider, YagyeCore.Compliance.AmlProvider.Stub
 
