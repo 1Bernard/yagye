@@ -1,8 +1,6 @@
 defmodule YagyeCoreWeb.Controllers.Internal.CheckoutControllerTest do
   use YagyeCoreWeb.ConnCase, async: true
 
-  import YagyeCore.DataCase, only: [errors_on: 1]
-
   alias YagyeCore.CheckoutSessions
   alias YagyeCore.Fixtures
   alias YagyeCore.PaymentLinks.Schemas.PaymentLink
@@ -109,45 +107,6 @@ defmodule YagyeCoreWeb.Controllers.Internal.CheckoutControllerTest do
 
       assert %{"token" => token} = json_response(conn, 200)
       assert is_binary(token)
-    end
-  end
-
-  describe "PaymentLink checkout_layout brand_color validation" do
-    test "rejects non-hex brand_color payloads (CSS/XSS injection prevention)" do
-      merchant = Fixtures.merchant_fixture()
-
-      cs =
-        PaymentLink.changeset(%PaymentLink{}, %{
-          merchant_id: merchant.id,
-          mode: "simulation",
-          url_slug: "xss-link-#{System.unique_integer([:positive])}",
-          kind: "fixed_amount",
-          amount: 5_000,
-          currency: "GHS",
-          description: "XSS Test",
-          checkout_layout: %{"brand_color" => "#000000}</style><script>alert(1)</script>"}
-        })
-
-      refute cs.valid?
-      assert %{checkout_layout: ["brand_color must be a valid 6-digit hex color"]} = errors_on(cs)
-    end
-
-    test "accepts valid 6-digit hex brand_color" do
-      merchant = Fixtures.merchant_fixture()
-
-      cs =
-        PaymentLink.changeset(%PaymentLink{}, %{
-          merchant_id: merchant.id,
-          mode: "simulation",
-          url_slug: "ok-link-#{System.unique_integer([:positive])}",
-          kind: "fixed_amount",
-          amount: 5_000,
-          currency: "GHS",
-          description: "Valid Color",
-          checkout_layout: %{"brand_color" => "#10B981"}
-        })
-
-      assert cs.valid?
     end
   end
 end

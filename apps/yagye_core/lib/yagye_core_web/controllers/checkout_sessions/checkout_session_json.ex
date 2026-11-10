@@ -24,7 +24,6 @@ defmodule YagyeCoreWeb.Controllers.CheckoutSessions.CheckoutSessionJSON do
       allowed_methods: session.allowed_methods,
       payment_link_id: session.payment_link_id,
       payment_id: payment_public_id(session.payment),
-      logo_url: session.logo_url,
       success_url: session.success_url,
       cancel_url: session.cancel_url,
       metadata: session.metadata,

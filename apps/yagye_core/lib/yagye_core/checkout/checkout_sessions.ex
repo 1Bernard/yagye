@@ -312,7 +312,6 @@ defmodule YagyeCore.CheckoutSessions do
   Branding (brand_color, logo_url, display_name) comes from merchant_checkout_configs.
   Font family comes from the merchant's published checkout template.
   Per-link overrides (headline, cta_text, terms, methods) come from payment_link.checkout_layout.
-  Falls back to session.logo_url and legacy link layout fields when MCC is unpopulated.
   """
   def fetch_session_display_context(%CheckoutSession{} = session) do
     mcc = fetch_mcc(session.merchant_id)
@@ -320,14 +319,12 @@ defmodule YagyeCore.CheckoutSessions do
     link_layout = fetch_link_layout(session.payment_link_id)
     merchant_name = fetch_merchant_name(session.merchant_id)
 
-    # Assemble checkout_layout map — MCC is authoritative for branding;
-    # fall back to legacy link layout fields for backwards compatibility.
     checkout_layout =
       %{}
-      |> put_branding(:brand_color, mcc && mcc.brand_colour, link_layout["brand_color"])
-      |> put_branding(:logo_url, mcc && mcc.logo_url, session.logo_url || link_layout["logo_url"])
-      |> put_branding(:business_name, mcc && mcc.display_name, link_layout["business_name"])
-      |> put_if_present(:font_family, template_theme["font_family"] || link_layout["font_family"])
+      |> put_if_present(:brand_color, mcc && mcc.brand_colour)
+      |> put_if_present(:logo_url, mcc && mcc.logo_url)
+      |> put_if_present(:business_name, mcc && mcc.display_name)
+      |> put_if_present(:font_family, template_theme["font_family"])
       |> merge_link_overrides(link_layout)
 
     {checkout_layout, merchant_name}
@@ -370,19 +367,6 @@ defmodule YagyeCore.CheckoutSessions do
       template -> template.theme || %{}
     end
   end
-
-  # Prefer the primary value; fall back to the legacy value when primary is blank.
-  defp put_branding(map, _key, nil, nil), do: map
-  defp put_branding(map, _key, "", ""), do: map
-
-  defp put_branding(map, key, nil, legacy) when not is_nil(legacy) and legacy != "",
-    do: Map.put(map, to_string(key), legacy)
-
-  defp put_branding(map, key, "", legacy) when not is_nil(legacy) and legacy != "",
-    do: Map.put(map, to_string(key), legacy)
-
-  defp put_branding(map, key, primary, _legacy),
-    do: Map.put(map, to_string(key), primary)
 
   defp put_if_present(map, _key, nil), do: map
   defp put_if_present(map, _key, ""), do: map

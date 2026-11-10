@@ -332,13 +332,8 @@ module Checkout
     end
 
     def appearance_section
-      # Brand color: MCC is authoritative; fall back to link layout for existing links
-      saved_color = @checkout_config["brand_colour"].presence ||
-                    @link.dig("checkout_layout", "brand_color").presence ||
-                    "#3D47F5"
-      # Font: template theme is authoritative; fall back to link layout for existing links
-      saved_font = @checkout_template.dig("theme", "font_family").to_s.presence ||
-                   @link.dig("checkout_layout", "font_family").to_s
+      saved_color = @checkout_config["brand_colour"].presence || "#3D47F5"
+      saved_font  = @checkout_template.dig("theme", "font_family").to_s
 
       div(class: "px-3 pt-2 pb-3 flex-shrink-0") do
         section_label("Appearance")
@@ -378,9 +373,7 @@ module Checkout
     end
 
     def content_section
-      # Display name: MCC is authoritative; fall back to link layout for existing links
-      saved_name     = @checkout_config["display_name"].presence ||
-                       @link.dig("checkout_layout", "business_name").to_s
+      saved_name     = @checkout_config["display_name"].to_s
       saved_headline = @link.dig("checkout_layout", "headline").to_s
 
       div(class: "px-3 pt-2 pb-3 flex-shrink-0") do
@@ -670,9 +663,7 @@ module Checkout
     end
 
     def checkout_card_preview
-      saved_color = @checkout_config["brand_colour"].presence ||
-                    @link.dig("checkout_layout", "brand_color").presence ||
-                    "#3D47F5"
+      saved_color = @checkout_config["brand_colour"].presence || "#3D47F5"
       div(
         class: "w-full max-w-[460px] bg-white rounded-2xl border border-gray-200/70 " \
                "overflow-x-hidden overflow-y-auto max-h-[calc(100vh-200px)] " \
@@ -684,9 +675,7 @@ module Checkout
         div(class: "px-5 pt-5 pb-[18px]") do
           div(class: "flex items-center justify-between mb-4") do
             div(class: "flex items-center gap-2") do
-              # Logo: MCC is authoritative; fall back to link layout for existing links
-              saved_logo = @checkout_config["logo_url"].presence ||
-                           @link.dig("checkout_layout", "logo_url").to_s
+              saved_logo = @checkout_config["logo_url"].presence || ""
               if saved_logo.present?
                 img(
                   src:   saved_logo,
@@ -709,8 +698,7 @@ module Checkout
                 class: "text-[12px] font-bold text-gray-900 tracking-tight",
                 data:  { preview_biz_name: "", default_name: default_biz }
               ) do
-                plain @checkout_config["display_name"].presence ||
-                      @link.dig("checkout_layout", "business_name").presence || default_biz
+                plain @checkout_config["display_name"].presence || default_biz
               end
             end
             span(

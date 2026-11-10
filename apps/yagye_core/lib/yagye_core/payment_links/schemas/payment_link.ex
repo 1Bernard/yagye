@@ -104,22 +104,5 @@ defmodule YagyeCore.PaymentLinks.Schemas.PaymentLink do
     end
   end
 
-  @hex_color_regex ~r/^#[0-9A-Fa-f]{6}$/
-
-  defp validate_checkout_layout(changeset) do
-    case get_field(changeset, :checkout_layout) do
-      layout when is_map(layout) ->
-        brand_color = Map.get(layout, "brand_color") || Map.get(layout, :brand_color)
-
-        if is_nil(brand_color) or brand_color == "" or
-             (is_binary(brand_color) and Regex.match?(@hex_color_regex, brand_color)) do
-          changeset
-        else
-          add_error(changeset, :checkout_layout, "brand_color must be a valid 6-digit hex color")
-        end
-
-      _ ->
-        changeset
-    end
-  end
+  defp validate_checkout_layout(changeset), do: changeset
 end
