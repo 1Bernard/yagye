@@ -32,7 +32,6 @@ defmodule YagyeCore.Checkout.Schemas.CheckoutSession do
     field :locale, :string, default: "en"
     field :success_url, :string
     field :cancel_url, :string
-    field :template_id, Uniq.UUID
     field :payment_link_id, Uniq.UUID
     belongs_to :payment, Payment, type: Uniq.UUID, foreign_key: :payment_id
     field :metadata, :map, default: %{}
@@ -71,7 +70,6 @@ defmodule YagyeCore.Checkout.Schemas.CheckoutSession do
       :locale,
       :success_url,
       :cancel_url,
-      :template_id,
       :payment_link_id,
       :payment_id,
       :metadata,
@@ -89,7 +87,6 @@ defmodule YagyeCore.Checkout.Schemas.CheckoutSession do
     |> unique_constraint(:url_token_hash)
     |> foreign_key_constraint(:merchant_id)
     |> foreign_key_constraint(:payment_link_id)
-    |> foreign_key_constraint(:template_id)
     |> foreign_key_constraint(:payment_id)
   end
 
