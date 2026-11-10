@@ -65,6 +65,7 @@ defmodule YagyeCore do
       Invoices.Schemas.InvoiceLineItem,
       Invoices.Schemas.InvoiceDelivery,
       CheckoutSessions,
+      CheckoutTemplates,
       Checkout.Schemas.CheckoutSession,
       Checkout.Schemas.CheckoutLineItem,
       PaymentLinks,
