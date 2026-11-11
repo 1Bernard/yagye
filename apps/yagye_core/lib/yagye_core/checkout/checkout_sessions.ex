@@ -10,6 +10,7 @@ defmodule YagyeCore.CheckoutSessions do
     CheckoutLineItem,
     CheckoutSession,
     CheckoutTemplate,
+    CheckoutTemplateComponent,
     MerchantCheckoutConfig
   }
 
@@ -66,10 +67,12 @@ defmodule YagyeCore.CheckoutSessions do
   def create_session(merchant_id, attrs) do
     {url_token, url_token_hash} = generate_token_pair()
     expires_at = DateTime.add(DateTime.utc_now(), @default_ttl_seconds, :second)
+    mode = Map.get(attrs, :mode, "live")
 
     session_attrs =
       attrs
       |> Map.put(:merchant_id, merchant_id)
+      |> Map.put(:template_id, find_published_template_id(merchant_id, mode))
       |> Map.put(:url_token_hash, url_token_hash)
       |> Map.put_new(:expires_at, expires_at)
       |> Map.put_new(:merchant_reference, generate_reference())
@@ -315,7 +318,10 @@ defmodule YagyeCore.CheckoutSessions do
   """
   def fetch_session_display_context(%CheckoutSession{} = session) do
     mcc = fetch_mcc(session.merchant_id)
-    template_theme = published_template_theme(session.merchant_id, session.mode)
+
+    {template_theme, components} =
+      fetch_template_data(session.template_id, session.merchant_id, session.mode)
+
     link_layout = fetch_link_layout(session.payment_link_id)
     merchant_name = fetch_merchant_name(session.merchant_id)
 
@@ -325,6 +331,7 @@ defmodule YagyeCore.CheckoutSessions do
       |> put_if_present(:logo_url, mcc && mcc.logo_url)
       |> put_if_present(:business_name, mcc && mcc.display_name)
       |> put_if_present(:font_family, template_theme["font_family"])
+      |> put_if_present(:components, components)
       |> merge_link_overrides(link_layout)
 
     {checkout_layout, merchant_name}
@@ -353,19 +360,45 @@ defmodule YagyeCore.CheckoutSessions do
     end
   end
 
-  # Returns the published template's theme map for the given mode, or empty map.
-  defp published_template_theme(merchant_id, mode) do
-    case Repo.one(
-           from t in CheckoutTemplate,
-             where:
-               t.merchant_id == ^merchant_id and
-                 t.mode == ^mode and
-                 t.status == "published",
-             limit: 1
-         ) do
-      nil -> %{}
-      template -> template.theme || %{}
-    end
+  # Loads theme and component visibility for the snapped template_id.
+  # Falls back to querying the published template for pre-snap sessions (template_id nil).
+  defp fetch_template_data(nil, merchant_id, mode) do
+    find_published_template(merchant_id, mode) |> load_template_data()
+  end
+
+  defp fetch_template_data(template_id, _merchant_id, _mode) do
+    Repo.get(CheckoutTemplate, template_id) |> load_template_data()
+  end
+
+  defp load_template_data(nil), do: {%{}, nil}
+
+  defp load_template_data(%CheckoutTemplate{} = template) do
+    components =
+      from(c in CheckoutTemplateComponent,
+        where: c.template_id == ^template.id,
+        order_by: [asc: c.position]
+      )
+      |> Repo.all()
+      |> Map.new(fn c -> {c.component_type, %{"visible" => c.visible, "config" => c.config}} end)
+
+    {template.theme || %{}, if(map_size(components) > 0, do: components, else: nil)}
+  end
+
+  defp find_published_template(merchant_id, mode) do
+    Repo.one(
+      from t in CheckoutTemplate,
+        where: t.merchant_id == ^merchant_id and t.mode == ^mode and t.status == "published",
+        limit: 1
+    )
+  end
+
+  defp find_published_template_id(merchant_id, mode) do
+    Repo.one(
+      from t in CheckoutTemplate,
+        where: t.merchant_id == ^merchant_id and t.mode == ^mode and t.status == "published",
+        select: t.id,
+        limit: 1
+    )
   end
 
   defp put_if_present(map, _key, nil), do: map
@@ -510,6 +543,7 @@ defmodule YagyeCore.CheckoutSessions do
     %{
       merchant_id: link.merchant_id,
       mode: link.mode,
+      template_id: find_published_template_id(link.merchant_id, link.mode),
       url_token_hash: url_token_hash,
       subtotal_amount: n.subtotal_amount,
       tax_amount: n.tax_amount,

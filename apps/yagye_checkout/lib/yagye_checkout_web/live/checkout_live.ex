@@ -2106,13 +2106,14 @@ defmodule YagyeCheckoutWeb.Live.CheckoutLive do
       layout = session["checkout_layout"] || %{}
       terms  = layout["terms"] || %{}
       trust  = layout["trust_badges"] || %{}
+      terms_component = (layout["components"] || %{})["terms_checkbox"] || %{}
       assign(sock,
         brand_color:            sanitize_hex_color(layout["brand_color"]),
         font_family:            layout["font_family"],
         checkout_headline:      layout["headline"],
         cta_text:               layout["cta_text"],
         checkout_business_name: layout["business_name"],
-        terms_enabled:          terms["enabled"] == true,
+        terms_enabled:          terms_component["visible"] == true,
         terms_label:            terms["label"] || "I agree to the Terms & Conditions",
         terms_url:              terms["url"] || "",
         terms_accepted:         false,
