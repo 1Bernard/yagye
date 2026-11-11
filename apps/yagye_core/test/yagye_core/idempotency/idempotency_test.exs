@@ -5,6 +5,8 @@ defmodule YagyeCore.Idempotency.IdempotencyTest do
   alias Ecto.Adapters.SQL.Sandbox
   alias YagyeCore.Fixtures
   alias YagyeCore.Idempotency
+  alias YagyeCore.Idempotency.Schemas.IdempotencyKey
+  alias YagyeCore.Repo
 
   @fingerprint Base.encode16(:crypto.hash(:sha256, "request-body"))
 
@@ -72,6 +74,57 @@ defmodule YagyeCore.Idempotency.IdempotencyTest do
 
       assert {:ok, :claimed, _} = Idempotency.claim(merchant_a.id, key, @fingerprint)
       assert {:ok, :claimed, _} = Idempotency.claim(merchant_b.id, key, @fingerprint)
+    end
+  end
+
+  describe "idempotency_keys DB record persistence" do
+    test "claim/4 writes a row with the correct fields" do
+      merchant = Fixtures.approved_merchant_fixture()
+      key = unique_key()
+
+      {:ok, :claimed, idem_key} = Idempotency.claim(merchant.id, key, @fingerprint)
+
+      row = Repo.get!(IdempotencyKey, idem_key.id)
+      assert row.merchant_id == merchant.id
+      assert row.key == key
+      assert row.request_fingerprint == @fingerprint
+      assert row.state == "in_progress"
+      refute is_nil(row.expires_at)
+      refute is_nil(row.lease_expires_at)
+    end
+
+    test "complete/5 persists state, response fields, and executed_at" do
+      merchant = Fixtures.approved_merchant_fixture()
+
+      {:ok, :claimed, idem_key} = Idempotency.claim(merchant.id, unique_key(), @fingerprint)
+
+      {:ok, completed} =
+        Idempotency.complete(idem_key.id, 201, %{"id" => "pay_abc"}, "payment", nil)
+
+      assert completed.state == "completed"
+      assert completed.response_status == 201
+      assert completed.response_body == %{"id" => "pay_abc"}
+      assert completed.resource_type == "payment"
+      refute is_nil(completed.executed_at)
+    end
+
+    test "fail/1 sets state to failed" do
+      merchant = Fixtures.approved_merchant_fixture()
+
+      {:ok, :claimed, idem_key} = Idempotency.claim(merchant.id, unique_key(), @fingerprint)
+      {:ok, failed} = Idempotency.fail(idem_key.id)
+
+      assert failed.state == "failed"
+    end
+
+    test "claim/4 with command_name persists it on the row" do
+      merchant = Fixtures.approved_merchant_fixture()
+
+      {:ok, :claimed, idem_key} =
+        Idempotency.claim(merchant.id, unique_key(), @fingerprint, "CreatePayment")
+
+      row = Repo.get!(IdempotencyKey, idem_key.id)
+      assert row.command_name == "CreatePayment"
     end
   end
 

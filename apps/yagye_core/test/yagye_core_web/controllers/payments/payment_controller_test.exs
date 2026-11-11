@@ -1,7 +1,11 @@
 defmodule YagyeCoreWeb.Controllers.Payments.PaymentControllerTest do
   use YagyeCoreWeb.ConnCase, async: true
 
+  import Ecto.Query
+
   alias YagyeCore.Fixtures
+  alias YagyeCore.Repo
+  alias YagyeCore.Shared.ApiRequest
 
   setup do
     merchant = Fixtures.merchant_fixture()
@@ -124,6 +128,68 @@ defmodule YagyeCoreWeb.Controllers.Payments.PaymentControllerTest do
       resp = get(conn, "/v1/payments/#{payment.public_id}")
 
       assert resp.status == 401
+    end
+  end
+
+  # ──────────────────────────────────────────────────────────────────────────
+  # AuditLog plug — api_requests table
+  # ──────────────────────────────────────────────────────────────────────────
+  describe "api_requests audit log" do
+    test "records idempotency_key when header is present", %{conn: conn, raw_key: raw_key} do
+      idem_key_value = "idem-audit-#{System.unique_integer([:positive])}"
+
+      conn
+      |> with_auth(raw_key)
+      |> put_req_header("content-type", "application/json")
+      |> put_req_header("idempotency-key", idem_key_value)
+      |> post("/v1/payments", %{
+        amount: 10_000,
+        currency: "GHS",
+        rail: "fiat_provider",
+        method: "mobile_money",
+        description: "Idempotency audit test"
+      })
+
+      row = Repo.one!(from r in ApiRequest, where: r.idempotency_key == ^idem_key_value)
+      assert row.idempotency_key == idem_key_value
+      assert row.path == "/v1/payments"
+      assert row.method == "POST"
+      assert row.status == 201
+    end
+
+    test "idempotency_key is nil in api_requests when header is absent", %{
+      conn: conn,
+      raw_key: raw_key
+    } do
+      conn
+      |> with_auth(raw_key)
+      |> put_req_header("content-type", "application/json")
+      |> post("/v1/payments", %{
+        amount: 10_000,
+        currency: "GHS",
+        rail: "fiat_provider",
+        method: "mobile_money",
+        description: "No idempotency header"
+      })
+
+      row =
+        Repo.one!(from r in ApiRequest, where: r.path == "/v1/payments" and r.method == "POST")
+
+      assert is_nil(row.idempotency_key)
+      assert row.status == 201
+    end
+
+    test "api_requests row is written even for failed requests", %{conn: conn, raw_key: raw_key} do
+      conn
+      |> with_auth(raw_key)
+      |> put_req_header("content-type", "application/json")
+      |> post("/v1/payments", %{amount: 100})
+
+      row =
+        Repo.one!(from r in ApiRequest, where: r.path == "/v1/payments" and r.method == "POST")
+
+      assert row.status == 422
+      assert is_nil(row.idempotency_key)
     end
   end
 end
