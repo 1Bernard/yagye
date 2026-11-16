@@ -18,23 +18,26 @@ module PricingPlans
 
     PROVIDER_OPTIONS = {
       "mobile_money" => [
-        [ "MTN MoMo",         "MTN_MOMO_GH" ],
-        [ "Telecel Cash",     "TELECEL_GH" ],
-        [ "AirtelTigo Money", "AIRTELTIGO_GH" ]
+        [ "MTN MoMo (native rail)",    "mtn_momo_gh" ],
+        [ "Telecel Cash (native rail)", "telecel_cash_gh" ],
+        [ "AirtelTigo (native rail)",  "airteltigo_money_gh" ],
+        [ "Flutterwave (MoMo)",        "flutterwave" ],
+        [ "Paystack (MoMo)",           "paystack" ]
       ],
       "card" => [
-        [ "Visa",       "VISA" ],
-        [ "Mastercard", "MASTERCARD" ]
+        [ "Flutterwave (card)",        "flutterwave" ],
+        [ "Paystack (card)",           "paystack" ],
+        [ "Stripe (USD card)",         "stripe" ]
       ]
     }.freeze
 
     PROVIDER_LABEL_MAP = {
-      "MTN_MOMO_GH"   => "MTN MoMo",
-      "TELECEL_GH"    => "Telecel Cash",
-      "AIRTELTIGO_GH" => "AirtelTigo Money",
-      "VISA"          => "Visa",
-      "MASTERCARD"    => "Mastercard",
-      "HUBTEL_GH"     => "Hubtel"
+      "mtn_momo_gh"        => "MTN MoMo",
+      "telecel_cash_gh"    => "Telecel Cash",
+      "airteltigo_money_gh" => "AirtelTigo Money",
+      "flutterwave"        => "Flutterwave",
+      "paystack"           => "Paystack",
+      "stripe"             => "Stripe"
     }.freeze
 
     def initialize(plan:)
@@ -116,6 +119,8 @@ module PricingPlans
     private
 
     def add_rule_form
+      cur = @plan["currency"] || "GHS"
+
       render UI::Card.new do |c|
         c.header("Add rule", icon: :plus)
         c.body do
@@ -129,7 +134,7 @@ module PricingPlans
                   FEE_KIND_OPTIONS.each { |(lbl, val)| option(value: val) { plain lbl } }
                 end
                 p(class: "#{TYPE_MICRO} text-gray-400 mt-1") do
-                  plain "PSP margin = Yagye handles payment. Orchestration fee = merchant uses their own PSP (Stripe/Paystack), Yagye routes."
+                  plain "PSP margin = Yagye is the PSP. Orchestration fee = merchant uses their own PSP (Stripe/Paystack/Flutterwave), Yagye routes."
                 end
               end
 
@@ -141,23 +146,25 @@ module PricingPlans
               end
 
               div do
-                label(class: "block #{TYPE_MICRO} text-gray-500 font-medium mb-1.5") { plain "Provider (optional)" }
+                label(class: "block #{TYPE_MICRO} text-gray-500 font-medium mb-1.5") { plain "Provider (optional — leave blank for catch-all)" }
                 select(name: "provider_code", class: input_cls) do
-                  option(value: "") { plain "— All providers" }
+                  option(value: "") { plain "— All providers (catch-all)" }
                   PROVIDER_OPTIONS.each do |_m, opts|
                     opts.each { |(lbl, val)| option(value: val) { plain lbl } }
                   end
                 end
-                p(class: "#{TYPE_MICRO} text-gray-400 mt-1") { plain "Only relevant for mobile money and card rules." }
+                p(class: "#{TYPE_MICRO} text-gray-400 mt-1") do
+                  plain "PSP-specific rules beat catch-all rules of the same method (higher specificity)."
+                end
               end
 
               div(class: "grid grid-cols-2 gap-3") do
                 rate_field("Rate (%)", "percentage_pct", "1.75")
-                rate_field("Fixed fee (GHS)", "fixed_amount", "0.50")
+                rate_field("Fixed fee (#{cur})", "fixed_amount", "0.50")
               end
               div(class: "grid grid-cols-2 gap-3") do
-                rate_field("Min charge (GHS)", "minimum_fee", "0.50")
-                rate_field("Cap (GHS)", "maximum_fee", "50.00")
+                rate_field("Min charge (#{cur})", "minimum_fee", "0.50")
+                rate_field("Cap (#{cur})", "maximum_fee", "50.00")
               end
 
               div(class: "flex justify-end pt-1") do

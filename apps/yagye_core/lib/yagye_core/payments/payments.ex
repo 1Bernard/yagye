@@ -493,7 +493,9 @@ defmodule YagyeCore.Payments do
     |> Multi.run(:ledger, fn _repo, %{succeeded: p} ->
       Ledger.post_payment_settled(p, attempt)
     end)
-    |> Multi.run(:fee, fn _repo, %{succeeded: p} -> fetch_payment_fee(p) end)
+    |> Multi.run(:fee, fn _repo, %{succeeded: p} ->
+      fetch_payment_fee(p, provider_code_from_attempt(attempt))
+    end)
     |> Multi.run(:fee_record, fn _repo, %{succeeded: p, fee: fee} ->
       record_payment_fee(attempt.id, p, fee, provider_kind_from_attempt(attempt))
     end)
@@ -866,12 +868,12 @@ defmodule YagyeCore.Payments do
     end
   end
 
-  defp fetch_payment_fee(payment) do
+  defp fetch_payment_fee(payment, provider_code \\ nil) do
     case Pricing.compute_fee(
            payment.merchant_id,
            payment.amount,
            payment.method,
-           nil,
+           provider_code,
            payment.currency
          ) do
       {:ok, fee} -> {:ok, fee}
