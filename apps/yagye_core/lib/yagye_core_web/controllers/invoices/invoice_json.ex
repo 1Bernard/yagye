@@ -60,6 +60,8 @@ defmodule YagyeCoreWeb.Controllers.Invoices.InvoiceJSON do
     }
   end
 
+  defp payment_link_send_config(%Ecto.Association.NotLoaded{}), do: nil
+
   defp payment_link_send_config(%{} = link) do
     %{
       allowed_methods: link.allowed_methods,
