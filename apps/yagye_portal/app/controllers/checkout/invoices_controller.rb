@@ -157,8 +157,8 @@ module Checkout
       upload = upload_pdf_to_s3(pdf_file)
       return render json: { error: upload[:error] }, status: :unprocessable_entity if upload[:error]
 
-      pdf_text   = extract_pdf_text(pdf_file)
-      extraction = Ai::InvoicePdfExtractor.new.extract(pdf_text)
+      pdf_bytes  = File.binread(pdf_file.path)
+      extraction = Ai::InvoicePdfExtractor.new.extract_from_bytes(pdf_bytes)
 
       render json: {
         fields:           extraction.success? ? extraction.fields : {},
@@ -236,13 +236,6 @@ module Checkout
     def merchant_logo_url
       result = core.get_checkout_config(current_user.merchant_code)
       result.success? ? result.body["logo_url"].presence : nil
-    end
-
-    def extract_pdf_text(file)
-      reader = PDF::Reader.new(file.path)
-      reader.pages.map(&:text).join("\n").strip
-    rescue PDF::Reader::MalformedPDFError, PDF::Reader::UnsupportedFeatureError
-      ""
     end
 
     def upload_pdf_to_s3(file)

@@ -53,6 +53,57 @@ module Ai
 
     # Runs the tool-calling loop until the model returns a final text answer.
     # on_tool: lambda called with (tool_name, input_hash) → result hash
+    def supports_pdf?
+      @provider[:key_env] == "ANTHROPIC_API_KEY"
+    end
+
+    # Sends a PDF (raw bytes) directly to the native Anthropic Messages API as a document block.
+    # Claude reads the visual layout, so multi-column tables extract correctly.
+    # Only callable when supports_pdf? is true; raises otherwise.
+    def chat_with_pdf(pdf_bytes:, system:, prompt:)
+      raise "PDF extraction requires LLM_PROVIDER=anthropic" unless supports_pdf?
+
+      encoded = Base64.strict_encode64(pdf_bytes)
+
+      native = Faraday.new(url: "https://api.anthropic.com/v1/") do |f|
+        f.request  :json
+        f.response :json, content_type: /\bjson$/
+        f.request  :retry, max: 2, interval: 0.5, retry_statuses: [ 429, 502, 503, 504 ]
+        f.adapter  Faraday.default_adapter
+        f.options.timeout      = 60
+        f.options.open_timeout = 10
+      end
+
+      body = {
+        model:      @provider[:model],
+        max_tokens: MAX_TOKENS,
+        system:     system,
+        messages:   [ {
+          role:    "user",
+          content: [
+            { type: "document", source: { type: "base64", media_type: "application/pdf", data: encoded } },
+            { type: "text", text: prompt }
+          ]
+        } ]
+      }
+
+      response = native.post("messages", body, {
+        "x-api-key"         => ENV.fetch("ANTHROPIC_API_KEY"),
+        "anthropic-version" => "2023-06-01",
+        "Content-Type"      => "application/json"
+      })
+
+      if response.success?
+        text = response.body.dig("content", 0, "text").to_s
+        Result.new(text: text)
+      else
+        err = response.body.is_a?(Hash) ? response.body.dig("error", "message") : nil
+        Result.new(error: err || "Anthropic PDF API error (#{response.status})")
+      end
+    rescue StandardError => e
+      Result.new(error: e.message)
+    end
+
     def chat(system:, messages:, tools: [], on_tool: nil)
       # Prepend system as a system-role message (OpenAI format)
       conversation = [ { role: "system", content: system } ] + messages.dup
