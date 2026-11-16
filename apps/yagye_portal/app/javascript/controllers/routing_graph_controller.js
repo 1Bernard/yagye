@@ -52,12 +52,12 @@ export default class extends Controller {
     network_routing: {
       name: "Network routing",
       nodes: [
-        { id: 1, type: "ConditionNode", x:  60, y:  60, data: { field: "network", operator: "eq", value: "MTN" } },
-        { id: 2, type: "ProviderNode",  x: 440, y:  60, data: { provider_code: "mtn_momo",     label: "MTN MoMo" } },
-        { id: 3, type: "ConditionNode", x:  60, y: 280, data: { field: "network", operator: "eq", value: "TELECEL" } },
-        { id: 4, type: "ProviderNode",  x: 440, y: 280, data: { provider_code: "telecel_cash", label: "Telecel Cash" } },
-        { id: 5, type: "ConditionNode", x:  60, y: 500, data: { field: "network", operator: "eq", value: "AIRTELTIGO" } },
-        { id: 6, type: "ProviderNode",  x: 440, y: 500, data: { provider_code: "airteltigo",   label: "AirtelTigo Money" } }
+        { id: 1, type: "ConditionNode", x:  60, y:  40, data: { field: "network", operator: "eq", value: "MTN" } },
+        { id: 2, type: "ProviderNode",  x: 500, y:  40, data: { provider_code: "mtn_momo",     label: "MTN MoMo" } },
+        { id: 3, type: "ConditionNode", x:  60, y: 380, data: { field: "network", operator: "eq", value: "TELECEL" } },
+        { id: 4, type: "ProviderNode",  x: 500, y: 380, data: { provider_code: "telecel_cash", label: "Telecel Cash" } },
+        { id: 5, type: "ConditionNode", x:  60, y: 720, data: { field: "network", operator: "eq", value: "AIRTELTIGO" } },
+        { id: 6, type: "ProviderNode",  x: 500, y: 720, data: { provider_code: "airteltigo",   label: "AirtelTigo Money" } }
       ],
       connections: [
         { from: 1, fromOutput: 1, to: 2, toInput: 1 },
@@ -73,9 +73,9 @@ export default class extends Controller {
     traffic_split: {
       name: "Traffic split",
       nodes: [
-        { id: 1, type: "SplitNode",    x: 160, y: 200, data: { pct_a: 70, pct_b: 30, label_a: "Primary", label_b: "Secondary" } },
+        { id: 1, type: "SplitNode",    x: 120, y: 220, data: { pct_a: 70, pct_b: 30, label_a: "Primary", label_b: "Secondary" } },
         { id: 2, type: "ProviderNode", x: 560, y:  80, data: { provider_code: "", label: "Primary processor" } },
-        { id: 3, type: "ProviderNode", x: 560, y: 320, data: { provider_code: "", label: "Secondary processor" } }
+        { id: 3, type: "ProviderNode", x: 560, y: 360, data: { provider_code: "", label: "Secondary processor" } }
       ],
       connections: [
         { from: 1, fromOutput: 1, to: 2, toInput: 1 },
@@ -90,8 +90,8 @@ export default class extends Controller {
     network_filter: {
       name: "Network filter",
       nodes: [
-        { id: 1, type: "ConditionNode", x: 100, y: 180, data: { field: "network", operator: "eq", value: "MTN" } },
-        { id: 2, type: "ProviderNode",  x: 500, y: 180, data: { provider_code: "mtn_momo", label: "MTN MoMo" } }
+        { id: 1, type: "ConditionNode", x:  60, y: 160, data: { field: "network", operator: "eq", value: "MTN" } },
+        { id: 2, type: "ProviderNode",  x: 500, y: 160, data: { provider_code: "mtn_momo", label: "MTN MoMo" } }
       ],
       connections: [
         { from: 1, fromOutput: 1, to: 2, toInput: 1 }
@@ -105,10 +105,10 @@ export default class extends Controller {
     method_routing: {
       name: "Method routing",
       nodes: [
-        { id: 1, type: "ConditionNode", x:  60, y:  60, data: { field: "method", operator: "eq", value: "mobile_money" } },
-        { id: 2, type: "ProviderNode",  x: 460, y:  60, data: { provider_code: "", label: "Mobile money provider" } },
-        { id: 3, type: "ConditionNode", x:  60, y: 280, data: { field: "method", operator: "eq", value: "card" } },
-        { id: 4, type: "ProviderNode",  x: 460, y: 280, data: { provider_code: "", label: "Card provider" } }
+        { id: 1, type: "ConditionNode", x:  60, y:  40, data: { field: "method", operator: "eq", value: "mobile_money" } },
+        { id: 2, type: "ProviderNode",  x: 500, y:  40, data: { provider_code: "", label: "Mobile money provider" } },
+        { id: 3, type: "ConditionNode", x:  60, y: 380, data: { field: "method", operator: "eq", value: "card" } },
+        { id: 4, type: "ProviderNode",  x: 500, y: 380, data: { provider_code: "", label: "Card provider" } }
       ],
       connections: [
         { from: 1, fromOutput: 1, to: 2, toInput: 1 },
@@ -241,7 +241,39 @@ export default class extends Controller {
 
   zoomIn()  { this.editor.zoom_in() }
   zoomOut() { this.editor.zoom_out() }
-  fitView() { this.editor.zoom_reset() }
+
+  fitView() {
+    const drawflowEl = this.canvasTarget.querySelector('.drawflow')
+    const nodeEls    = this.canvasTarget.querySelectorAll('[id^="node-"]')
+    if (!nodeEls.length || !drawflowEl) { this.editor.zoom_reset(); return }
+
+    // Reset to identity so getBoundingClientRect reports raw canvas-space positions
+    this.editor.canvas_x = 0
+    this.editor.canvas_y = 0
+    this.editor.zoom     = 1
+    drawflowEl.style.transform = 'translate(0px, 0px) scale(1)'
+
+    const canvasRect = this.canvasTarget.getBoundingClientRect()
+    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity
+    nodeEls.forEach(el => {
+      const r = el.getBoundingClientRect()
+      const x = r.left - canvasRect.left
+      const y = r.top  - canvasRect.top
+      minX = Math.min(minX, x);  minY = Math.min(minY, y)
+      maxX = Math.max(maxX, x + r.width); maxY = Math.max(maxY, y + r.height)
+    })
+
+    const pad  = 72
+    const zoom = Math.min((canvasRect.width  - pad * 2) / (maxX - minX),
+                          (canvasRect.height - pad * 2) / (maxY - minY), 1)
+    const newX = canvasRect.width  / 2 - ((minX + maxX) / 2) * zoom
+    const newY = canvasRect.height / 2 - ((minY + maxY) / 2) * zoom
+
+    this.editor.canvas_x = newX
+    this.editor.canvas_y = newY
+    this.editor.zoom     = zoom
+    drawflowEl.style.transform = `translate(${newX}px, ${newY}px) scale(${zoom})`
+  }
 
   // ── Node picker dropdown ─────────────────────────────────────────────────
 
@@ -638,6 +670,7 @@ export default class extends Controller {
       try { this.editor.addConnection(from, to, `output_${outIdx}`, `input_${inIdx}`) } catch(_) {}
     })
     this._updateEmptyState()
+    requestAnimationFrame(() => this.fitView())
   }
 
   // ── Empty state ──────────────────────────────────────────────────────────
