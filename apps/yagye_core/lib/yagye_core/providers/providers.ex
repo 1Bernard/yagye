@@ -157,7 +157,11 @@ defmodule YagyeCore.Providers do
       # network is the mobile money network determined from the customer's MSISDN prefix
       # (e.g. "MTN", "TELECEL", "AIRTELTIGO"). Present when the customer has entered
       # their number; nil for non-momo methods or when MSISDN is not yet known.
-      network: get_in(payment.metadata || %{}, ["network"])
+      network: get_in(payment.metadata || %{}, ["network"]),
+      # risk_score is populated synchronously before dispatch when risk_ml_enabled is true,
+      # and asynchronously otherwise (nil at routing time in async mode).
+      # Converted to float so Routing.apply_operator numeric guards (is_number) match.
+      risk_score: payment.risk_score && Decimal.to_float(payment.risk_score)
     }
   end
 

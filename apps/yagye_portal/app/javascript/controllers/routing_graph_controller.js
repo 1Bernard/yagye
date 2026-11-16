@@ -450,12 +450,11 @@ export default class extends Controller {
 
     if (type === "ConditionNode") {
       const fieldMeta = [
-        { value: "network",    label: "network",         hint: "e.g. MTN · Telecel · AirtelTigo" },
-        { value: "method",     label: "payment method",  hint: "e.g. mobile_money · card · bank_transfer" },
-        { value: "currency",   label: "currency",        hint: "e.g. GHS · USD · EUR" },
-        { value: "amount",     label: "amount",          hint: "in minor units — pesewas or cents" },
-        { value: "card_brand", label: "card brand",      hint: "e.g. visa · mastercard" },
-        { value: "risk_score", label: "risk score",      hint: "0 – 100" }
+        { value: "network",    label: "network",        hint: "e.g. MTN · Telecel · AirtelTigo" },
+        { value: "method",     label: "payment method", hint: "e.g. mobile_money · card · bank_transfer" },
+        { value: "currency",   label: "currency",       hint: "e.g. GHS · USD · EUR" },
+        { value: "amount",     label: "amount",         hint: "in minor units — pesewas or cents" },
+        { value: "risk_score", label: "risk score",     hint: "0 – 100 (requires risk scoring to be enabled)" }
       ]
       const fieldOpts = fieldMeta
         .map(f => `<option value="${f.value}" ${f.value === data.field ? "selected" : ""}>${f.label}</option>`).join("")
@@ -520,7 +519,7 @@ export default class extends Controller {
       const op  = { eq:"=",neq:"≠",gt:">",gte:"≥",lt:"<",lte:"≤",in:"in",not_in:"not in" }[data.operator] || "="
       const val = data.value ? `"${data.value}"` : "…"
       const fieldLabel = { network:"network", method:"payment method", currency:"currency",
-                           amount:"amount", card_brand:"card brand", risk_score:"risk score" }[data.field] || (data.field || "field")
+                           amount:"amount", risk_score:"risk score" }[data.field] || (data.field || "field")
       return `${fieldLabel} ${op} ${val}`
     }
     if (type === "SplitNode") return `${data.pct_a || 70}% / ${data.pct_b || 30}%`
