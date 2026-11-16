@@ -90,9 +90,11 @@ module Payments
           end
 
           div(class: "grid grid-cols-3 gap-[1px] bg-gray-100 rounded-xl overflow-hidden") do
-            meta_cell("ID",     @c["id"]&.first(16) || "—", mono: true)
-            meta_cell("MoMo",   @c["merchant_customer_ref"] || "—", mono: true)
-            meta_cell("Email",  @c["email"] || "—")
+            ref       = @c["merchant_customer_ref"]
+            ref_label = ref.to_s.match?(/\A\+?\d[\d\s\-]{6,}\z/) ? "MoMo" : "Ref"
+            meta_cell("ID",      @c["id"]&.first(16) || "—", mono: true)
+            meta_cell(ref_label, ref || "—", mono: true)
+            meta_cell("Email",   @c["email"] || "—")
           end
 
           if @stat && @stat[:payment_count].to_i.positive?
@@ -140,7 +142,9 @@ module Payments
               list.row("Customer ID",   @c["id"] || "—", mono: true, stacked: true)
               list.row("Name",          @c["name"] || "—")
               list.row("Email",         @c["email"] || "—")
-              list.row("MoMo MSISDN",   @c["merchant_customer_ref"] || "—", mono: true)
+              ref       = @c["merchant_customer_ref"]
+              ref_label = ref.to_s.match?(/\A\+?\d[\d\s\-]{6,}\z/) ? "MoMo MSISDN" : "Customer ref"
+              list.row(ref_label, ref || "—", mono: true)
               list.row("Contact phone", @c["msisdn"] || "—", mono: true) if @c["msisdn"].present? && @c["msisdn"] != @c["merchant_customer_ref"]
               ts = @c["inserted_at"] || @c["created_at"]
               list.row("Created", fmt_datetime_utc(ts ? Time.parse(ts) : nil))

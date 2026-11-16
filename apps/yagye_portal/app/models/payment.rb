@@ -23,7 +23,7 @@ class Payment < ApplicationRecord
 
   scope :for_merchant,    ->(code) { where(merchant_code: code) }
   scope :by_status,       ->(s)    { where(status: s) }
-  scope :search_ref,      ->(q)    { where("reference ILIKE ? OR customer_msisdn LIKE ?", "%#{sanitize_sql_like(q)}%", "%#{sanitize_sql_like(q)}%") }
+  scope :search_ref,      ->(q)    { where("reference ILIKE ? OR customer_msisdn LIKE ? OR customer_email ILIKE ?", "%#{sanitize_sql_like(q)}%", "%#{sanitize_sql_like(q)}%", "%#{sanitize_sql_like(q)}%") }
   scope :recent,                   -> { order(created_at: :desc) }
   scope :for_portal_mode, ->(m)    { m == "live" ? where(mode: "live") : where(mode: TEST_MODES) }
 
