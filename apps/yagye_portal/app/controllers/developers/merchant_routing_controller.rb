@@ -114,11 +114,17 @@ module Developers
 
     private
 
+    # Native MNO rails are owned by Yagye and managed via the ops routing graph.
+    # Exposing them here would let a merchant's routing config silently switch a
+    # transaction from Model B (merchant's own PSP) to Model A (Yagye's rail),
+    # breaking the settlement chain and fee model.
+    NATIVE_RAIL_CODES = %w[mtn_momo mtn_momo_gh telecel_cash telecel_cash_gh airteltigo airteltigo_money_gh simulator].freeze
+
     def build_provider_list(conn_result)
       return [] unless conn_result.success?
 
       (conn_result.body["data"] || [])
-        .select { |c| c["status"] == "active" }
+        .select { |c| c["status"] == "active" && NATIVE_RAIL_CODES.exclude?(c["provider_code"].to_s) }
         .map do |c|
           {
             code:  c["provider_code"],
