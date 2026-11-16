@@ -468,12 +468,28 @@ export default class extends Controller {
         ["lt","< less than"],["lte","≤ at most"],
         ["in","in list"],["not_in","not in list"]
       ].map(([v,l]) => `<option value="${v}" ${v === data.operator ? "selected" : ""}>${l}</option>`).join("")
+      // For fields with a known set of values, show a dropdown instead of free text.
+      // "in" / "not_in" operators still need text input (comma-separated list).
+      const knownValues = {
+        network:    ["MTN", "TELECEL", "AIRTELTIGO"],
+        method:     ["mobile_money", "card", "bank_transfer"],
+        currency:   ["GHS", "USD", "EUR"]
+      }
+      const useDropdown = knownValues[data.field] && !["in","not_in"].includes(data.operator)
+      const valueControl = useDropdown
+        ? selectWrap("value",
+            `<option value="">Choose…</option>` +
+            knownValues[data.field].map(v =>
+              `<option value="${v}" ${v === data.value ? "selected" : ""}>${v}</option>`
+            ).join(""))
+        : `<input type="${data.field === "amount" || data.field === "risk_score" ? "number" : "text"}"
+                  value="${data.value ?? ""}"
+                  placeholder="${data.field === "amount" ? "e.g. 10000" : data.field === "risk_score" ? "e.g. 75" : ""}"
+                  data-rg-field="value"
+                  style="${inputCss}">`
       body = fieldDiv("Field", selectWrap("field", fieldOpts) + fieldHint) +
              fieldDiv("Operator", selectWrap("operator", opOpts)) +
-             fieldDiv("Value",
-               `<input type="text" value="${data.value ?? ""}" placeholder="e.g. GHS"
-                       data-rg-field="value"
-                       style="${inputCss}">`)
+             fieldDiv("Value", valueControl)
     }
 
     if (type === "SplitNode") {
