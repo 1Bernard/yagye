@@ -38,6 +38,7 @@ module Checkout
         @prefill  = prefill
         @editing  = invoice.present?
         @logo_url = logo_url
+        @default_number = "INV-#{Time.now.strftime('%Y%m%d')}-#{SecureRandom.hex(2).upcase}"
       end
 
       def view_template
@@ -181,6 +182,8 @@ module Checkout
           div(class: "h-px bg-gray-100 flex-shrink-0 mx-3")
 
           div(class: "flex-1 min-h-0 overflow-y-auto") do
+            errors_section if @errors.any?
+            section_divider if @errors.any?
             pdf_upload_section
             section_divider
             bill_to_section
@@ -198,6 +201,21 @@ module Checkout
 
       def section_divider
         div(class: "h-px bg-gray-100 mx-3")
+      end
+
+      # ── Errors ───────────────────────────────────────────────────────────────
+
+      def errors_section
+        div(class: "px-4 pt-3 pb-3") do
+          div(class: "rounded-xl bg-red-50 border border-red-100 px-3 py-2.5") do
+            p(class: "text-[11px] font-semibold text-red-700 mb-1") { plain "Please fix the following:" }
+            ul(class: "list-disc list-inside flex flex-col gap-[3px]") do
+              @errors.each do |msg|
+                li(class: "text-[11px] text-red-600 leading-snug") { plain msg }
+              end
+            end
+          end
+        end
       end
 
       # ── PDF import ───────────────────────────────────────────────────────────
@@ -354,7 +372,8 @@ module Checkout
           div(class: "flex flex-col gap-2.5") do
             div do
               span(class: "text-[9px] font-bold uppercase tracking-[0.1em] text-gray-400 block mb-[5px]") { plain "Number" }
-              input(type: "text", name: "number", value: @editing ? @invoice["number"].to_s : (@prefill ? @prefill["number"].to_s : ""),
+              input(type: "text", name: "number",
+                    value: @editing ? @invoice["number"].to_s : (@prefill ? @prefill["number"].to_s : @default_number),
                     placeholder: "INV-00001", class: panel_input_cls,
                     data: { action: "input->invoice-compose#syncPreview" })
             end
@@ -513,7 +532,7 @@ module Checkout
             p(class: "text-[34px] font-black text-gray-900 leading-none tracking-tight") { plain "Invoice" }
             p(class: "text-[13px] text-gray-400 mt-1.5 font-mono",
               data: { invoice_compose_target: "pvNumber" }) do
-              plain "#" + (@editing ? @invoice["number"].to_s : (@prefill ? "" : DEMO[:number]))
+              plain "#" + (@editing ? @invoice["number"].to_s : (@prefill ? @prefill["number"].to_s : @default_number))
             end
           end
           # Right: logo + merchant name
