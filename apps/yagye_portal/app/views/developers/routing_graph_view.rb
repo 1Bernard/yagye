@@ -140,6 +140,7 @@ module Developers
           /* Trash icon: hidden until the node is selected */
           #routing-canvas .drawflow .drawflow-node .rg-del { display: none !important; }
           #routing-canvas .drawflow .drawflow-node.selected .rg-del { display: flex !important; }
+          #routing-canvas .drawflow .drawflow-node.selected .rg-del:hover { background: #fef2f2 !important; color: #ef4444 !important; }
         ))
       end
     end

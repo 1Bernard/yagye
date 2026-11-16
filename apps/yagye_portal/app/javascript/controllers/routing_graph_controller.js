@@ -345,9 +345,7 @@ export default class extends Controller {
               style="display:none;width:24px;height:24px;border-radius:6px;
                      border:none;background:transparent;color:#c4c9d4;cursor:pointer;
                      align-items:center;justify-content:center;flex-shrink:0;
-                     padding:0;transition:background .12s,color .12s;"
-              onmouseover="this.style.background='#fef2f2';this.style.color='#ef4444'"
-              onmouseout="this.style.background='transparent';this.style.color='#c4c9d4'">
+                     padding:0;transition:background .12s,color .12s;">
         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor"
              stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
           <polyline points="3 6 5 6 21 6"/>
@@ -417,8 +415,14 @@ export default class extends Controller {
     }
 
     if (type === "ConditionNode") {
-      const fieldOpts = ["network","currency","amount","method","country","card_brand","card_funding","risk_score"]
-        .map(f => `<option value="${f}" ${f === data.field ? "selected" : ""}>${f}</option>`).join("")
+      const fieldOpts = [
+        ["network",    "network — MTN / Telecel / AirtelTigo"],
+        ["method",     "method — mobile_money / card / bank_transfer"],
+        ["currency",   "currency — GHS / USD / EUR"],
+        ["amount",     "amount — transaction value (minor units)"],
+        ["card_brand", "card_brand — Visa / Mastercard"],
+        ["risk_score", "risk_score — 0–100 from scoring service"]
+      ].map(([v, l]) => `<option value="${v}" ${v === data.field ? "selected" : ""}>${l}</option>`).join("")
       const opOpts = [
         ["eq","= equals"],["neq","≠ not equals"],
         ["gt","> greater than"],["gte","≥ at least"],

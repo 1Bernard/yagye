@@ -95,6 +95,7 @@ module Developers
             box-shadow:0 0 0 2.5px rgba(61,71,245,.16),0 8px 28px rgba(0,0,0,.08)!important; }
           #routing-canvas .drawflow .drawflow-node .rg-del { display:none!important; }
           #routing-canvas .drawflow .drawflow-node.selected .rg-del { display:flex!important; }
+          #routing-canvas .drawflow .drawflow-node.selected .rg-del:hover { background:#fef2f2!important; color:#ef4444!important; }
         ))
       end
     end
