@@ -52,26 +52,17 @@ module Checkout
       end
 
     def stat_band
-        open_invs = @invoices.select { |i| i["state"] == "open" }
-        paid_invs = @invoices.select { |i| i["state"] == "paid" }
-        overdue   = @invoices.count { |i| i["state"] == "overdue" }
-        draft_ct  = @invoices.count { |i| i["state"] == "draft" }
+        open_amt = @invoices.select { |i| i["state"] == "open" }.sum { |i| i["amount_due"].to_i }
+        paid_amt = @invoices.select { |i| i["state"] == "paid" }.sum { |i| i["total_amount"].to_i }
+        overdue  = @invoices.count  { |i| i["state"] == "overdue" }
+        draft_ct = @invoices.count  { |i| i["state"] == "draft" }
 
         render UI::Grid.new(columns: 4) do
-          stat_cell("Outstanding", sum_by_currency(open_invs, "amount_due"),   icon: :clock,        color: TEAL,  tint: TINT_TEAL)
-          stat_cell("Collected",   sum_by_currency(paid_invs, "total_amount"), icon: :check_circle, color: GREEN, tint: TINT_GREEN)
-          stat_cell("Overdue",     overdue.to_s,                               icon: :alert_circle, color: RED,   tint: TINT_RED)
-          stat_cell("Drafts",      draft_ct.to_s,                              icon: :file,         color: BRAND, tint: TINT_BRAND)
+          stat_cell("Outstanding", format_money(open_amt), icon: :clock,        color: TEAL,  tint: TINT_TEAL)
+          stat_cell("Collected",   format_money(paid_amt), icon: :check_circle, color: GREEN, tint: TINT_GREEN)
+          stat_cell("Overdue",     overdue.to_s,           icon: :alert_circle, color: RED,   tint: TINT_RED)
+          stat_cell("Drafts",      draft_ct.to_s,          icon: :file,         color: BRAND, tint: TINT_BRAND)
         end
-      end
-
-      def sum_by_currency(invoices_subset, field)
-        groups = invoices_subset.group_by { |i| i["currency"].presence || "GHS" }
-        return format_money(0) if groups.empty?
-
-        groups.map { |currency, invs|
-          format_money(invs.sum { |i| i[field].to_i }, currency: currency)
-        }.join(" / ")
       end
 
       def invoice_table
