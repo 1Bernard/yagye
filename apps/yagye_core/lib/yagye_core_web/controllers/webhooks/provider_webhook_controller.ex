@@ -81,6 +81,28 @@ defmodule YagyeCoreWeb.Controllers.Webhooks.ProviderWebhookController do
     end
   end
 
+  # Stripe webhook: `Stripe-Signature: t=<ts>,v1=<hmac>,...`
+  # Signed with the endpoint's stripe_webhook_secret (distinct from the API secret_key).
+  # Verification: HMAC-SHA256(webhook_secret, "{t}.{raw_body}"), check against v1 token.
+  def receive_external(conn, %{"provider_code" => "stripe", "merchant_id" => merchant_id}) do
+    raw_body = conn.assigns[:raw_body] || ""
+    sig_header = conn |> get_req_header("stripe-signature") |> List.first()
+
+    with {:ok, payload} <- Jason.decode(raw_body),
+         {:ok, credential} <- Providers.get_merchant_credential_for_psp("stripe", merchant_id),
+         :ok <- verify_stripe_signature(raw_body, sig_header, credential),
+         {:ok, event_id, event_type} <- extract_stripe_event(payload) do
+      case Webhooks.receive_webhook("stripe", event_id, event_type, raw_body) do
+        {:ok, _} -> send_resp(conn, 200, "")
+        {:error, :already_received} -> send_resp(conn, 200, "")
+        {:error, _} -> send_resp(conn, 422, "")
+      end
+    else
+      {:error, :invalid_signature} -> send_resp(conn, 401, "")
+      {:error, _} -> send_resp(conn, 400, "")
+    end
+  end
+
   def receive_external(conn, _params), do: send_resp(conn, 404, "")
 
   # ── Signature verification ───────────────────────────────────────────────────
@@ -126,6 +148,41 @@ defmodule YagyeCoreWeb.Controllers.Webhooks.ProviderWebhookController do
 
   defp verify_paystack_hmac(_body, _sig, _credential), do: {:error, :invalid_signature}
 
+  # Stripe: HMAC-SHA256 of "{timestamp}.{raw_body}" with the endpoint's webhook secret.
+  # The Stripe-Signature header format: "t=<ts>,v1=<hex>,..."
+  # We validate against each v1 token; Stripe may include multiple (key rotation).
+  defp verify_stripe_signature(_raw_body, nil, _credential), do: {:error, :invalid_signature}
+
+  defp verify_stripe_signature(raw_body, sig_header, %{"stripe_webhook_secret" => webhook_secret}) do
+    with {timestamp, v1_tokens} <- parse_stripe_sig(sig_header),
+         true <- is_binary(timestamp) and v1_tokens != [] do
+      signed_payload = "#{timestamp}.#{raw_body}"
+
+      expected =
+        :crypto.mac(:hmac, :sha256, webhook_secret, signed_payload)
+        |> Base.encode16(case: :lower)
+
+      if Enum.any?(v1_tokens, &Plug.Crypto.secure_compare(expected, &1)),
+        do: :ok,
+        else: {:error, :invalid_signature}
+    else
+      _ -> {:error, :invalid_signature}
+    end
+  end
+
+  defp verify_stripe_signature(_body, _sig, _credential), do: {:error, :invalid_signature}
+
+  defp parse_stripe_sig(sig_header) do
+    parts =
+      sig_header
+      |> String.split(",")
+      |> Enum.map(&String.split(&1, "=", parts: 2))
+
+    timestamp = parts |> Enum.find_value(fn [k | rest] -> if k == "t", do: List.first(rest) end)
+    v1_tokens = parts |> Enum.flat_map(fn [k | rest] -> if k == "v1", do: rest, else: [] end)
+    {timestamp, v1_tokens}
+  end
+
   # ── Event extraction ─────────────────────────────────────────────────────────
 
   # Flutterwave events use the numeric transaction id as the dedupe key.
@@ -141,4 +198,11 @@ defmodule YagyeCoreWeb.Controllers.Webhooks.ProviderWebhookController do
   end
 
   defp extract_paystack_event(_), do: {:error, :malformed_webhook}
+
+  # Stripe events use the event id (evt_...) as the dedupe key.
+  defp extract_stripe_event(%{"id" => event_id, "type" => event_type}) do
+    {:ok, event_id, event_type}
+  end
+
+  defp extract_stripe_event(_), do: {:error, :malformed_webhook}
 end

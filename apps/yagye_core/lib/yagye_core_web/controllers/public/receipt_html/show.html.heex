@@ -4,380 +4,498 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Receipt · <%= @data.merchant.trading_name %></title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@700;800&display=swap" />
   <style>
+    /* Light-only — payment receipts follow the same trust aesthetic as checkout */
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
-    body {
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
-      background: #ebebeb;
-      color: #1a1a1a;
-      min-height: 100vh;
-      display: flex;
-      align-items: flex-start;
-      justify-content: center;
-      padding: 32px 16px 48px;
+    :root {
+      --canvas:       #EBEBEB;
+      --card:         #FFFFFF;
+      --ink:          #111827;
+      --body-text:    #374151;
+      --muted:        #6B7280;
+      --subtle:       #9CA3AF;
+      --border:       #F3F4F6;
+      --border-med:   #E5E7EB;
+      --success:      #16A34A;
+      --success-bg:   rgba(22,163,74,0.07);
+      --success-ring: rgba(22,163,74,0.18);
+      --font-body:    "Inter", system-ui, -apple-system, sans-serif;
+      --font-display: "Plus Jakarta Sans", system-ui, sans-serif;
     }
 
+    body {
+      font-family: var(--font-body);
+      background: var(--canvas);
+      color: var(--ink);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 40px 16px 64px;
+    }
+
+    /* ── Card shell ─────────────────────────── */
     .receipt {
-      background: #fff;
+      background: var(--card);
       width: 100%;
-      max-width: 400px;
-      border-radius: 4px;
-      box-shadow: 0 2px 12px rgba(0,0,0,0.10);
-      overflow: visible;
+      max-width: 420px;
+      border-radius: 16px;
       position: relative;
     }
 
-    /* ── Header ─────────────────────────────── */
-    .receipt-header {
-      padding: 22px 24px 18px;
+    /* ── Merchant header ───────────────────── */
+    .merchant-header {
       display: flex;
-      justify-content: space-between;
       align-items: flex-start;
-      border-bottom: none;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 18px 20px 16px;
+      border-bottom: 1px solid var(--border);
     }
 
-    .merchant-brand {
+    .merchant-left {
       display: flex;
       align-items: center;
       gap: 10px;
+      min-width: 0;
     }
 
-    .brand-dots {
-      display: grid;
-      grid-template-columns: repeat(3, 5px);
-      grid-template-rows: repeat(3, 5px);
-      gap: 3px;
+    .merchant-logo {
+      width: 34px;
+      height: 34px;
+      border-radius: 8px;
+      object-fit: cover;
       flex-shrink: 0;
     }
 
-    .brand-dots span {
-      width: 5px;
-      height: 5px;
-      border-radius: 50%;
-      background: #1a1a1a;
-      display: block;
+    .merchant-initials {
+      width: 34px;
+      height: 34px;
+      border-radius: 8px;
+      background: var(--ink);
+      color: var(--card);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-family: var(--font-display);
+      font-size: 11px;
+      font-weight: 800;
+      letter-spacing: -0.3px;
+      flex-shrink: 0;
+      user-select: none;
     }
 
     .merchant-name {
-      font-size: 15px;
+      font-size: 14px;
       font-weight: 700;
-      color: #1a1a1a;
-      letter-spacing: -0.2px;
+      color: var(--ink);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
     }
 
-    .receipt-meta {
-      text-align: right;
-      flex-shrink: 0;
-    }
-
-    .receipt-meta p {
-      font-size: 12px;
-      color: #888;
-      line-height: 1.6;
-    }
-
-    /* ── Thank-you block ─────────────────────── */
-    .thankyou-block {
-      padding: 18px 24px 22px;
-    }
-
-    .thankyou-block h1 {
-      font-size: 22px;
-      font-weight: 700;
-      color: #1a1a1a;
-      line-height: 1.25;
-      margin-bottom: 10px;
-    }
-
-    .thankyou-block p {
-      font-size: 13.5px;
-      color: #444;
-      line-height: 1.55;
-    }
-
-    .ref-highlight {
-      color: #1a6ef5;
-      font-weight: 600;
-    }
-
-    /* ── Tear line ───────────────────────────── */
-    .tear {
-      position: relative;
-      height: 1px;
-      margin: 0 20px;
-      border: none;
-      border-top: 1.5px dashed #ccc;
-    }
-
-    .tear::before,
-    .tear::after {
-      content: "";
-      position: absolute;
-      top: 50%;
-      transform: translateY(-50%);
-      width: 24px;
-      height: 24px;
-      border-radius: 50%;
-      background: #ebebeb;
-      border: 1.5px dashed #ccc;
-    }
-
-    .tear::before { left: -32px; }
-    .tear::after  { right: -32px; }
-
-    /* ── Line items area (description) ──────── */
-    .items-block {
-      padding: 20px 24px 16px;
-    }
-
-    .item-row {
+    .header-meta {
       display: flex;
-      justify-content: space-between;
-      align-items: flex-start;
-      gap: 16px;
-      padding: 10px 0;
-      border-bottom: 1px solid #f0f0f0;
-    }
-
-    .item-row:last-child { border-bottom: none; }
-
-    .item-index {
-      font-size: 13px;
-      color: #aaa;
+      flex-direction: column;
+      align-items: flex-end;
+      gap: 2px;
       flex-shrink: 0;
-      width: 14px;
     }
 
-    .item-desc {
-      flex: 1;
-      font-size: 13px;
-      color: #1a1a1a;
-      line-height: 1.45;
-    }
-
-    .item-desc small {
-      display: block;
-      color: #888;
+    .receipt-num {
       font-size: 12px;
-      margin-top: 3px;
-    }
-
-    .item-amount {
-      font-size: 13px;
-      font-weight: 500;
-      color: #1a1a1a;
-      text-align: right;
+      color: var(--body-text);
+      font-weight: 600;
       white-space: nowrap;
     }
 
-    /* ── Totals box ──────────────────────────── */
-    .totals-box {
-      background: #f5f5f5;
-      border-radius: 6px;
-      margin: 4px 24px 20px;
-      padding: 16px 18px;
+    .receipt-date {
+      font-size: 11px;
+      color: var(--subtle);
+      font-weight: 500;
+      white-space: nowrap;
     }
 
-    .totals-main {
+    /* ── Hero ─────────────────────────────── */
+    .hero {
+      padding: 28px 28px 22px;
       display: flex;
-      justify-content: space-between;
-      align-items: baseline;
-      margin-bottom: 10px;
+      flex-direction: column;
+      align-items: center;
+      text-align: center;
+      gap: 0;
     }
 
-    .totals-main .t-label {
-      font-size: 16px;
-      font-weight: 700;
-      color: #1a1a1a;
+    .party-icon {
+      font-size: 36px;
+      line-height: 1;
+      margin-bottom: 14px;
+      display: block;
     }
 
-    .totals-main .t-value {
-      font-size: 20px;
-      font-weight: 700;
-      color: #1a1a1a;
+    .thankyou {
+      font-family: var(--font-display);
+      font-size: 22px;
+      font-weight: 800;
+      color: var(--ink);
       letter-spacing: -0.5px;
+      margin-bottom: 8px;
     }
 
-    .totals-row {
-      display: flex;
-      justify-content: space-between;
+    .confirm-msg {
       font-size: 13px;
-      color: #666;
-      padding: 3px 0;
+      color: var(--muted);
+      line-height: 1.65;
     }
 
-    /* ── Custom note ─────────────────────────── */
-    .note-block {
+    .ref-accent {
+      color: var(--success);
+      font-weight: 700;
+    }
+
+    /* ── Perforation ──────────────────────── */
+    .perf {
+      position: relative;
+      display: flex;
+      align-items: center;
+      height: 24px;
+    }
+
+    .perf-hole {
+      position: absolute;
+      width: 14px;
+      height: 28px;
+      background: var(--canvas);
+      z-index: 2;
+      top: 50%;
+      transform: translateY(-50%);
+    }
+
+    .perf-hole--l { left: 0; border-radius: 0 14px 14px 0; }
+    .perf-hole--r { right: 0; border-radius: 14px 0 0 14px; }
+
+    .perf-line {
+      flex: 1;
+      margin: 0 20px;
+      border-top: 1.5px dashed var(--border-med);
+    }
+
+    /* ── Line items ───────────────────────── */
+    .line-items {
+      padding: 4px 20px;
+    }
+
+    .line-item {
+      display: flex;
+      align-items: flex-start;
+      gap: 12px;
+      padding: 14px 0;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .line-item:last-child { border-bottom: none; }
+
+    .item-num {
+      font-size: 12px;
+      color: var(--subtle);
+      font-weight: 500;
+      flex-shrink: 0;
+      padding-top: 2px;
+      min-width: 16px;
+    }
+
+    .item-body {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      gap: 3px;
+      min-width: 0;
+    }
+
+    .item-desc {
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--ink);
+    }
+
+    .item-method {
+      font-size: 12.5px;
+      color: var(--muted);
+    }
+
+    .item-amount {
+      font-size: 14px;
+      font-weight: 700;
+      color: var(--ink);
+      white-space: nowrap;
+      font-variant-numeric: tabular-nums;
+    }
+
+    /* ── Total box ────────────────────────── */
+    .total-box {
+      margin: 12px 20px 16px;
+      padding: 14px 16px;
+      background: #F3F4F6;
+      border-radius: 10px;
+    }
+
+    .total-main {
       display: flex;
       justify-content: space-between;
       align-items: center;
-      gap: 16px;
-      padding: 16px 24px 20px;
+      margin-bottom: 10px;
+      padding-bottom: 10px;
+      border-bottom: 1px solid var(--border-med);
     }
 
-    .note-text {
+    .total-label {
       font-size: 14px;
-      color: #1a1a1a;
-      font-weight: 600;
-      line-height: 1.45;
-      flex: 1;
+      font-weight: 700;
+      color: var(--ink);
     }
 
-    .note-text small {
-      display: block;
-      font-weight: 400;
-      color: #888;
-      font-size: 12.5px;
-      margin-top: 4px;
+    .total-value {
+      font-family: var(--font-display);
+      font-size: 20px;
+      font-weight: 800;
+      color: var(--ink);
+      letter-spacing: -0.5px;
+      font-variant-numeric: tabular-nums;
     }
 
-    /* ── Footer ──────────────────────────────── */
-    .receipt-footer {
-      padding: 14px 24px 20px;
+    .total-method {
       display: flex;
       justify-content: space-between;
-      align-items: flex-end;
-      border-top: 1px solid #ebebeb;
+      align-items: center;
+    }
+
+    .total-method-label {
+      font-size: 12.5px;
+      color: var(--muted);
+      font-weight: 500;
+    }
+
+    .total-method-value {
+      font-size: 12.5px;
+      color: var(--body-text);
+      font-weight: 600;
+    }
+
+    /* ── Merchant note ────────────────────── */
+    .merchant-note {
+      margin: 0 20px 12px;
+      padding: 11px 14px;
+      background: var(--canvas);
+      border: 1px solid var(--border-med);
+      border-radius: 8px;
+      font-size: 12.5px;
+      color: var(--body-text);
+      line-height: 1.6;
+    }
+
+    /* ── Barcode ──────────────────────────── */
+    .barcode-wrap {
+      padding: 16px 24px 20px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .barcode-ref {
+      font-family: ui-monospace, "SF Mono", monospace;
+      font-size: 10px;
+      color: var(--subtle);
+      letter-spacing: 0.05em;
+      text-align: center;
+    }
+
+    /* ── Footer ───────────────────────────── */
+    .receipt-footer {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 13px 20px 18px;
+      border-top: 1px solid var(--border);
     }
 
     .footer-left p {
       font-size: 11.5px;
-      color: #888;
-      line-height: 1.7;
+      color: var(--subtle);
+      font-weight: 500;
+      line-height: 1.6;
     }
 
-    .footer-right {
-      text-align: right;
+    .secured-by {
+      display: flex;
+      align-items: center;
+      gap: 4px;
     }
 
-    .footer-right p {
-      font-size: 11.5px;
-      color: #888;
+    .secured-by span {
+      font-size: 11px;
+      color: var(--subtle);
+      font-weight: 500;
     }
 
-    .footer-right a {
-      font-size: 12px;
-      color: #1a6ef5;
-      text-decoration: none;
+    .yagye-mark {
+      font-family: var(--font-display);
+      font-size: 12.5px;
+      font-weight: 800;
+      color: var(--success);
+      letter-spacing: -0.3px;
+    }
+
+    /* Download button */
+    .dl-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      margin-top: 20px;
+      padding: 10px 20px;
+      background: transparent;
+      border: 1.5px solid var(--border-med);
+      border-radius: 10px;
+      font-family: var(--font-body);
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--muted);
+      cursor: pointer;
+      transition: border-color 0.15s, color 0.15s;
+    }
+    .dl-btn:hover { border-color: var(--ink); color: var(--ink); }
+    .dl-btn svg { flex-shrink: 0; }
+
+    @media print {
+      * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+      body { padding: 20px 0; }
+      .dl-btn { display: none; }
     }
 
     @media (max-width: 440px) {
-      body { padding: 16px 12px 40px; }
-      .tear::before { left: -28px; }
-      .tear::after  { right: -28px; }
+      body { padding: 24px 12px 48px; }
+      .thankyou { font-size: 20px; }
     }
   </style>
 </head>
 <body>
   <%
-    payment  = @data.payment
-    merchant = @data.merchant
-    customer = @data.customer
-    settings = merchant.receipt_settings || %{}
-    network  = Map.get(payment.metadata || %{}, "network")
-    short_ref = payment.public_id |> String.slice(-8, 8) |> String.upcase()
-    receipt_no = "No. " <> short_ref
+    payment      = @data.payment
+    merchant     = @data.merchant
+    customer     = @data.customer
+    config       = @data.checkout_config
+    settings     = merchant.receipt_settings || %{}
+    network      = Map.get(payment.metadata || %{}, "network")
+    short_ref    = payment.public_id |> String.slice(-8, 8) |> String.upcase()
+    logo_url     = config && config.logo_url
+    display_name = (config && config.display_name) || merchant.trading_name
+    initials     = display_name |> String.split() |> Enum.take(2)
+                     |> Enum.map(&String.first/1) |> Enum.join() |> String.upcase()
+    custom_note  = Map.get(settings, "custom_note")
   %>
 
   <div class="receipt">
 
-    <!-- Header -->
-    <div class="receipt-header">
-      <div class="merchant-brand">
-        <div class="brand-dots">
-          <%= for _ <- 1..9 do %><span></span><% end %>
-        </div>
-        <span class="merchant-name"><%= merchant.trading_name %></span>
+    <!-- ① Merchant header -->
+    <div class="merchant-header">
+      <div class="merchant-left">
+        <%= if logo_url && logo_url != "" do %>
+          <img src={logo_url} alt={display_name} class="merchant-logo" />
+        <% else %>
+          <div class="merchant-initials"><%= initials %></div>
+        <% end %>
+        <span class="merchant-name"><%= display_name %></span>
       </div>
-      <div class="receipt-meta">
-        <p><%= receipt_no %></p>
-        <p><%= format_datetime(payment.inserted_at) %></p>
+      <div class="header-meta">
+        <span class="receipt-num">No. <%= short_ref %></span>
+        <span class="receipt-date"><%= format_datetime(payment.inserted_at) %></span>
       </div>
     </div>
 
-    <!-- Thank-you -->
-    <div class="thankyou-block">
-      <h1>Thank you for your payment!</h1>
-      <p>
-        Your reference <span class="ref-highlight"><%= payment.public_id |> String.slice(-12, 12) |> String.upcase() %></span> has been confirmed.
-        <%= if customer && customer.name do %>
-          <br/>We appreciate your business, <%= customer.name %>.
-        <% end %>
+    <!-- ② Hero -->
+    <div class="hero">
+      <div class="party-icon">🎉</div>
+      <h1 class="thankyou">Thank you for your payment!</h1>
+      <p class="confirm-msg">
+        Your reference <strong class="ref-accent"><%= short_ref %></strong> has been confirmed.<%= if customer && customer.name do %> We appreciate your business, <%= customer.name %>.<% end %>
       </p>
     </div>
 
-    <!-- Tear line -->
-    <div class="tear"></div>
+    <!-- ③ Perforation -->
+    <div class="perf">
+      <div class="perf-hole perf-hole--l"></div>
+      <div class="perf-line"></div>
+      <div class="perf-hole perf-hole--r"></div>
+    </div>
 
-    <!-- Item block — description if present, or generic payment line -->
-    <div class="items-block">
-      <div class="item-row">
-        <span class="item-index">1</span>
-        <div class="item-desc">
-          <%= if payment.description && payment.description != "" do %>
-            <%= payment.description %>
-          <% else %>
-            Payment
-          <% end %>
-          <small>
-            <%= format_method(payment.method) %>
-            <%= if network do %> · <%= format_network(network) %><% end %>
-          </small>
+    <!-- ④ Line items -->
+    <div class="line-items">
+      <div class="line-item">
+        <span class="item-num">1</span>
+        <div class="item-body">
+          <span class="item-desc"><%= payment.description || "Checkout payment" %></span>
+          <span class="item-method"><%= format_method(payment.method) %><%= if payment.method == "mobile_money" && network do %> · <%= format_network(network) %><% end %></span>
         </div>
         <span class="item-amount"><%= format_amount(payment.amount, payment.currency) %></span>
       </div>
     </div>
 
-    <!-- Totals box -->
-    <div class="totals-box">
-      <div class="totals-main">
-        <span class="t-label">Total</span>
-        <span class="t-value"><%= format_amount(payment.amount, payment.currency) %></span>
+    <!-- ⑤ Total box -->
+    <div class="total-box">
+      <div class="total-main">
+        <span class="total-label">Total</span>
+        <span class="total-value"><%= format_amount(payment.amount, payment.currency) %></span>
       </div>
-      <div class="totals-row">
-        <span>Payment method</span>
-        <span>
-          <%= format_method(payment.method) %>
-          <%= if network do %>&nbsp;· <%= format_network(network) %><% end %>
-        </span>
+      <div class="total-method">
+        <span class="total-method-label">Payment method</span>
+        <span class="total-method-value"><%= format_method(payment.method) %><%= if payment.method == "mobile_money" && network do %> · <%= format_network(network) %><% end %></span>
       </div>
-      <%= if Map.get(settings, "show_fee") == true do %>
-        <% fee_val = Map.get(payment.metadata || %{}, "fee_amount") %>
-        <%= if fee_val && fee_val > 0 do %>
-          <div class="totals-row">
-            <span>Processing fee</span>
-            <span><%= format_amount(fee_val, payment.currency) %></span>
-          </div>
-        <% end %>
+    </div>
+
+    <!-- ⑥ Merchant note (optional) -->
+    <%= if custom_note && custom_note != "" do %>
+      <div class="merchant-note"><%= custom_note %></div>
+    <% end %>
+
+    <!-- ⑦ Perforation 2 -->
+    <div class="perf">
+      <div class="perf-hole perf-hole--l"></div>
+      <div class="perf-line"></div>
+      <div class="perf-hole perf-hole--r"></div>
+    </div>
+
+    <!-- ⑧ Barcode -->
+    <div class="barcode-wrap">
+      <%= barcode_svg(payment.public_id) %>
+    </div>
+
+    <!-- ⑨ Footer -->
+    <div class="receipt-footer">
+      <div class="footer-left">
+        <p><%= merchant.default_currency %> · <%= merchant.country %></p>
+      </div>
+      <%= if Map.get(settings, "show_powered_by") != false do %>
+        <div class="secured-by">
+          <span>Secured by</span>
+          <span class="yagye-mark">yagye</span>
+        </div>
       <% end %>
     </div>
 
-    <!-- Custom note -->
-    <% custom_note = Map.get(settings, "custom_note") %>
-    <%= if custom_note && custom_note != "" do %>
-      <div class="note-block">
-        <div class="note-text">
-          <%= custom_note %>
-          <small>From <%= merchant.trading_name %></small>
-        </div>
-      </div>
-    <% end %>
-
-    <!-- Footer -->
-    <div class="receipt-footer">
-      <div class="footer-left">
-        <p><%= merchant.trading_name %></p>
-        <p><%= merchant.default_currency %> · <%= merchant.country %></p>
-      </div>
-      <div class="footer-right">
-        <%= if Map.get(settings, "show_powered_by") != false do %>
-          <p>Secured by</p>
-          <a href="https://yagye.io" target="_blank" rel="noopener">yagye.io</a>
-        <% end %>
-      </div>
-    </div>
-
   </div>
+
+  <button class="dl-btn" onclick="window.print()">
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+         stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+      <polyline points="7 10 12 15 17 10"/>
+      <line x1="12" y1="15" x2="12" y2="3"/>
+    </svg>
+    Save as PDF
+  </button>
 </body>
 </html>

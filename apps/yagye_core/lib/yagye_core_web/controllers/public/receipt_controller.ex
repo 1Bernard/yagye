@@ -3,6 +3,7 @@ defmodule YagyeCoreWeb.Controllers.Public.ReceiptController do
 
   use YagyeCoreWeb, :controller
 
+  alias YagyeCore.Checkout.Schemas.MerchantCheckoutConfig
   alias YagyeCore.Payments
   alias YagyeCore.Repo
 
@@ -25,14 +26,15 @@ defmodule YagyeCoreWeb.Controllers.Public.ReceiptController do
   defp fetch_receipt_data(public_id) do
     with {:ok, payment} <- Payments.get_payment(public_id),
          :ok <- ensure_succeeded(payment) do
-      payment =
-        Repo.preload(payment, [:customer, :merchant])
+      payment = Repo.preload(payment, [:customer, :merchant])
+      checkout_config = Repo.get(MerchantCheckoutConfig, payment.merchant_id)
 
       {:ok,
        %{
          payment: payment,
          merchant: payment.merchant,
-         customer: payment.customer
+         customer: payment.customer,
+         checkout_config: checkout_config
        }}
     end
   end

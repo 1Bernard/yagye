@@ -52,7 +52,8 @@ defmodule YagyeCoreWeb.Controllers.Internal.ProviderConnectionsController do
       |> maybe_put("status", params["status"])
       |> maybe_put("enabled_methods", params["enabled_methods"])
 
-    with {:ok, connection} <- Providers.update_merchant_connection(id, attrs) do
+    with {:ok, connection} <- Providers.update_merchant_connection(id, attrs),
+         {:ok, _} <- maybe_update_credential(connection, params) do
       Response.ok(conn, connection_json(connection))
     end
   end
@@ -79,6 +80,40 @@ defmodule YagyeCoreWeb.Controllers.Internal.ProviderConnectionsController do
     end
   end
 
+  defp maybe_update_credential(connection, params) do
+    api_key = params["api_key"]
+    secret_key = params["secret_key"]
+    base_url = params["base_url"]
+
+    if api_key || secret_key || base_url do
+      connection = Repo.preload(connection, [:provider, :merchant])
+      mode = to_string(connection.mode)
+
+      existing =
+        case Providers.fetch_credential_for_status_check(
+               connection.provider.id,
+               connection.merchant.id,
+               mode
+             ) do
+          {:ok, map} -> map
+          _ -> %{}
+        end
+
+      updates = build_credential_updates(api_key, secret_key, base_url)
+
+      merged = Map.merge(existing, updates)
+
+      Providers.store_merchant_credential(
+        connection.provider.id,
+        connection.merchant.id,
+        mode,
+        merged
+      )
+    else
+      {:ok, :no_credential}
+    end
+  end
+
   defp maybe_store_credential(provider, merchant, mode, params) do
     api_key = params["api_key"]
     secret_key = params["secret_key"]
@@ -95,6 +130,12 @@ defmodule YagyeCoreWeb.Controllers.Internal.ProviderConnectionsController do
     else
       {:ok, :no_credential}
     end
+  end
+
+  defp build_credential_updates(api_key, secret_key, base_url) do
+    [{"api_key", api_key}, {"secret_key", secret_key}, {"base_url", base_url}]
+    |> Enum.reject(fn {_, v} -> is_nil(v) end)
+    |> Map.new()
   end
 
   defp maybe_put(map, _key, nil), do: map

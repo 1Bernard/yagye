@@ -8,6 +8,7 @@ defmodule YagyeCoreWeb.Controllers.Internal.CheckoutController do
   alias YagyeCore.Checkout.Schemas.CheckoutSession
   alias YagyeCore.CheckoutSessions
   alias YagyeCore.Payments
+  alias YagyeCore.Providers
 
   # GET /internal/checkout/sessions/by-token?token=:raw_token
   def session_by_token(conn, %{"token" => token}) do
@@ -16,12 +17,15 @@ defmodule YagyeCoreWeb.Controllers.Internal.CheckoutController do
         {checkout_layout, merchant_name} =
           CheckoutSessions.fetch_session_display_context(session)
 
+        psp_context = Providers.resolve_checkout_psp_context(session.merchant_id, session.mode)
+
         conn
         |> put_status(:ok)
         |> json(
           render_session(session)
           |> Map.put(:checkout_layout, checkout_layout)
           |> Map.put(:merchant_name, merchant_name)
+          |> Map.put(:psp_context, psp_context)
         )
 
       {:error, :not_found} ->
@@ -34,8 +38,11 @@ defmodule YagyeCoreWeb.Controllers.Internal.CheckoutController do
   end
 
   # POST /internal/checkout/sessions/from-link
-  def create_from_link(conn, %{"slug" => slug}) do
-    case CheckoutSessions.create_from_link(slug) do
+  def create_from_link(conn, params) do
+    slug = params["slug"]
+    preview = params["preview"] == true
+
+    case CheckoutSessions.create_from_link(slug, preview: preview) do
       {:ok, {_session, url_token}} ->
         conn |> put_status(:ok) |> json(%{token: url_token})
 
@@ -248,12 +255,13 @@ defmodule YagyeCoreWeb.Controllers.Internal.CheckoutController do
   defp checkout_metadata(session, params) do
     %{
       "msisdn" => params["msisdn"],
-      "network" => params["network"] || "MTN",
+      "network" => params["network"],
       "card_last4" => extract_card_last4(params["card_number"]),
       "checkout_session_id" => session.public_id,
       "customer_email" => params["customer_email"],
       "customer_phone" => params["customer_phone"],
-      "customer_name" => params["customer_name"]
+      "customer_name" => params["customer_name"],
+      "payment_method_id" => params["payment_method_id"]
     }
     |> Enum.reject(fn {_, v} -> is_nil(v) or v == "" end)
     |> Map.new()
@@ -280,7 +288,16 @@ defmodule YagyeCoreWeb.Controllers.Internal.CheckoutController do
   end
 
   defp maybe_put_customer_ref(attrs, params) do
-    ref = params["msisdn"] || params["customer_phone"] || params["customer_email"]
+    # Mobile money: MSISDN is the payment instrument — use it as the customer key.
+    # Card / bank transfer: email is the stable, portable identifier; phone is
+    # just a contact field and is NOT stored as customer_msisdn on the payment.
+    ref =
+      if attrs[:method] == "mobile_money" do
+        params["msisdn"] || params["customer_phone"] || params["customer_email"]
+      else
+        params["customer_email"] || params["customer_phone"]
+      end
+
     if ref, do: Map.put(attrs, :customer_reference, ref), else: attrs
   end
 
