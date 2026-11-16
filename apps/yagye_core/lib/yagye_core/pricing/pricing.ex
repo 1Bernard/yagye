@@ -20,10 +20,14 @@ defmodule YagyeCore.Pricing do
   for the given method and amount, and returns the computed fee with full
   arithmetic detail.
 
+  `currency` must be the payment's currency (e.g. "GHS", "USD"). The fee is
+  always denominated in the same currency as the payment — fees and payments
+  must be in the same currency for correct settlement accounting.
+
   Returns `{:ok, fee_map}` or `{:error, :no_pricing_plan | :no_matching_rule}`.
   Errors are non-fatal — the caller decides whether to proceed without a fee record.
   """
-  def compute_fee(merchant_id, amount, method, provider_code) do
+  def compute_fee(merchant_id, amount, method, provider_code, currency) do
     with {:ok, plan} <- resolve_plan(merchant_id),
          {:ok, rule} <- find_rule(plan.id, method, provider_code, amount) do
       fee = apply_rule(rule, amount)
@@ -43,7 +47,7 @@ defmodule YagyeCore.Pricing do
       {:ok,
        %{
          amount: fee,
-         currency: plan.currency,
+         currency: currency,
          plan_id: plan.id,
          rule_id: rule.id,
          computation: computation

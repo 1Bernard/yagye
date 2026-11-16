@@ -867,7 +867,13 @@ defmodule YagyeCore.Payments do
   end
 
   defp fetch_payment_fee(payment) do
-    case Pricing.compute_fee(payment.merchant_id, payment.amount, payment.method, nil) do
+    case Pricing.compute_fee(
+           payment.merchant_id,
+           payment.amount,
+           payment.method,
+           nil,
+           payment.currency
+         ) do
       {:ok, fee} -> {:ok, fee}
       {:error, _} -> {:ok, nil}
     end

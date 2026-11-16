@@ -296,21 +296,25 @@ end
     display_name: "Flutterwave",
     adapter_module: "YagyeCore.Payments.Adapters.FlutterwaveAdapter",
     kind: "external_psp",
-    capabilities: %{"mobile_money_gh" => true, "card" => true}
+    capabilities: %{"mobile_money_gh" => true, "card" => true, "settlement_currencies" => ["GHS"]}
   },
   %{
     code: "paystack",
     display_name: "Paystack",
     adapter_module: "YagyeCore.Payments.Adapters.PaystackAdapter",
     kind: "external_psp",
-    capabilities: %{"mobile_money_gh" => true, "card" => true}
+    capabilities: %{"mobile_money_gh" => true, "card" => true, "settlement_currencies" => ["GHS"]}
   },
   %{
     code: "stripe",
     display_name: "Stripe",
     adapter_module: "YagyeCore.Payments.Adapters.StripeAdapter",
     kind: "external_psp",
-    capabilities: %{"mobile_money_gh" => false, "card" => true}
+    capabilities: %{
+      "mobile_money_gh" => false,
+      "card" => true,
+      "settlement_currencies" => ["USD"]
+    }
   }
 ]
 |> Enum.each(fn attrs ->

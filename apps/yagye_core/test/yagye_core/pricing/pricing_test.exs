@@ -62,13 +62,13 @@ defmodule YagyeCore.Pricing.PricingTest do
     |> then(fn m -> {m, plan} end)
   end
 
-  # ── compute_fee/4 ─────────────────────────────────────────────────────────────
+  # ── compute_fee/5 ─────────────────────────────────────────────────────────────
 
   test "computes correct fee with percentage + fixed" do
     {merchant, plan} = merchant_with_active_plan()
     _rule = rule_fixture(plan, %{percentage_bps: 150, fixed_amount: 20})
 
-    {:ok, fee} = Pricing.compute_fee(merchant.id, 10_000, "card", nil)
+    {:ok, fee} = Pricing.compute_fee(merchant.id, 10_000, "card", nil, "GHS")
 
     # 1.5% of 10_000 = 150 (integer div) + 20 fixed = 170
     assert fee.amount == 170
@@ -77,9 +77,21 @@ defmodule YagyeCore.Pricing.PricingTest do
     assert fee.computation.fixed_amount == 20
   end
 
+  test "fee currency mirrors the payment currency, not the plan currency" do
+    {merchant, plan} = merchant_with_active_plan()
+    _rule = rule_fixture(plan, %{percentage_bps: 175, fixed_amount: 0})
+
+    {:ok, fee} = Pricing.compute_fee(merchant.id, 80_500, "card", nil, "USD")
+
+    assert fee.currency == "USD"
+    assert fee.amount == div(80_500 * 175, 10_000)
+  end
+
   test "returns :no_pricing_plan when merchant has no plan" do
     merchant = Fixtures.approved_merchant_fixture()
-    assert {:error, :no_pricing_plan} = Pricing.compute_fee(merchant.id, 10_000, "card", nil)
+
+    assert {:error, :no_pricing_plan} =
+             Pricing.compute_fee(merchant.id, 10_000, "card", nil, "GHS")
   end
 
   test "draft plan is not used for fee computation" do
@@ -87,7 +99,8 @@ defmodule YagyeCore.Pricing.PricingTest do
     _rule = rule_fixture(plan, %{percentage_bps: 150, fixed_amount: 0})
     merchant = merchant_with_plan(plan)
 
-    assert {:error, :no_pricing_plan} = Pricing.compute_fee(merchant.id, 10_000, "card", nil)
+    assert {:error, :no_pricing_plan} =
+             Pricing.compute_fee(merchant.id, 10_000, "card", nil, "GHS")
   end
 
   test "plan with future effective_from is not used for fee computation" do
@@ -95,7 +108,8 @@ defmodule YagyeCore.Pricing.PricingTest do
     {merchant, plan} = merchant_with_active_plan(%{effective_from: future})
     _rule = rule_fixture(plan, %{percentage_bps: 150})
 
-    assert {:error, :no_pricing_plan} = Pricing.compute_fee(merchant.id, 10_000, "card", nil)
+    assert {:error, :no_pricing_plan} =
+             Pricing.compute_fee(merchant.id, 10_000, "card", nil, "GHS")
   end
 
   test "plan with past effective_to is not used for fee computation" do
@@ -107,7 +121,8 @@ defmodule YagyeCore.Pricing.PricingTest do
 
     _rule = rule_fixture(plan, %{percentage_bps: 150})
 
-    assert {:error, :no_pricing_plan} = Pricing.compute_fee(merchant.id, 10_000, "card", nil)
+    assert {:error, :no_pricing_plan} =
+             Pricing.compute_fee(merchant.id, 10_000, "card", nil, "GHS")
   end
 
   test "returns :no_matching_rule when no rule covers the method" do
@@ -115,7 +130,7 @@ defmodule YagyeCore.Pricing.PricingTest do
     _rule = rule_fixture(plan, %{method: "card"})
 
     assert {:error, :no_matching_rule} =
-             Pricing.compute_fee(merchant.id, 10_000, "mobile_money", nil)
+             Pricing.compute_fee(merchant.id, 10_000, "mobile_money", nil, "GHS")
   end
 
   test "method-specific rule beats catchall by specificity" do
@@ -125,7 +140,7 @@ defmodule YagyeCore.Pricing.PricingTest do
     _specific =
       rule_fixture(plan, %{method: "mobile_money", percentage_bps: 200, fixed_amount: 0})
 
-    {:ok, fee} = Pricing.compute_fee(merchant.id, 10_000, "mobile_money", nil)
+    {:ok, fee} = Pricing.compute_fee(merchant.id, 10_000, "mobile_money", nil, "GHS")
 
     # Specific rule wins: 2% of 10_000 = 200
     assert fee.amount == 200
@@ -145,7 +160,7 @@ defmodule YagyeCore.Pricing.PricingTest do
         fixed_amount: 0
       })
 
-    {:ok, fee} = Pricing.compute_fee(merchant.id, 10_000, "mobile_money", "MTN_MOMO_GH")
+    {:ok, fee} = Pricing.compute_fee(merchant.id, 10_000, "mobile_money", "MTN_MOMO_GH", "GHS")
 
     # Provider-specific wins: 2% of 10_000 = 200
     assert fee.amount == 200
@@ -163,8 +178,8 @@ defmodule YagyeCore.Pricing.PricingTest do
         fixed_amount: 0
       })
 
-    {:ok, in_range} = Pricing.compute_fee(merchant.id, 10_000, "card", nil)
-    {:ok, out_range} = Pricing.compute_fee(merchant.id, 1_000, "card", nil)
+    {:ok, in_range} = Pricing.compute_fee(merchant.id, 10_000, "card", nil, "GHS")
+    {:ok, out_range} = Pricing.compute_fee(merchant.id, 1_000, "card", nil, "GHS")
 
     # 3% of 10_000
     assert in_range.amount == 300
@@ -176,7 +191,7 @@ defmodule YagyeCore.Pricing.PricingTest do
     {merchant, plan} = merchant_with_active_plan()
     _rule = rule_fixture(plan, %{percentage_bps: 300, fixed_amount: 0, maximum_fee: 50})
 
-    {:ok, fee} = Pricing.compute_fee(merchant.id, 10_000, "card", nil)
+    {:ok, fee} = Pricing.compute_fee(merchant.id, 10_000, "card", nil, "GHS")
 
     assert fee.amount == 50
   end
@@ -185,7 +200,7 @@ defmodule YagyeCore.Pricing.PricingTest do
     {merchant, plan} = merchant_with_active_plan()
     _rule = rule_fixture(plan, %{percentage_bps: 10, fixed_amount: 0, minimum_fee: 100})
 
-    {:ok, fee} = Pricing.compute_fee(merchant.id, 100, "card", nil)
+    {:ok, fee} = Pricing.compute_fee(merchant.id, 100, "card", nil, "GHS")
 
     assert fee.amount == 100
   end
@@ -258,7 +273,7 @@ defmodule YagyeCore.Pricing.PricingTest do
   test "records a fee_record for a payment attempt" do
     {merchant, plan} = merchant_with_active_plan()
     _rule = rule_fixture(plan)
-    {:ok, fee} = Pricing.compute_fee(merchant.id, 5_000, "card", nil)
+    {:ok, fee} = Pricing.compute_fee(merchant.id, 5_000, "card", nil, "GHS")
 
     attempt_id = Ecto.UUID.generate()
 
@@ -275,7 +290,7 @@ defmodule YagyeCore.Pricing.PricingTest do
   test "record_fee is idempotent on same source" do
     {merchant, plan} = merchant_with_active_plan()
     _rule = rule_fixture(plan)
-    {:ok, fee} = Pricing.compute_fee(merchant.id, 5_000, "card", nil)
+    {:ok, fee} = Pricing.compute_fee(merchant.id, 5_000, "card", nil, "GHS")
     attempt_id = Ecto.UUID.generate()
 
     {:ok, first} =

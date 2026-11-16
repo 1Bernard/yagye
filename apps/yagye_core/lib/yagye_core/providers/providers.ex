@@ -67,15 +67,27 @@ defmodule YagyeCore.Providers do
   def get_provider_for_payment(%{mode: mode, merchant_id: merchant_id} = payment, excluded)
       when mode in ["sandbox", "live"] do
     attrs = routing_attrs_for(payment)
+    currency = Map.get(payment, :currency) || Map.get(payment, "currency")
 
     case Routing.evaluate(merchant_id, mode, attrs, excluded) do
       {:ok, {provider_id, rule_id, config_id}} ->
         Logger.info("[routing] rule_match merchant=#{merchant_id} rule=#{rule_id}")
 
         with {:ok, provider} <- fetch_provider_by_id(provider_id),
+             :ok <- check_currency_support(provider, currency),
              {:ok, credential_map} <- fetch_credential(provider_id, merchant_id, mode) do
           meta = %{source: :rule, rule_id: rule_id, configuration_id: config_id}
           {:ok, {provider, credential_map, meta}}
+        else
+          {:error, :currency_not_supported} ->
+            Logger.warning(
+              "[routing] currency_mismatch provider=#{provider_id} currency=#{currency} falling back to static"
+            )
+
+            static_priority_provider(merchant_id, mode, currency, excluded)
+
+          err ->
+            err
         end
 
       {:error, reason} when reason in [:no_matching_rule, :rule_has_no_actions] ->
@@ -83,14 +95,14 @@ defmodule YagyeCore.Providers do
           "[routing] no_rule_match merchant=#{merchant_id} reason=#{reason} using static priority"
         )
 
-        static_priority_provider(merchant_id, mode, excluded)
+        static_priority_provider(merchant_id, mode, currency, excluded)
 
       {:error, reason} ->
         {:error, reason}
     end
   end
 
-  defp static_priority_provider(merchant_id, mode, excluded) do
+  defp static_priority_provider(merchant_id, mode, currency, excluded) do
     query =
       from(c in MerchantProviderConnection,
         where:
@@ -108,7 +120,9 @@ defmodule YagyeCore.Providers do
         where(query, [c], c.provider_id not in ^excluded)
       end
 
-    case Repo.one(from q in query, limit: 1) do
+    conn = Repo.all(query) |> Enum.find(fn c -> currency_supported?(c.provider, currency) end)
+
+    case conn do
       nil ->
         {:error, {:no_provider_for_mode, mode}}
 
@@ -117,6 +131,17 @@ defmodule YagyeCore.Providers do
           {:ok, {conn.provider, credential_map, %{source: :static}}}
         end
     end
+  end
+
+  # Providers without `settlement_currencies` in capabilities are assumed GHS-only
+  # (all pre-existing native rails settle in GHS). Stripe explicitly sets ["USD"].
+  defp currency_supported?(provider, currency) do
+    supported = Map.get(provider.capabilities || %{}, "settlement_currencies", ["GHS"])
+    currency in supported
+  end
+
+  defp check_currency_support(provider, currency) do
+    if currency_supported?(provider, currency), do: :ok, else: {:error, :currency_not_supported}
   end
 
   defp routing_attrs_for(%{method: method, currency: currency, amount: amount} = payment) do
