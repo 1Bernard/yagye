@@ -204,6 +204,7 @@ module Checkout
       end
 
       def customer_section
+        merchant_name = current_user.active_membership&.merchant_name.to_s.presence || "Your business"
         div(class: "flex flex-col gap-1") do
           p(class: "text-[10px] font-bold uppercase tracking-[0.12em] text-gray-400") { plain "Bill to" }
           if @inv["customer_reference"].present?
@@ -213,16 +214,13 @@ module Checkout
           else
             p(class: "text-[12.5px] text-gray-400 italic") { plain "No customer reference" }
           end
-          p(class: "text-[11px] text-gray-400 mt-0.5") do
-            plain "via #{@inv["merchant_code"] || "—"}"
-          end
+          p(class: "text-[11px] text-gray-400 mt-0.5") { plain "via #{merchant_name}" }
         end
       end
 
       def details_section
         div(class: "flex flex-col gap-2") do
           p(class: "text-[10px] font-bold uppercase tracking-[0.12em] text-gray-400 mb-1") { plain "Details" }
-          detail_row("Number",    @inv["number"] || "—",         mono: true)
           detail_row("Currency",  @inv["currency"] || "—")
           detail_row("Issue date", fmt_inv_date(@inv["issue_date"]))
           detail_row("Due date",  fmt_inv_date(@inv["due_date"]))
