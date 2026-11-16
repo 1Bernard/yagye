@@ -1,173 +1,16 @@
 import { Controller } from "@hotwired/stimulus"
 
 export default class extends Controller {
-  static targets = ["methodList", "previewList", "emptyPreview", "saveBtn", "savedBadge", "checkoutUrl", "logoUrlInput", "previewLogoImg", "copyUrlBtn", "previewPayBtn", "previewCard"]
+  static targets = ["saveBtn", "savedBadge", "checkoutUrl", "logoUrlInput", "previewLogoImg", "copyUrlBtn"]
   static values  = {
-    saveUrl:  String,
-    csrf:     String,
-    layout:   { type: Object, default: {} },
-    mode:     { type: String, default: "live" }
+    saveUrl: String,
+    csrf:    String,
+    mode:    { type: String, default: "live" }
   }
 
   connect() {
     this._dirty = false
-    this._drag  = null
-    this._setupDrag()
-    this._syncPreview()
     this._setSavedState()
-  }
-
-  disconnect() {
-    this._cancelDrag()
-  }
-
-  // ── Pointer-based drag-and-drop (no external library) ─────────────────────
-
-  _setupDrag() {
-    this.methodListTarget.addEventListener("pointerdown", this._onPointerDown.bind(this))
-  }
-
-  _tiles() {
-    return [...this.methodListTarget.querySelectorAll("[data-method-id]")]
-  }
-
-  _onPointerDown(e) {
-    // Skip interactive controls
-    if (e.target.closest("input, label, button, a, select")) return
-    const tile = e.target.closest("[data-method-id]")
-    if (!tile) return
-
-    e.preventDefault()
-    tile.setPointerCapture(e.pointerId)
-
-    const rect   = tile.getBoundingClientRect()
-    const clone  = tile.cloneNode(true)
-
-    // Style the floating clone
-    Object.assign(clone.style, {
-      position:      "fixed",
-      top:           rect.top + "px",
-      left:          rect.left + "px",
-      width:         rect.width + "px",
-      pointerEvents: "none",
-      zIndex:        "9999",
-      opacity:       "0.92",
-      boxShadow:     "0 12px 32px rgba(0,0,0,0.15), 0 2px 8px rgba(0,0,0,0.08)",
-      borderRadius:  "12px",
-      transform:     "rotate(1.5deg) scale(1.02)",
-      transition:    "box-shadow 0.1s",
-      background:    "white",
-    })
-    document.body.appendChild(clone)
-
-    // Drop indicator line
-    const indicator = document.createElement("div")
-    Object.assign(indicator.style, {
-      position:     "absolute",
-      left:         "8px",
-      right:        "8px",
-      height:       "2px",
-      background:   "#3D47F5",
-      borderRadius: "2px",
-      pointerEvents:"none",
-      zIndex:       "9998",
-      display:      "none",
-    })
-    this.methodListTarget.style.position = "relative"
-    this.methodListTarget.appendChild(indicator)
-
-    this._drag = {
-      tile,
-      clone,
-      indicator,
-      offsetY:   e.clientY - rect.top,
-      dropIndex: null,
-    }
-
-    tile.style.opacity = "0.3"
-
-    tile.addEventListener("pointermove", this._onPointerMove.bind(this))
-    tile.addEventListener("pointerup",   this._onPointerUp.bind(this))
-    tile.addEventListener("pointercancel", this._cancelDrag.bind(this))
-  }
-
-  _onPointerMove(e) {
-    if (!this._drag) return
-    const { clone, indicator, tile, offsetY } = this._drag
-
-    const y = e.clientY - offsetY
-    clone.style.top = y + "px"
-
-    // Find insert position by comparing cursor Y to tile midpoints
-    const tiles = this._tiles().filter(t => t !== tile)
-    let dropIndex = tiles.length
-    for (let i = 0; i < tiles.length; i++) {
-      const mid = tiles[i].getBoundingClientRect().top + tiles[i].offsetHeight / 2
-      if (e.clientY < mid) { dropIndex = i; break }
-    }
-    this._drag.dropIndex = dropIndex
-
-    // Position the indicator line
-    if (dropIndex < tiles.length) {
-      const refRect = tiles[dropIndex].getBoundingClientRect()
-      const listRect = this.methodListTarget.getBoundingClientRect()
-      indicator.style.top    = (refRect.top - listRect.top - 3) + "px"
-      indicator.style.display = "block"
-    } else if (tiles.length > 0) {
-      const lastRect  = tiles[tiles.length - 1].getBoundingClientRect()
-      const listRect  = this.methodListTarget.getBoundingClientRect()
-      indicator.style.top    = (lastRect.bottom - listRect.top + 1) + "px"
-      indicator.style.display = "block"
-    }
-  }
-
-  _onPointerUp(e) {
-    if (!this._drag) return
-    const { tile, dropIndex } = this._drag
-
-    // Reorder DOM
-    const list  = this.methodListTarget
-    const tiles = this._tiles().filter(t => t !== tile)
-    if (dropIndex !== null) {
-      if (dropIndex >= tiles.length) {
-        list.appendChild(tile)
-      } else {
-        list.insertBefore(tile, tiles[dropIndex])
-      }
-      this._syncPreview()
-      this._markDirty()
-    }
-
-    this._cancelDrag()
-  }
-
-  // ── Live preview sync ──────────────────────────────────────────────────────
-
-  _syncPreview() {
-    if (!this.hasPreviewListTarget) return
-    const preview = this.previewListTarget
-    const order   = this._tiles().map(t => t.dataset.methodId)
-
-    order.forEach(id => {
-      const tile = preview.querySelector(`[data-preview-method="${id}"]`)
-      if (!tile) return
-      // Move to end in new order (always visible, dimmed when inactive)
-      tile.hidden = false
-      preview.appendChild(tile)
-      const editorTile = this.methodListTarget.querySelector(`[data-method-id="${id}"]`)
-      const active     = editorTile?.dataset.visible === "true"
-      tile.style.opacity = active ? "1" : "0.35"
-      tile.style.filter  = active ? "" : "grayscale(0.5)"
-    })
-  }
-
-  _cancelDrag() {
-    if (!this._drag) return
-    const { tile, clone, indicator } = this._drag
-    tile.style.opacity = ""
-    clone.remove()
-    indicator.remove()
-    this._drag = null
   }
 
   updateLogo(event) {
@@ -178,16 +21,13 @@ export default class extends Controller {
       if (el.tagName === "IMG") {
         el.src = url
       } else {
-        // Swap icon div for an img
         const img = document.createElement("img")
-        img.src = url
-        img.alt = "Logo"
+        img.src = url; img.alt = "Logo"
         img.className = "w-7 h-7 rounded-lg object-cover flex-shrink-0 border border-gray-100"
         img.dataset.checkoutLayoutTarget = "previewLogoImg"
         el.replaceWith(img)
       }
     } else {
-      // Restore icon bubble when URL cleared
       if (el.tagName === "IMG") {
         const div = document.createElement("div")
         div.className = "w-7 h-7 rounded-lg bg-[#3D47F5] flex items-center justify-center"
@@ -235,16 +75,10 @@ export default class extends Controller {
   }
 
   _applyBrandColor(hex) {
-    if (this.hasPreviewCardTarget) this.previewCardTarget.style.setProperty('--preview-brand', hex)
-    if (this.hasPreviewPayBtnTarget) this.previewPayBtnTarget.style.background = hex
-  }
-
-  _currentBrand() {
-    if (this.hasPreviewCardTarget) {
-      const v = this.previewCardTarget.style.getPropertyValue('--preview-brand').trim()
-      if (v) return v
-    }
-    return '#3D47F5'
+    this.element.querySelectorAll("[data-pv-brand-bg]").forEach(el => { el.style.background = hex })
+    this.element.querySelectorAll("[data-pv-brand-border]").forEach(el => { el.style.borderColor = hex })
+    this.element.querySelectorAll("[data-pv-brand-dot]").forEach(el => { el.style.background = hex })
+    this.element.querySelectorAll("[data-pv-brand-text]").forEach(el => { el.style.color = hex })
   }
 
   updateFont(event) {
@@ -254,17 +88,22 @@ export default class extends Controller {
   // ── Content ───────────────────────────────────────────────────────────────
 
   updateBusinessName(event) {
-    const name = event.currentTarget.value
-    const el   = this.element.querySelector("[data-preview-biz-name]")
-    if (el) el.textContent = name || el.dataset.defaultName || "Your business"
+    const name = event.currentTarget.value.trim()
+    this.element.querySelectorAll("[data-pv-merchant-name]").forEach(el => {
+      el.textContent = name || el.dataset.defaultName || "Your business"
+    })
+    this.element.querySelectorAll("[data-pv-merchant-initials]").forEach(el => {
+      const parts = (name || "Your business").split(/\s+/).slice(0, 2)
+      el.textContent = parts.map(w => w[0]?.toUpperCase() || "").join("")
+    })
     this._markDirty()
   }
 
   updateHeadline(event) {
-    const text   = event.currentTarget.value.trim()
-    const wrapper = this.element.querySelector("[data-preview-headline-wrapper]")
-    const el     = this.element.querySelector("[data-preview-headline]")
-    if (wrapper) wrapper.style.display = text ? "" : "none"
+    const text    = event.currentTarget.value.trim()
+    const wrapper = this.element.querySelector("[data-pv-headline-wrapper]")
+    const el      = this.element.querySelector("[data-pv-headline]")
+    if (wrapper) wrapper.hidden = !text
     if (el)      el.textContent = text
     this._markDirty()
   }
@@ -273,124 +112,39 @@ export default class extends Controller {
 
   updateCta(event) {
     const label = event.currentTarget.value
-    if (this.hasPreviewPayBtnTarget) {
-      const btn = this.previewPayBtnTarget
-      // Replace text node only — leave the arrow icon span intact
-      const textNode = [...btn.childNodes].find(n => n.nodeType === Node.TEXT_NODE)
-      if (textNode) textNode.textContent = label || (btn.dataset.defaultLabel || "Continue")
-    }
+    const btn   = this.element.querySelector('[data-payment-link-compose-target="pvPayButton"]')
+    if (btn) btn.textContent = label || btn.dataset.defaultLabel || "Pay now"
     this._markDirty()
   }
 
   // ── Terms ─────────────────────────────────────────────────────────────────
 
   toggleTerms(event) {
-    const fields = this.element.querySelector("[data-terms-fields]")
-    if (fields) fields.style.display = event.currentTarget.checked ? "" : "none"
-    const previewRow = this.element.querySelector("[data-preview-terms-row]")
+    const fields     = this.element.querySelector("[data-terms-fields]")
+    const previewRow = this.element.querySelector("[data-pv-terms-row]")
+    if (fields)     fields.style.display = event.currentTarget.checked ? "" : "none"
     if (previewRow) previewRow.hidden = !event.currentTarget.checked
     this._markDirty()
   }
 
   updateTermsLabel(event) {
-    const previewLabel = this.element.querySelector("[data-preview-terms-label]")
-    if (previewLabel) previewLabel.textContent = event.currentTarget.value.trim() || "I agree to the Terms & Conditions"
+    const el = this.element.querySelector("[data-pv-terms-label]")
+    if (el) el.textContent = event.currentTarget.value.trim() || "I agree to the Terms & Conditions"
     this._markDirty()
   }
 
   updateTermsUrl(event) {
-    const previewLabel = this.element.querySelector("[data-preview-terms-label]")
-    if (previewLabel) {
+    const el = this.element.querySelector("[data-pv-terms-label]")
+    if (el) {
       const hasUrl = event.currentTarget.value.trim().length > 0
-      previewLabel.classList.toggle("underline", hasUrl)
-      previewLabel.classList.toggle("text-gray-500", !hasUrl)
-      previewLabel.style.color = hasUrl ? "var(--preview-brand, #3D47F5)" : ""
+      el.classList.toggle("underline", hasUrl)
+      el.classList.toggle("text-gray-500", !hasUrl)
+      el.style.color = hasUrl ? "var(--preview-brand, #3D47F5)" : ""
     }
     this._markDirty()
   }
 
-  toggleMethod(event) {
-    const toggle  = event.currentTarget
-    const tile    = toggle.closest("[data-method-id]")
-    const visible = toggle.checked
-
-    tile.dataset.visible = visible ? "true" : "false"
-    tile.classList.toggle("opacity-60", !visible)
-    this._syncPreview()
-    this._markDirty()
-  }
-
-  toggleRail(event) {
-    const railRow  = event.currentTarget.closest("[data-rail-id]")
-    const tile     = event.currentTarget.closest("[data-method-id]")
-    if (!railRow || !tile) { this._markDirty(); return }
-
-    const methodId = tile.dataset.methodId
-    const railId   = railRow.dataset.railId
-    const visible  = event.currentTarget.checked
-
-    // Sync the preview chip
-    if (this.hasPreviewListTarget) {
-      const railsContainer = this.previewListTarget.querySelector(`[data-preview-rails-for="${methodId}"]`)
-      const chip = railsContainer?.querySelector(`[data-preview-rail="${railId}"]`)
-      if (chip) chip.hidden = !visible
-    }
-
-    this._markDirty()
-  }
-
-  setTileStyle(event) {
-    const editorTile = event.currentTarget.closest("[data-method-id]")
-    const expanded   = event.currentTarget.value === "expanded"
-    const methodId   = editorTile?.dataset.methodId
-
-    if (editorTile && this.hasPreviewListTarget && methodId) {
-      const pt = this.previewListTarget.querySelector(`[data-preview-method="${methodId}"]`)
-      if (pt) {
-        const brand = this._currentBrand()
-
-        // Tile border + shadow
-        if (expanded) {
-          pt.className = "rounded-xl overflow-hidden bg-white"
-          pt.style.border = `2px solid ${brand}`
-          pt.style.boxShadow = "0 4px 16px rgba(0,0,0,0.09)"
-        } else {
-          pt.className = "rounded-xl overflow-hidden bg-white border border-gray-200"
-          pt.style.border = ""
-          pt.style.boxShadow = ""
-        }
-
-        // Radio circle fill
-        const radio = pt.querySelector("[data-preview-tile-radio]")
-        if (radio) {
-          radio.className = `w-[17px] h-[17px] rounded-full flex items-center justify-center flex-shrink-0 border-2 ${expanded ? "" : "border-gray-300"}`
-          radio.style.background = expanded ? brand : ""
-          radio.style.borderColor = expanded ? brand : ""
-          const dot = radio.querySelector("[data-preview-tile-radio-dot]")
-          if (dot) dot.hidden = !expanded
-        }
-
-        // Label colour
-        const label = pt.querySelector("[data-preview-tile-label]")
-        if (label) {
-          label.className = `flex-1 text-[13.5px] font-semibold ${expanded ? "text-gray-900" : "text-gray-700"}`
-        }
-
-        // Chevron colour
-        const chevron = pt.querySelector("[data-preview-tile-chevron]")
-        if (chevron) {
-          chevron.style.color = expanded ? brand : ""
-          chevron.className = `flex w-[15px] h-[15px] flex-shrink-0 ${expanded ? "" : "text-gray-400"}`
-        }
-
-        // Show / hide expanded content block
-        const content = pt.querySelector("[data-preview-tile-expanded]")
-        if (content) content.hidden = !expanded
-      }
-    }
-
-    this._markDirty()
-  }
+  // ── Save ──────────────────────────────────────────────────────────────────
 
   save() {
     const layout = this._collectLayout()
@@ -399,11 +153,8 @@ export default class extends Controller {
 
     fetch(this.saveUrlValue, {
       method:  "PATCH",
-      headers: {
-        "Content-Type":  "application/json",
-        "X-CSRF-Token":  this.csrfValue
-      },
-      body: JSON.stringify({ layout })
+      headers: { "Content-Type": "application/json", "X-CSRF-Token": this.csrfValue },
+      body:    JSON.stringify({ layout })
     })
       .then(r => r.json())
       .then(data => {
@@ -448,51 +199,20 @@ export default class extends Controller {
   }
 
   _collectLayout() {
-    const methods = []
-
-    this.methodListTarget.querySelectorAll("[data-method-id]").forEach(tile => {
-      const methodId  = tile.dataset.methodId
-      const visible   = tile.querySelector("[data-role='method-toggle']")?.checked ?? true
-      const tileStyle = tile.querySelector("[data-role='tile-style']:checked")?.value ?? "compact"
-
-      const rails = []
-      tile.querySelectorAll("[data-rail-id]").forEach(railRow => {
-        rails.push({
-          id:      railRow.dataset.railId,
-          label:   railRow.dataset.railLabel,
-          visible: railRow.querySelector("[data-role='rail-toggle']")?.checked ?? true
-        })
-      })
-
-      methods.push({ id: methodId, label: tile.dataset.methodLabel, visible, tile_style: tileStyle, rails })
-    })
-
-    const logo_url = this.hasLogoUrlInputTarget ? this.logoUrlInputTarget.value.trim() : ""
-
-    // Brand color
-    const hexInput   = this.element.querySelector("[data-preview-color-hex]")
-    const brand_color = hexInput?.value.trim() || ""
-
-    // Font
-    const fontSelect  = this.element.querySelector("select[data-action*='updateFont']")
-    const font_family = fontSelect?.value || ""
-
-    // Business name
-    const bizInput    = this.element.querySelector("[data-action*='updateBusinessName']")
+    const logo_url      = this.hasLogoUrlInputTarget ? this.logoUrlInputTarget.value.trim() : ""
+    const hexInput      = this.element.querySelector("[data-preview-color-hex]")
+    const brand_color   = hexInput?.value.trim() || ""
+    const fontSelect    = this.element.querySelector("select[data-action*='updateFont']")
+    const font_family   = fontSelect?.value || ""
+    const bizInput      = this.element.querySelector("[data-action*='updateBusinessName']")
     const business_name = bizInput?.value.trim() || ""
-
-    // Headline
     const headlineInput = this.element.querySelector("[data-action*='updateHeadline']")
     const headline      = headlineInput?.value.trim() || ""
-
-    // CTA text
-    const ctaSelect = this.element.querySelector("select[data-action*='updateCta']")
-    const cta_text  = ctaSelect?.value || ""
-
-    // Terms
-    const termsToggle  = this.element.querySelector("[data-terms-toggle]")
-    const termsLabel   = this.element.querySelector("[data-action*='updateTermsLabel']")
-    const termsUrl     = this.element.querySelector("[data-action*='updateTermsUrl']")
+    const ctaSelect     = this.element.querySelector("select[data-action*='updateCta']")
+    const cta_text      = ctaSelect?.value || ""
+    const termsToggle   = this.element.querySelector("[data-terms-toggle]")
+    const termsLabel    = this.element.querySelector("[data-action*='updateTermsLabel']")
+    const termsUrl      = this.element.querySelector("[data-action*='updateTermsUrl']")
     const terms = {
       enabled: termsToggle?.checked ?? false,
       label:   termsLabel?.value.trim() || "I agree to the Terms & Conditions",
@@ -501,7 +221,6 @@ export default class extends Controller {
 
     return {
       mode: this.modeValue,
-      methods,
       ...(logo_url    ? { logo_url }    : {}),
       ...(brand_color ? { brand_color } : {}),
       ...(font_family ? { font_family } : {}),

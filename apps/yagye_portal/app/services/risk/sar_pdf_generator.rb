@@ -4,7 +4,7 @@ module Risk
   # Generates a Suspicious Activity Report (SAR) PDF for a flagged payment case.
   # Uses Prawn for PDF generation. Called from FlaggedPaymentsController#sar.
   class SarPdfGenerator
-    PAGE_MARGIN    = [50, 50, 50, 50].freeze
+    PAGE_MARGIN    = [ 50, 50, 50, 50 ].freeze
     HEADER_COLOR   = "111827"
     MUTED_COLOR    = "6B7280"
     RULE_COLOR     = "E5E7EB"
@@ -48,13 +48,13 @@ module Risk
       section_title(pdf, "Payment Details")
 
       rows = [
-        ["Payment ID",   @payment["public_id"] || "—"],
-        ["Merchant ID",  @payment["merchant_id"] || "—"],
-        ["Amount",       format_amount],
-        ["Currency",     @payment["currency"] || "GHS"],
-        ["Method",       @payment["method"]&.tr("_", " ")&.capitalize || "—"],
-        ["State",        @payment["state"]&.capitalize || "—"],
-        ["Flagged At",   fmt_datetime(@payment["risk_flagged_at"])]
+        [ "Payment ID",   @payment["public_id"] || "—" ],
+        [ "Merchant ID",  @payment["merchant_id"] || "—" ],
+        [ "Amount",       format_amount ],
+        [ "Currency",     @payment["currency"] || "GHS" ],
+        [ "Method",       @payment["method"]&.tr("_", " ")&.capitalize || "—" ],
+        [ "State",        @payment["state"]&.capitalize || "—" ],
+        [ "Flagged At",   fmt_datetime(@payment["risk_flagged_at"]) ]
       ]
 
       render_table(pdf, rows)
@@ -65,8 +65,8 @@ module Risk
 
       score = @payment["risk_score"]
       rows = [
-        ["Risk Score",    score ? format("%.6f", score.to_f) : "—"],
-        ["Risk Decision", @payment["risk_decision"]&.capitalize || "—"]
+        [ "Risk Score",    score ? format("%.6f", score.to_f) : "—" ],
+        [ "Risk Decision", @payment["risk_decision"]&.capitalize || "—" ]
       ]
 
       render_table(pdf, rows)
@@ -98,9 +98,9 @@ module Risk
         ]
       end
 
-      pdf.table([header_row] + data_rows,
-                cell_style: { size: 9, padding: [4, 6] },
-                column_widths: [100, 110, 120, 170]) do
+      pdf.table([ header_row ] + data_rows,
+                cell_style: { size: 9, padding: [ 4, 6 ] },
+                column_widths: [ 100, 110, 120, 170 ]) do
         row(0).style(background_color: "EEEEEE")
       end
       pdf.move_down 12
@@ -128,8 +128,8 @@ module Risk
     end
 
     def render_table(pdf, rows)
-      pdf.table(rows, cell_style: { size: 10, padding: [4, 8] },
-                column_widths: [120, 375]) do
+      pdf.table(rows, cell_style: { size: 10, padding: [ 4, 8 ] },
+                column_widths: [ 120, 375 ]) do
         column(0).style(font_style: :bold, background_color: LABEL_BG)
       end
       pdf.move_down 14

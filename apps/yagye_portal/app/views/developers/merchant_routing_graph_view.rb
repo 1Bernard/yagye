@@ -157,9 +157,9 @@ module Developers
 
     def state_chip(state)
       css, label = case state
-      when "published" then ["#{BADGE_XS} #{STATUS_SUCCESS}", "Published"]
-      when "archived"  then ["#{BADGE_XS} #{STATUS_NEUTRAL}", "Archived"]
-      else                  ["#{BADGE_XS} #{STATUS_WARNING}", "Draft"]
+      when "published" then [ "#{BADGE_XS} #{STATUS_SUCCESS}", "Published" ]
+      when "archived"  then [ "#{BADGE_XS} #{STATUS_NEUTRAL}", "Archived" ]
+      else                  [ "#{BADGE_XS} #{STATUS_WARNING}", "Draft" ]
       end
       span(class: css) { plain label }
     end

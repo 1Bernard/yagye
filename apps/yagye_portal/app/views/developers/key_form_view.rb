@@ -31,9 +31,32 @@ module Developers
              data: { turbo_frame: "_top" },
              class: "flex flex-col flex-1 overflow-hidden") do
           input(type: "hidden", name: "authenticity_token", value: form_authenticity_token)
-          input(type: "hidden", name: "mode", value: @mode)
 
           div(class: "flex-1 overflow-y-auto") do
+            # Environment
+            div(class: "px-6 py-5 border-b border-gray-100") do
+              section_label("Environment", :layers, "brand")
+              p(class: "#{TYPE_CAPTION} mt-1 mb-3") { plain "Determines which infrastructure the key routes through." }
+              div(class: "flex flex-col gap-1") do
+                [
+                  [ "test",    "Simulation",  "Internal simulator — no real PSP needed" ],
+                  [ "sandbox", "Sandbox",     "Real PSP staging APIs (Stripe test, Paystack test, etc.)" ],
+                  [ "live",    "Live",         "Production — real money" ]
+                ].each do |value, label_text, hint|
+                  label(class: "flex items-center gap-3 px-2 py-[8px] rounded-xl hover:bg-gray-50 cursor-pointer transition-colors -mx-2") do
+                    input(type: "radio", name: "mode", value: value,
+                          checked: value == @mode,
+                          class: "w-[13px] h-[13px] flex-shrink-0 cursor-pointer",
+                          style: "accent-color:#{BRAND}")
+                    div do
+                      span(class: "text-[12.5px] font-medium text-gray-800") { plain label_text }
+                      p(class: TYPE_CAPTION) { plain hint }
+                    end
+                  end
+                end
+              end
+            end
+
             # Key label
             div(class: "px-6 py-5 border-b border-gray-100") do
               section_label("Key label", :edit, "brand")

@@ -380,13 +380,13 @@ get "payouts/:id/statement",            to: "payouts#statement",               a
     get   "invoices",              to: "invoices#index",  as: :invoices
     get   "invoices/new",          to: "invoices#new",    as: :new_invoice
     post  "invoices",              to: "invoices#create"
+    post  "invoices/extract-pdf",  to: "invoices#extract_pdf", as: :extract_pdf_invoice
     get   "invoices/:id/edit",     to: "invoices#edit",   as: :edit_invoice
     patch "invoices/:id",          to: "invoices#update"
     get   "invoices/:id",          to: "invoices#show",   as: :invoice
     post  "invoices/:id/issue",    to: "invoices#issue",  as: :issue_invoice
     post  "invoices/:id/void",      to: "invoices#void",      as: :void_invoice
     get   "invoices/:id/duplicate", to: "invoices#duplicate", as: :duplicate_invoice
-    get   "invoices/:id/print",     to: "invoices#print_view", as: :invoice_print
   end
 
   # ── Checkout Sessions (P16) ───────────────────────────────────────────────────

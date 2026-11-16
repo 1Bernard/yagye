@@ -241,6 +241,11 @@ class CoreApiClient
     post("/internal/invoices/#{public_id}/void", {})
   end
 
+  # POST /internal/invoices/presign-pdf
+  def presign_invoice_pdf(merchant_code:)
+    post("/internal/invoices/presign-pdf", { merchant_code: merchant_code })
+  end
+
 
   # ── Checkout Sessions (P16) ───────────────────────────────────────────────
 

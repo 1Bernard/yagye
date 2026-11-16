@@ -53,7 +53,7 @@ module Ai
         },
         {
           name: "get_my_payout_balance",
-          description: "Returns this merchant's current payout balance: available, pending, and in-transit amounts.",
+          description: "Returns this merchant's accumulated net balance since the last completed payout, plus the next scheduled payout if one exists.",
           input_schema: { type: "object", properties: {} }
         },
         {
@@ -102,7 +102,7 @@ module Ai
 
       scope.order(created_at: :desc).limit(limit).map do |p|
         {
-          id:         p.public_id,
+          id:         p.reference,
           amount:     format_amount(p.amount.to_i),
           status:     p.status,
           method:     p.payment_method,
@@ -112,12 +112,22 @@ module Ai
     end
 
     def get_my_payout_balance
-      result = Payouts::BalanceSummaryQuery.new(scoped_payments).call
-      {
-        available:  format_amount(result[:available].to_i),
-        pending:    format_amount(result[:pending].to_i),
-        in_transit: format_amount(result[:in_transit].to_i)
+      payout_scope = PortalPayout.for_merchant(@merchant_code)
+      result = Payouts::BalanceSummaryQuery.new(scoped_payments, payout_scope).call
+      return { accumulated_net: "GHS 0.00", payment_count: 0 } if result.nil?
+
+      out = {
+        accumulated_net:  format_amount(result[:balance].to_i),
+        gross_collected:  format_amount(result[:gross].to_i),
+        payment_count:    result[:payment_count],
+        cycle_started_at: result[:cycle_start]&.strftime("%Y-%m-%d")
       }
+      if result[:next_payout_date]
+        out[:next_payout_date]   = result[:next_payout_date].strftime("%Y-%m-%d")
+        out[:next_payout_amount] = format_amount(result[:next_payout_amount].to_i)
+        out[:next_payout_state]  = result[:next_payout_state]
+      end
+      out
     end
 
     def get_my_settlement_batches(input)

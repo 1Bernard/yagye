@@ -4,10 +4,10 @@ module Developers
   class ProvidersIndexView < ApplicationComponent
     include UI::Theme
 
-    STATUS_MAP = {
-      "active"   => STATUS_SUCCESS,
-      "paused"   => STATUS_WARNING,
-      "disabled" => STATUS_NEUTRAL
+    METHOD_LABELS = {
+      "mobile_money" => "MoMo",
+      "card"         => "Card",
+      "bank_transfer" => "Bank"
     }.freeze
 
     def initialize(connections:, psps:)
@@ -19,7 +19,7 @@ module Developers
       render Layout::Shell.new(
         active_nav:  :psp_providers,
         title:       "PSP Providers",
-        breadcrumbs: [{ label: "PSP Providers" }]
+        breadcrumbs: [ { label: "PSP Providers" } ]
       ) do
         render UI::PageHeader.new(
           title:    "PSP Providers",
@@ -34,7 +34,7 @@ module Developers
         end
 
         stat_band
-        providers_section
+        connections_table
       end
     end
 
@@ -47,87 +47,122 @@ module Developers
       live_cnt = @connections.count { |c| c["mode"] == "live" && c["status"] == "active" }
 
       render UI::Grid.new(columns: 4) do
-        stat_cell("Connected",      total.to_s,    icon: :layers,       color: BRAND,  tint: TINT_BRAND)
-        stat_cell("Active",         active.to_s,   icon: :check_circle, color: GREEN,  tint: TINT_GREEN)
-        stat_cell("Modes",          modes.to_s,    icon: :globe,        color: AMBER,  tint: TINT_AMBER)
-        stat_cell("Live active",    live_cnt.to_s, icon: :bank,         color: GREEN,  tint: TINT_GREEN)
+        stat_cell("Connected",   total.to_s,    icon: :layers,       color: BRAND, tint: TINT_BRAND)
+        stat_cell("Active",      active.to_s,   icon: :check_circle, color: GREEN, tint: TINT_GREEN)
+        stat_cell("Modes",       modes.to_s,    icon: :globe,        color: AMBER, tint: TINT_AMBER)
+        stat_cell("Live active", live_cnt.to_s, icon: :bank,         color: GREEN, tint: TINT_GREEN)
       end
     end
 
-    def providers_section
+    def connections_table
       if @connections.empty?
         empty_state
-      else
-        div(class: "flex flex-col gap-3 mt-2") do
-          @connections.sort_by { |c| c["priority"].to_i }.each { |c| provider_card(c) }
-        end
+        return
       end
-    end
 
-    def provider_card(conn)
-      status     = conn["status"] || "active"
-      psp_info   = @psps.find { |p| p[:code] == conn["provider_code"] } || {}
-      label      = psp_info[:label] || conn["provider_name"] || conn["provider_code"].to_s.titleize
-      methods    = Array(conn["enabled_methods"])
-      priority   = conn["priority"].to_i
-
-      div(class: "#{SURFACE_CARD} flex items-center gap-4 px-5 py-4") do
-        # Priority badge
-        div(class: "w-8 h-8 rounded-xl bg-gray-100 flex items-center justify-center flex-shrink-0") do
-          span(class: "text-[12px] font-bold text-gray-500") { plain priority.to_s }
-        end
-
-        # PSP info
-        div(class: "flex-1 min-w-0") do
-          div(class: "flex items-center gap-2 mb-[3px]") do
-            p(class: "text-[14px] font-semibold text-gray-900") { plain label }
-            status_badge(status)
-          end
-          div(class: "flex items-center gap-3 flex-wrap") do
-            mode_tag(conn["mode"])
-            methods.each { |m| method_tag(m) } if methods.any?
-          end
-        end
-
-        # Actions
-        div(class: "flex items-center gap-2 flex-shrink-0") do
-          render UI::Button.new(
-            variant: :secondary,
-            href: edit_developers_provider_path(conn["id"]),
-            data: { turbo_frame: "drawer-frame" }
-          ) do
-            render UI::Icon.new(:edit, class: ICON_SM)
-            plain "Edit"
-          end
-
-          if status != "disabled"
-            form(action: deactivate_developers_provider_path(conn["id"]), method: "post",
-                 data: { turbo_confirm: "Disable #{label}? Payments will stop routing through it." }) do
-              input(type: "hidden", name: "_method",             value: "post")
-              input(type: "hidden", name: "authenticity_token",  value: form_authenticity_token)
-              button(type: "submit", class: "#{BADGE_SM} #{STATUS_ERROR} cursor-pointer border-0") do
-                plain "Disable"
+      div(class: "#{TABLE_CARD} mt-2") do
+        div(class: "overflow-x-auto") do
+          table(class: "w-full") do
+            thead do
+              tr(class: TABLE_HEADER) do
+                th(class: TABLE_TH) { plain "Priority" }
+                th(class: TABLE_TH) { plain "Provider" }
+                th(class: TABLE_TH) { plain "Mode" }
+                th(class: TABLE_TH) { plain "Methods" }
+                th(class: TABLE_TH) { plain "Status" }
+                th(class: TABLE_TH)
               end
+            end
+            tbody do
+              @connections.sort_by { |c| [ c["priority"].to_i, c["provider_code"].to_s ] }
+                          .each { |c| connection_row(c) }
             end
           end
         end
       end
     end
 
-    def status_badge(status)
-      css = STATUS_MAP.fetch(status, STATUS_NEUTRAL)
-      span(class: "#{BADGE_XS} #{css}") { plain status.capitalize }
-    end
+    def connection_row(conn)
+      status   = conn["status"] || "active"
+      psp_info = @psps.find { |p| p[:code] == conn["provider_code"] } || {}
+      label    = psp_info[:label] || conn["provider_name"] || conn["provider_code"].to_s.titleize
+      methods  = Array(conn["enabled_methods"])
+      priority  = conn["priority"].to_i
+      disabled  = status == "disabled"
 
-    def mode_tag(mode)
-      css = mode == "live" ? "#{BADGE_XS} #{STATUS_SUCCESS}" : "#{BADGE_XS} #{STATUS_NEUTRAL}"
-      span(class: css) { plain mode.to_s.capitalize }
-    end
+      tr(class: "#{TABLE_ROW} group #{disabled ? 'opacity-60' : ''}") do
+        # Priority — routing order: 1 = highest
+        td(class: "#{TABLE_CELL} w-24") do
+          div(class: "inline-flex items-center gap-1.5") do
+            span(class: "w-5 h-5 rounded-full bg-gray-100 flex items-center justify-center text-[11px] font-bold text-gray-500") do
+              plain priority.to_s
+            end
+            span(class: TYPE_CAPTION) { plain priority == 1 ? "Primary" : "Fallback" }
+          end
+        end
 
-    def method_tag(method)
-      label = { "mobile_money" => "MoMo", "card" => "Card", "bank_transfer" => "Bank" }
-                .fetch(method, method.to_s.humanize)
-      span(class: "#{BADGE_XS} #{STATUS_NEUTRAL}") { plain label }
+        # Provider name + code
+        td(class: TABLE_CELL) do
+          p(class: TYPE_BODY_MD) { plain label }
+          p(class: TYPE_CAPTION) { plain conn["provider_code"].to_s }
+        end
+
+        # Mode
+        td(class: TABLE_CELL) do
+          css = conn["mode"] == "live" ? "#{BADGE_XS} #{STATUS_SUCCESS}" : "#{BADGE_XS} #{STATUS_NEUTRAL}"
+          span(class: css) { plain (conn["mode"] || "").capitalize }
+        end
+
+        # Methods
+        td(class: TABLE_CELL) do
+          div(class: "flex items-center gap-1 flex-wrap") do
+            if methods.any?
+              methods.each do |m|
+                span(class: "#{BADGE_XS} #{STATUS_NEUTRAL}") do
+                  plain METHOD_LABELS.fetch(m, m.to_s.humanize)
+                end
+              end
+            else
+              span(class: TYPE_CAPTION) { plain "—" }
+            end
+          end
+        end
+
+        # Status
+        td(class: TABLE_CELL) do
+          render UI::StatusBadge.new(status)
+        end
+
+        # Actions
+        td(class: "#{TABLE_CELL} text-right pr-5") do
+          div(class: "relative inline-block", data_controller: "dropdown") do
+            button(type: "button", class: ROWBTN,
+                   data: { action: "click->dropdown#toggle" }) do
+              render UI::Icon.new(:dots_vertical, class: ICON_SM)
+            end
+
+            div(class: "#{DROPDOWN_MENU} top-full mt-1 right-0 min-w-[160px]",
+                data_dropdown_target: "menu") do
+              a(href: edit_developers_provider_path(conn["id"]),
+                class: DROPDOWN_ITEM,
+                data: { turbo_frame: "drawer-frame" }) do
+                render UI::Icon.new(:edit, class: ICON_SM)
+                plain "Edit"
+              end
+
+              unless disabled
+                div(class: DROPDOWN_SEP)
+                form(action: deactivate_developers_provider_path(conn["id"]), method: "post",
+                     data: { turbo_confirm: "Disable #{label}? Payments will stop routing through it." }) do
+                  input(type: "hidden", name: "_method",            value: "post")
+                  input(type: "hidden", name: "authenticity_token", value: form_authenticity_token)
+                  button(type: "submit", class: DROPDOWN_ITEM_DANGER) { plain "Disable" }
+                end
+              end
+            end
+          end
+        end
+      end
     end
 
     def empty_state
@@ -138,7 +173,7 @@ module Developers
         div(class: "text-center") do
           p(class: TYPE_TITLE) { plain "No PSPs connected yet" }
           p(class: "#{TYPE_CAPTION} mt-1 max-w-[360px]") do
-            plain "Connect Paystack or Flutterwave to enable intelligent multi-PSP routing."
+            plain "Connect Paystack or Stripe to enable intelligent multi-PSP routing."
           end
         end
         render UI::Button.new(variant: :primary,

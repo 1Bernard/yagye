@@ -42,7 +42,10 @@ module Checkout
         expired:     sessions.count { |s| s["state"] == "expired" }
       }
 
-      render Checkout::PaymentLinks::ShowView.new(link: link, analytics: analytics)
+      config_res      = core.get_checkout_config(current_user.merchant_code)
+      checkout_config = config_res.success? ? config_res.body : {}
+
+      render Checkout::PaymentLinks::ShowView.new(link: link, analytics: analytics, checkout_config: checkout_config)
     end
 
     def display
@@ -97,7 +100,9 @@ module Checkout
 
     def new
       authorize :checkout, :new?
-      render Checkout::PaymentLinks::FormView.new(mode: Current.mode)
+      config_res      = core.get_checkout_config(current_user.merchant_code)
+      checkout_config = config_res.success? ? config_res.body : {}
+      render Checkout::PaymentLinks::FormView.new(mode: Current.mode, checkout_config: checkout_config)
     end
 
     def create
@@ -105,19 +110,22 @@ module Checkout
 
       kind = params[:kind].presence || "fixed_amount"
 
+      config_res      = core.get_checkout_config(current_user.merchant_code)
+      checkout_config = config_res.success? ? config_res.body : {}
+
       if params[:description].blank?
-        return render Checkout::PaymentLinks::FormView.new(errors: [ "Description is required" ], mode: Current.mode),
+        return render Checkout::PaymentLinks::FormView.new(errors: [ "Description is required" ], mode: Current.mode, checkout_config: checkout_config),
                       status: :unprocessable_entity
       end
 
       if kind == "fixed_amount" && params[:amount].blank?
-        return render Checkout::PaymentLinks::FormView.new(errors: [ "Amount is required for fixed-amount links" ], mode: Current.mode),
+        return render Checkout::PaymentLinks::FormView.new(errors: [ "Amount is required for fixed-amount links" ], mode: Current.mode, checkout_config: checkout_config),
                       status: :unprocessable_entity
       end
 
       allowed_methods = Array(params[:allowed_methods]).reject(&:blank?)
       if allowed_methods.empty?
-        return render Checkout::PaymentLinks::FormView.new(errors: [ "Select at least one accepted payment method" ], mode: Current.mode),
+        return render Checkout::PaymentLinks::FormView.new(errors: [ "Select at least one accepted payment method" ], mode: Current.mode, checkout_config: checkout_config),
                       status: :unprocessable_entity
       end
 
@@ -131,6 +139,7 @@ module Checkout
         currency:                   params[:currency].presence || "GHS",
         description:                params[:description],
         amount:                     amount,
+        discount_amount:            parse_amount(params[:discount_amount]),
         allowed_methods:            allowed_methods,
         collect_email:              params[:collect_email] == "1",
         collect_phone:              params[:collect_phone] == "1",
@@ -144,36 +153,17 @@ module Checkout
       )
 
       if result.success?
-        redirect_to payment_link_path(result.body["id"]),
-                    notice: "Payment link created."
+        link_id = result.body["id"]
+        save_appearance_after_create(link_id)
+        redirect_to payment_link_path(link_id), notice: "Payment link created."
       else
-        render Checkout::PaymentLinks::FormView.new(errors: [ result.error_message ], mode: Current.mode),
+        render Checkout::PaymentLinks::FormView.new(errors: [ result.error_message ], mode: Current.mode, checkout_config: checkout_config),
                status: :unprocessable_entity
       end
     end
 
     def layout
-      authorize :checkout, :manage_layout?
-      result = core.list_payment_links(merchant_code: current_user.merchant_code)
-      @links = result.success? ? result.body["data"] : []
-      @current = @links.find { |l| l["id"] == params[:id] }
-      return redirect_to payment_links_path, alert: "Payment link not found." if @current.nil?
-
-      branding = current_user.merchant_user? ? PortalMerchantBranding.find_or_initialize_for(current_user.merchant_code) : nil
-
-      link_mode   = @current["mode"].presence || "live"
-      config_res  = core.get_checkout_config(current_user.merchant_code)
-      template_res = core.get_checkout_template(current_user.merchant_code, mode: link_mode)
-      checkout_config   = config_res.success?   ? config_res.body   : {}
-      checkout_template = template_res.success? ? template_res.body : {}
-
-      render Checkout::CheckoutLayoutView.new(
-        link:              @current,
-        all_links:         @links,
-        branding:          branding,
-        checkout_config:   checkout_config,
-        checkout_template: checkout_template
-      )
+      redirect_to payment_link_path(params[:id])
     end
 
     def update_layout
@@ -231,6 +221,38 @@ module Checkout
     def parse_amount(raw)
       return nil if raw.blank?
       (raw.to_f * 100).round
+    end
+
+    def save_appearance_after_create(link_id)
+      cc = params[:checkout_config] || {}
+      cl = params[:checkout_layout]  || {}
+
+      # Merchant-level branding
+      branding = {}
+      branding[:brand_colour] = cc[:brand_colour].presence if cc[:brand_colour].present?
+      branding[:display_name] = cc[:display_name].presence if cc[:display_name].present?
+      core.update_checkout_config(current_user.merchant_code, **branding) if branding.any?
+
+      # Template font
+      font = cl[:font_family].presence
+      core.update_checkout_template(current_user.merchant_code, mode: Current.mode, font_family: font) if font
+
+      # Per-link layout (headline, cta_text, terms, logo_url)
+      per_link = {}
+      per_link["headline"]  = cl[:headline].presence  if cl[:headline].present?
+      per_link["cta_text"]  = cl[:cta_text].presence  if cl[:cta_text].present?
+      if cl[:terms_enabled] == "1"
+        per_link["terms"] = {
+          "enabled" => true,
+          "label"   => cl[:terms_label].presence || "I agree to the Terms & Conditions",
+          "url"     => cl[:terms_url].to_s
+        }
+      end
+      link_branding = current_user.merchant_user? ? PortalMerchantBranding.find_or_initialize_for(current_user.merchant_code) : nil
+      per_link["logo_url"] = link_branding.logo_url if link_branding&.logo&.attached?
+      core.update_payment_link_layout(link_id, merchant_code: current_user.merchant_code, layout: per_link) if per_link.any?
+    rescue StandardError
+      # Non-fatal — link is created, appearance can be set on the show page
     end
 
     def core

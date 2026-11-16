@@ -131,7 +131,6 @@ module Risk
           end
         end
       end
-
     end
   end
 end

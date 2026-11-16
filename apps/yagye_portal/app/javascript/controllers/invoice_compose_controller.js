@@ -66,11 +66,11 @@ function previewRowHTML(desc, qty, unit, bps, currency) {
   const qtyStr = qty % 1 === 0 ? qty.toFixed(0) : qty.toFixed(2)
   return `
 <tr class="border-b border-gray-50 last:border-0">
-  <td class="pl-10 pr-4 py-3.5 text-[12.5px] text-gray-800">${desc || "<span class='text-gray-300'>—</span>"}</td>
+  <td class="pl-5 pr-3 py-3.5 text-[12.5px] text-gray-800">${desc || "<span class='text-gray-300'>—</span>"}</td>
   <td class="px-3 py-3.5 text-right tabular-nums text-[12px] text-gray-400">${qtyStr}</td>
   <td class="px-3 py-3.5 text-right tabular-nums text-[12px] text-gray-400">${sym(currency)}&thinsp;${(unit / 100).toFixed(2)}</td>
   <td class="px-3 py-3.5 text-right tabular-nums text-[12px] text-gray-400">${bps > 0 ? (bps / 100).toFixed(1) + "%" : "—"}</td>
-  <td class="pl-3 pr-10 py-3.5 text-right tabular-nums text-[12.5px] font-semibold text-gray-900">${fmt(amount, currency)}</td>
+  <td class="pl-3 pr-5 py-3.5 text-right tabular-nums text-[12.5px] font-semibold text-gray-900">${fmt(amount, currency)}</td>
 </tr>`
 }
 
@@ -88,17 +88,88 @@ export default class extends Controller {
     "pvRowsBody",        // preview: <tbody>
     "pvSubtotal",
     "pvTax",
+    "pvTaxRow",          // totals row for tax (hidden when 0)
+    "pvDiscount",
+    "pvDiscountRow",     // totals row for discount (hidden when 0)
     "pvTotal",
     "pvAmountDue",
-    "pvTaxRow",          // totals row for tax (hidden when 0)
     "pvNotes",
     "pvNotesSection",
     "pvTerms",
     "pvTermsSection",
-    "pvNotesTermsSection"
+    "pvNotesTermsSection",
+    "pdfS3Key",   // hidden input for uploaded PDF s3 key
+    "pdfStatus"   // status / error line below the PDF upload button
   ]
 
   connect() { this.syncPreview() }
+
+  async handlePdfUpload(e) {
+    const file = e.target.files[0]
+    if (!file) return
+
+    const show = (msg, color = "#6b7280") => {
+      if (!this.hasPdfStatusTarget) return
+      this.pdfStatusTarget.textContent = msg
+      this.pdfStatusTarget.style.color = color
+      this.pdfStatusTarget.classList.remove("hidden")
+    }
+
+    show("Extracting invoice data…")
+
+    const form = new FormData()
+    form.append("pdf", file)
+    const csrfEl = this.element.querySelector('[name="authenticity_token"]')
+    if (csrfEl) form.append("authenticity_token", csrfEl.value)
+
+    try {
+      const res  = await fetch("/invoices/extract-pdf", { method: "POST", body: form })
+      const data = await res.json()
+
+      if (!res.ok || data.error) {
+        show(data.error || "Extraction failed — please enter details manually.", "#ef4444")
+        return
+      }
+
+      if (this.hasPdfS3KeyTarget) this.pdfS3KeyTarget.value = data.pdf_s3_key || ""
+
+      const f = data.fields || {}
+      this.#setField("customer_reference", f.customer_reference)
+      this.#setField("number",             f.number)
+      this.#setField("issue_date",         f.issue_date)
+      this.#setField("due_date",           f.due_date)
+      this.#setField("currency",           f.currency)
+      this.#setField("notes",              f.notes)
+      if (f.discount_amount != null) this.#setField("discount_amount", String(f.discount_amount))
+
+      if (Array.isArray(f.line_items) && f.line_items.length > 0) this.#prefillLineItems(f.line_items)
+
+      this.syncPreview()
+      e.target.value = ""
+
+      const msg = data.extraction_error
+        ? `Partial import — ${data.extraction_error}`
+        : "Invoice imported. Review and adjust as needed."
+      show(msg, data.extraction_error ? "#f59e0b" : "#10b981")
+    } catch {
+      show("Network error — please try again.", "#ef4444")
+    }
+  }
+
+  saveDraft(e) {
+    e.preventDefault()
+    const form = this.element.querySelector("form#invoice-form")
+    if (!form) return
+    let hidden = form.querySelector('[name="save_as_draft"]')
+    if (!hidden) {
+      hidden = document.createElement("input")
+      hidden.type = "hidden"
+      hidden.name = "save_as_draft"
+      form.appendChild(hidden)
+    }
+    hidden.value = "1"
+    form.requestSubmit()
+  }
 
   addRow() {
     const idx = this.rowListTarget.querySelectorAll(".composer-row").length
@@ -166,12 +237,17 @@ export default class extends Controller {
     if (this.hasPvRowsBodyTarget)
       this.pvRowsBodyTarget.innerHTML = fragments.join("")
 
-    const total = subtotal + tax
-    if (this.hasPvSubtotalTarget)  this.pvSubtotalTarget.textContent  = fmt(subtotal, currency)
-    if (this.hasPvTaxTarget)       this.pvTaxTarget.textContent       = fmt(tax, currency)
-    if (this.hasPvTotalTarget)     this.pvTotalTarget.textContent     = fmt(total, currency)
-    if (this.hasPvAmountDueTarget) this.pvAmountDueTarget.textContent = fmt(total, currency)
-    if (this.hasPvTaxRowTarget)    this.pvTaxRowTarget.hidden = tax === 0
+    const discountRaw = parseFloat(this.element.querySelector('[name="discount_amount"]')?.value) || 0
+    const discount    = Math.round(discountRaw * 100)
+    const total       = Math.max(subtotal + tax - discount, 0)
+
+    if (this.hasPvSubtotalTarget)    this.pvSubtotalTarget.textContent    = fmt(subtotal, currency)
+    if (this.hasPvTaxTarget)         this.pvTaxTarget.textContent         = fmt(tax, currency)
+    if (this.hasPvTaxRowTarget)      this.pvTaxRowTarget.hidden           = tax === 0
+    if (this.hasPvDiscountTarget)    this.pvDiscountTarget.textContent    = `− ${fmt(discount, currency)}`
+    if (this.hasPvDiscountRowTarget) this.pvDiscountRowTarget.hidden      = discount === 0
+    if (this.hasPvTotalTarget)       this.pvTotalTarget.textContent       = fmt(total, currency)
+    if (this.hasPvAmountDueTarget)   this.pvAmountDueTarget.textContent   = fmt(total, currency)
 
     // Notes / Terms
     const notes = this.#val("notes")
@@ -194,6 +270,31 @@ export default class extends Controller {
       row.querySelectorAll("input[name]").forEach(inp => {
         inp.name = inp.name.replace(/line_items\[\d+\]/, `line_items[${i}]`)
       })
+    })
+  }
+
+  #setField(name, value) {
+    if (value == null || value === "") return
+    const el = this.element.querySelector(`[name="${name}"]`)
+    if (el) el.value = value
+  }
+
+  #prefillLineItems(items) {
+    // Remove all separators and rows except the first
+    this.rowListTarget.querySelectorAll(".composer-sep").forEach(s => s.remove())
+    const existing = this.rowListTarget.querySelectorAll(".composer-row")
+    existing.forEach((r, i) => { if (i > 0) r.remove() })
+
+    items.forEach((item, i) => {
+      if (i > 0) this.addRow()
+      const rows = this.rowListTarget.querySelectorAll(".composer-row")
+      const row  = rows[i]
+      if (!row) return
+      row.querySelector('[name*="[description]"]').value = item.description || ""
+      row.querySelector('[name*="[quantity]"]').value    = item.quantity ?? 1
+      row.querySelector('[name*="[unit_amount]"]').value = item.unit_amount ?? 0
+      const bpsEl = row.querySelector('[name*="[tax_rate_bps]"]')
+      if (bpsEl) bpsEl.value = item.tax_rate_bps ?? 0
     })
   }
 }

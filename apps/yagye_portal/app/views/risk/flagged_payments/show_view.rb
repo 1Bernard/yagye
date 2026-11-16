@@ -35,9 +35,9 @@ module Risk
       }.freeze
 
       SCORE_COLOR = [
-        [0.7, RED,   TINT_RED],
-        [0.4, AMBER, TINT_AMBER],
-        [0.0, GREEN, TINT_GREEN]
+        [ 0.7, RED,   TINT_RED ],
+        [ 0.4, AMBER, TINT_AMBER ],
+        [ 0.0, GREEN, TINT_GREEN ]
       ].freeze
 
       def initialize(payment: {}, labels: [], customer: nil, history: [], signals: {}, can_dispose: false)
@@ -69,7 +69,6 @@ module Risk
             left_column
             right_column
           end
-
         end
       end
 
@@ -406,9 +405,9 @@ module Risk
       end
 
       def score_fg_bg(score)
-        return [SUBTLE_TEXT, SURFACE] unless score
+        return [ SUBTLE_TEXT, SURFACE ] unless score
         row = SCORE_COLOR.find { |threshold, _, _| score.to_f >= threshold }
-        row ? [row[1], row[2]] : [SUBTLE_TEXT, SURFACE]
+        row ? [ row[1], row[2] ] : [ SUBTLE_TEXT, SURFACE ]
       end
     end
   end

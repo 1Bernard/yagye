@@ -44,7 +44,7 @@ module Ai
         f.request  :json
         f.response :json, content_type: /\bjson$/
         f.request  :retry, max: 2, interval: 0.5,
-                           retry_statuses: [429, 502, 503, 504]
+                           retry_statuses: [ 429, 502, 503, 504 ]
         f.adapter  Faraday.default_adapter
         f.options.timeout      = 60
         f.options.open_timeout = 10
@@ -55,7 +55,7 @@ module Ai
     # on_tool: lambda called with (tool_name, input_hash) → result hash
     def chat(system:, messages:, tools: [], on_tool: nil)
       # Prepend system as a system-role message (OpenAI format)
-      conversation = [{ role: "system", content: system }] + messages.dup
+      conversation = [ { role: "system", content: system } ] + messages.dup
 
       MAX_TOOL_ITERS.times do
         response = call_api(messages: conversation, tools: tools)

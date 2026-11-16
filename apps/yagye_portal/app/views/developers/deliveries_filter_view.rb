@@ -9,7 +9,7 @@ module Developers
       [ "Delivered",  "delivered" ],
       [ "Failed",     "failed"    ],
       [ "Exhausted",  "exhausted" ],
-      [ "Delivering", "delivering"]
+      [ "Delivering", "delivering" ]
     ].freeze
 
     def initialize(state: nil, event_type: nil, from: nil, to: nil)

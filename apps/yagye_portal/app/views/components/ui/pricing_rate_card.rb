@@ -30,13 +30,28 @@ module UI
           p(class: TYPE_CAPTION) { plain "No pricing rules defined for this plan." }
         end
       else
-        grouped_rules_table(rules)
+        psp_rules   = rules.select { |r| (r["fee_kind"] || "psp_margin") == "psp_margin" }
+        orch_rules  = rules.select { |r| r["fee_kind"] == "orchestration_fee" }
+
+        grouped_rules_table(psp_rules, section_label: nil) unless psp_rules.empty?
+
+        unless orch_rules.empty?
+          div(class: "px-5 pt-4 pb-1 border-t border-gray-100") do
+            p(class: "text-[11px] font-bold uppercase tracking-widest text-blue-600") do
+              plain "Orchestration fee — External PSP routing"
+            end
+            p(class: "#{TYPE_MICRO} text-gray-400 mt-0.5") do
+              plain "Applies when the merchant routes through their own Stripe or Paystack account."
+            end
+          end
+          grouped_rules_table(orch_rules, section_label: "Orchestration fee")
+        end
       end
     end
 
     private
 
-    def grouped_rules_table(rules)
+    def grouped_rules_table(rules, section_label: nil)
       catch_all = rules.select { |r| r["method"].nil? && r["provider_code"].nil? }
       by_method = rules
         .reject { |r| r["method"].nil? && r["provider_code"].nil? }

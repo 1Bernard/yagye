@@ -11,6 +11,11 @@ module PricingPlans
       [ "Bank Transfer", "bank_transfer" ]
     ].freeze
 
+    FEE_KIND_OPTIONS = [
+      [ "PSP margin (Model A — Yagye is PSP)",                    "psp_margin"       ],
+      [ "Orchestration fee (Model B — merchant's own PSP)",       "orchestration_fee" ]
+    ].freeze
+
     PROVIDER_OPTIONS = {
       "mobile_money" => [
         [ "MTN MoMo",         "MTN_MOMO_GH" ],
@@ -119,6 +124,16 @@ module PricingPlans
 
             div(class: "flex flex-col gap-4") do
               div do
+                label(class: "block #{TYPE_MICRO} text-gray-500 font-medium mb-1.5") { plain "Fee kind" }
+                select(name: "fee_kind", class: input_cls) do
+                  FEE_KIND_OPTIONS.each { |(lbl, val)| option(value: val) { plain lbl } }
+                end
+                p(class: "#{TYPE_MICRO} text-gray-400 mt-1") do
+                  plain "PSP margin = Yagye handles payment. Orchestration fee = merchant uses their own PSP (Stripe/Paystack), Yagye routes."
+                end
+              end
+
+              div do
                 label(class: "block #{TYPE_MICRO} text-gray-500 font-medium mb-1.5") { plain "Payment method" }
                 select(name: "method", class: input_cls) do
                   METHOD_OPTIONS.each { |(lbl, val)| option(value: val) { plain lbl } }
@@ -176,9 +191,16 @@ module PricingPlans
       pct_label    = pct.positive? ? "#{sprintf('%.4f', pct / 100.0).sub(/0+$/, '').sub(/\.$/, '.0')}%" : "—"
       rule_ref     = r["id"].to_s.first(8)
 
+      fee_kind    = r["fee_kind"] || "psp_margin"
+      kind_label  = fee_kind == "orchestration_fee" ? "Orchestration" : "PSP margin"
+      kind_css    = fee_kind == "orchestration_fee" ? STATUS_INFO : STATUS_NEUTRAL
+
       div(class: "flex items-center gap-3 px-5 py-3.5") do
         div(class: "flex-1 min-w-0") do
-          p(class: TYPE_BODY_MD) { plain "#{method_label} · #{prov_label}" }
+          div(class: "flex items-center gap-2 flex-wrap") do
+            p(class: TYPE_BODY_MD) { plain "#{method_label} · #{prov_label}" }
+            span(class: "#{BADGE_XS} #{kind_css}") { plain kind_label }
+          end
           p(class: TYPE_CAPTION) do
             parts = [ pct_label ]
             parts << "#{format_money(r["fixed_amount"].to_i, currency: cur)} fixed" if r["fixed_amount"].to_i > 0

@@ -50,11 +50,11 @@ module Account
 
       def mode_badge(mode)
         cls = case mode.to_s
-              when "live"       then STATUS_SUCCESS
-              when "sandbox"    then STATUS_INFO
-              when "simulation" then STATUS_NEUTRAL
-              else STATUS_NEUTRAL
-              end
+        when "live"       then STATUS_SUCCESS
+        when "sandbox"    then STATUS_INFO
+        when "simulation" then STATUS_NEUTRAL
+        else STATUS_NEUTRAL
+        end
         span(class: "#{cls} #{BADGE}") { plain mode.to_s.capitalize }
       end
 

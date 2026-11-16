@@ -133,7 +133,7 @@ module Layout
                  style: "color:#94a3b8") { render UI::Icon.new(:file, class: "w-full h-full") }
             span(class: "text-[11.5px] font-medium max-w-[220px] truncate",
                  style: "color:#475569",
-                 data: { ai_chat_target: "fileLabel" }) {}
+                 data: { ai_chat_target: "fileLabel" }) { }
             button(type: "button",
                    class: "flex-shrink-0 flex w-[11px] h-[11px] ml-1",
                    style: "color:#cbd5e1",

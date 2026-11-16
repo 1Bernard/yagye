@@ -4,7 +4,7 @@ class Payment < ApplicationRecord
   self.table_name = "portal_payments"
 
   STATUSES   = %w[created processing requires_action paid failed cancelled indeterminate refunded disputed].freeze
-  TEST_MODES = %w[simulation sandbox].freeze
+  TEST_MODES = %w[simulation sandbox test].freeze
 
   PROVIDERS = {
     "mtn_momo"     => "MTN MoMo",
@@ -14,14 +14,12 @@ class Payment < ApplicationRecord
   }.freeze
 
   PROVIDER_LOGOS = {
-    "mtn_momo"     => "mtn.png",
+    "mtn_momo"     => "momo.png",
     "telecel_cash" => "telecel.png",
     "airteltigo"   => "at.png"
   }.freeze
 
-  METHOD_LOGOS = {
-    "card" => "visa.svg"
-  }.freeze
+  METHOD_LOGOS = {}.freeze
 
   scope :for_merchant,    ->(code) { where(merchant_code: code) }
   scope :by_status,       ->(s)    { where(status: s) }
@@ -62,7 +60,11 @@ class Payment < ApplicationRecord
   end
 
   def method_logo
-    PROVIDER_LOGOS[provider.to_s] || METHOD_LOGOS[payment_method.to_s]
+    if payment_method == "mobile_money"
+      PROVIDER_LOGOS[provider.to_s] || METHOD_LOGOS[payment_method.to_s]
+    else
+      METHOD_LOGOS[payment_method.to_s]
+    end
   end
 
   def method_icon

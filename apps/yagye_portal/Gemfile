@@ -47,6 +47,7 @@ gem "caxlsx"
 gem "matrix"        # prawn dependency, removed from Ruby 3.1 default gems
 gem "prawn"
 gem "prawn-table"
+gem "pdf-reader"    # PDF text extraction for AI-assisted invoice import
 
 # Audit trail — WHAT CHANGED on portal-owned AR records
 gem "paper_trail"

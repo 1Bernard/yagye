@@ -13,6 +13,12 @@ module Checkout
         { code: "USD", label: "USD — US Dollar",        symbol: "$" }
       ].freeze
 
+      PAYMENT_METHODS = [
+        { value: "mobile_money",  label: "Mobile Money",  desc: "MTN MoMo, Telecel Cash, AirtelTigo" },
+        { value: "card",          label: "Card",           desc: "Visa and Mastercard" },
+        { value: "bank_transfer", label: "Bank transfer",  desc: "Direct bank-to-bank transfers" }
+      ].freeze
+
       DEMO = {
         customer:  "Kofi Builds Ltd.",
         number:    "INV-00042",
@@ -63,6 +69,12 @@ module Checkout
             ) do
               input(type: "hidden", name: "authenticity_token", value: form_authenticity_token)
               input(type: "hidden", name: "_method", value: "patch") if @editing
+              input(
+                type:  "hidden",
+                name:  "pdf_s3_key",
+                value: @editing ? @invoice["pdf_s3_key"].to_s : "",
+                data:  { invoice_compose_target: "pdfS3Key" }
+              )
               editor_panel
               preview_area
             end
@@ -133,12 +145,24 @@ module Checkout
             end
           end
 
+          if @editing
+            button(
+              type: "submit", form: "invoice-form",
+              class: "flex items-center gap-[5px] px-[10px] py-[5px] rounded-xl text-[12.5px] font-medium " \
+                     "border border-gray-200 text-gray-600 hover:bg-gray-50 transition-colors cursor-pointer border-0 bg-transparent",
+              data: { action: "click->invoice-compose#saveDraft" }
+            ) { plain "Save draft" }
+          end
+
           button(
             type:  "submit",
             form:  "invoice-form",
             class: "flex items-center gap-[5px] px-[10px] py-[5px] rounded-xl text-[12.5px] font-semibold " \
                    "bg-[#3D47F5] hover:bg-[#2e38d4] text-white transition-colors cursor-pointer border-0"
-          ) { plain @editing ? "Update invoice" : "Create invoice" }
+          ) do
+            render UI::Icon.new(:paper_plane, class: "w-3.5 h-3.5")
+            plain @editing ? "Issue & update" : "Issue invoice"
+          end
         end
       end
 
@@ -157,6 +181,8 @@ module Checkout
           div(class: "h-px bg-gray-100 flex-shrink-0 mx-3")
 
           div(class: "flex-1 min-h-0 overflow-y-auto") do
+            pdf_upload_section
+            section_divider
             bill_to_section
             section_divider
             line_items_section
@@ -164,12 +190,48 @@ module Checkout
             notes_terms_section
             section_divider
             invoice_details_section
+            section_divider
+            send_options_section
           end
         end
       end
 
       def section_divider
         div(class: "h-px bg-gray-100 mx-3")
+      end
+
+      # ── PDF import ───────────────────────────────────────────────────────────
+
+      def pdf_upload_section
+        div(class: "px-4 pt-3 pb-3") do
+          label(class: "flex items-center gap-2 cursor-pointer group w-full") do
+            input(
+              type:   "file",
+              accept: ".pdf,application/pdf",
+              class:  "sr-only",
+              data:   { action: "change->invoice-compose#handlePdfUpload" }
+            )
+            div(
+              class: "flex items-center gap-[7px] w-full px-3 py-[7px] rounded-xl " \
+                     "border border-dashed border-gray-200 hover:border-gray-300 " \
+                     "hover:bg-gray-50/60 transition-colors"
+            ) do
+              raw safe(<<~SVG)
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                     stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+                     class="text-gray-400 flex-shrink-0">
+                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                  <polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/>
+                </svg>
+              SVG
+              span(class: "text-[12px] text-gray-500 leading-tight") { plain "Import from PDF" }
+            end
+          end
+          p(
+            class: "text-[11px] mt-1.5 leading-snug hidden",
+            data:  { invoice_compose_target: "pdfStatus" }
+          )
+        end
       end
 
       # ── Bill to ──────────────────────────────────────────────────────────────
@@ -322,7 +384,74 @@ module Checkout
                       class: panel_input_cls, data: { action: "change->invoice-compose#syncPreview" })
               end
             end
+
+            div do
+              span(class: "text-[9px] font-bold uppercase tracking-[0.1em] text-gray-400 block mb-[5px]") { plain "Discount (optional)" }
+              input(
+                type:        "number",
+                name:        "discount_amount",
+                min:         "0",
+                step:        "0.01",
+                placeholder: "0.00",
+                value:       @editing ? sprintf("%.2f", @invoice["discount_amount"].to_i / 100.0) : (@prefill ? sprintf("%.2f", @prefill["discount_amount"].to_i / 100.0) : ""),
+                class:       "#{panel_input_cls} tabular-nums",
+                data:        { action: "input->invoice-compose#syncPreview" }
+              )
+              p(class: "text-[10.5px] text-gray-400 mt-[4px]") { plain "Fixed deduction applied before the total" }
+            end
           end
+        end
+      end
+
+      # ── Send options ─────────────────────────────────────────────────────────
+
+      def send_options_section
+        div(class: "px-4 pt-3 pb-5") do
+          p(class: "text-[9px] font-bold uppercase tracking-[0.1em] text-gray-400 mb-3") { plain "Send options" }
+          div(class: "flex flex-col gap-4") do
+            div do
+              p(class: "text-[11px] font-semibold text-gray-600 mb-2") { plain "Accepted payment methods" }
+              div(class: "flex flex-col gap-2") do
+                PAYMENT_METHODS.each_with_index do |m, i|
+                  div(class: "flex items-start gap-2") do
+                    input(
+                      type:    "checkbox",
+                      name:    "allowed_methods[]",
+                      value:   m[:value],
+                      id:      "fm_method_#{m[:value]}",
+                      class:   "mt-[2px] h-3.5 w-3.5 rounded border-gray-300 text-[#3D47F5] focus:ring-[#3D47F5]",
+                      checked: i == 0
+                    )
+                    div do
+                      label(for: "fm_method_#{m[:value]}",
+                            class: "block text-[12px] font-medium text-gray-800 cursor-pointer leading-snug") do
+                        plain m[:label]
+                      end
+                      p(class: "text-[10.5px] text-gray-400 mt-px") { plain m[:desc] }
+                    end
+                  end
+                end
+              end
+            end
+
+            div do
+              p(class: "text-[11px] font-semibold text-gray-600 mb-2") { plain "Collect from payer" }
+              div(class: "flex flex-col gap-1.5") do
+                fm_collect_check("collect_email", "Email address")
+                fm_collect_check("collect_phone", "Phone number")
+                fm_collect_check("collect_name",  "Full name")
+              end
+            end
+          end
+        end
+      end
+
+      def fm_collect_check(name, label_text)
+        div(class: "flex items-center gap-2") do
+          input(type: "checkbox", name: name, value: "true", id: "fm_#{name}",
+                class: "h-3.5 w-3.5 rounded border-gray-300 text-[#3D47F5] focus:ring-[#3D47F5]")
+          label(for: "fm_#{name}",
+                class: "text-[12px] font-medium text-gray-700 cursor-pointer") { plain label_text }
         end
       end
 
@@ -359,36 +488,28 @@ module Checkout
 
       def preview_header
         merchant_name = current_user.active_membership&.merchant_name.to_s.presence || "Your business"
-        merchant_code = current_user.merchant_code.to_s
         initials      = merchant_name.split.first(2).map { |w| w[0].upcase }.join
 
-        div(class: "flex items-start justify-between px-10 pt-8 pb-6 gap-6") do
-          # Left: logo + merchant identity
-          div(class: "flex items-center gap-3.5") do
-            if @logo_url.present?
-              img(src: @logo_url, alt: "Logo",
-                  class: "w-12 h-12 rounded-[10px] object-cover border border-gray-100 flex-shrink-0")
-            else
-              div(class: "w-12 h-12 rounded-[10px] bg-[#3D47F5] flex items-center justify-center flex-shrink-0 " \
-                         "shadow-[0_2px_8px_rgba(61,71,245,0.30)]") do
-                span(class: "text-[13px] font-extrabold text-white tracking-tight") { plain initials }
-              end
-            end
-            div do
-              p(class: "text-[14px] font-bold text-gray-900 leading-tight") { plain merchant_name }
-              p(class: "text-[11.5px] text-gray-400 mt-0.5") { plain merchant_code }
+        div(class: "flex items-start justify-between px-10 pt-9 pb-6 gap-6") do
+          # Left: "Invoice" title + number
+          div do
+            p(class: "text-[34px] font-black text-gray-900 leading-none tracking-tight") { plain "Invoice" }
+            p(class: "text-[13px] text-gray-400 mt-1.5 font-mono",
+              data: { invoice_compose_target: "pvNumber" }) do
+              plain "#" + (@editing ? @invoice["number"].to_s : (@prefill ? "" : DEMO[:number]))
             end
           end
-          # Right: INVOICE + number + Draft badge
-          div(class: "flex flex-col items-end gap-1.5") do
-            p(class: "text-[28px] font-extrabold text-[#3D47F5] leading-none tracking-tight") { plain "INVOICE" }
-            p(class: "text-[13px] font-semibold text-gray-500 font-mono mt-1",
-              data: { invoice_compose_target: "pvNumber" }) do
-              plain @editing ? @invoice["number"].to_s : (@prefill ? "" : DEMO[:number])
+          # Right: logo + merchant name
+          div(class: "flex items-center gap-2.5 flex-shrink-0 mt-1") do
+            if @logo_url.present?
+              img(src: @logo_url, alt: "Logo",
+                  class: "w-10 h-10 rounded-[9px] object-cover border border-gray-100 flex-shrink-0")
+            else
+              div(class: "w-10 h-10 rounded-[9px] bg-[#3D47F5] flex items-center justify-center flex-shrink-0") do
+                span(class: "text-[11px] font-extrabold text-white tracking-tight") { plain initials }
+              end
             end
-            span(class: "text-[10.5px] font-semibold px-2.5 py-[3px] rounded-full bg-amber-50 text-amber-600 border border-amber-200/70 mt-0.5") do
-              plain "Draft"
-            end
+            p(class: "text-[15px] font-bold text-gray-900 leading-tight") { plain merchant_name }
           end
         end
       end
@@ -401,22 +522,44 @@ module Checkout
                       : (@prefill  ? @prefill["customer_reference"].to_s
                                    : DEMO[:customer])
 
-        div(class: "grid grid-cols-4 px-10 py-5 bg-[#f8fafc] border-t border-b border-gray-100") do
-          preview_billing_cell("Issue date", fmt_date(Date.today), :pvIssued)
-          preview_billing_cell("Due date",   fmt_date(Date.today + 30), :pvDue)
-          preview_billing_cell("From",       merchant_name)
-          preview_billing_cell("Bill to",    bill_to_value, :pvBillTo)
-        end
-      end
+        # ── Divider 1
+        div(class: "h-px bg-gray-100 mx-10")
 
-      def preview_billing_cell(label, value, target_sym = nil)
-        div(class: "pr-3") do
-          p(class: "text-[9.5px] font-bold uppercase tracking-[0.1em] text-gray-400 mb-1") { plain label }
-          if target_sym
-            p(class: "text-[12.5px] font-semibold text-gray-800 leading-snug",
-              data: { invoice_compose_target: target_sym }) { plain value || "—" }
-          else
-            p(class: "text-[12.5px] font-semibold text-gray-800 leading-snug") { plain value || "—" }
+        # ── Bill to / dates
+        div(class: "flex items-start justify-between px-10 py-5") do
+          div do
+            p(class: "text-[9.5px] font-semibold uppercase tracking-[0.1em] text-gray-400 mb-[5px]") { plain "Bill to" }
+            p(class: "text-[13.5px] font-semibold text-gray-900",
+              data: { invoice_compose_target: "pvBillTo" }) { plain bill_to_value.presence || "—" }
+          end
+          div(class: "flex items-start gap-7") do
+            div(class: "text-right") do
+              p(class: "text-[9.5px] font-semibold uppercase tracking-[0.1em] text-gray-400 mb-[5px]") { plain "Issued Date" }
+              p(class: "text-[13.5px] font-semibold text-gray-900",
+                data: { invoice_compose_target: "pvIssued" }) { plain fmt_date(Date.today) }
+            end
+            div(class: "text-right") do
+              p(class: "text-[9.5px] font-semibold uppercase tracking-[0.1em] text-gray-400 mb-[5px]") { plain "Due Date" }
+              p(class: "text-[13.5px] font-semibold text-gray-900",
+                data: { invoice_compose_target: "pvDue" }) { plain fmt_date(Date.today + 30) }
+            end
+          end
+        end
+
+        # ── Divider 2
+        div(class: "h-px bg-gray-100 mx-10")
+
+        # ── From / To
+        div(class: "flex items-start justify-between px-10 py-5") do
+          div do
+            p(class: "text-[9.5px] font-semibold uppercase tracking-[0.1em] text-gray-400 mb-[5px]") { plain "From" }
+            p(class: "text-[13px] font-semibold text-gray-900 leading-snug") { plain merchant_name }
+          end
+          div(class: "text-right") do
+            p(class: "text-[9.5px] font-semibold uppercase tracking-[0.1em] text-gray-400 mb-[5px]") { plain "To" }
+            p(class: "text-[13px] font-semibold text-gray-900 leading-snug") do
+              plain bill_to_value.presence || "—"
+            end
           end
         end
       end
@@ -424,15 +567,15 @@ module Checkout
       # ── Preview: line items table ─────────────────────────────────────────────
 
       def preview_line_items
-        div(class: "overflow-x-auto mt-1") do
+        div(class: "overflow-x-auto mx-6") do
           table(class: "w-full") do
             thead do
-              tr(style: "background:rgba(61,71,245,0.05);border-bottom:1px solid rgba(61,71,245,0.10)") do
-                th_cell("Description", "text-left pl-10 pr-4")
+              tr(style: "background:#f9fafb;border-bottom:1px solid #f1f5f9") do
+                th_cell("Description", "text-left pl-5 pr-3")
                 th_cell("Qty",         "text-right px-3 w-14")
                 th_cell("Unit price",  "text-right px-3 w-28")
                 th_cell("Tax",         "text-right px-3 w-16")
-                th_cell("Amount",      "text-right pl-3 pr-10 w-32")
+                th_cell("Amount",      "text-right pl-3 pr-5 w-32")
               end
             end
             tbody(data: { invoice_compose_target: "pvRowsBody" }) do
@@ -455,11 +598,11 @@ module Checkout
 
       def preview_static_row(desc, qty, unit, tax, amount)
         tr(class: "border-b border-gray-50 last:border-0") do
-          td(class: "pl-10 pr-4 py-3.5 text-[12.5px] text-gray-800") { plain desc }
+          td(class: "pl-5 pr-3 py-3.5 text-[12.5px] text-gray-800") { plain desc }
           td(class: "px-3 py-3.5 text-right text-[12px] text-gray-400 tabular-nums") { plain qty }
           td(class: "px-3 py-3.5 text-right text-[12px] text-gray-400 tabular-nums") { plain unit }
           td(class: "px-3 py-3.5 text-right text-[12px] text-gray-400 tabular-nums") { plain tax }
-          td(class: "pl-3 pr-10 py-3.5 text-right text-[12.5px] font-semibold text-gray-900 tabular-nums") { plain amount }
+          td(class: "pl-3 pr-5 py-3.5 text-right text-[12.5px] font-semibold text-gray-900 tabular-nums") { plain amount }
         end
       end
 
@@ -472,25 +615,35 @@ module Checkout
       def preview_totals
         demo_subtotal = DEMO[:rows].sum { |r| (r[:unit] * 100 * r[:qty]).round }
 
-        div(class: "flex justify-end border-t border-gray-100 px-10 py-6") do
-          div(class: "w-[260px] flex flex-col") do
-            totals_row("Subtotal", :pvSubtotal,
-                       default: "GH₵ #{fmt_num(demo_subtotal)}")
+        div(class: "h-px bg-gray-100 mx-6")
+        div(class: "flex justify-end px-10 py-6") do
+          div(class: "w-[280px] flex flex-col gap-[2px]") do
+            totals_row("Subtotal", :pvSubtotal, default: "GH₵ #{fmt_num(demo_subtotal)}")
             div(class: "flex items-center justify-between py-[2px]",
                 hidden: true, data: { invoice_compose_target: "pvTaxRow" }) do
               p(class: "text-[12px] text-gray-400") { plain "Tax" }
               p(class: "text-[12.5px] text-gray-500 tabular-nums",
                 data: { invoice_compose_target: "pvTax" }) { plain "GH₵ 0.00" }
             end
-            div(class: "h-px bg-gray-100 my-2")
-            totals_row("Total", :pvTotal, bold: true,
-                       default: "GH₵ #{fmt_num(demo_subtotal)}")
-
-            # Amount due
-            div(class: "mt-3 flex items-center justify-between " \
-                        "rounded-xl bg-[#3D47F5]/[0.06] px-4 py-3.5") do
-              p(class: "text-[12px] font-bold text-[#3D47F5]") { plain "Amount due" }
-              p(class: "text-[17px] font-extrabold text-[#3D47F5] tabular-nums tracking-tight",
+            div(class: "flex items-center justify-between py-[2px]",
+                hidden: true, data: { invoice_compose_target: "pvDiscountRow" }) do
+              p(class: "text-[12px] text-gray-400") { plain "Discount" }
+              p(class: "text-[12.5px] text-green-600 tabular-nums",
+                data: { invoice_compose_target: "pvDiscount" }) { plain "− GH₵ 0.00" }
+            end
+            div(class: "h-px bg-gray-200 my-2")
+            # Bold "Total Amount" row — matching screenshot
+            div(class: "flex items-center justify-between py-[3px]") do
+              p(class: "text-[13.5px] font-bold text-gray-900") { plain "Total Amount" }
+              p(class: "text-[14px] font-bold text-gray-900 tabular-nums",
+                data: { invoice_compose_target: "pvTotal" }) do
+                plain "GH₵ #{fmt_num(demo_subtotal)}"
+              end
+            end
+            # Amount due (subtle subtitle row; JS keeps it in sync)
+            div(class: "flex items-center justify-between pt-[2px]") do
+              p(class: "text-[11px] text-gray-400") { plain "Amount due" }
+              p(class: "text-[12px] font-semibold text-[#3D47F5] tabular-nums",
                 data: { invoice_compose_target: "pvAmountDue" }) do
                 plain "GH₵ #{fmt_num(demo_subtotal)}"
               end
@@ -511,16 +664,14 @@ module Checkout
 
       def preview_notes_terms
         div(
-          class: "border-t border-dashed border-gray-200 mx-10"
-        )
-        div(
-          class: "px-10 py-6 flex flex-col gap-5",
+          class: "px-10 pb-7 flex flex-col gap-5",
           data:  { invoice_compose_target: "pvNotesTermsSection" }
         ) do
           div(data: { invoice_compose_target: "pvNotesSection" }) do
-            p(class: "text-[9.5px] font-bold uppercase tracking-[0.12em] text-gray-400 mb-1.5") { plain "Notes" }
-            p(class: "text-[12.5px] text-gray-600 leading-relaxed",
-              data: { invoice_compose_target: "pvNotes" }) { plain DEMO[:notes] }
+            div(class: "border border-gray-200 rounded-xl px-5 py-4") do
+              p(class: "text-[12.5px] text-gray-600 leading-relaxed",
+                data: { invoice_compose_target: "pvNotes" }) { plain DEMO[:notes] }
+            end
           end
           div(data: { invoice_compose_target: "pvTermsSection" }) do
             p(class: "text-[9.5px] font-bold uppercase tracking-[0.12em] text-gray-400 mb-1.5") { plain "Terms & conditions" }
@@ -534,8 +685,11 @@ module Checkout
 
       def preview_footer
         div(class: "border-t border-gray-100 px-10 py-4 flex items-center justify-between") do
-          p(class: "text-[10.5px] text-gray-300") { plain "Generated #{fmt_date(Date.today)}" }
-          p(class: "text-[10.5px] text-gray-300") { plain "Payment powered by Yagye" }
+          div do
+            p(class: "text-[9.5px] font-bold uppercase tracking-[0.1em] text-gray-400 mb-[3px]") { plain "Payment method" }
+            p(class: "text-[11px] text-gray-400") { plain "Payment powered by Yagye" }
+          end
+          p(class: "text-[10.5px] text-gray-300") { plain fmt_date(Date.today) }
         end
       end
 

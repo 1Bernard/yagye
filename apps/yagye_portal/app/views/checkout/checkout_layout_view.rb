@@ -4,46 +4,6 @@ module Checkout
   class CheckoutLayoutView < ApplicationComponent
     include UI::Theme
 
-    DEFAULT_METHODS = [
-      {
-        "id"         => "mobile_money",
-        "label"      => "Mobile Money",
-        "visible"    => true,
-        "tile_style" => "expanded",
-        "rails"      => [
-          { "id" => "mtn_momo",     "label" => "MTN MoMo",       "visible" => true },
-          { "id" => "telecel_cash", "label" => "Telecel Cash",    "visible" => true },
-          { "id" => "airteltigo",   "label" => "AirtelTigo Cash", "visible" => true }
-        ]
-      },
-      {
-        "id"         => "card",
-        "label"      => "Card",
-        "visible"    => false,
-        "tile_style" => "compact",
-        "rails"      => []
-      },
-      {
-        "id"         => "bank_transfer",
-        "label"      => "Bank Transfer",
-        "visible"    => false,
-        "tile_style" => "compact",
-        "rails"      => []
-      }
-    ].freeze
-
-    METHOD_ICONS = {
-      "mobile_money"  => "phone",
-      "card"          => "credit_card",
-      "bank_transfer" => "building"
-    }.freeze
-
-    METHOD_COLORS = {
-      "mobile_money"  => { bg: "rgba(61,71,245,0.09)",  icon: "#3D47F5" },
-      "card"          => { bg: "rgba(16,185,129,0.09)", icon: "#10b981" },
-      "bank_transfer" => { bg: "rgba(245,158,11,0.09)", icon: "#f59e0b" }
-    }.freeze
-
     def initialize(link:, all_links:, branding: nil, checkout_config: {}, checkout_template: {})
       @link              = link
       @all_links         = all_links
@@ -91,30 +51,6 @@ module Checkout
       payment_link_layout_path(@link["id"])
     end
 
-    # Card and bank_transfer have no configurable rails (they render a form, not
-    # a network selector). Strip any stale rails that may have been persisted when
-    # the layout was first created (e.g. the old "Stripe" placeholder).
-    RAIL_FREE_METHODS = %w[card bank_transfer].freeze
-
-    def methods_to_render
-      saved_methods = @link["checkout_layout"]&.fetch("methods", nil)
-      allowed       = Array(@link["allowed_methods"])
-
-      # `allowed_methods` is authoritative for visibility — it's configured on the
-      # settings page. The saved layout only carries tile_style and rails config.
-      methods = DEFAULT_METHODS.map do |default|
-        saved   = saved_methods&.find { |m| m["id"] == default["id"] } || {}
-        visible = allowed.include?(default["id"])
-        default
-          .merge(saved)
-          .merge("visible" => visible)
-      end
-
-      methods.map do |m|
-        RAIL_FREE_METHODS.include?(m["id"]) ? m.merge("rails" => []) : m
-      end
-    end
-
     # ── Canvas background ─────────────────────────────────────────────────────
 
     def canvas_styles
@@ -125,13 +61,6 @@ module Checkout
             background-image: radial-gradient(circle, #d1d5db 1px, transparent 1px);
             background-size: 24px 24px;
           }
-          [data-method-id] .tile-header { cursor: grab; user-select: none; }
-          [data-method-id] .tile-header:active { cursor: grabbing; }
-          [data-method-id] .tile-header input,
-          [data-method-id] .tile-header label { cursor: pointer; }
-          .tile-style-btn { color: #6b7280; flex: 1; text-align: center; border-radius: 6px; transition: color 0.12s; }
-          .tile-style-btn:hover { color: #374151; }
-          .tile-style-btn:has(input:checked) { background: white !important; color: #111827 !important; box-shadow: 0 1px 2px rgba(0,0,0,0.10); }
         ))
       end
     end
@@ -226,11 +155,10 @@ module Checkout
                "shadow-[0_8px_32px_rgba(0,0,0,0.07),0_2px_8px_rgba(0,0,0,0.04)]"
       ) do
         # Panel label
-        div(class: "flex items-center justify-between px-4 pt-[14px] pb-3 flex-shrink-0") do
+        div(class: "flex items-center px-4 pt-[14px] pb-3 flex-shrink-0") do
           p(class: "text-[11px] font-bold uppercase tracking-[0.1em] text-gray-500") do
-            plain "Payment methods"
+            plain "Layout"
           end
-          p(class: "text-[10px] text-gray-400") { plain "drag · toggle · style" }
         end
 
         div(class: "h-px bg-gray-100 flex-shrink-0 mx-3")
@@ -281,18 +209,6 @@ module Checkout
         cta_section
         div(class: "h-px bg-gray-100 flex-shrink-0 mx-3 mb-1")
         terms_section
-        div(class: "h-px bg-gray-100 flex-shrink-0 mx-3 mb-1")
-        p(class: "text-[9px] font-bold uppercase tracking-[0.1em] text-gray-400 px-3 pb-2 pt-1 flex-shrink-0") do
-          plain "Payment methods"
-        end
-
-        # Sortable list
-        div(
-          class: "px-3 pb-3 flex flex-col gap-[6px]",
-          data: { checkout_layout_target: "methodList" }
-        ) do
-          methods_to_render.each { |m| method_tile(m) }
-        end
         end # scrollable body
       end
     end
@@ -468,142 +384,33 @@ module Checkout
       end
     end
 
-    def method_tile(method)
-      visible    = method["visible"] != false
-      tile_style = method["tile_style"] || "compact"
-      icon       = METHOD_ICONS[method["id"]] || "credit_card"
-      colors     = METHOD_COLORS[method["id"]] || { bg: "rgba(107,114,128,0.09)", icon: "#6b7280" }
-
-      div(
-        class: "bg-white border rounded-xl overflow-hidden " \
-               "#{visible ? 'border-gray-200' : 'border-gray-100 opacity-60'}",
-        data:  { method_id: method["id"], method_label: method["label"], visible: visible.to_s }
-      ) do
-        # Header row — pointer drag starts here (skip interactive children)
-        div(class: "tile-header flex items-center gap-2.5 px-3 py-2.5") do
-          span(class: "text-gray-300 flex-shrink-0 pointer-events-none") do
-            render UI::Icon.new(:grip, class: "w-4 h-4")
-          end
-
-          # Coloured icon bubble
-          span(
-            class: "w-6 h-6 rounded-lg flex items-center justify-center flex-shrink-0",
-            style: "background:#{colors[:bg]}"
-          ) do
-            span(class: "flex w-[12px] h-[12px]", style: "color:#{colors[:icon]}") do
-              render UI::Icon.new(icon.to_sym, class: "w-full h-full")
-            end
-          end
-
-          # Name
-          span(class: "flex-1 text-[12.5px] font-semibold text-gray-800 leading-tight") do
-            plain method["label"]
-          end
-
-          # Visibility toggle
-          label(class: "relative inline-flex items-center cursor-pointer flex-shrink-0") do
-            input(
-              type:    "checkbox",
-              class:   "sr-only peer",
-              checked: visible ? true : nil,
-              data: {
-                role:   "method-toggle",
-                action: "change->checkout-layout#toggleMethod"
-              }
-            )
-            span(
-              class: "w-7 h-[15px] bg-gray-200 rounded-full peer " \
-                     "peer-checked:bg-[#3D47F5] transition-colors"
-            ) { }
-            span(
-              class: "absolute left-[2px] top-[2px] w-[11px] h-[11px] bg-white rounded-full " \
-                     "transition-transform peer-checked:translate-x-[13px]"
-            ) { }
-          end
-        end
-
-        # Style segmented pill (no label — Compact/Expanded speak for themselves)
-        div(class: "px-3 pb-[10px]") do
-          div(class: "flex items-center bg-gray-100 rounded-lg p-[3px] gap-[2px]") do
-            tile_style_btn(method["id"], tile_style, "compact",  "Compact")
-            tile_style_btn(method["id"], tile_style, "expanded", "Expanded")
-          end
-        end
-
-        # Networks section — Mobile Money only
-        if method["rails"]&.any?
-          div(class: "border-t border-gray-50 px-3 pt-2 pb-[10px]") do
-            div(class: "flex items-center gap-2 mb-[7px]") do
-              div(class: "h-px flex-1 bg-gray-100")
-              span(class: "text-[9px] font-semibold uppercase tracking-[0.12em] text-gray-400") { plain "Networks" }
-              div(class: "h-px flex-1 bg-gray-100")
-            end
-            div(class: "flex flex-col gap-[2px]") do
-              method["rails"].each { |rail| rail_row(rail) }
-            end
-          end
-        end
-
-        # Card: show accepted scheme logos (informational — not configurable)
-        if method["id"] == "card"
-          div(class: "border-t border-gray-50 px-3 pt-2 pb-[10px]") do
-            div(class: "flex items-center gap-2 mb-[7px]") do
-              div(class: "h-px flex-1 bg-gray-100")
-              span(class: "text-[9px] font-semibold uppercase tracking-[0.12em] text-gray-400") { plain "Accepted cards" }
-              div(class: "h-px flex-1 bg-gray-100")
-            end
-            div(class: "flex items-center gap-[5px]") do
-              raw safe(card_scheme_editor_badges)
-            end
-          end
-        end
-      end
-    end
-
-    def tile_style_btn(method_id, current, value, label)
-      active = current == value
-      label(class: "tile-style-btn text-[10.5px] font-medium py-[4px] cursor-pointer") do
-        input(
-          type:    "radio",
-          name:    "tile_style_#{method_id}",
-          value:   value,
-          class:   "sr-only",
-          checked: active ? true : nil,
-          data:    { role: "tile-style", action: "change->checkout-layout#setTileStyle" }
-        )
-        plain label
-      end
-    end
-
-    def rail_row(rail)
-      visible = rail["visible"] != false
-      div(
-        class: "flex items-center gap-2 py-[3px]",
-        data:  { rail_id: rail["id"], rail_label: rail["label"] }
-      ) do
-        span(class: "w-[5px] h-[5px] rounded-full bg-gray-200 flex-shrink-0") { }
-        span(class: "flex-1 text-[11.5px] font-medium text-gray-500") { plain rail["label"] }
-        input(
-          type:    "checkbox",
-          class:   "w-[13px] h-[13px] accent-[#3D47F5] cursor-pointer flex-shrink-0",
-          checked: visible ? true : nil,
-          data:    { role: "rail-toggle", action: "change->checkout-layout#toggleRail" }
-        )
-      end
-    end
-
     # ── Right preview area ────────────────────────────────────────────────────
 
     def preview_area
+      cl             = @link["checkout_layout"] || {}
+      brand_color    = @checkout_config["brand_colour"].presence || cl["brand_color"].presence || "#3D47F5"
+      saved_logo     = @checkout_config["logo_url"].presence || ""
+      default_name   = @branding&.display_name.presence || "Your business"
+      merchant_name  = @checkout_config["display_name"].presence || cl["business_name"].presence || default_name
+      sym            = currency_symbol(@link["currency"].to_s)
+      amt            = @link["amount"].to_i
+      amount_display = amt > 0 ? "#{sym} #{format_amount(amt)}" : "You choose"
+      cta_text       = cl["cta_text"].presence || (amt > 0 ? "Pay #{sym} #{format_amount(amt)}" : "Pay now")
+      saved_headline = cl["headline"].to_s.presence
+      terms_config   = cl["terms"] || {}
+      terms_data     = if terms_config["enabled"] == true
+        { label: terms_config["label"].presence || "I agree to the Terms & Conditions",
+          url:   terms_config["url"].to_s }
+      end
+
       div(
         class: "absolute top-[76px] right-0 bottom-0 flex flex-col items-center justify-start pt-5 pb-5 " \
                "overflow-y-auto",
         style: "left: 348px"
       ) do
-        # Share URL pill
         wa_text = CGI.escape("#{@link["description"].presence || "Pay here"}: #{@link["checkout_url"]}")
         div(
-          class: "w-full max-w-[460px] flex items-center gap-0 mb-5 bg-white border border-gray-200/80 " \
+          class: "w-full max-w-[900px] flex items-center gap-0 mb-5 bg-white border border-gray-200/80 " \
                  "rounded-2xl overflow-hidden shadow-[0_4px_20px_rgba(0,0,0,0.06)] select-none"
         ) do
           div(class: "flex items-center gap-2.5 flex-1 min-w-0 px-4 py-[9px]") do
@@ -658,321 +465,23 @@ module Checkout
           end
         end
 
-        checkout_card_preview
-      end
-    end
-
-    def checkout_card_preview
-      saved_color = @checkout_config["brand_colour"].presence || "#3D47F5"
-      div(
-        class: "w-full max-w-[460px] bg-white rounded-2xl border border-gray-200/70 " \
-               "overflow-x-hidden overflow-y-auto max-h-[calc(100vh-200px)] " \
-               "shadow-[0_8px_32px_rgba(0,0,0,0.07),0_2px_8px_rgba(0,0,0,0.04)]",
-        style: "--preview-brand:#{saved_color}",
-        data:  { checkout_layout_target: "previewCard" }
-      ) do
-        # Header
-        div(class: "px-5 pt-5 pb-[18px]") do
-          div(class: "flex items-center justify-between mb-4") do
-            div(class: "flex items-center gap-2") do
-              saved_logo = @checkout_config["logo_url"].presence || ""
-              if saved_logo.present?
-                img(
-                  src:   saved_logo,
-                  alt:   "Logo",
-                  class: "w-7 h-7 rounded-lg object-cover flex-shrink-0 border border-gray-100",
-                  data:  { checkout_layout_target: "previewLogoImg" }
-                )
-              else
-                div(
-                  class: "w-7 h-7 rounded-lg flex items-center justify-center",
-                  style: "background:var(--preview-brand, #3D47F5)",
-                  data:  { checkout_layout_target: "previewLogoImg" }
-                ) do
-                  span(class: "flex w-[13px] h-[13px] text-white") { render UI::Icon.new(:shield, class: "w-full h-full") }
-                end
-              end
-              default_biz = @checkout_config["display_name"].presence ||
-                            @branding&.display_name.presence || "Your business"
-              span(
-                class: "text-[12px] font-bold text-gray-900 tracking-tight",
-                data:  { preview_biz_name: "", default_name: default_biz }
-              ) do
-                plain @checkout_config["display_name"].presence || default_biz
-              end
-            end
-            span(
-              class: "text-[10.5px] font-semibold px-[8px] py-[2px] rounded-full bg-gray-100 text-gray-500"
-            ) { plain (@link["mode"] || "simulation").capitalize }
-          end
-
-          p(class: "text-[11.5px] font-medium text-gray-400 leading-snug mb-[6px]") do
-            plain @link["description"] || "Complete your payment"
-          end
-          if @link["amount"]
-            p(class: "text-[30px] font-extrabold text-gray-900 tabular-nums leading-none") do
-              plain "#{currency_symbol(@link["currency"])}#{format_amount(@link["amount"])}"
-            end
-          else
-            p(class: "text-[13px] text-gray-500") { plain "Amount set at checkout" }
-          end
-        end
-
-        div(class: "h-px bg-gray-100")
-
-        # Headline (always rendered; hidden when blank so JS can show/hide)
-        saved_headline = @link.dig("checkout_layout", "headline").presence
-        div(
-          class: "px-5 pt-4 pb-1",
-          data:  { preview_headline_wrapper: "" },
-          style: saved_headline ? "" : "display:none"
-        ) do
-          p(
-            class: "text-[13px] font-semibold text-gray-700 leading-snug",
-            data:  { preview_headline: "" }
-          ) { plain saved_headline.to_s }
-        end
-
-        # Collect fields — appear BEFORE method selection, matching the actual checkout layout
-        collect_any = @link["collect_email"] || @link["collect_phone"] || @link["collect_name"]
-        if collect_any
-          div(class: "h-px bg-gray-100")
-          div(class: "px-4 pt-3 pb-2 flex flex-col gap-[5px]") do
-            p(class: "text-[9px] font-bold uppercase tracking-[0.14em] text-gray-400 mb-1") do
-              plain "Your details"
-            end
-            if @link["collect_name"]
-              div(class: "h-[34px] rounded-lg bg-gray-50 border border-gray-100 flex items-center px-3") do
-                span(class: "text-[11px] text-gray-300") { plain "Full name" }
-              end
-            end
-            if @link["collect_email"]
-              div(class: "h-[34px] rounded-lg bg-gray-50 border border-gray-100 flex items-center px-3") do
-                span(class: "text-[11px] text-gray-300") { plain "Email address" }
-              end
-            end
-            if @link["collect_phone"]
-              div(class: "h-[34px] rounded-lg bg-gray-50 border border-gray-100 flex items-center px-3") do
-                span(class: "text-[11px] text-gray-300") { plain "Phone number" }
-              end
-            end
-          end
-        end
-
-        # Method list
-        div(class: "h-px bg-gray-100") if collect_any
-        div(
-          class: "px-4 pt-4 pb-3 flex flex-col gap-[6px]",
-          data:  { checkout_layout_target: "previewList" }
-        ) do
-          p(class: "text-[9px] font-bold uppercase tracking-[0.14em] text-gray-400 mb-1") do
-            plain "Select payment method"
-          end
-          methods_to_render.each { |m| preview_method_tile(m) }
-          p(
-            class: "text-center text-[12px] text-gray-300 py-4",
-            data:  { checkout_layout_target: "emptyPreview" },
-            hidden: methods_to_render.any? { |m| m["visible"] != false }
-          ) { plain "No methods enabled" }
-        end
-
-        # Terms row (shown only when enabled)
-        terms_config   = @link.dig("checkout_layout", "terms") || {}
-        terms_enabled  = terms_config["enabled"] == true
-        terms_label    = terms_config["label"].presence || "I agree to the Terms & Conditions"
-        terms_url      = terms_config["url"].to_s
-        div(
-          class: "px-4 pb-3",
-          data:  { preview_terms_row: "" },
-          hidden: !terms_enabled
-        ) do
-          div(class: "flex items-start gap-[8px] px-3 py-[9px] bg-gray-50 rounded-xl border border-gray-100") do
-            div(
-              class: "w-[13px] h-[13px] mt-[1px] rounded-[3px] border-[2px] flex-shrink-0",
-              style: "border-color:var(--preview-brand, #3D47F5)"
-            ) { }
-            span(
-              class: "text-[11px] leading-snug flex-1 #{terms_url.present? ? 'underline' : 'text-gray-500'}",
-              style: terms_url.present? ? "color:var(--preview-brand, #3D47F5)" : "",
-              data:  { preview_terms_label: "" }
-            ) { plain terms_label }
-          end
-        end
-
-        # Pay button
-        div(class: "px-4 pb-4 pt-3") do
-          saved_cta    = @link.dig("checkout_layout", "cta_text").presence
-          button_label = if saved_cta
-            saved_cta
-          elsif @link["amount"]
-            "Pay #{currency_symbol(@link["currency"])}#{format_amount(@link["amount"])}"
-          else
-            "Continue"
-          end
-          div(
-            class: "w-full py-[11px] rounded-xl text-[13px] font-semibold text-white " \
-                   "flex items-center justify-center gap-[6px] pointer-events-none select-none",
-            style: "background:var(--preview-brand, #3D47F5)",
-            data:  { checkout_layout_target: "previewPayBtn", default_label: button_label }
-          ) do
-            plain button_label
-            span(class: "flex w-[13px] h-[13px]") { render UI::Icon.new(:arrow_right, class: "w-full h-full") }
-          end
-        end
-
-        # Footer
-        div(class: "px-4 py-3 border-t border-gray-100 flex items-center justify-center gap-[5px]") do
-          span(class: "flex w-[10px] h-[10px] text-gray-300") { render UI::Icon.new(:lock, class: "w-full h-full") }
-          span(class: "text-[9.5px] text-gray-300") { plain "Secured by" }
-          span(class: "text-[9.5px] font-bold", style: "color:var(--preview-brand, #3D47F5)") { plain "Yagye" }
-        end
-      end
-    end
-
-    def preview_method_tile(method)
-      icon     = METHOD_ICONS[method["id"]] || "credit_card"
-      colors   = METHOD_COLORS[method["id"]] || { bg: "rgba(107,114,128,0.09)", icon: "#6b7280" }
-      expanded = method["tile_style"] == "expanded"
-
-      div(
-        class: expanded ? "rounded-xl overflow-hidden bg-white" \
-                        : "rounded-xl overflow-hidden bg-white border border-gray-200",
-        style: expanded ? "border: 2px solid var(--preview-brand, #3D47F5); box-shadow: 0 4px 16px rgba(0,0,0,0.09)" \
-                        : "",
-        data: { preview_method: method["id"] }
-      ) do
-        # Header row
-        div(class: "flex items-center gap-3 px-4 py-3") do
-          # Radio — data attr lets JS update it without class-string surgery
-          div(
-            class: "w-[17px] h-[17px] rounded-full flex items-center justify-center flex-shrink-0 border-2 " \
-                   "#{expanded ? '' : 'border-gray-300'}",
-            style: expanded ? "background:var(--preview-brand, #3D47F5); border-color:var(--preview-brand, #3D47F5)" : "",
-            data: { preview_tile_radio: "" }
-          ) do
-            # Dot always in DOM; hidden when compact
-            div(class: "w-[6px] h-[6px] rounded-full bg-white",
-                hidden: !expanded,
-                data: { preview_tile_radio_dot: "" }) { }
-          end
-
-          span(
-            class: "w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0",
-            style: "background:#{colors[:bg]}"
-          ) do
-            span(class: "flex w-[16px] h-[16px]", style: "color:#{colors[:icon]}") do
-              render UI::Icon.new(icon.to_sym, class: "w-full h-full")
-            end
-          end
-
-          span(
-            class: "flex-1 text-[13.5px] font-semibold " \
-                   "#{expanded ? 'text-gray-900' : 'text-gray-700'}",
-            data: { preview_tile_label: "" }
-          ) { plain method["label"] }
-
-          span(
-            class: "flex w-[15px] h-[15px] flex-shrink-0 #{expanded ? '' : 'text-gray-400'}",
-            style: expanded ? "color:var(--preview-brand, #3D47F5)" : "",
-            data:  { preview_tile_chevron: "" }
-          ) do
-            render UI::Icon.new(expanded ? :chev_up : :chev, class: "w-full h-full")
-          end
-        end
-
-        # Expanded content — always in DOM so JS can show/hide it without a round-trip.
-        # Each method renders its own content block; hidden when tile_style is compact.
-        case method["id"]
-        when "mobile_money"
-          div(class: "border-t border-gray-100 px-3 pt-2 pb-3",
-              hidden: !expanded,
-              data:   { preview_tile_expanded: "", preview_rails_for: method["id"] }) do
-            div(class: "grid grid-cols-3 gap-[5px]") do
-              method["rails"]&.each do |rail|
-                div(class: "flex flex-col items-center gap-[5px] py-[8px] px-1 " \
-                           "rounded-lg border border-gray-100 bg-gray-50/60",
-                    hidden: rail["visible"] == false,
-                    data:   { preview_rail: rail["id"] }) do
-                  span(class: "w-[22px] h-[22px] rounded-full overflow-hidden flex-shrink-0 flex") do
-                    raw safe(rail_svg(rail["id"]))
-                  end
-                  span(class: "text-[9px] font-semibold text-gray-600 text-center leading-tight") do
-                    plain rail["label"]
-                  end
-                end
-              end
-            end
-          end
-        when "card"
-          div(class: "border-t border-gray-100 px-4 pt-3 pb-4",
-              hidden: !expanded,
-              data:   { preview_tile_expanded: "" }) do
-            div(class: "flex items-center gap-[5px] mb-3") { raw safe(card_scheme_preview_badges) }
-            div(class: "h-[34px] rounded-lg bg-gray-50 border border-gray-200 mb-[6px] " \
-                       "flex items-center justify-between px-3") do
-              span(class: "text-[11px] text-gray-300 font-mono tracking-widest") { plain "•••• •••• •••• ••••" }
-              span(class: "text-[9px] font-bold text-gray-300") { plain "VISA" }
-            end
-            div(class: "flex gap-[6px] mb-[6px]") do
-              div(class: "flex-1 h-[34px] rounded-lg bg-gray-50 border border-gray-200 flex items-center px-3") do
-                span(class: "text-[11px] text-gray-300") { plain "MM / YY" }
-              end
-              div(class: "flex-1 h-[34px] rounded-lg bg-gray-50 border border-gray-200 flex items-center px-3") do
-                span(class: "text-[11px] text-gray-300") { plain "CVV" }
-              end
-            end
-            div(class: "h-[34px] rounded-lg bg-gray-50 border border-gray-200 flex items-center px-3") do
-              span(class: "text-[11px] text-gray-300") { plain "Name on card" }
-            end
-          end
-        when "bank_transfer"
-          div(class: "border-t border-gray-100 px-4 pt-3 pb-4",
-              hidden: !expanded,
-              data:   { preview_tile_expanded: "" }) do
-            div(class: "bg-indigo-50/60 rounded-xl px-3 py-[10px] flex items-start gap-[6px]") do
-              span(class: "text-indigo-400 text-[11px] leading-tight flex-shrink-0 mt-[1px]") { plain "ⓘ" }
-              div do
-                p(class: "text-[10px] font-semibold text-indigo-700 mb-[2px]") do
-                  plain "Unique account per payment"
-                end
-                p(class: "text-[9.5px] text-gray-500 leading-snug") do
-                  plain "A dedicated GhIPSS bank account is generated at checkout. Transfer the exact amount — confirmed automatically."
-                end
-              end
-            end
-          end
-        end
-      end
-    end
-
-    # Card scheme badges for the preview tile (slightly larger)
-    def card_scheme_preview_badges
-      [
-        %(<svg width="36" height="22" viewBox="0 0 36 22" fill="none"><rect width="36" height="22" rx="3" fill="#1A1F71"/><text x="18" y="15" font-family="Arial,sans-serif" font-size="9" font-weight="bold" font-style="italic" fill="white" text-anchor="middle">VISA</text></svg>),
-        %(<svg width="36" height="22" viewBox="0 0 36 22" fill="none"><rect width="36" height="22" rx="3" fill="#FAFAFA" stroke="#E5E7EB" stroke-width="0.75"/><circle cx="14" cy="11" r="7" fill="#EB001B"/><circle cx="22" cy="11" r="7" fill="#F79E1B"/><circle cx="18" cy="11" r="7" fill="#FF5F00" fill-opacity="0.55"/></svg>),
-        %(<svg width="36" height="22" viewBox="0 0 36 22" fill="none"><rect width="36" height="22" rx="3" fill="#006D35"/><text x="18" y="15" font-family="Arial,sans-serif" font-size="8" font-weight="bold" fill="white" text-anchor="middle">VERVE</text></svg>)
-      ].join
-    end
-
-    # Smaller badges for the editor panel info row
-    def card_scheme_editor_badges
-      [
-        %(<svg width="30" height="18" viewBox="0 0 30 18" fill="none"><rect width="30" height="18" rx="3" fill="#1A1F71"/><text x="15" y="13" font-family="Arial,sans-serif" font-size="7.5" font-weight="bold" font-style="italic" fill="white" text-anchor="middle">VISA</text></svg>),
-        %(<svg width="30" height="18" viewBox="0 0 30 18" fill="none"><rect width="30" height="18" rx="3" fill="#FAFAFA" stroke="#E5E7EB" stroke-width="0.75"/><circle cx="11" cy="9" r="5.5" fill="#EB001B"/><circle cx="19" cy="9" r="5.5" fill="#F79E1B"/><circle cx="15" cy="9" r="5.5" fill="#FF5F00" fill-opacity="0.55"/></svg>),
-        %(<svg width="30" height="18" viewBox="0 0 30 18" fill="none"><rect width="30" height="18" rx="3" fill="#006D35"/><text x="15" y="12.5" font-family="Arial,sans-serif" font-size="6.5" font-weight="bold" fill="white" text-anchor="middle">VERVE</text></svg>)
-      ].join
-    end
-
-    def rail_svg(id)
-      case id
-      when "mtn_momo"
-        %(<svg width="22" height="22" viewBox="0 0 32 32" fill="none"><rect width="32" height="32" rx="16" fill="#FFCC00"/><path d="M7 16c0-4.97 4.03-9 9-9s9 4.03 9 9-4.03 9-9 9-9-4.03-9-9z" fill="#002B49"/><path d="M12 19.5v-7l3 4.5 3-4.5v7" stroke="#FFCC00" stroke-width="2" stroke-linecap="round"/></svg>)
-      when "telecel_cash"
-        %(<svg width="22" height="22" viewBox="0 0 32 32" fill="none"><circle cx="16" cy="16" r="16" fill="#E60000"/><circle cx="16" cy="16" r="10" stroke="#FFF" stroke-width="2.5" fill="none"/><path d="M16 11v10M12 15h8" stroke="#FFF" stroke-width="2.5" stroke-linecap="round"/></svg>)
-      when "airteltigo"
-        %(<svg width="22" height="22" viewBox="0 0 32 32" fill="none"><circle cx="16" cy="16" r="16" fill="#1A2B4C"/><path d="M0 16a16 16 0 0 0 32 0H0z" fill="#ED1C24"/><path d="M10 23L16 10L22 23" stroke="#FFF" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" fill="none"/><path d="M12.5 18.5h7" stroke="#FFF" stroke-width="2.5" stroke-linecap="round"/></svg>)
-      else
-        %(<svg width="22" height="22" viewBox="0 0 32 32" fill="none"><circle cx="16" cy="16" r="16" fill="#E5E7EB"/></svg>)
+        render Checkout::PaymentLinks::PreviewCardComponent.new(
+          brand_color:     brand_color,
+          merchant_name:   merchant_name,
+          logo_url:        saved_logo,
+          amount_display:  amount_display,
+          description:     @link["description"].presence || "Payment",
+          allowed_methods: Array(@link["allowed_methods"]),
+          collect_email:   @link["collect_email"],
+          collect_phone:   @link["collect_phone"],
+          collect_name:    @link["collect_name"],
+          cta_text:        cta_text,
+          escrow_enabled:  @link["escrow_enabled"],
+          mode:            @link["mode"],
+          show_label:      false,
+          headline:        saved_headline,
+          terms:           terms_data
+        )
       end
     end
 

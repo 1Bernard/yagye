@@ -4,8 +4,8 @@ Payment confirmed – <%= @currency %> <%= @amount %>
 Your payment has been received successfully.
 
   Amount:         <%= @currency %> <%= @amount %>
-  Merchant:       <%= @merchant_code %>
-  Payment method: <%= @method %>
+  Merchant:       <%= @merchant_name %>
+  Payment method: <%= @network.present? ? "#{@method} · #{@network}" : @method %>
   Reference:      <%= @public_id %>
 <% if @paid_at.present? %>
   Date:           <%= @paid_at %>

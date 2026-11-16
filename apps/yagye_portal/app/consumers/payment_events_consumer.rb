@@ -183,13 +183,18 @@ class PaymentEventsConsumer < ApplicationConsumer
     end
 
     if event.customer_email.present?
+      merchant      = PortalMerchant.find_for(event.merchant_code)
+      merchant_name = merchant&.trading_name.presence || event.merchant_code
+      network       = event.metadata["network"].presence
+
       ReceiptMailer.payment_confirmed(
         to:            event.customer_email,
         amount:        event.amount,
         currency:      event.currency,
         public_id:     event.public_id,
-        merchant_code: event.merchant_code,
+        merchant_name: merchant_name,
         method:        event.payment_method,
+        network:       network,
         paid_at:       event.paid_at.to_s
       ).deliver_later
     end

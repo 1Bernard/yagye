@@ -12,7 +12,7 @@ module Developers
       render Layout::Shell.new(
         active_nav:  :merchant_routing,
         title:       "My Routing",
-        breadcrumbs: [{ label: "My Routing" }]
+        breadcrumbs: [ { label: "My Routing" } ]
       ) do
         render UI::PageHeader.new(
           title:    "Payment Routing",

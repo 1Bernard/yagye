@@ -15,23 +15,23 @@ module UI
 
     FIELD_DISPLAY = {
       "payment_method" => { label: "Payment Method", type: :enum,
-                            options: [%w[Mobile\ Money mobile_money], %w[Card card], %w[Bank\ Transfer bank_transfer]] },
+                            options: [ %w[Mobile\ Money mobile_money], %w[Card card], %w[Bank\ Transfer bank_transfer] ] },
       "status"         => { label: "Status", type: :enum,
-                            options: [%w[Paid paid], %w[Failed failed], %w[Processing processing],
-                                      %w[Initiated initiated], %w[Refunded refunded], %w[Cancelled cancelled]] },
+                            options: [ %w[Paid paid], %w[Failed failed], %w[Processing processing],
+                                      %w[Initiated initiated], %w[Refunded refunded], %w[Cancelled cancelled] ] },
       "provider"       => { label: "Provider", type: :enum,
-                            options: [%w[MTN\ MoMo mtn_momo], %w[Telecel\ Cash telecel_cash],
-                                      %w[AirtelTigo airteltigo], %w[Simulator simulator]] },
+                            options: [ %w[MTN\ MoMo mtn_momo], %w[Telecel\ Cash telecel_cash],
+                                      %w[AirtelTigo airteltigo], %w[Simulator simulator] ] },
       "network"        => { label: "Network", type: :enum,
-                            options: [%w[MTN MTN], %w[Telecel Telecel], %w[AirtelTigo AirtelTigo]] },
+                            options: [ %w[MTN MTN], %w[Telecel Telecel], %w[AirtelTigo AirtelTigo] ] },
       "risk_decision"  => { label: "Risk Decision", type: :enum,
-                            options: [%w[Review review], %w[Block block], %w[Pass pass]] },
+                            options: [ %w[Review review], %w[Block block], %w[Pass pass] ] },
       "amount"         => { label: "Amount (pesewas)", type: :integer },
       "created_at"     => { label: "Created At", type: :date }
     }.freeze
 
-    STRING_OPS  = [%w[equals eq], %w[not\ equals neq], %w[is\ in in], %w[not\ in not_in]].freeze
-    NUMERIC_OPS = [%w[equals eq], %w[≠ neq], %w[> gt], %w[≥ gte], %w[< lt], %w[≤ lte]].freeze
+    STRING_OPS  = [ %w[equals eq], %w[not\ equals neq], %w[is\ in in], %w[not\ in not_in] ].freeze
+    NUMERIC_OPS = [ %w[equals eq], %w[≠ neq], %w[> gt], %w[≥ gte], %w[< lt], %w[≤ lte] ].freeze
     DATE_OPS    = NUMERIC_OPS
 
     def initialize(fields: FIELD_DISPLAY, conditions: nil, merchant: false)

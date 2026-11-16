@@ -11,10 +11,10 @@ module Payments
       # merchant_customer_ref is the MoMo MSISDN for mobile-money customers —
       # the same value stored as payment.customer_msisdn. c["msisdn"] is the
       # separately-collected contact phone, which can differ.
-      msisdns  = customers.filter_map { |c| c["merchant_customer_ref"] }.uniq
+      refs     = customers.filter_map { |c| c["merchant_customer_ref"] }.uniq
       query    = Payments::CustomerStatsQuery.new(payment_scope)
-      stats    = query.call(msisdns: msisdns)
-      networks = query.primary_networks(msisdns: msisdns)
+      stats    = query.call(refs: refs)
+      networks = query.primary_networks(refs: refs)
 
       render Payments::Customers::IndexView.new(
         customers: customers,
@@ -30,10 +30,10 @@ module Payments
       return redirect_to(customers_path, alert: "Customer not found.") unless result.success?
 
       customer = result.body
-      momo     = customer["merchant_customer_ref"]
+      ref      = customer["merchant_customer_ref"]
       query    = Payments::CustomerStatsQuery.new(payment_scope)
-      stat     = momo.present? ? query.call(msisdns: [ momo ])[momo] : nil
-      network  = momo.present? ? query.primary_networks(msisdns: [ momo ])[momo] : nil
+      stat     = ref.present? ? query.call(refs: [ ref ])[ref] : nil
+      network  = ref.present? ? query.primary_networks(refs: [ ref ])[ref] : nil
 
       render Payments::Customers::ShowView.new(customer: customer, stat: stat, network: network)
     end

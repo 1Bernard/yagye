@@ -60,7 +60,7 @@ module Developers
 
           priority_field
           enabled_methods_field
-          credentials_section if @mode == :new
+          credentials_section
 
           div(class: "flex gap-3 pt-2") do
             button(type: "submit", class: "#{BTN_PRIMARY} flex-1 justify-center") do
@@ -117,12 +117,15 @@ module Developers
 
     def enabled_methods_field
       selected = @connection ? Array(@connection["enabled_methods"]) : []
+      # Default all checked only when creating a new connection (no connection record yet).
+      # When editing, honour the saved methods exactly — don't re-check everything.
+      new_connection = @connection.nil?
 
       div(class: "flex flex-col gap-2") do
         p(class: FIELD_LABEL) { plain "Enabled payment methods" }
         div(class: "flex flex-col gap-2") do
           METHODS.each do |m|
-            checked = selected.include?(m[:value]) || selected.empty?
+            checked = selected.include?(m[:value]) || new_connection
             label(class: "flex items-center gap-3 cursor-pointer") do
               input(type: "checkbox", name: "enabled_methods[]",
                     value: m[:value], checked: checked,
@@ -136,22 +139,31 @@ module Developers
     end
 
     def credentials_section
+      edit = @mode == :edit
       div(class: "flex flex-col gap-4 pt-1 border-t border-gray-100") do
-        p(class: "text-[12px] font-semibold text-gray-500 uppercase tracking-wide pt-1") do
-          plain "API Credentials"
+        div(class: "flex items-center justify-between pt-1") do
+          p(class: "text-[12px] font-semibold text-gray-500 uppercase tracking-wide") do
+            plain "API Credentials"
+          end
+          if edit
+            p(class: TYPE_MICRO + " text-gray-400") { plain "Leave blank to keep existing values." }
+          end
         end
 
         div(class: "flex flex-col gap-1") do
-          label(for: "api_key", class: FIELD_LABEL) { plain "API Key" }
+          label(for: "api_key", class: FIELD_LABEL) { plain "Publishable Key" }
           input(type: "text", name: "api_key", id: "api_key",
-                placeholder: "pk_live_…", class: INPUT_FIELD, autocomplete: "off")
+                placeholder: edit ? "pk_…  (leave blank to keep existing)" : "pk_live_…",
+                class: INPUT_FIELD, autocomplete: "off")
+          p(class: FORM_HINT) { plain "Used client-side (e.g. Stripe.js). Safe to expose." }
         end
 
         div(class: "flex flex-col gap-1") do
           label(for: "secret_key", class: FIELD_LABEL) { plain "Secret Key" }
           input(type: "password", name: "secret_key", id: "secret_key",
-                placeholder: "sk_live_…", class: INPUT_FIELD, autocomplete: "new-password")
-          p(class: FORM_HINT) { plain "Your secret key is encrypted and stored securely." }
+                placeholder: edit ? "sk_…  (leave blank to keep existing)" : "sk_live_…",
+                class: INPUT_FIELD, autocomplete: "new-password")
+          p(class: FORM_HINT) { plain "Encrypted and stored securely — never exposed after save." }
         end
 
         div(class: "flex flex-col gap-1") do

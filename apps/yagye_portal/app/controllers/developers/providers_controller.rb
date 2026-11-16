@@ -6,13 +6,15 @@ module Developers
 
     SUPPORTED_PSPS = [
       { code: "paystack",    label: "Paystack",    color: "#00C3F7" },
-      { code: "flutterwave", label: "Flutterwave", color: "#F5A623" }
+      { code: "flutterwave", label: "Flutterwave", color: "#F5A623" },
+      { code: "stripe",      label: "Stripe",      color: "#635BFF" }
     ].freeze
 
     def index
       authorize :developers, :manage_psp_connections?
       result = core.list_provider_connections(current_user.merchant_code)
-      @connections = result.success? ? (result.body["data"] || []) : []
+      all = result.success? ? (result.body["data"] || []) : []
+      @connections = all.select { |c| c["provider_kind"] == "external_psp" }
       render Developers::ProvidersIndexView.new(connections: @connections, psps: SUPPORTED_PSPS)
     end
 
@@ -62,7 +64,10 @@ module Developers
       attrs = {
         priority:        params[:priority].to_i.clamp(1, 99),
         status:          params[:status].presence,
-        enabled_methods: Array(params[:enabled_methods]).reject(&:empty?)
+        enabled_methods: Array(params[:enabled_methods]).reject(&:empty?),
+        api_key:         params[:api_key].presence,
+        secret_key:      params[:secret_key].presence,
+        base_url:        params[:base_url].presence
       }.compact
 
       result = core.update_provider_connection(params[:id], attrs)

@@ -94,7 +94,7 @@ class RiskFlaggedPaymentsTest < ActionDispatch::IntegrationTest
     post dispose_risk_flagged_payment_path("pay-uuid-1"),
          params: { label: "false_positive", note: "benign" }
     # ops_analyst does not have risk.disposition — expect Pundit redirect
-    assert_includes [302, 403], response.status
+    assert_includes [ 302, 403 ], response.status
   end
 
   test "ops_manager with risk.disposition can dispose a case" do

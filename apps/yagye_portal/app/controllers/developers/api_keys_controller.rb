@@ -54,7 +54,7 @@ module Developers
 
     def create
       authorize :developers, :manage_keys?
-      requested_mode = key_params[:mode].presence_in(%w[live test]) || "test"
+      requested_mode = key_params[:mode].presence_in(%w[live sandbox test]) || "test"
       if requested_mode == "live" && !live_mode_allowed?
         redirect_to developers_url(tab: "api_keys"),
                     alert: "Live mode has not been enabled for your account yet."

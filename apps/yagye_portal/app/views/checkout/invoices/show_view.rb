@@ -29,7 +29,7 @@ module Checkout
               class: "relative w-full overflow-hidden",
               style: "height: 100vh") do
             floating_toolbar
-            div(class: "absolute top-[76px] left-0 right-0 bottom-0") do
+            div(id: "inv-show-wrap", class: "absolute top-[76px] left-0 right-0 bottom-0") do
               left_panel
               right_area
             end
@@ -49,6 +49,13 @@ module Checkout
             background-color: #f8fafc;
             background-image: radial-gradient(circle at 1px 1px, #d1d5db 1px, transparent 0);
             background-size: 24px 24px;
+          }
+          @media print {
+            .inv-no-print { display: none !important; }
+            #inv-show-canvas { background: none; position: static; height: auto; overflow: visible; }
+            #inv-show-wrap   { position: static; height: auto; overflow: visible; }
+            .inv-right-area  { position: static; left: auto; top: auto; overflow: visible; padding: 0; }
+            .inv-doc-card    { box-shadow: none; border: 1px solid #e5e7eb; width: 100%; max-width: 100%; }
           }
         CSS
       end
@@ -81,13 +88,6 @@ module Checkout
             plain (@inv["mode"] || "simulation").capitalize
           end
 
-          span(class: "#{BADGE_XS} #{STATUS_NEUTRAL} flex items-center gap-[4px]") do
-            span(class: "flex w-[10px] h-[10px]") { render UI::Icon.new(:eye, class: "w-full h-full") }
-            plain "Overview"
-          end
-
-          toolbar_divider
-
           button(
             type:  "button",
             id:    "inv-print-btn",
@@ -107,14 +107,18 @@ module Checkout
               render UI::Icon.new(:edit, class: "w-3.5 h-3.5 text-gray-400")
               plain "Edit"
             end
-          end
 
-          if checkout_url.present? && state != "draft"
-            a(href: checkout_url, target: "_blank", rel: "noopener noreferrer",
-              class: "flex items-center gap-[5px] px-[10px] py-[5px] rounded-xl text-[12.5px] font-semibold " \
-                     "bg-[#3D47F5] hover:bg-[#2e38d4] text-white transition-colors no-underline") do
-              render UI::Icon.new(:arrow_right, class: "w-3.5 h-3.5")
-              plain "Open"
+            form(action: issue_invoice_path(@inv["id"]), method: "post", style: "display:contents") do
+              input(type: "hidden", name: "authenticity_token", value: form_authenticity_token)
+              input(type: "hidden", name: "allowed_methods[]",  value: "mobile_money")
+              button(
+                type:  "submit",
+                class: "flex items-center gap-[5px] px-[10px] py-[5px] rounded-xl text-[12.5px] font-semibold " \
+                       "bg-[#3D47F5] hover:bg-[#2e38d4] text-white transition-colors cursor-pointer border-0"
+              ) do
+                render UI::Icon.new(:paper_plane, class: "w-3.5 h-3.5")
+                plain "Issue"
+              end
             end
           end
 
@@ -177,11 +181,6 @@ module Checkout
               details_section
               panel_divider
               amounts_section
-
-              if @inv["state"] == "draft"
-                panel_divider
-                issue_section
-              end
 
               if @inv["notes"].present? || @inv["terms"].present?
                 panel_divider
@@ -389,15 +388,12 @@ module Checkout
       end
 
       def print_script
-        print_url = invoice_print_path(@inv["id"])
         script(nonce: content_security_policy_nonce) do
           raw safe(<<~JS)
             (function () {
               var btn = document.getElementById('inv-print-btn');
               if (!btn) return;
-              btn.addEventListener('click', function () {
-                window.open(#{print_url.to_json}, '_blank');
-              });
+              btn.addEventListener('click', function () { window.print(); });
             })();
           JS
         end
@@ -461,7 +457,6 @@ module Checkout
               document_header
               billing_strip_section
               status_banner
-              document_divider
               line_items_section
               totals_section
               notes_footer if @inv["notes"].present? || @inv["terms"].present?
@@ -475,33 +470,28 @@ module Checkout
 
       def document_header
         merchant_name = current_user.active_membership&.merchant_name.to_s.presence || "Your business"
-        merchant_code = current_user.merchant_code.to_s
         initials      = merchant_name.split.first(2).map { |w| w[0].upcase }.join
 
-        div(class: "flex items-start justify-between px-10 pt-9 pb-7 gap-6") do
-          # Left: logo + merchant identity
-          div(class: "flex items-center gap-3.5") do
+        div(class: "flex items-start justify-between px-10 pt-9 pb-6 gap-6") do
+          # Left: "Invoice" title + number
+          div do
+            p(class: "text-[34px] font-black text-gray-900 leading-none tracking-tight") { plain "Invoice" }
+            p(class: "text-[13px] text-gray-400 mt-1.5 font-mono") do
+              plain "#" + (@inv["number"] || @inv["id"].to_s.first(12)).to_s
+            end
+            div(class: "mt-2") { state_badge(@inv["state"]) }
+          end
+          # Right: logo + merchant name
+          div(class: "flex items-center gap-2.5 flex-shrink-0 mt-1") do
             if @logo_url.present?
               img(src: @logo_url, alt: "Logo",
-                  class: "w-12 h-12 rounded-[10px] object-cover border border-gray-100 flex-shrink-0")
+                  class: "w-10 h-10 rounded-[9px] object-cover flex-shrink-0")
             else
-              div(class: "w-12 h-12 rounded-[10px] bg-[#3D47F5] flex items-center justify-center flex-shrink-0 " \
-                         "shadow-[0_2px_8px_rgba(61,71,245,0.30)]") do
-                span(class: "text-[13px] font-extrabold text-white tracking-tight") { plain initials }
+              div(class: "w-10 h-10 rounded-[9px] bg-[#3D47F5] flex items-center justify-center flex-shrink-0") do
+                span(class: "text-[11px] font-extrabold text-white tracking-tight") { plain initials }
               end
             end
-            div do
-              p(class: "text-[14px] font-bold text-gray-900 leading-tight") { plain merchant_name }
-              p(class: "text-[11.5px] text-gray-400 mt-0.5") { plain merchant_code }
-            end
-          end
-          # Right: INVOICE + number + state chip
-          div(class: "flex flex-col items-end gap-1.5") do
-            p(class: "text-[28px] font-extrabold text-[#3D47F5] leading-none tracking-tight") { plain "INVOICE" }
-            p(class: "text-[13px] font-semibold text-gray-500 font-mono mt-1") do
-              plain @inv["number"] || @inv["id"].to_s.first(12)
-            end
-            state_badge(@inv["state"])
+            p(class: "text-[15px] font-bold text-gray-900 leading-tight") { plain merchant_name }
           end
         end
       end
@@ -530,67 +520,97 @@ module Checkout
 
       def billing_strip_section
         merchant_name = current_user.active_membership&.merchant_name.to_s.presence || "Your business"
-        div(class: "grid grid-cols-4 px-10 py-5 bg-[#f8fafc] border-t border-b border-gray-100") do
-          billing_cell("Issue date", fmt_inv_date(@inv["issue_date"]))
-          billing_cell("Due date",   fmt_inv_date(@inv["due_date"]))
-          billing_cell("From",       merchant_name)
-          billing_cell("Bill to",    @inv["customer_reference"].presence || "—")
+        customer_ref  = @inv["customer_reference"].presence || "—"
+
+        # ── Divider 1
+        div(class: "h-px bg-gray-100 mx-10")
+
+        # ── Bill to / dates
+        div(class: "flex items-start justify-between px-10 py-5") do
+          div do
+            billing_label("Bill to")
+            p(class: "text-[13.5px] font-semibold text-gray-900 mt-[5px]") { plain customer_ref }
+          end
+          div(class: "flex items-start gap-7") do
+            div(class: "text-right") do
+              billing_label("Issued Date")
+              p(class: "text-[13.5px] font-semibold text-gray-900 mt-[5px]") { plain fmt_inv_date(@inv["issue_date"]) }
+            end
+            div(class: "text-right") do
+              billing_label("Due Date")
+              p(class: "text-[13.5px] font-semibold text-gray-900 mt-[5px]") { plain fmt_inv_date(@inv["due_date"]) }
+            end
+          end
+        end
+
+        # ── Divider 2
+        div(class: "h-px bg-gray-100 mx-10")
+
+        # ── From / To
+        div(class: "flex items-start justify-between px-10 py-5") do
+          div do
+            billing_label("From")
+            p(class: "text-[13px] font-semibold text-gray-900 mt-[5px] leading-snug") { plain merchant_name }
+          end
+          div(class: "text-right") do
+            billing_label("To")
+            p(class: "text-[13px] font-semibold text-gray-900 mt-[5px] leading-snug") { plain customer_ref }
+          end
         end
       end
 
-      def billing_cell(label, value)
-        div(class: "pr-3") do
-          p(class: "text-[9.5px] font-bold uppercase tracking-[0.1em] text-gray-400 mb-1") { plain label }
-          p(class: "text-[12.5px] font-semibold text-gray-800 leading-snug") { plain value }
-        end
+      def billing_label(text)
+        p(class: "text-[9.5px] font-semibold uppercase tracking-[0.1em] text-gray-400") { plain text }
       end
 
       def invoice_doc_footer
         div(class: "border-t border-gray-100 px-10 py-4 flex items-center justify-between") do
-          p(class: "text-[10.5px] text-gray-300") { plain "Generated #{fmt_date(Time.now)}" }
-          p(class: "text-[10.5px] text-gray-300") { plain "Payment powered by Yagye" }
+          div do
+            p(class: "text-[9.5px] font-bold uppercase tracking-[0.1em] text-gray-400 mb-[3px]") { plain "Payment method" }
+            p(class: "text-[11px] text-gray-400") { plain "Payment powered by Yagye" }
+          end
+          p(class: "text-[10.5px] text-gray-300") { plain fmt_date(Time.now) }
         end
       end
 
       def document_divider
-        div(class: "mx-10 border-t border-dashed border-gray-200")
+        div(class: "mx-10 border-t border-gray-100")
       end
 
       def line_items_section
         items    = Array(@inv["line_items"])
         currency = @inv["currency"] || "GHS"
 
-        div(class: "overflow-x-auto") do
+        div(class: "overflow-x-auto mx-6") do
           table(class: "w-full") do
             thead do
-              tr(style: "background:rgba(61,71,245,0.05);border-bottom:1px solid rgba(61,71,245,0.10)") do
-                th(class: "text-left px-10 py-3 text-[10.5px] font-bold uppercase tracking-[0.1em] text-gray-400") { plain "Description" }
-                th(class: "text-right px-4 py-3 text-[10.5px] font-bold uppercase tracking-[0.1em] text-gray-400")  { plain "Qty" }
-                th(class: "text-right px-4 py-3 text-[10.5px] font-bold uppercase tracking-[0.1em] text-gray-400")  { plain "Unit price" }
-                th(class: "text-right px-4 py-3 text-[10.5px] font-bold uppercase tracking-[0.1em] text-gray-400")  { plain "Tax" }
-                th(class: "text-right px-10 py-3 text-[10.5px] font-bold uppercase tracking-[0.1em] text-gray-400") { plain "Amount" }
+              tr(style: "background:#f9fafb;border-bottom:1px solid #f1f5f9") do
+                th(class: "text-left pl-5 pr-3 py-3 text-[10.5px] font-bold uppercase tracking-[0.1em] text-gray-400") { plain "Description" }
+                th(class: "text-right px-3 py-3 text-[10.5px] font-bold uppercase tracking-[0.1em] text-gray-400")  { plain "Qty" }
+                th(class: "text-right px-3 py-3 text-[10.5px] font-bold uppercase tracking-[0.1em] text-gray-400")  { plain "Unit price" }
+                th(class: "text-right px-3 py-3 text-[10.5px] font-bold uppercase tracking-[0.1em] text-gray-400")  { plain "Tax" }
+                th(class: "text-right pl-3 pr-5 py-3 text-[10.5px] font-bold uppercase tracking-[0.1em] text-gray-400") { plain "Amount" }
               end
             end
             tbody do
-              items.each_with_index do |item, idx|
-                unit    = item["unit_amount"].to_i
-                qty     = item["quantity"].to_f
-                bps     = item["tax_rate_bps"].to_i
-                amount  = (unit * qty + unit * qty * bps / 10_000.0).round
-                row_cls = idx.odd? ? "bg-gray-50/60" : "bg-white"
+              items.each do |item|
+                unit   = item["unit_amount"].to_i
+                qty    = item["quantity"].to_f
+                bps    = item["tax_rate_bps"].to_i
+                amount = (unit * qty + unit * qty * bps / 10_000.0).round
 
-                tr(class: "#{row_cls} border-b border-gray-50 last:border-0") do
-                  td(class: "px-10 py-3.5 text-[13px] text-gray-800") { plain item["description"] || "—" }
-                  td(class: "px-4 py-3.5 text-right text-[12.5px] text-gray-500 tabular-nums") do
+                tr(class: "border-b border-gray-50 last:border-0") do
+                  td(class: "pl-5 pr-3 py-3.5 text-[13px] font-medium text-gray-800") { plain item["description"] || "—" }
+                  td(class: "px-3 py-3.5 text-right text-[12.5px] text-gray-500 tabular-nums") do
                     plain qty % 1 == 0 ? qty.to_i.to_s : "%.2f" % qty
                   end
-                  td(class: "px-4 py-3.5 text-right text-[12.5px] text-gray-500 tabular-nums") do
+                  td(class: "px-3 py-3.5 text-right text-[12.5px] text-gray-500 tabular-nums") do
                     plain format_money(unit, currency: currency)
                   end
-                  td(class: "px-4 py-3.5 text-right text-[12.5px] text-gray-500 tabular-nums") do
-                    plain bps > 0 ? "#{bps / 100.0}%" : "—"
+                  td(class: "px-3 py-3.5 text-right text-[12.5px] text-gray-500 tabular-nums") do
+                    plain bps > 0 ? "#{(bps / 100.0).to_s.sub(/\.?0+$/, "")}%" : "—"
                   end
-                  td(class: "px-10 py-3.5 text-right text-[13px] font-semibold text-gray-900 tabular-nums") do
+                  td(class: "pl-3 pr-5 py-3.5 text-right text-[13px] font-semibold text-gray-900 tabular-nums") do
                     plain format_money(amount, currency: currency)
                   end
                 end
@@ -608,19 +628,23 @@ module Checkout
         amount_due = @inv["amount_due"].to_i
         paid       = @inv["amount_paid"].to_i
 
-        div(class: "flex justify-end border-t border-gray-100 px-10 py-6") do
-          div(class: "w-72 flex flex-col gap-[3px]") do
-            totals_row("Subtotal", format_money(subtotal))
-            totals_row("Tax",      format_money(tax))             if tax > 0
-            totals_row("Discount", "− #{format_money(discount)}") if discount > 0
-            totals_row("Total",    format_money(total), bold: true)
+        div(class: "h-px bg-gray-100 mx-6")
+        div(class: "flex justify-end px-10 py-6") do
+          div(class: "w-[280px] flex flex-col gap-[2px]") do
+            totals_row("Subtotal", format_money(subtotal))                              if subtotal != total || tax > 0 || discount > 0
+            totals_row("Tax",      format_money(tax))                                   if tax > 0
+            totals_row("Discount", "− #{format_money(discount)}")                      if discount > 0
             totals_row("Paid",     "− #{format_money(paid)}", color: "text-green-600") if paid > 0
-            div(class: "mt-3 flex items-center justify-between rounded-xl " \
-                       "bg-[#3D47F5]/[0.06] px-4 py-3.5") do
-              p(class: "text-[12px] font-bold text-[#3D47F5]") { plain "Amount due" }
-              p(class: "text-[16px] font-bold text-[#3D47F5] tabular-nums") do
-                plain format_money(amount_due)
-              end
+            div(class: "h-px bg-gray-200 my-2")
+            # Bold "Total Amount" row
+            div(class: "flex items-center justify-between py-[3px]") do
+              p(class: "text-[13.5px] font-bold text-gray-900") { plain "Total Amount" }
+              p(class: "text-[14px] font-bold text-gray-900 tabular-nums") { plain format_money(total) }
+            end
+            # Amount due (subtle subtitle; only meaningful when partially paid)
+            div(class: "flex items-center justify-between pt-[2px]") do
+              p(class: "text-[11px] text-gray-400") { plain "Amount due" }
+              p(class: "text-[12px] font-semibold text-[#3D47F5] tabular-nums") { plain format_money(amount_due) }
             end
           end
         end
@@ -634,17 +658,15 @@ module Checkout
       end
 
       def notes_footer
-        div(class: "border-t border-dashed border-gray-200 mx-10 mt-1")
-        div(class: "px-10 py-7 flex flex-col gap-5") do
+        div(class: "px-10 pb-7 flex flex-col gap-5") do
           if @inv["notes"].present?
-            div do
-              p(class: "text-[10.5px] font-bold uppercase tracking-[0.1em] text-gray-400 mb-1.5") { plain "Notes" }
+            div(class: "border border-gray-200 rounded-xl px-5 py-4") do
               p(class: "text-[12.5px] text-gray-600 leading-relaxed") { plain @inv["notes"] }
             end
           end
           if @inv["terms"].present?
             div do
-              p(class: "text-[10.5px] font-bold uppercase tracking-[0.1em] text-gray-400 mb-1.5") { plain "Terms & conditions" }
+              p(class: "text-[9.5px] font-bold uppercase tracking-[0.12em] text-gray-400 mb-1.5") { plain "Terms & conditions" }
               p(class: "text-[12.5px] text-gray-600 leading-relaxed") { plain @inv["terms"] }
             end
           end

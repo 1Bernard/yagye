@@ -19,9 +19,27 @@ module Checkout
       { value: "bank_transfer", label: "Bank transfer",  detail: "Direct bank-to-bank",             icon: "🏦" }
     ].freeze
 
-    def initialize(errors: [], mode: "test")
-      @errors = errors
-      @mode   = mode
+    FONT_OPTIONS = [
+      [ "Plus Jakarta Sans (default)", "plus-jakarta" ],
+      [ "Inter",                       "inter" ],
+      [ "Nunito",                      "nunito" ],
+      [ "Playfair Display",            "playfair" ],
+      [ "Roboto Slab",                 "roboto-slab" ]
+    ].freeze
+
+    CTA_PRESETS = [
+      [ "Pay (default)",  "" ],
+      [ "Donate",         "Donate" ],
+      [ "Register",       "Register" ],
+      [ "Book now",       "Book now" ],
+      [ "Subscribe",      "Subscribe" ],
+      [ "Get started",    "Get started" ]
+    ].freeze
+
+    def initialize(errors: [], mode: "test", checkout_config: {})
+      @errors          = errors
+      @mode            = mode
+      @checkout_config = checkout_config
     end
 
     def view_template
@@ -111,7 +129,7 @@ module Checkout
           form:  "pl-form",
           class: "flex items-center gap-[5px] px-[10px] py-[5px] rounded-xl text-[12.5px] font-semibold " \
                  "bg-[#3D47F5] hover:bg-[#2e38d4] text-white transition-colors cursor-pointer border-0"
-        ) { plain "Create & configure layout" }
+        ) { plain "Create link" }
       end
     end
 
@@ -148,6 +166,8 @@ module Checkout
           usage_section
           section_divider
           escrow_section
+          section_divider
+          brand_section
         end
       end
     end
@@ -211,6 +231,21 @@ module Checkout
                 option(value: c[:code], selected: c[:code] == "GHS") { plain c[:label] }
               end
             end
+          end
+
+          # Discount (optional)
+          div do
+            span(class: "text-[9px] font-bold uppercase tracking-[0.1em] text-gray-400 block mb-[5px]") { plain "Discount (optional)" }
+            input(
+              type:        "number",
+              name:        "discount_amount",
+              min:         "0",
+              step:        "0.01",
+              placeholder: "0.00",
+              class:       "#{panel_input_cls} tabular-nums text-right",
+              data:        { action: "input->payment-link-compose#syncDiscountPreview" }
+            )
+            p(class: "text-[10.5px] text-gray-400 mt-[4px]") { plain "Fixed deduction shown to the customer at checkout" }
           end
         end
       end
@@ -394,7 +429,7 @@ module Checkout
             value: "1",
             id:    "escrow_enabled",
             class: "w-[14px] h-[14px] rounded flex-shrink-0 accent-[#3D47F5] cursor-pointer",
-            data:  { action: "change->payment-link-compose#toggleEscrow" }
+            data:  { action: "change->payment-link-compose#toggleEscrow", payment_link_compose_target: "escrowToggle" }
           )
           div do
             label(
@@ -408,7 +443,7 @@ module Checkout
         end
 
         div(
-          data:   { payment_link_compose_target: "escrowConfig" },
+          data:   { payment_link_compose_target: "escrowDetails" },
           hidden: true,
           class:  "flex flex-col gap-2"
         ) do
@@ -450,122 +485,164 @@ module Checkout
       end
     end
 
-    # ── Preview area (right) ─────────────────────────────────────────────────
+    # ── Brand / appearance ───────────────────────────────────────────────────
 
-    def preview_area
-      div(
-        class: "absolute top-5 right-0 bottom-0 overflow-y-auto",
-        style: "left: 385px"
-      ) do
-        div(class: "min-h-full pb-10 flex flex-col items-center") do
-          checkout_preview_card
-        end
-      end
-    end
-
-    def checkout_preview_card
-      div(class: "w-full max-w-[420px]") do
-        # Preview label
-        p(class: "text-[9.5px] font-bold uppercase tracking-[0.15em] text-gray-400 text-center mb-4") do
-          plain "Customer sees"
-        end
-
-        div(
-          class: "bg-white rounded-2xl overflow-hidden " \
-                 "shadow-[0_12px_40px_rgba(0,0,0,0.10),0_2px_10px_rgba(0,0,0,0.05)]"
-        ) do
-          # Brand bar
-          div(class: "flex items-center gap-2.5 px-6 py-4 border-b border-gray-50") do
-            div(class: "w-7 h-7 rounded-lg bg-[#3D47F5] flex items-center justify-center flex-shrink-0") do
-              span(class: "text-[10px] font-bold text-white") { plain "YB" }
+    def brand_section
+      div(class: "px-4 pt-3 pb-5") do
+        p(class: "text-[9px] font-bold uppercase tracking-[0.1em] text-gray-400 mb-3") { plain "Appearance" }
+        div(class: "flex flex-col gap-2.5") do
+          # Brand colour
+          div do
+            span(class: "text-[9px] font-bold uppercase tracking-[0.1em] text-gray-400 block mb-[5px]") do
+              plain "Brand colour"
             end
-            p(class: "text-[12.5px] font-semibold text-gray-700") { plain "Your business" }
-          end
-
-          # Amount + description
-          div(class: "px-6 pt-6 pb-5") do
-            p(class: "text-[9.5px] font-bold uppercase tracking-[0.12em] text-gray-400 mb-1",
-              data: { payment_link_compose_target: "pvAmountLabel" }) { plain "Total" }
-            p(class: "text-[30px] font-extrabold text-gray-900 leading-none tracking-tight tabular-nums mb-3",
-              data: { payment_link_compose_target: "pvAmount" }) { plain "GH₵ 50.00" }
-            p(class: "text-[13.5px] font-medium text-gray-500 leading-snug",
-              data: { payment_link_compose_target: "pvDescription" }) { plain "Your product" }
-          end
-
-          div(class: "h-px bg-gray-100 mx-6")
-
-          # Payment methods
-          div(class: "px-6 py-5") do
-            p(class: "text-[9.5px] font-bold uppercase tracking-[0.12em] text-gray-400 mb-3") { plain "Pay with" }
-            div(class: "flex flex-wrap gap-2") do
-              METHODS.each do |m|
-                div(
-                  class: "flex items-center gap-1.5 px-3 py-[7px] rounded-[10px] border border-gray-200 " \
-                         "text-[12px] font-medium text-gray-700 bg-white",
-                  data:  { "pl-method": m[:value] }
-                ) do
-                  span(class: "text-[14px]") { plain m[:icon] }
-                  plain m[:label]
-                end
+            div(class: "flex items-center gap-2") do
+              input(
+                type:  "color",
+                name:  "checkout_config[brand_colour]",
+                value: @checkout_config["brand_colour"].presence || "#3D47F5",
+                class: "w-8 h-8 rounded-lg border border-gray-200 cursor-pointer p-[2px] bg-white flex-shrink-0",
+                data:  { action: "input->payment-link-compose#syncBrand" }
+              )
+              input(
+                type:        "text",
+                name:        "checkout_config[brand_colour_text]",
+                value:       @checkout_config["brand_colour"].presence || "#3D47F5",
+                placeholder: "#3D47F5",
+                class:       "#{panel_input_cls} font-mono uppercase",
+                style:       "width: 100px; flex-shrink: 0",
+                data:        { payment_link_compose_target: "brandHex",
+                               action: "input->payment-link-compose#syncBrandHex" }
+              )
+              span(class: "text-[10.5px] text-gray-400 leading-tight") do
+                plain "Buttons, highlights"
               end
             end
           end
 
-          div(class: "h-px bg-gray-100 mx-6")
-
-          # Customer collect fields
-          div(
-            class:  "px-6 py-5 flex flex-col gap-2.5",
-            hidden: true,
-            data:   { payment_link_compose_target: "pvCustomerSection" }
-          ) do
-            collect_preview_field("email",    "Email address",  "email",    "you@example.com")
-            collect_preview_field("phone",    "Phone number",   "tel",      "+233 24 000 0000")
-            collect_preview_field("name",     "Full name",      "text",     "Your name")
-          end
-
-          # CTA
-          div(class: "px-6 pb-6") do
-            div(
-              class: "w-full py-3.5 rounded-[10px] bg-[#3D47F5] flex items-center justify-center " \
-                     "text-[13.5px] font-bold text-white cursor-default",
-              data:  { payment_link_compose_target: "pvPayButton" }
-            ) { plain "Pay GH₵ 50.00" }
-          end
-
-          # Escrow trust badge (shown when escrow enabled)
-          div(
-            class:  "px-6 pb-4 flex items-center justify-center gap-[5px]",
-            hidden: true,
-            data:   { payment_link_compose_target: "pvEscrowBadge" }
-          ) do
-            span(class: "text-[10px]") { plain "🔒" }
-            span(class: "text-[10px] font-semibold text-amber-600") do
-              plain "Payment held in trust until receipt confirmed"
+          # Display name
+          div do
+            span(class: "text-[9px] font-bold uppercase tracking-[0.1em] text-gray-400 block mb-[5px]") do
+              plain "Display name"
+            end
+            input(
+              type:        "text",
+              name:        "checkout_config[display_name]",
+              value:       @checkout_config["display_name"].presence,
+              placeholder: "Your business name",
+              class:       panel_input_cls,
+              data:        { action: "input->payment-link-compose#syncBrand" }
+            )
+            p(class: "text-[10.5px] text-gray-400 mt-[4px]") do
+              plain "Shown on the checkout page and receipt"
             end
           end
 
-          # Footer
-          div(class: "px-6 pb-5 flex items-center justify-center gap-[5px]") do
-            span(class: "text-[10px] text-gray-300") { plain "Powered by" }
-            span(class: "text-[10px] font-bold text-[#3D47F5]/50") { plain "Yagye" }
+          # Font
+          div do
+            span(class: "text-[9px] font-bold uppercase tracking-[0.1em] text-gray-400 block mb-[5px]") do
+              plain "Font"
+            end
+            select(
+              name:  "checkout_layout[font_family]",
+              class: "#{panel_input_cls} cursor-pointer"
+            ) do
+              FONT_OPTIONS.each do |(label, value)|
+                option(value: value) { plain label }
+              end
+            end
+          end
+
+          # Checkout headline
+          div do
+            span(class: "text-[9px] font-bold uppercase tracking-[0.1em] text-gray-400 block mb-[5px]") do
+              plain "Checkout headline"
+            end
+            input(
+              type:        "text",
+              name:        "checkout_layout[headline]",
+              placeholder: "e.g. Support our fundraiser",
+              class:       panel_input_cls,
+              data:        { action: "input->payment-link-compose#syncHeadlinePreview" }
+            )
+            p(class: "text-[10.5px] text-gray-400 mt-[4px]") { plain "Optional tagline shown above the description" }
+          end
+
+          # Button label
+          div do
+            span(class: "text-[9px] font-bold uppercase tracking-[0.1em] text-gray-400 block mb-[5px]") do
+              plain "Button label"
+            end
+            select(
+              name:  "checkout_layout[cta_text]",
+              class: "#{panel_input_cls} cursor-pointer",
+              data:  { action: "change->payment-link-compose#syncCtaPreview" }
+            ) do
+              CTA_PRESETS.each do |(label, value)|
+                option(value: value) { plain label }
+              end
+            end
+          end
+
+          # Terms & Conditions
+          div do
+            div(class: "flex items-center justify-between mb-[5px]") do
+              span(class: "text-[9px] font-bold uppercase tracking-[0.1em] text-gray-400") { plain "Terms & Conditions" }
+              label(class: "relative inline-flex items-center cursor-pointer") do
+                input(
+                  type:  "checkbox",
+                  id:    "form_terms_enabled",
+                  name:  "checkout_layout[terms_enabled]",
+                  value: "1",
+                  class: "sr-only peer",
+                  data:  { action: "change->payment-link-compose#toggleFormTerms" }
+                )
+                span(class: "w-7 h-[15px] bg-gray-200 rounded-full peer peer-checked:bg-[#3D47F5] transition-colors") { }
+                span(class: "absolute left-[2px] top-[2px] w-[11px] h-[11px] bg-white rounded-full " \
+                            "transition-transform peer-checked:translate-x-[13px]") { }
+              end
+            end
+            div(id: "form-terms-fields", style: "display:none", class: "flex flex-col gap-[5px] mt-[5px]") do
+              input(
+                type:        "text",
+                name:        "checkout_layout[terms_label]",
+                placeholder: "I agree to the Terms & Conditions",
+                class:       panel_input_cls,
+                data:        { action: "input->payment-link-compose#syncTermsLabelPreview" }
+              )
+              input(
+                type:        "text",
+                name:        "checkout_layout[terms_url]",
+                placeholder: "https://yoursite.com/terms",
+                class:       panel_input_cls
+              )
+            end
           end
         end
       end
     end
 
-    def collect_preview_field(collect_name, label_text, type, placeholder_text)
+    # ── Preview area (right) ─────────────────────────────────────────────────
+
+    def preview_area
+      bc   = @checkout_config["brand_colour"].presence || "#3D47F5"
+      name = @checkout_config["display_name"].presence || "Your business"
+
       div(
-        hidden: true,
-        data:   { "pl-collect": "collect_#{collect_name}" }
+        class: "absolute top-5 right-0 bottom-0 overflow-y-auto",
+        style: "left: 385px"
       ) do
-        p(class: "text-[9.5px] font-bold uppercase tracking-[0.12em] text-gray-400 mb-1.5") do
-          plain label_text
+        div(class: "min-h-full py-8 px-8 flex flex-col items-center") do
+          render Checkout::PaymentLinks::PreviewCardComponent.new(
+            brand_color:     bc,
+            merchant_name:   name,
+            amount_display:  "GH₵ 50.00",
+            description:     "Your product",
+            allowed_methods: %w[mobile_money card bank_transfer],
+            mode:            @mode,
+            show_label:      true
+          )
         end
-        div(
-          class: "w-full h-[38px] border border-gray-200 rounded-[10px] px-3 flex items-center " \
-                 "text-[12.5px] text-gray-300"
-        ) { plain placeholder_text }
       end
     end
 
