@@ -23,6 +23,8 @@ module UI
       bookmark
       package
       percent
+      truck
+      discount
     ].freeze
 
     def initialize(name, **attrs)
@@ -505,6 +507,20 @@ module UI
       s.line(x1: "19", y1: "5", x2: "5", y2: "19")
       s.circle(cx: "6.5", cy: "6.5", r: "2.5")
       s.circle(cx: "17.5", cy: "17.5", r: "2.5")
+    end
+
+    def truck(s)
+      s.path(d: "M14 18V6a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2v11a1 1 0 0 0 1 1h2")
+      s.path(d: "M15 18H9")
+      s.path(d: "M19 18h2a1 1 0 0 0 1-1v-3.65a1 1 0 0 0-.22-.624l-3.48-4.35A1 1 0 0 0 17.52 8H14")
+      s.circle(cx: "17", cy: "18", r: "2")
+      s.circle(cx: "7", cy: "18", r: "2")
+    end
+
+    def discount(s)
+      s.path(d: "M12 2 2 7l10 5 10-5-10-5Z")
+      s.path(d: "M2 17l10 5 10-5")
+      s.path(d: "M2 12l10 5 10-5")
     end
   end
 end
