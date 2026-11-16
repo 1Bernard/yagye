@@ -124,13 +124,22 @@ module Payments
           end
 
           t.column("Total Spent", class: "text-right tabular-nums") do |c|
-            msisdn = c["merchant_customer_ref"]
-            s      = stats[msisdn]
-            if s && s[:total_volume].to_i.positive?
-              div(class: "text-right") do
-                p(class: "text-[13px] font-semibold text-gray-900 tabular-nums") { plain fmt_ghs.call(s[:total_volume]) }
-                if s[:mtd_volume].to_i.positive? && s[:mtd_volume] != s[:total_volume]
-                  p(class: "text-[11px] text-gray-400 mt-0.5") { plain "#{fmt_ghs.call(s[:mtd_volume])} this month" }
+            ref = c["merchant_customer_ref"]
+            s   = stats[ref]
+            vols = s&.dig(:volumes) || {}
+            if vols.any? { |_, v| v.to_i.positive? }
+              div(class: "text-right flex flex-col gap-px") do
+                vols.each do |cur, amount|
+                  next unless amount.to_i.positive?
+                  mtd = s.dig(:mtd_volumes, cur).to_i
+                  p(class: "text-[13px] font-semibold text-gray-900 tabular-nums") do
+                    plain format_money(amount, currency: cur)
+                  end
+                  if mtd.positive? && mtd != amount
+                    p(class: "text-[11px] text-gray-400") do
+                      plain "#{format_money(mtd, currency: cur)} this month"
+                    end
+                  end
                 end
               end
             else

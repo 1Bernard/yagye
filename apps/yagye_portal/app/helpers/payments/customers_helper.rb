@@ -16,23 +16,26 @@ module Payments
     # Returns array of symbols: :new, :high_value, :churned
     def customer_segments(stat)
       return [] unless stat
+      # high_value based on GHS lifetime volume (MoMo threshold); card USD payments excluded.
+      ghs_total = (stat[:volumes] || {})["GHS"].to_i
       segs = []
       segs << :new        if stat[:first_payment_at] && stat[:first_payment_at] >= NEW_WINDOW_DAYS.days.ago
-      segs << :high_value if stat[:total_volume].to_i >= HIGH_VALUE_THRESHOLD_CENTS
+      segs << :high_value if ghs_total >= HIGH_VALUE_THRESHOLD_CENTS
       segs << :churned    if stat[:last_payment_at] && stat[:last_payment_at] < CHURN_WINDOW_DAYS.days.ago
       segs
     end
 
     # Returns :ok, :near_limit, :at_limit, or :unknown
+    # BoG velocity limits apply to GHS mobile money only.
     def velocity_status(stat, kyc_tier)
       return :unknown unless stat
       limits = VELOCITY_LIMITS[kyc_tier.to_s]
       return :unknown unless limits
 
-      daily_pct   = stat[:today_volume].to_f / limits[:daily]
-      monthly_pct = stat[:mtd_volume].to_f   / limits[:monthly]
+      ghs_today = (stat[:today_volumes] || {})["GHS"].to_f
+      ghs_mtd   = (stat[:mtd_volumes]   || {})["GHS"].to_f
 
-      case [ daily_pct, monthly_pct ].max
+      case [ ghs_today / limits[:daily], ghs_mtd / limits[:monthly] ].max
       when (1.0..)  then :at_limit
       when (0.8..)  then :near_limit
       else               :ok

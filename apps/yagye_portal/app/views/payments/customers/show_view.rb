@@ -99,7 +99,18 @@ module Payments
             div(class: "mt-4 pt-4 border-t border-gray-100 grid grid-cols-3 gap-4") do
               div do
                 p(class: TYPE_CAPTION) { plain "Total spent" }
-                p(class: "text-[15px] font-bold text-gray-900 tabular-nums mt-0.5") { plain format_ghs(@stat[:total_volume]) }
+                vols = (@stat[:volumes] || {}).select { |_, v| v.to_i.positive? }
+                if vols.any?
+                  div(class: "flex flex-col gap-px mt-0.5") do
+                    vols.each do |cur, amount|
+                      p(class: "text-[15px] font-bold text-gray-900 tabular-nums") do
+                        plain format_money(amount, currency: cur)
+                      end
+                    end
+                  end
+                else
+                  p(class: "text-[15px] font-bold text-gray-900 tabular-nums mt-0.5") { plain "—" }
+                end
               end
               div do
                 p(class: TYPE_CAPTION) do
@@ -151,8 +162,9 @@ module Payments
                     plain "No payments recorded yet"
                   end
                 end
-                if @stat && @stat[:total_volume].to_i.positive?
-                  p(class: "#{TYPE_CAPTION} mt-[2px]") { plain "Total: #{format_ghs(@stat[:total_volume])}" }
+                if @stat && (@stat[:volumes] || {}).any? { |_, v| v.to_i.positive? }
+                  parts = (@stat[:volumes] || {}).filter_map { |cur, v| format_money(v, currency: cur) if v.to_i.positive? }
+                  p(class: "#{TYPE_CAPTION} mt-[2px]") { plain "Total: #{parts.join(' + ')}" }
                 end
               end
               a(href: payments_path(q: @c["merchant_customer_ref"]),
@@ -237,24 +249,27 @@ module Payments
         limits = velocity_limits_for(@c["kyc_tier"])
         return unless limits
 
-        today_pct  = [ (@stat[:today_volume].to_f / limits[:daily]  * 100).round, 100 ].min
-        month_pct  = [ (@stat[:mtd_volume].to_f   / limits[:monthly] * 100).round, 100 ].min
+        # BoG velocity limits apply to GHS mobile money only — exclude foreign-currency card payments.
+        ghs_today  = (@stat[:today_volumes] || {})["GHS"].to_i
+        ghs_mtd    = (@stat[:mtd_volumes]   || {})["GHS"].to_i
+        today_pct  = [ (ghs_today.to_f / limits[:daily]  * 100).round, 100 ].min
+        month_pct  = [ (ghs_mtd.to_f   / limits[:monthly] * 100).round, 100 ].min
         bar_color  = ->(pct) { pct >= 100 ? RED : pct >= 80 ? AMBER : GREEN }
 
         render UI::Card.new do |card|
-          card.header("Velocity (BoG limits)")
+          card.header("Velocity (BoG limits — GHS only)")
           card.body do
             div(class: "flex flex-col gap-4") do
               velocity_bar(
                 label:   "Today",
-                current: @stat[:today_volume],
+                current: ghs_today,
                 limit:   limits[:daily],
                 pct:     today_pct,
                 color:   bar_color.call(today_pct)
               )
               velocity_bar(
                 label:   "This month",
-                current: @stat[:mtd_volume],
+                current: ghs_mtd,
                 limit:   limits[:monthly],
                 pct:     month_pct,
                 color:   bar_color.call(month_pct)
