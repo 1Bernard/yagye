@@ -161,7 +161,7 @@ defmodule YagyeCore.Providers do
       # risk_score is populated synchronously before dispatch when risk_ml_enabled is true,
       # and asynchronously otherwise (nil at routing time in async mode).
       # Converted to float so Routing.apply_operator numeric guards (is_number) match.
-      risk_score: payment.risk_score && Decimal.to_float(payment.risk_score)
+      risk_score: Map.get(payment, :risk_score) && Decimal.to_float(Map.get(payment, :risk_score))
     }
   end
 
