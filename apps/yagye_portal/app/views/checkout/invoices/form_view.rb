@@ -412,7 +412,7 @@ module Checkout
             div do
               p(class: "text-[11px] font-semibold text-gray-600 mb-2") { plain "Accepted payment methods" }
               div(class: "flex flex-col gap-2") do
-                PAYMENT_METHODS.each_with_index do |m, i|
+                PAYMENT_METHODS.each do |m|
                   div(class: "flex items-start gap-2") do
                     input(
                       type:    "checkbox",
@@ -420,7 +420,7 @@ module Checkout
                       value:   m[:value],
                       id:      "fm_method_#{m[:value]}",
                       class:   "mt-[2px] h-3.5 w-3.5 rounded border-gray-300 text-[#3D47F5] focus:ring-[#3D47F5]",
-                      checked: i == 0
+                      checked: method_checked?(m[:value])
                     )
                     div do
                       label(for: "fm_method_#{m[:value]}",
@@ -449,10 +449,27 @@ module Checkout
       def fm_collect_check(name, label_text)
         div(class: "flex items-center gap-2") do
           input(type: "checkbox", name: name, value: "true", id: "fm_#{name}",
-                class: "h-3.5 w-3.5 rounded border-gray-300 text-[#3D47F5] focus:ring-[#3D47F5]")
+                class: "h-3.5 w-3.5 rounded border-gray-300 text-[#3D47F5] focus:ring-[#3D47F5]",
+                checked: collect_checked?(name))
           label(for: "fm_#{name}",
                 class: "text-[12px] font-medium text-gray-700 cursor-pointer") { plain label_text }
         end
+      end
+
+      def prefill_payment_link
+        @prefill&.dig("payment_link")
+      end
+
+      def method_checked?(method)
+        if prefill_payment_link
+          Array(prefill_payment_link["allowed_methods"]).include?(method)
+        else
+          method == "mobile_money"
+        end
+      end
+
+      def collect_checked?(name)
+        prefill_payment_link&.[](name) == true
       end
 
       # ── Preview area (right) ─────────────────────────────────────────────────

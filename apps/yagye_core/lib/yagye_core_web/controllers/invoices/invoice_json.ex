@@ -48,6 +48,7 @@ defmodule YagyeCoreWeb.Controllers.Invoices.InvoiceJSON do
           %{url_slug: slug} -> "#{checkout_base_url()}/#{slug}"
           _ -> nil
         end,
+      payment_link: payment_link_send_config(invoice.payment_link),
       invoice_view_url: "#{checkout_base_url()}/inv/#{invoice.public_id}",
       pdf_s3_key: invoice.pdf_s3_key,
       checkout_layout: %{logo_url: logo_url},
@@ -58,6 +59,17 @@ defmodule YagyeCoreWeb.Controllers.Invoices.InvoiceJSON do
       inserted_at: invoice.inserted_at
     }
   end
+
+  defp payment_link_send_config(%{} = link) do
+    %{
+      allowed_methods: link.allowed_methods,
+      collect_email: link.collect_email,
+      collect_phone: link.collect_phone,
+      collect_name: link.collect_name
+    }
+  end
+
+  defp payment_link_send_config(_), do: nil
 
   defp line_item(item) do
     %{
