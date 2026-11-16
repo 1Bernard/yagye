@@ -17,8 +17,10 @@ defmodule YagyeCheckout.CoreClient do
   end
 
   @doc "Creates a checkout session from a payment link slug. Returns token for redirect."
-  def create_session_from_link(slug) do
-    post("/internal/checkout/sessions/from-link", %{slug: slug})
+  def create_session_from_link(slug, opts \\ []) do
+    body = %{slug: slug}
+    body = if Keyword.get(opts, :preview, false), do: Map.put(body, :preview, true), else: body
+    post("/internal/checkout/sessions/from-link", body)
   end
 
   @doc "Submits payment details for a checkout session. Returns payment_public_id."

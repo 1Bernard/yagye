@@ -16,59 +16,68 @@ defmodule YagyeCheckoutWeb.Layouts do
         />
         <script src="https://cdn.jsdelivr.net/npm/phoenix@1.8.12/priv/static/phoenix.min.js">
         </script>
-        <script src="https://cdn.jsdelivr.net/npm/phoenix_live_view@1.2.10/priv/static/phoenix_live_view.min.js">
+        <script src="https://cdn.jsdelivr.net/npm/phoenix_live_view@1.2.11/priv/static/phoenix_live_view.min.js">
         </script>
-        <style>
-          /* Checkout is always light — dark mode is disabled intentionally.
-             Trust psychology: users expect payment forms to be clean white.
-             Merchant brand customisation (accent color, logo) is the planned
-             personalisation surface, not dark/light toggling. */
-          :root {
-            --page-bg:    #F9FAFB;
-            --card-bg:    #FFFFFF;
-            --border:     #F3F4F6;
-            --border-med: #E5E7EB;
-            --ink:        #111827;
-            --body-text:  #374151;
-            --muted-text: #6B7280;
-            --subtle-text:#9CA3AF;
-            --faint-text: #D1D5DB;
-            --accent:     #3D47F5;
-            --input-bg:   #F9FAFB;
-            --error:      #DC2626;
-            --error-bg:   #FEF2F2;
-            --error-bdr:  #FECACA;
-            --success:    #059669;
-            --success-bg: #ECFDF5;
-            --success-bdr:#A7F3D0;
-          }
-
-          *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-
-          body {
-            font-family: "Inter", system-ui, -apple-system, sans-serif;
-            background: var(--page-bg);
-            color: var(--ink);
-            min-height: 100svh;
-            margin: 0;
-            padding: 2rem 1.25rem 4rem;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-          }
-
-          @media (max-width: 640px) {
-            body { padding: 1rem 0.75rem 3rem; }
-          }
-        </style>
+        <script src="https://js.stripe.com/v3/"></script>
+        <link rel="stylesheet" href="/assets/checkout.css" />
       </head>
       <body>
         {@inner_content}
         <script>
           var csrfToken = document.querySelector("meta[name='csrf-token']")
                             .getAttribute("content");
+
+          // ── LiveView Hooks ───────────────────────────────────────────────
+          var Hooks = {};
+
+          // StripeCard hook: mounts Stripe Elements on a div that carries
+          // data-stripe-pk. The server pushes "stripe_tokenize" to trigger
+          // payment-method creation; the hook pushes "stripe_pm_ready" or
+          // "stripe_error" back to the LiveView.
+          Hooks.StripeCard = {
+            _stripeReady: false,
+            mounted: function() { this._setup(); },
+            updated: function() { if (!this._stripeReady) this._setup(); },
+            _setup: function() {
+              var self = this;
+              var pk = self.el.dataset.stripePk;
+              if (!pk) return;
+              function tryInit() {
+                if (typeof Stripe === "undefined") { setTimeout(tryInit, 50); return; }
+                if (self._stripeReady) return;
+                self._stripeReady = true;
+                self.stripe = Stripe(pk);
+                var elements = self.stripe.elements();
+                self.cardElement = elements.create("card", {
+                  style: {
+                    base: {
+                      fontFamily: "Inter, system-ui, sans-serif",
+                      fontSize: "14px",
+                      color: "#111827",
+                      "::placeholder": { color: "#9ca3af" }
+                    },
+                    invalid: { color: "#ef4444" }
+                  }
+                });
+                self.cardElement.mount(self.el.querySelector("#stripe-card-element"));
+                self.handleEvent("stripe_tokenize", function() {
+                  self.stripe.createPaymentMethod({ type: "card", card: self.cardElement })
+                    .then(function(result) {
+                      if (result.error) {
+                        self.pushEvent("stripe_error", { message: result.error.message });
+                      } else {
+                        self.pushEvent("stripe_pm_ready", { payment_method_id: result.paymentMethod.id });
+                      }
+                    });
+                });
+              }
+              tryInit();
+            }
+          };
+
           var liveSocket = new LiveView.LiveSocket("/live", Phoenix.Socket, {
-            params: { _csrf_token: csrfToken }
+            params: { _csrf_token: csrfToken },
+            hooks: Hooks
           });
           liveSocket.connect();
           window.liveSocket = liveSocket;

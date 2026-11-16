@@ -145,6 +145,16 @@ defmodule YagyeCheckoutWeb.Live.CheckoutLive do
     {:noreply, assign(socket, terms_accepted: !socket.assigns.terms_accepted, terms_error: nil)}
   end
 
+  # Stripe.js payment method created successfully — proceed with card payment.
+  def handle_event("stripe_pm_ready", %{"payment_method_id" => pm_id}, socket) do
+    submit_card_stripe(socket, pm_id)
+  end
+
+  # Stripe.js tokenization error — show error message and re-enable the form.
+  def handle_event("stripe_error", %{"message" => msg}, socket) do
+    {:noreply, assign(socket, submitting: false, stripe_card_error: msg)}
+  end
+
   # Guard: ignore submit while a payment request is already in-flight.
   def handle_event("submit_checkout", _params, %{assigns: %{submitting: true}} = socket) do
     {:noreply, socket}
@@ -183,15 +193,26 @@ defmodule YagyeCheckoutWeb.Live.CheckoutLive do
               :ok -> submit_mobile_money(socket, phone)
             end
 
+          "card" when socket.assigns.card_psp == "stripe" ->
+            # Stripe.js handles card entry — push event to hook to trigger tokenization.
+            # The hook will call back with stripe_pm_ready or stripe_error.
+            {:noreply,
+             socket
+             |> assign(stripe_card_error: nil)
+             |> push_event("stripe_tokenize", %{})}
+
           "card" ->
             cn_raw = params["card_number"] || socket.assigns.card_number
             cn_digits = String.replace(cn_raw, ~r/\D/, "") |> String.slice(0, 16)
             cn_formatted = cn_digits |> String.graphemes() |> Enum.chunk_every(4) |> Enum.map(&Enum.join/1) |> Enum.join(" ")
+            exp_raw = params["card_expiry"] || socket.assigns.card_expiry
+            exp_digits = String.replace(exp_raw, ~r/\D/, "") |> String.slice(0, 4)
+            exp_formatted = if String.length(exp_digits) > 2, do: String.slice(exp_digits, 0, 2) <> "/" <> String.slice(exp_digits, 2, 2), else: exp_digits
             socket =
               assign(socket,
                 card_number: cn_formatted,
                 card_brand: detect_card_brand(cn_digits),
-                card_expiry: params["card_expiry"] || socket.assigns.card_expiry,
+                card_expiry: exp_formatted,
                 card_cvv: String.replace(params["card_cvv"] || socket.assigns.card_cvv, ~r/\D/, "") |> String.slice(0, 4),
                 card_name: params["card_name"] || socket.assigns.card_name
               )
@@ -282,12 +303,11 @@ defmodule YagyeCheckoutWeb.Live.CheckoutLive do
       {:ok, %{"state" => "escrow_held"}} ->
         finalize_escrow(socket, pay_id)
 
-      {:ok, %{"state" => state}} when state in ["failed", "cancelled"] ->
-        {:noreply,
-         assign(socket,
-           page_state: :form,
-           error: "Payment was declined or cancelled. Please check your account and try again."
-         )}
+      {:ok, %{"state" => "cancelled"}} ->
+        {:noreply, assign(socket, page_state: :form, error: "Payment was not completed. Please try again when you're ready.")}
+
+      {:ok, %{"state" => "failed"}} ->
+        {:noreply, assign(socket, page_state: :form, error: "Payment was declined. Please check your balance and try again.")}
 
       _ ->
         Process.send_after(self(), :poll, @poll_ms)
@@ -316,7 +336,7 @@ defmodule YagyeCheckoutWeb.Live.CheckoutLive do
                 <% "bank_transfer" -> %>
                   Confirming your transfer. We're checking for your payment now.
                 <% _ -> %>
-                  Please check your phone. If you received a USSD prompt on <strong>{@phone}</strong>, enter your PIN to approve.
+                  A USSD prompt was sent to <strong>{@phone}</strong>. Open it and enter your PIN to approve the payment.
               <% end %>
             </p>
             <div class="co-progress-bar"><div class="co-progress-fill"></div></div>
@@ -384,7 +404,7 @@ defmodule YagyeCheckoutWeb.Live.CheckoutLive do
                   <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                     <polyline points="13 17 18 12 13 7"/><polyline points="6 17 11 12 6 7"/>
                   </svg>
-                  Use <strong>GhIPSS Instant Pay</strong> — usually under 30 seconds
+                  Use <strong>{if @bank_transfer_psp == "paystack", do: "Paystack bank transfer", else: "GhIPSS Instant Pay"}</strong> — usually under 30 seconds
                 </div>
               </div>
 
@@ -567,402 +587,451 @@ defmodule YagyeCheckoutWeb.Live.CheckoutLive do
           </div>
 
         <% _ -> %>
-          <%!-- ── Two-Column Layout ── --%>
-          <div class="co-grid">
+          <%!-- ── Split Layout: Summary left, Form right ── --%>
+          <div class="co-split">
 
-            <%!-- ── LEFT: Payment Options ── --%>
-            <main class="co-main-column">
-              <div class="co-panel co-payment-panel">
+            <%!-- ══ LEFT PANEL: Order Summary ══ --%>
+            <div class="co-panel-left">
 
-                <%= if @checkout_headline && @checkout_headline != "" do %>
-                  <div class="co-checkout-headline">
-                    <p>{@checkout_headline}</p>
+              <%!-- Breadcrumb --%>
+              <nav class="co-breadcrumb">
+                <%= if @cancel_url && external_url?(@cancel_url) do %>
+                  <a href={@cancel_url} class="co-bc-close" aria-label="Close">
+                    <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                  </a>
+                  <span class="co-bc-sep">|</span>
+                <% end %>
+                <span class="co-bc-active">Checkout</span>
+                <%= if @checkout_mode != "live" do %>
+                  <span class={"co-mode-badge co-mode-badge--#{@checkout_mode}"}>{String.capitalize(@checkout_mode)}</span>
+                <% end %>
+              </nav>
+
+              <%!-- Merchant row --%>
+              <div class="co-merchant-row">
+                <%= if @logo_url && @logo_url != "" do %>
+                  <img src={@logo_url} alt="Merchant" class="co-merchant-logo-img" />
+                <% else %>
+                  <div class="co-merchant-icon-box">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                      <path d="M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 0 1-8 0"/>
+                    </svg>
                   </div>
                 <% end %>
+                <div>
+                  <div class="co-merchant-name-label">{@checkout_business_name || merchant_brand_name(@session)}</div>
+                  <div class="co-merchant-verified">
+                    <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                      <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+                    </svg>
+                    Verified merchant
+                  </div>
+                </div>
+              </div>
+
+              <%!-- Amount hero --%>
+              <% {hero_w, hero_c} = format_amount_parts(@total_amount) %>
+              <div class="co-amount-hero">
+                <div class="co-amount-hero-label">Pay</div>
+                <div class="co-amount-hero-val">{currency_symbol(@currency)}{hero_w}.{hero_c}</div>
+              </div>
+
+              <%!-- Order summary --%>
+              <%= if @line_items == [] do %>
+                <div class="co-section-label">Order summary</div>
+                <% {orig_w, orig_c} = format_amount_parts(@subtotal_amount) %>
+                <div class="co-item-card">
+                  <div class="co-item-body">
+                    <div class="co-item-name">{@session && (@session["description"] || "Payment")}</div>
+                    <div class="co-item-bottom">
+                      <span class="co-item-qty">1 payment</span>
+                      <%= if @discount_amount > 0 do %>
+                        <span class="co-item-price" style="text-decoration:line-through;color:var(--muted-text);font-weight:400;">{currency_symbol(@currency)}{orig_w}.{orig_c}</span>
+                      <% else %>
+                        <span class="co-item-price">{currency_symbol(@currency)}{hero_w}.{hero_c}</span>
+                      <% end %>
+                    </div>
+                  </div>
+                </div>
+                <div class="co-totals-block">
+                  <%= if @discount_amount > 0 do %>
+                    <div class="co-total-row"><span>Subtotal</span><span>{currency_symbol(@currency)}{orig_w}.{orig_c}</span></div>
+                    <% {dc_w, dc_c} = format_amount_parts(@discount_amount) %>
+                    <div class="co-total-row co-total-row--discount">
+                      <span class="co-disc-label">
+                        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color:var(--success)"><polyline points="20.59 13.41 13.42 20.58 6.37 13.53 13.53 6.37 20.59 13.41"/><line x1="6" y1="6" x2="6.01" y2="6"/></svg>
+                        Discount
+                      </span>
+                      <span>−{currency_symbol(@currency)}{dc_w}.{dc_c}</span>
+                    </div>
+                  <% end %>
+                  <div class="co-grand-row">
+                    <span class="co-grand-label">Total due</span>
+                    <span class="co-grand-val">{currency_symbol(@currency)}{hero_w}.{hero_c}</span>
+                  </div>
+                </div>
+              <% else %>
+                <% item_line_items = Enum.filter(@line_items, &(&1["kind"] == "item" or is_nil(&1["kind"]))) %>
+                <% first_discount = Enum.find(@line_items, &(&1["kind"] == "discount")) %>
+                <div class="co-section-label">
+                  Order summary
+                  <span class="co-section-count">· {length(item_line_items)} {if length(item_line_items) == 1, do: "item", else: "items"}</span>
+                </div>
+                <%= for item <- item_line_items do %>
+                  <% {iw, ic} = format_amount_parts(item["total_amount"] || item["unit_amount"]) %>
+                  <div class="co-item-card">
+                    <div class="co-item-thumb">
+                      <%= if item["image_url"] && item["image_url"] != "" do %>
+                        <img src={item["image_url"]} alt={item["description"]} class="co-item-thumb-img" />
+                      <% else %>
+                        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" style="color:var(--subtle-text)"><rect x="3" y="3" width="18" height="18" rx="3"/><circle cx="12" cy="12" r="4"/></svg>
+                      <% end %>
+                    </div>
+                    <div class="co-item-body">
+                      <div class="co-item-name">{item["description"]}</div>
+                      <div class="co-item-bottom">
+                        <span class="co-item-qty">Qty {item["quantity"] || 1}</span>
+                        <span class="co-item-price">{currency_symbol(@currency)}{iw}.{ic}</span>
+                      </div>
+                    </div>
+                  </div>
+                <% end %>
+                <div class="co-totals-block">
+                  <% {sub_w, sub_c} = format_amount_parts(@subtotal_amount) %>
+                  <div class="co-total-row"><span>Subtotal</span><span>{currency_symbol(@currency)}{sub_w}.{sub_c}</span></div>
+                  <%= if @shipping_amount > 0 do %>
+                    <% {sh_w, sh_c} = format_amount_parts(@shipping_amount) %>
+                    <div class="co-total-row"><span>Delivery</span><span>{currency_symbol(@currency)}{sh_w}.{sh_c}</span></div>
+                  <% end %>
+                  <%= if @tax_amount > 0 do %>
+                    <% {tx_w, tx_c} = format_amount_parts(@tax_amount) %>
+                    <div class="co-total-row"><span>Tax (VAT)</span><span>{currency_symbol(@currency)}{tx_w}.{tx_c}</span></div>
+                  <% end %>
+                  <%= if @discount_amount > 0 do %>
+                    <% {dc_w, dc_c} = format_amount_parts(@discount_amount) %>
+                    <div class="co-total-row co-total-row--discount">
+                      <span class="co-disc-label">
+                        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color:var(--success)"><polyline points="20.59 13.41 13.42 20.58 6.37 13.53 13.53 6.37 20.59 13.41"/><line x1="6" y1="6" x2="6.01" y2="6"/></svg>
+                        Discount
+                        <%= if first_discount && first_discount["description"] do %>
+                          <span class="co-disc-badge">{first_discount["description"] |> String.replace(~r/[Pp]romo\s+code:?\s*/i, "") |> String.upcase()}</span>
+                        <% end %>
+                      </span>
+                      <span>−{currency_symbol(@currency)}{dc_w}.{dc_c}</span>
+                    </div>
+                  <% end %>
+                  <div class="co-grand-row">
+                    <span class="co-grand-label">Total due</span>
+                    <span class="co-grand-val">{currency_symbol(@currency)}{hero_w}.{hero_c}</span>
+                  </div>
+                </div>
+              <% end %>
+
+            </div><%!-- /co-panel-left --%>
+
+            <%!-- ══ RIGHT PANEL: Payment Form ══ --%>
+            <div class="co-panel-right">
+              <div class="co-form-inner">
 
                 <form phx-submit="submit_checkout" class="co-options-form">
 
-                  <%!-- ── Customer Details ── --%>
+                  <%!-- ── Contact information ── --%>
                   <%= if @collect_name or @collect_email or @collect_phone do %>
-                    <div class="co-customer-section">
-                      <div class="co-customer-heading">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                          <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
-                          <circle cx="12" cy="7" r="4"/>
-                        </svg>
-                        <span>Your details</span>
-                      </div>
-                      <div class="co-customer-fields">
-                        <%= if @collect_name do %>
-                          <div class="co-field">
-                            <label class="co-field-label" for="customer_name">Full name</label>
-                            <input
-                              id="customer_name"
-                              name="customer_name"
-                              type="text"
-                              class={"co-input#{if @collection_errors["name"], do: " co-input--error"}"}
-                              value={@customer_name}
-                              placeholder="John Doe"
-                              autocomplete="name"
-                              phx-change="change_customer_name"
-                              phx-debounce="blur"
-                            />
-                            <%= if @collection_errors["name"] do %>
-                              <span class="co-error-text">
-                                <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                                  <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
-                                </svg>
-                                {@collection_errors["name"]}
-                              </span>
-                            <% end %>
+                    <div class="co-form-section">Contact information</div>
+
+                    <%= if @collect_name do %>
+                      <div class="co-f-group">
+                        <label class="co-field-label" for="customer_name">Full name</label>
+                        <div class="co-f-icon-wrap">
+                          <div class="co-f-icon-pre">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
                           </div>
-                        <% end %>
-
-                        <%= if @collect_email do %>
-                          <div class="co-field">
-                            <label class="co-field-label" for="customer_email">Email address</label>
-                            <input
-                              id="customer_email"
-                              name="customer_email"
-                              type="email"
-                              class={"co-input#{if @collection_errors["email"], do: " co-input--error"}"}
-                              value={@customer_email}
-                              placeholder="you@example.com"
-                              autocomplete="email"
-                              inputmode="email"
-                              phx-change="change_customer_email"
-                              phx-debounce="blur"
-                            />
-                            <%= if @collection_errors["email"] do %>
-                              <span class="co-error-text">
-                                <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                                  <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
-                                </svg>
-                                {@collection_errors["email"]}
-                              </span>
-                            <% end %>
-                          </div>
-                        <% end %>
-
-                        <%= if @collect_phone do %>
-                          <div class="co-field">
-                            <label class="co-field-label" for="customer_phone">Phone number</label>
-                            <input
-                              id="customer_phone"
-                              name="customer_phone"
-                              type="tel"
-                              class={"co-input#{if @collection_errors["phone"], do: " co-input--error"}"}
-                              value={@customer_phone}
-                              placeholder="+233 24 000 0000"
-                              autocomplete="tel"
-                              inputmode="tel"
-                              phx-change="change_customer_phone"
-                              phx-debounce="blur"
-                            />
-                            <%= if @collection_errors["phone"] do %>
-                              <span class="co-error-text">
-                                <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                                  <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
-                                </svg>
-                                {@collection_errors["phone"]}
-                              </span>
-                            <% end %>
-                          </div>
-                        <% end %>
-                      </div>
-                    </div>
-                  <% end %>
-
-                  <%!-- ── Payment method selector header ── --%>
-                  <div class="co-panel-header co-panel-header--methods">
-                    <div class="co-panel-title-wrap">
-                      <div class="co-title-icon">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                          <rect x="1" y="4" width="22" height="16" rx="2" ry="2"/>
-                          <line x1="1" y1="10" x2="23" y2="10"/>
-                        </svg>
-                      </div>
-                      <h2 class="co-panel-title">Select Payment Option</h2>
-                    </div>
-                    <span class="co-methods-count">
-                      {length(@methods)} {if length(@methods) == 1, do: "option", else: "options"} available
-                    </span>
-                  </div>
-
-                  <%= if @error do %>
-                    <div class="co-alert co-alert--error">
-                      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                        <circle cx="12" cy="12" r="10"/>
-                        <line x1="12" y1="8" x2="12" y2="12"/>
-                        <line x1="12" y1="16" x2="12.01" y2="16"/>
-                      </svg>
-                      <span>{@error}</span>
-                    </div>
-                  <% end %>
-
-                  <%!-- ── Mobile Money — live ── --%>
-                  <%= if method_enabled?(@methods, "mobile_money") do %>
-                    <div class={"co-option-card#{if @selected_method == "mobile_money", do: " co-option-card--active"}"}>
-                      <div class="co-option-header" phx-click="select_method" phx-value-method="mobile_money">
-                        <label class="co-radio-label">
-                          <input type="radio" name="payment_method" value="mobile_money"
-                            checked={@selected_method == "mobile_money"} class="co-radio-input" />
-                          <span class="co-radio-custom"></span>
-                          <span class="co-option-name">Mobile Money</span>
-                        </label>
-                        <div class="co-telco-logos">
-                          <span class="co-logo-badge" title="MTN MoMo">
-                            <svg width="24" height="24" viewBox="0 0 32 32" fill="none">
-                              <rect width="32" height="32" rx="16" fill="#FFCC00"/>
-                              <path d="M7 16c0-4.97 4.03-9 9-9s9 4.03 9 9-4.03 9-9 9-9-4.03-9-9z" fill="#002B49"/>
-                              <path d="M12 19.5v-7l3 4.5 3-4.5v7" stroke="#FFCC00" stroke-width="2" stroke-linecap="round"/>
-                            </svg>
-                          </span>
-                          <span class="co-logo-badge" title="Telecel Cash">
-                            <svg width="24" height="24" viewBox="0 0 32 32" fill="none">
-                              <circle cx="16" cy="16" r="16" fill="#E60000"/>
-                              <circle cx="16" cy="16" r="10" stroke="#FFF" stroke-width="2.5" fill="none"/>
-                              <path d="M16 11v10M12 15h8" stroke="#FFF" stroke-width="2.5" stroke-linecap="round"/>
-                            </svg>
-                          </span>
-                          <span class="co-logo-badge" title="AT Money">
-                            <svg width="24" height="24" viewBox="0 0 32 32" fill="none">
-                              <circle cx="16" cy="16" r="16" fill="#1A2B4C"/>
-                              <path d="M0 16a16 16 0 0 0 32 0H0z" fill="#ED1C24"/>
-                              <text x="16" y="19" font-family="Inter,sans-serif" font-size="12" font-weight="900" fill="#FFF" text-anchor="middle">at</text>
-                            </svg>
-                          </span>
+                          <input
+                            id="customer_name" name="customer_name" type="text"
+                            class="co-f-icon-field"
+                            value={@customer_name} placeholder="Kofi Asante"
+                            autocomplete="name"
+                            phx-change="change_customer_name" phx-debounce="blur"
+                          />
                         </div>
+                        <%= if @collection_errors["name"] do %>
+                          <span class="co-error-text">{@collection_errors["name"]}</span>
+                        <% end %>
                       </div>
+                    <% end %>
 
-                      <%= if @selected_method == "mobile_money" do %>
-                        <div class="co-option-body">
-                          <div class="co-field-group">
-                            <label class="co-field-label">Choose Network Provider</label>
-                            <div class="co-net-tiles">
-                              <%= for net <- @networks do %>
-                                <button
-                                  type="button"
-                                  class={"co-net-tile co-net-tile--#{net.css}#{if @selected_network == net.id, do: " co-net-tile--selected"}"}
-                                  phx-click="select_network"
-                                  phx-value-network={net.id}
-                                >
-                                  <span class="co-net-logo-wrap">
-                                    {raw(network_svg(net.id))}
-                                  </span>
-                                  <div class="co-net-info">
-                                    <span class="co-net-name">{net.label}</span>
-                                    <span class="co-net-sub">{network_prefix_hint(net.id)}</span>
-                                  </div>
-                                  <%= if @selected_network == net.id do %>
-                                    <span class="co-net-check">
-                                      <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
-                                        <polyline points="20 6 9 17 4 12"/>
-                                      </svg>
-                                    </span>
+                    <%= if @collect_email do %>
+                      <div class="co-f-group">
+                        <label class="co-field-label" for="customer_email">Email address</label>
+                        <div class="co-f-icon-wrap">
+                          <div class="co-f-icon-pre">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
+                          </div>
+                          <input
+                            id="customer_email" name="customer_email" type="email"
+                            class="co-f-icon-field"
+                            value={@customer_email} placeholder="kofi@example.com"
+                            autocomplete="email" inputmode="email"
+                            phx-change="change_customer_email" phx-debounce="blur"
+                          />
+                        </div>
+                        <%= if @collection_errors["email"] do %>
+                          <span class="co-error-text">{@collection_errors["email"]}</span>
+                        <% end %>
+                      </div>
+                    <% end %>
+
+                    <%= if @collect_phone do %>
+                      <div class="co-f-group">
+                        <label class="co-field-label" for="customer_phone">Phone number</label>
+                        <div class="co-f-icon-wrap">
+                          <div class="co-f-icon-pre">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.69 12 19.79 19.79 0 0 1 1.61 3.42C1.6 2.3 2.46 1.4 3.58 1.4h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L7.91 9.14a16 16 0 0 0 6 6l1-1.52a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg>
+                          </div>
+                          <input
+                            id="customer_phone" name="customer_phone" type="tel"
+                            class="co-f-icon-field"
+                            value={@customer_phone} placeholder="+233 24 000 0000"
+                            autocomplete="tel" inputmode="tel"
+                            phx-change="change_customer_phone" phx-debounce="blur"
+                          />
+                        </div>
+                        <%= if @collection_errors["phone"] do %>
+                          <span class="co-error-text">{@collection_errors["phone"]}</span>
+                        <% end %>
+                      </div>
+                    <% end %>
+                  <% end %>
+
+                  <%!-- ── Payment method ── --%>
+                  <div class="co-form-section">Payment method</div>
+
+                    <%= if @error do %>
+                      <div class="co-alert co-alert--error">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+                        <span>{@error}</span>
+                      </div>
+                    <% end %>
+
+                    <div class="co-method-list">
+
+                      <%!-- Mobile Money radio item --%>
+                      <%= if method_enabled?(@methods, "mobile_money") do %>
+                        <div class={"co-method-item#{if @selected_method == "mobile_money", do: " co-method-item--on"}"}
+                             phx-click="select_method" phx-value-method="mobile_money">
+                          <div class="co-method-item-hd">
+                            <div class="co-radio-dot"><div class="co-radio-inner"></div></div>
+                            <span class="co-method-item-icon">
+                              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="2" width="14" height="20" rx="2" ry="2"/><line x1="12" y1="18" x2="12.01" y2="18"/></svg>
+                            </span>
+                            <span class="co-method-item-name">Mobile Money</span>
+                            <span class="co-method-item-logos">
+                              <img src="/images/momo.png" width="20" height="20" style="border-radius:4px;object-fit:cover;display:block;" alt="MTN">
+                              <img src="/images/telecel.png" width="20" height="20" style="border-radius:4px;object-fit:cover;display:block;" alt="Telecel">
+                              <img src="/images/at.png" width="20" height="20" style="border-radius:4px;object-fit:cover;display:block;" alt="AT">
+                            </span>
+                          </div>
+                          <%= if @selected_method == "mobile_money" do %>
+                            <div class="co-method-item-body">
+                              <div class="co-f-group">
+                                <label class="co-field-label">Network</label>
+                                <div class="co-net-tabs">
+                                  <%= for net <- @networks do %>
+                                    <button type="button"
+                                      class={"co-net-tab co-net-tab--#{net.css}#{if @selected_network == net.id, do: " co-net-tab--active"}"}
+                                      phx-click="select_network" phx-value-network={net.id}>
+                                      <span class="co-net-tab-logo">{raw(network_svg(net.id))}</span>
+                                      <span class="co-net-tab-label">{net.label}</span>
+                                    </button>
                                   <% end %>
-                                </button>
-                              <% end %>
-                            </div>
-                          </div>
-
-                          <div class="co-field">
-                            <label class="co-field-label" for="phone">
-                              {if @selected_network, do: "#{network_label(@selected_network)} Number", else: "Mobile Money Number"}
-                            </label>
-                            <div class={"co-phone-box#{if @phone_error, do: " co-phone-box--error"}"}>
-                              <span class="co-flag-pill">
-                                <span class="co-flag">🇬🇭</span>
-                                <span class="co-calling-code">+233</span>
-                              </span>
-                              <input
-                                id="phone"
-                                name="phone"
-                                type="tel"
-                                class="co-input co-phone-input"
-                                value={@phone}
-                                placeholder="024 000 0000"
-                                autocomplete="tel-national"
-                                inputmode="numeric"
-                                maxlength="10"
-                                phx-change="change_phone"
-                              />
-                              <%= if @detected_network do %>
-                                <span class={"co-detected-badge co-detected-badge--#{network_css_key(@detected_network)}"}>
-                                  {@detected_network}
-                                </span>
-                              <% end %>
-                            </div>
-                            <%= if @phone_error do %>
-                              <span class="co-error-text">
-                                <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                                  <circle cx="12" cy="12" r="10"/>
-                                  <line x1="12" y1="8" x2="12" y2="12"/>
-                                  <line x1="12" y1="16" x2="12.01" y2="16"/>
-                                </svg>
-                                {@phone_error}
-                              </span>
-                            <% end %>
-                            <p class="co-field-hint">A USSD prompt will appear. Approve with your MoMo PIN.</p>
-                          </div>
-                        </div>
-                      <% end %>
-                    </div>
-                  <% end %>
-
-                  <%!-- ── Card — coming soon ── --%>
-                  <%= if method_enabled?(@methods, "card") do %>
-                    <div class={"co-option-card#{if @selected_method == "card", do: " co-option-card--active"}"}>
-                      <div class="co-option-header" phx-click="select_method" phx-value-method="card">
-                        <label class="co-radio-label">
-                          <input type="radio" name="payment_method" value="card"
-                            checked={@selected_method == "card"} class="co-radio-input" />
-                          <span class="co-radio-custom"></span>
-                          <span class="co-option-name">Credit / Debit Card</span>
-                        </label>
-                        <div class="co-card-logos">
-                          {raw(card_brand_svg("visa"))}
-                          {raw(card_brand_svg("mastercard"))}
-                          {raw(card_brand_svg("verve"))}
-                        </div>
-                      </div>
-                      <%= if @selected_method == "card" do %>
-                        <div class="co-option-body">
-                          <%!-- Sandbox test cards hint --%>
-                          <div class="co-sandbox-notice">
-                            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;margin-top:2px">
-                              <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
-                            </svg>
-                            <div>
-                              <p class="co-sandbox-title">Simulation mode — use test cards</p>
-                              <div class="co-sandbox-cards">
-                                <div><code>4242 4242 4242 4242</code> — Authorised</div>
-                                <div><code>4000 0000 0000 0002</code> — Declined</div>
-                                <div><code>4000 0000 0000 9995</code> — Insufficient funds</div>
+                                </div>
                               </div>
-                              <p style="margin-top:4px;font-size:0.7rem;opacity:0.75">Use any future expiry, any CVV, any name.</p>
-                            </div>
-                          </div>
-
-                          <%!-- Card number --%>
-                          <div class="co-field">
-                            <label class="co-field-label" for="card_number">Card number</label>
-                            <div class={"co-card-number-box#{if @card_errors["number"], do: " co-card-box--error"}"}>
-                              <input
-                                id="card_number" name="card_number" type="text" inputmode="numeric"
-                                value={@card_number} placeholder="0000 0000 0000 0000"
-                                maxlength="19" autocomplete="cc-number"
-                                class="co-card-number-input"
-                                phx-change="change_card_number"
-                              />
-                              <%= if @card_brand do %>
-                                <span class="co-card-brand-badge">{raw(card_brand_svg(@card_brand))}</span>
+                              <%= if @selected_network do %>
+                                <div class="co-f-group" style="margin-bottom:0;">
+                                  <label class="co-field-label" for="phone">Mobile Money number</label>
+                                  <div class={"co-phone-box#{if @phone_error, do: " co-phone-box--error"}"}>
+                                    <span class="co-flag-pill">
+                                      <span class="co-flag">🇬🇭</span>
+                                      <span class="co-calling-code">+233</span>
+                                    </span>
+                                    <input id="phone" name="phone" type="tel"
+                                      class="co-input co-phone-input"
+                                      value={@phone} placeholder="024 000 0000"
+                                      autocomplete="tel-national" inputmode="numeric" maxlength="10"
+                                      phx-change="change_phone" />
+                                    <%= if @detected_network do %>
+                                      <img
+                                        src={network_logo(@detected_network)}
+                                        width="20" height="20"
+                                        style="border-radius:4px;object-fit:cover;display:block;margin-right:8px;flex-shrink:0;"
+                                        alt={@detected_network}
+                                      />
+                                    <% end %>
+                                  </div>
+                                  <%= if @phone_error do %>
+                                    <span class="co-error-text">{@phone_error}</span>
+                                  <% end %>
+                                </div>
+                              <% else %>
+                                <p class="co-net-prompt">Select your network above to continue</p>
                               <% end %>
                             </div>
-                            <%= if @card_errors["number"] do %>
-                              <span class="co-error-text">{@card_errors["number"]}</span>
-                            <% end %>
-                          </div>
-
-                          <%!-- Expiry + CVV --%>
-                          <div class="co-card-row">
-                            <div class="co-field">
-                              <label class="co-field-label" for="card_expiry">Expiry</label>
-                              <input
-                                id="card_expiry" name="card_expiry" type="text" inputmode="numeric"
-                                value={@card_expiry} placeholder="MM/YY"
-                                maxlength="5" autocomplete="cc-exp"
-                                class={"co-input#{if @card_errors["expiry"], do: " co-input--error"}"}
-                                phx-change="change_card_expiry"
-                              />
-                              <%= if @card_errors["expiry"] do %>
-                                <span class="co-error-text">{@card_errors["expiry"]}</span>
-                              <% end %>
-                            </div>
-                            <div class="co-field">
-                              <label class="co-field-label" for="card_cvv">CVV</label>
-                              <input
-                                id="card_cvv" name="card_cvv" type="text" inputmode="numeric"
-                                value={@card_cvv} placeholder="•••"
-                                maxlength="4" autocomplete="cc-csc"
-                                class={"co-input#{if @card_errors["cvv"], do: " co-input--error"}"}
-                                phx-change="change_card_cvv"
-                              />
-                              <%= if @card_errors["cvv"] do %>
-                                <span class="co-error-text">{@card_errors["cvv"]}</span>
-                              <% end %>
-                            </div>
-                          </div>
-
-                          <%!-- Name on card --%>
-                          <div class="co-field">
-                            <label class="co-field-label" for="card_name">Name on card</label>
-                            <input
-                              id="card_name" name="card_name" type="text"
-                              value={@card_name} placeholder="JOHN DOE"
-                              autocomplete="cc-name" style="text-transform:uppercase"
-                              class={"co-input#{if @card_errors["name"], do: " co-input--error"}"}
-                              phx-change="change_card_name"
-                            />
-                            <%= if @card_errors["name"] do %>
-                              <span class="co-error-text">{@card_errors["name"]}</span>
-                            <% end %>
-                          </div>
+                          <% end %>
                         </div>
                       <% end %>
-                    </div>
-                  <% end %>
 
-                  <%!-- ── Bank Transfer — coming soon ── --%>
-                  <%= if method_enabled?(@methods, "bank_transfer") do %>
-                    <div class={"co-option-card#{if @selected_method == "bank_transfer", do: " co-option-card--active"}"}>
-                      <div class="co-option-header" phx-click="select_method" phx-value-method="bank_transfer">
-                        <label class="co-radio-label">
-                          <input type="radio" name="payment_method" value="bank_transfer"
-                            checked={@selected_method == "bank_transfer"} class="co-radio-input" />
-                          <span class="co-radio-custom"></span>
-                          <span class="co-option-name">Bank Transfer</span>
-                        </label>
-                        <span style="color:var(--muted-text)">
-                          <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
-                            <line x1="3" y1="22" x2="21" y2="22"/>
-                            <line x1="6" y1="18" x2="6" y2="11"/>
-                            <line x1="10" y1="18" x2="10" y2="11"/>
-                            <line x1="14" y1="18" x2="14" y2="11"/>
-                            <line x1="18" y1="18" x2="18" y2="11"/>
-                            <polygon points="12 2 20 7 4 7"/>
-                          </svg>
-                        </span>
-                      </div>
-                      <%= if @selected_method == "bank_transfer" do %>
-                        <div class="co-option-body">
-                          <div class="co-bank-info-notice">
-                            <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;margin-top:2px">
-                              <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
-                            </svg>
-                            <div>
-                              <p class="co-bank-notice-title">Unique account generated per payment</p>
-                              <p class="co-bank-notice-desc">
-                                Click Pay to generate a dedicated bank account for this transaction.
-                                Transfer the exact amount via <strong>GhIPSS Instant Pay</strong> —
-                                your payment is confirmed automatically in seconds.
-                              </p>
-                            </div>
+                      <%!-- Card radio item --%>
+                      <%= if method_enabled?(@methods, "card") do %>
+                        <div class={"co-method-item#{if @selected_method == "card", do: " co-method-item--on"}"}
+                             phx-click="select_method" phx-value-method="card">
+                          <div class="co-method-item-hd">
+                            <div class="co-radio-dot"><div class="co-radio-inner"></div></div>
+                            <span class="co-method-item-icon">
+                              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="4" width="22" height="16" rx="2" ry="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg>
+                            </span>
+                            <span class="co-method-item-name">Card</span>
+                            <span class="co-method-item-logos">
+                              {raw(card_brand_svg("visa"))}
+                              {raw(card_brand_svg("mastercard"))}
+                              {raw(card_brand_svg("verve"))}
+                            </span>
                           </div>
+                          <%= if @selected_method == "card" do %>
+                            <div class="co-method-item-body">
+                              <%= if @simulation_mode do %>
+                              <div class="co-sandbox-notice">
+                                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;margin-top:2px"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+                                <div>
+                                  <p class="co-sandbox-title">Simulation mode — use test cards</p>
+                                  <div class="co-sandbox-cards">
+                                    <div><code>4242 4242 4242 4242</code> — Authorised</div>
+                                    <div><code>4000 0000 0000 0002</code> — Declined</div>
+                                    <div><code>4000 0000 0000 9995</code> — Insufficient funds</div>
+                                  </div>
+                                  <p style="margin-top:4px;font-size:0.7rem;opacity:0.75">Expiry: <code>12/28</code> · CVV: <code>123</code> · any name.</p>
+                                </div>
+                              </div>
+                              <% end %>
+
+                              <%= if @card_psp == "stripe" do %>
+                                <%!-- Stripe Elements — card entry is handled by Stripe.js --%>
+                                <div id="stripe-card-form"
+                                     phx-hook="StripeCard"
+                                     phx-update="ignore"
+                                     data-stripe-pk={@stripe_pk}>
+                                  <div id="stripe-card-element" style="padding:10px 12px;border:1.5px solid #e5e7eb;border-radius:8px;background:#fff;min-height:40px;"></div>
+                                </div>
+                                <%= if @stripe_card_error do %>
+                                  <span class="co-error-text" style="margin-top:4px;">{@stripe_card_error}</span>
+                                <% end %>
+                                <%= if not @simulation_mode and @checkout_mode == "sandbox" do %>
+                                  <div class="co-sandbox-notice" style="margin-top:8px;">
+                                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;margin-top:2px"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+                                    <div>
+                                      <p class="co-sandbox-title">Stripe sandbox — use Stripe test cards</p>
+                                      <div class="co-sandbox-cards">
+                                        <div><code>4242 4242 4242 4242</code> — Visa success</div>
+                                        <div><code>4000 0000 0000 0002</code> — Declined</div>
+                                        <div><code>4000 0000 0000 9995</code> — Insufficient funds</div>
+                                      </div>
+                                      <p style="margin-top:4px;font-size:0.7rem;opacity:0.75">Expiry: <code>12/28</code> · CVV: <code>123</code> · any name.</p>
+                                    </div>
+                                  </div>
+                                <% end %>
+                              <% else %>
+                                <%!-- Native card form — for future GhIPSS integration --%>
+                                <div class="co-field">
+                                  <label class="co-field-label" for="card_number">Card number</label>
+                                  <div class={"co-card-number-box#{if @card_errors["number"], do: " co-card-box--error"}"}>
+                                    <input id="card_number" name="card_number" type="text" inputmode="numeric"
+                                      value={@card_number} placeholder="0000 0000 0000 0000"
+                                      maxlength="19" autocomplete="cc-number" class="co-card-number-input"
+                                      phx-change="change_card_number" />
+                                    <%= if @card_brand do %>
+                                      <span class="co-card-brand-badge">{raw(card_brand_svg(@card_brand))}</span>
+                                    <% end %>
+                                  </div>
+                                  <%= if @card_errors["number"] do %>
+                                    <span class="co-error-text">{@card_errors["number"]}</span>
+                                  <% end %>
+                                </div>
+                                <div class="co-card-row">
+                                  <div class="co-field">
+                                    <label class="co-field-label" for="card_expiry">Expiry</label>
+                                    <input id="card_expiry" name="card_expiry" type="text" inputmode="numeric"
+                                      value={@card_expiry} placeholder="MM/YY" maxlength="5" autocomplete="cc-exp"
+                                      class={"co-input#{if @card_errors["expiry"], do: " co-input--error"}"}
+                                      phx-change="change_card_expiry" />
+                                    <%= if @card_errors["expiry"] do %>
+                                      <span class="co-error-text">{@card_errors["expiry"]}</span>
+                                    <% end %>
+                                  </div>
+                                  <div class="co-field">
+                                    <label class="co-field-label" for="card_cvv">CVV</label>
+                                    <input id="card_cvv" name="card_cvv" type="text" inputmode="numeric"
+                                      value={@card_cvv} placeholder="•••" maxlength="4" autocomplete="cc-csc"
+                                      class={"co-input#{if @card_errors["cvv"], do: " co-input--error"}"}
+                                      phx-change="change_card_cvv" />
+                                    <%= if @card_errors["cvv"] do %>
+                                      <span class="co-error-text">{@card_errors["cvv"]}</span>
+                                    <% end %>
+                                  </div>
+                                </div>
+                                <div class="co-field">
+                                  <label class="co-field-label" for="card_name">Name on card</label>
+                                  <input id="card_name" name="card_name" type="text"
+                                    value={@card_name} placeholder="JOHN DOE"
+                                    autocomplete="cc-name" style="text-transform:uppercase"
+                                    class={"co-input#{if @card_errors["name"], do: " co-input--error"}"}
+                                    phx-change="change_card_name" />
+                                  <%= if @card_errors["name"] do %>
+                                    <span class="co-error-text">{@card_errors["name"]}</span>
+                                  <% end %>
+                                </div>
+                              <% end %>
+                            </div>
+                          <% end %>
                         </div>
                       <% end %>
-                    </div>
-                  <% end %>
 
-                  <%!-- ── T&Cs checkbox ── --%>
+                      <%!-- Bank Transfer radio item --%>
+                      <%= if method_enabled?(@methods, "bank_transfer") do %>
+                        <div class={"co-method-item#{if @selected_method == "bank_transfer", do: " co-method-item--on"}"}
+                             phx-click="select_method" phx-value-method="bank_transfer">
+                          <div class="co-method-item-hd">
+                            <div class="co-radio-dot"><div class="co-radio-inner"></div></div>
+                            <span class="co-method-item-icon">
+                              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="22" x2="21" y2="22"/><line x1="6" y1="18" x2="6" y2="11"/><line x1="10" y1="18" x2="10" y2="11"/><line x1="14" y1="18" x2="14" y2="11"/><line x1="18" y1="18" x2="18" y2="11"/><polygon points="12 2 20 7 4 7"/></svg>
+                            </span>
+                            <span class="co-method-item-name">Bank Transfer</span>
+                            <span style="font-size:10.5px;color:var(--muted-text);font-weight:500;">{if @bank_transfer_psp == "paystack", do: "Paystack", else: "GhIPSS"}</span>
+                          </div>
+                          <%= if @selected_method == "bank_transfer" do %>
+                            <div class="co-method-item-body">
+                              <div class="co-bank-info-notice">
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;margin-top:2px"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+                                <div>
+                                  <p class="co-bank-notice-title">Unique account generated per payment</p>
+                                  <p class="co-bank-notice-desc">
+                                    Click Pay to generate a dedicated bank account for this transaction.
+                                    Transfer the exact amount via <strong>{if @bank_transfer_psp == "paystack", do: "Paystack bank transfer", else: "GhIPSS Instant Pay"}</strong> —
+                                    your payment is confirmed automatically in seconds.
+                                  </p>
+                                </div>
+                              </div>
+                            </div>
+                          <% end %>
+                        </div>
+                      <% end %>
+
+                    </div><%!-- /co-method-list --%>
+
+                  <%!-- ── T&Cs ── --%>
                   <%= if @terms_enabled do %>
                     <div class="co-terms-row">
                       <input
-                        type="checkbox"
-                        id="co-terms-check"
-                        class="co-terms-checkbox"
-                        checked={@terms_accepted}
-                        phx-click="toggle_terms"
+                        type="checkbox" id="co-terms-check" class="co-terms-checkbox"
+                        checked={@terms_accepted} phx-click="toggle_terms"
                       />
                       <label for="co-terms-check" class="co-terms-label">
                         <%= if @terms_url && @terms_url != "" do %>
@@ -980,197 +1049,72 @@ defmodule YagyeCheckoutWeb.Live.CheckoutLive do
                     <% end %>
                   <% end %>
 
-                  <%!-- ── Pay Button ── --%>
+                  <%!-- ── Pay summary ── --%>
                   <% {whole, cents} = format_amount_parts(@total_amount) %>
                   <% pay_label = cond do
                     @cta_text && @cta_text != "" -> @cta_text
                     @selected_method == "bank_transfer" -> "Generate Transfer Account"
                     true -> "Pay #{currency_symbol(@currency)}#{whole}.#{cents}"
                   end %>
-                  <button
-                    type="submit"
-                    class="co-btn-pay"
-                    phx-disable-with="Processing…"
-                  >
-                    {pay_label}
+
+                  <div class="co-pay-sum" id="pay-sum">
+                    <%= if @line_items != [] do %>
+                      <% {sub_w, sub_c} = format_amount_parts(@subtotal_amount) %>
+                      <div class="co-ps-row"><span>Subtotal</span><span>{currency_symbol(@currency)}{sub_w}.{sub_c}</span></div>
+                      <%= if @shipping_amount > 0 do %>
+                        <% {sh_w, sh_c} = format_amount_parts(@shipping_amount) %>
+                        <div class="co-ps-row"><span>Delivery</span><span>{currency_symbol(@currency)}{sh_w}.{sh_c}</span></div>
+                      <% end %>
+                      <%= if @tax_amount > 0 do %>
+                        <% {tx_w, tx_c} = format_amount_parts(@tax_amount) %>
+                        <div class="co-ps-row"><span>Tax (VAT)</span><span>{currency_symbol(@currency)}{tx_w}.{tx_c}</span></div>
+                      <% end %>
+                    <% end %>
+                    <%= if @discount_amount > 0 do %>
+                      <% {dc_w, dc_c} = format_amount_parts(@discount_amount) %>
+                      <div class="co-ps-row co-ps-row--discount"><span>Discount</span><span>−{currency_symbol(@currency)}{dc_w}.{dc_c}</span></div>
+                    <% end %>
+                    <div class="co-ps-total"><span>Total due</span><span>{currency_symbol(@currency)}{whole}.{cents}</span></div>
+                  </div>
+
+                  <button type="submit" class="co-btn-pay" phx-disable-with="Processing…">
+                    <span>{pay_label}</span>
+                    <svg class="co-btn-pay-lock" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                      <rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+                    </svg>
                   </button>
 
-                  <div class="co-trust-strip">
-                    <%= if @trust_ssl do %>
-                      <span>
-                        <svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-                          <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
-                        </svg>
-                        256-bit SSL
-                      </span>
-                    <% end %>
-                    <%= if @trust_ssl && @trust_instant do %><span>&middot;</span><% end %>
-                    <%= if @trust_instant do %>
-                      <span>Bank-grade security</span>
-                      <span>&middot;</span>
-                      <span>Instant settlement</span>
-                    <% end %>
-                    <%= if @trust_bog do %>
-                      <span>&middot;</span>
-                      <span>BoG regulated</span>
-                    <% end %>
-                    <%= if not @trust_ssl and not @trust_instant and not @trust_bog do %>
-                      <span>Secured by Yagye</span>
-                    <% end %>
+                  <div class="co-trust-footer">
+                    <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="color:var(--success);flex-shrink:0;">
+                      <rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+                    </svg>
+                    Secure &amp; encrypted payment
+                    <span style="color:var(--faint-text);">·</span>
+                    <a href="#">Learn more</a>
+                  </div>
+
+                  <div class="co-right-footer">
+                    Powered by Yagye
+                    <span class="co-rf-sep">•</span>
+                    <a href="#">Terms</a>
+                    <span class="co-rf-sep">•</span>
+                    <a href="#">Privacy</a>
                   </div>
 
                   <%= if @cancel_url && external_url?(@cancel_url) do %>
                     <div class="co-cancel-wrap">
                       <a href={@cancel_url} class="co-cancel-link">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                           <line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/>
                         </svg>
                         Cancel and return
                       </a>
                     </div>
                   <% end %>
+
                 </form>
-              </div>
-            </main>
-
-            <%!-- ── RIGHT: Order Summary ── --%>
-            <aside class="co-sidebar-column">
-
-              <%!-- Merchant brand + security --%>
-              <div class="co-panel co-merchant-panel">
-                <div class="co-merchant-brand">
-                  <%= if @logo_url && @logo_url != "" do %>
-                    <img src={@logo_url} alt="Merchant logo" class="co-merchant-logo" />
-                  <% else %>
-                    <div class="co-merchant-icon">
-                      <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-                        <rect x="3" y="11" width="18" height="11" rx="2"/>
-                        <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
-                      </svg>
-                    </div>
-                  <% end %>
-                  <span class="co-merchant-name">{@checkout_business_name || merchant_brand_name(@session)}</span>
-                </div>
-                <div class="co-merchant-ssl">
-                  <svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-                    <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
-                  </svg>
-                  <span>Secured</span>
-                </div>
-              </div>
-
-              <%!-- Simple payment — product block --%>
-              <%= if @line_items == [] do %>
-                <% {w, c} = format_amount_parts(@total_amount) %>
-                <div class="co-panel co-product-panel">
-                  <div class="co-product-icon">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
-                      <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/>
-                    </svg>
-                  </div>
-                  <div class="co-product-info">
-                    <span class="co-product-label">You're paying for</span>
-                    <span class="co-product-name">{@session && (@session["description"] || "Payment")}</span>
-                  </div>
-                  <div class="co-product-amount">
-                    <span class="co-product-currency">{currency_symbol(@currency)}</span>
-                    <span class="co-product-whole">{w}</span>
-                    <span class="co-product-cents">.{c}</span>
-                  </div>
-                </div>
-              <% end %>
-
-              <%!-- Line items — only when merchant sent them --%>
-              <%= if @line_items != [] do %>
-                <div class="co-panel co-cart-panel">
-                  <div class="co-sidebar-title-wrap">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                      <path d="M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/>
-                      <line x1="3" y1="6" x2="21" y2="6"/>
-                      <path d="M16 10a4 4 0 0 1-8 0"/>
-                    </svg>
-                    <h2 class="co-sidebar-title">
-                      Order ({length(@line_items)} {if length(@line_items) == 1, do: "item", else: "items"})
-                    </h2>
-                  </div>
-                  <div class="co-cart-items-list">
-                    <%= for item <- @line_items do %>
-                      <% {w, c} = format_amount_parts(item["total_amount"] || item["unit_amount"]) %>
-                      <div class="co-cart-item">
-                        <div class="co-item-thumb">
-                          <%= if item["image_url"] && item["image_url"] != "" do %>
-                            <img src={item["image_url"]} alt={item["description"]} class="co-thumb-img" />
-                          <% else %>
-                            <div class="co-thumb-box">
-                              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
-                                <rect x="3" y="3" width="18" height="18" rx="3"/><circle cx="12" cy="12" r="4"/>
-                              </svg>
-                            </div>
-                          <% end %>
-                        </div>
-                        <div class="co-item-details">
-                          <div class="co-item-top">
-                            <span class="co-item-title">{item["description"]}</span>
-                          </div>
-                          <div class="co-item-bottom">
-                            <span class="co-item-qty">Qty {item["quantity"] || 1}</span>
-                            <span class="co-item-price">{currency_symbol(@currency)}{w}.{c}</span>
-                          </div>
-                        </div>
-                      </div>
-                    <% end %>
-                  </div>
-                </div>
-              <% end %>
-
-              <%!-- Breakdown + Total — only needed when there are extras or line items --%>
-              <%= if @line_items != [] or @tax_amount > 0 or @shipping_amount > 0 or @discount_amount > 0 do %>
-                <div class="co-panel co-summary-panel">
-                  <div class="co-summary-rows">
-                    <%= if @line_items != [] do %>
-                      <% {w, c} = format_amount_parts(@subtotal_amount) %>
-                      <div class="co-summary-row">
-                        <span class="co-summary-label">Subtotal</span>
-                        <span class="co-summary-val">{currency_symbol(@currency)}{w}.{c}</span>
-                      </div>
-                    <% end %>
-
-                    <%= if @tax_amount > 0 do %>
-                      <% {w, c} = format_amount_parts(@tax_amount) %>
-                      <div class="co-summary-row">
-                        <span class="co-summary-label">Tax</span>
-                        <span class="co-summary-val">{currency_symbol(@currency)}{w}.{c}</span>
-                      </div>
-                    <% end %>
-
-                    <%= if @shipping_amount > 0 do %>
-                      <% {w, c} = format_amount_parts(@shipping_amount) %>
-                      <div class="co-summary-row">
-                        <span class="co-summary-label">Shipping</span>
-                        <span class="co-summary-val">{currency_symbol(@currency)}{w}.{c}</span>
-                      </div>
-                    <% end %>
-
-                    <%= if @discount_amount > 0 do %>
-                      <% {w, c} = format_amount_parts(@discount_amount) %>
-                      <div class="co-summary-row co-summary-row--discount">
-                        <span class="co-summary-label">Discount</span>
-                        <span class="co-summary-val">−{currency_symbol(@currency)}{w}.{c}</span>
-                      </div>
-                    <% end %>
-
-                    <div class="co-summary-divider"></div>
-
-                    <% {tot_w, tot_c} = format_amount_parts(@total_amount) %>
-                    <div class="co-summary-row co-summary-row--total">
-                      <span class="co-total-label">Total due</span>
-                      <span class="co-total-val">{currency_symbol(@currency)}{tot_w}.{tot_c}</span>
-                    </div>
-                  </div>
-                </div>
-              <% end %>
-
-            </aside>
+              </div><%!-- /co-form-inner --%>
+            </div><%!-- /co-panel-right --%>
           </div>
 
       <% end %>
@@ -1180,891 +1124,6 @@ defmodule YagyeCheckoutWeb.Live.CheckoutLive do
       </footer>
     </div>
 
-    <style>
-      :root {
-        --brand:        #3D47F5;
-        --brand-hover:  #323BD8;
-        --brand-subtle: rgba(61,71,245,0.08);
-        --brand-glow:   rgba(61,71,245,0.15);
-        --canvas:       #F9FAFB;
-        --card-bg:      #FFFFFF;
-        --ink:          #111827;
-        --body-text:    #374151;
-        --prose-text:   #4B5563;
-        --muted-text:   #6B7280;
-        --subtle-text:  #9CA3AF;
-        --border:       #F3F4F6;
-        --border-med:   #E5E7EB;
-        --border-strong:#D1D5DB;
-        --success:      #16A34A;
-        --success-bg:   #ECFDF5;
-        --error:        #DC2626;
-        --error-bg:     #FEF2F2;
-      }
-
-      .co-checkout-container {
-        width: 100%;
-        max-width: 1100px;
-        margin: 0 auto;
-        display: flex;
-        flex-direction: column;
-        gap: 1.5rem;
-      }
-
-      /* ── Merchant Panel ── */
-      .co-merchant-panel {
-        display: flex; align-items: center; justify-content: space-between;
-        padding: 1rem 1.25rem;
-      }
-
-      .co-merchant-brand { display: flex; align-items: center; gap: 0.625rem; }
-
-      .co-merchant-icon {
-        width: 36px; height: 36px; flex-shrink: 0;
-        border-radius: 10px;
-        background: var(--brand-subtle);
-        color: var(--brand);
-        display: flex; align-items: center; justify-content: center;
-      }
-
-      .co-merchant-name {
-        font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
-        font-size: 1rem; font-weight: 800;
-        color: var(--ink); letter-spacing: -0.02em;
-      }
-
-      .co-merchant-logo {
-        width: 36px; height: 36px; flex-shrink: 0;
-        border-radius: 10px; object-fit: cover;
-        border: 1px solid var(--border-med);
-      }
-
-      .co-merchant-ssl {
-        display: flex; align-items: center; gap: 0.3rem;
-        font-size: 0.6875rem; font-weight: 700;
-        color: var(--success);
-        background: var(--success-bg);
-        border: 1px solid rgba(22,163,74,0.18);
-        border-radius: 999px;
-        padding: 0.25rem 0.6rem;
-      }
-
-      /* ── Product Panel (simple payment) ── */
-      .co-product-panel {
-        display: flex; align-items: center; gap: 1rem;
-        padding: 1.25rem 1.25rem;
-      }
-
-      .co-product-icon {
-        width: 44px; height: 44px; flex-shrink: 0;
-        border-radius: 12px;
-        background: var(--brand-subtle);
-        color: var(--brand);
-        display: flex; align-items: center; justify-content: center;
-      }
-
-      .co-product-info {
-        flex: 1; display: flex; flex-direction: column; gap: 0.15rem; min-width: 0;
-      }
-
-      .co-product-label {
-        font-size: 0.6875rem; font-weight: 600;
-        color: var(--muted-text); text-transform: uppercase; letter-spacing: 0.04em;
-      }
-
-      .co-product-name {
-        font-size: 0.9375rem; font-weight: 700; color: var(--ink);
-        white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-      }
-
-      .co-product-amount {
-        display: flex; align-items: baseline; gap: 0.1rem; flex-shrink: 0;
-      }
-
-      .co-product-currency {
-        font-size: 0.875rem; font-weight: 700; color: var(--ink);
-      }
-
-      .co-product-whole {
-        font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
-        font-size: 1.375rem; font-weight: 800; color: var(--ink); letter-spacing: -0.02em;
-      }
-
-      .co-product-cents {
-        font-size: 0.875rem; font-weight: 700; color: var(--muted-text);
-      }
-
-      /* ── Grid ── */
-      .co-grid {
-        display: grid;
-        grid-template-columns: 1fr;
-        gap: 1.5rem;
-        align-items: start;
-      }
-
-      @media (min-width: 960px) {
-        .co-grid { grid-template-columns: 1.32fr 1fr; gap: 1.75rem; }
-      }
-
-      /* ── Panels ── */
-      .co-panel {
-        background: var(--card-bg);
-        border: 1px solid var(--border-med);
-        border-radius: 20px;
-        box-shadow: 0 1px 3px rgba(0,0,0,0.03), 0 8px 24px -6px rgba(0,0,0,0.04);
-        overflow: hidden;
-      }
-
-      .co-payment-panel { padding: 1.75rem 2rem; }
-      @media (max-width: 640px) { .co-payment-panel { padding: 1.25rem 1rem; } }
-
-      .co-panel-header {
-        display: flex; align-items: center; justify-content: space-between;
-        margin-bottom: 1.5rem;
-      }
-      .co-panel-header--methods { margin-top: 1.5rem; }
-
-      .co-panel-title-wrap { display: flex; align-items: center; gap: 0.625rem; }
-      .co-title-icon { color: var(--brand); display: flex; align-items: center; }
-
-      .co-panel-title {
-        font-size: 1.125rem; font-weight: 700;
-        color: var(--ink); letter-spacing: -0.01em;
-      }
-
-      .co-methods-count {
-        font-size: 0.75rem; font-weight: 600; color: var(--muted-text);
-        background: var(--canvas); border: 1px solid var(--border-med);
-        padding: 0.2rem 0.55rem; border-radius: 999px;
-      }
-
-      /* ── Alert ── */
-      .co-alert {
-        display: flex; align-items: flex-start; gap: 0.5rem;
-        padding: 0.75rem 1rem; border-radius: 12px; margin-bottom: 1rem;
-        font-size: 0.8125rem; font-weight: 500; line-height: 1.5;
-      }
-
-      .co-alert--error {
-        background: var(--error-bg);
-        border: 1px solid #FECACA;
-        color: var(--error);
-      }
-
-      /* ── Options Accordion ── */
-      .co-options-form { display: flex; flex-direction: column; gap: 0.875rem; }
-
-      .co-option-card {
-        border: 1px solid var(--border-med);
-        border-radius: 14px;
-        background: #FFFFFF;
-        transition: all 0.2s cubic-bezier(0.16,1,0.3,1);
-        overflow: hidden;
-      }
-
-      .co-option-card:hover { border-color: var(--border-strong); background: #FAFAFA; }
-
-      .co-option-card--active {
-        border: 2px solid var(--brand) !important;
-        background: #FFFFFF !important;
-        box-shadow: 0 4px 16px var(--brand-glow);
-      }
-
-      .co-option-header {
-        display: flex; align-items: center; justify-content: space-between;
-        padding: 1rem 1.25rem; cursor: pointer; user-select: none;
-      }
-
-      .co-radio-label { display: flex; align-items: center; gap: 0.75rem; cursor: pointer; }
-      .co-radio-input { display: none; }
-
-      .co-radio-custom {
-        width: 18px; height: 18px; border-radius: 50%;
-        border: 2px solid var(--border-strong);
-        display: flex; align-items: center; justify-content: center;
-        transition: all 0.15s ease; flex-shrink: 0;
-      }
-
-      .co-radio-input:checked + .co-radio-custom {
-        border-color: var(--brand);
-        background: var(--brand);
-        box-shadow: inset 0 0 0 3px #FFFFFF;
-      }
-
-      .co-option-name { font-size: 0.9375rem; font-weight: 600; color: var(--ink); }
-
-      .co-telco-logos, .co-card-logos {
-        display: flex; align-items: center; gap: 0.4rem;
-      }
-
-      .co-logo-badge {
-        width: 28px; height: 28px; border-radius: 50%;
-        overflow: hidden; display: flex; align-items: center; justify-content: center;
-        box-shadow: 0 1px 2px rgba(0,0,0,0.1);
-      }
-
-      .co-option-body {
-        padding: 0 1.25rem 1.25rem;
-        border-top: 1px solid var(--border);
-        padding-top: 1rem;
-        display: flex; flex-direction: column; gap: 1rem;
-        animation: coFadeIn 0.2s ease-out;
-      }
-
-      @keyframes coFadeIn {
-        from { opacity: 0; transform: translateY(-4px); }
-        to   { opacity: 1; transform: translateY(0); }
-      }
-
-      /* ── Coming Soon notice ── */
-      .co-coming-soon {
-        display: flex; align-items: flex-start; gap: 0.875rem;
-        padding: 0.875rem 1rem;
-        background: var(--canvas);
-        border: 1px solid var(--border-med);
-        border-radius: 12px;
-        color: var(--muted-text);
-      }
-
-      .co-coming-soon svg { flex-shrink: 0; margin-top: 1px; }
-
-      .co-coming-soon-title {
-        font-size: 0.875rem; font-weight: 600;
-        color: var(--body-text); margin-bottom: 0.2rem;
-      }
-
-      .co-coming-soon-desc {
-        font-size: 0.8125rem; color: var(--muted-text); line-height: 1.5;
-      }
-
-      /* ── Network Tiles ── */
-      .co-net-tiles {
-        display: grid;
-        grid-template-columns: repeat(3, 1fr);
-        gap: 0.5rem;
-        margin-top: 0.4rem;
-      }
-
-      .co-net-tile {
-        display: flex; align-items: center; gap: 0.5rem;
-        padding: 0.625rem 0.75rem;
-        border: 1.5px solid var(--border-med);
-        border-radius: 10px;
-        background: var(--canvas);
-        cursor: pointer;
-        transition: all 0.15s ease;
-        text-align: left;
-        position: relative;
-      }
-
-      .co-net-tile:hover { border-color: var(--border-strong); background: #FFFFFF; }
-
-      .co-net-tile--selected {
-        border-color: var(--brand) !important;
-        background: #FFFFFF !important;
-        box-shadow: 0 2px 8px var(--brand-glow);
-      }
-
-      .co-net-logo-wrap {
-        width: 22px; height: 22px; border-radius: 50%;
-        overflow: hidden; flex-shrink: 0;
-        display: flex; align-items: center; justify-content: center;
-      }
-
-      .co-net-info { display: flex; flex-direction: column; line-height: 1.15; }
-      .co-net-name { font-size: 0.75rem; font-weight: 700; color: var(--ink); }
-      .co-net-sub  { font-size: 0.625rem; color: var(--muted-text); }
-
-      .co-net-check { position: absolute; top: 6px; right: 6px; color: var(--brand); }
-
-      /* ── Form controls ── */
-      .co-field { display: flex; flex-direction: column; gap: 0.35rem; }
-
-      .co-field-label {
-        font-size: 0.8125rem; font-weight: 600; color: var(--body-text);
-        display: flex; align-items: center; gap: 0.35rem;
-      }
-
-      .co-input {
-        width: 100%; padding: 0.75rem 1rem;
-        border: 1px solid var(--border-med); border-radius: 12px;
-        background: var(--canvas); font-family: inherit;
-        font-size: 0.875rem; color: var(--ink);
-        transition: all 0.2s ease;
-      }
-
-      .co-input:focus {
-        outline: none; background: #FFFFFF;
-        border-color: var(--brand);
-        box-shadow: 0 0 0 4px var(--brand-subtle);
-      }
-
-      .co-input--error { border-color: var(--error) !important; background: var(--error-bg) !important; }
-
-      /* Phone Box */
-      .co-phone-box {
-        display: flex; align-items: center;
-        border: 1px solid var(--border-med); border-radius: 12px;
-        background: var(--canvas); transition: all 0.2s ease; position: relative;
-      }
-
-      .co-phone-box:focus-within {
-        border-color: var(--brand); background: #FFFFFF;
-        box-shadow: 0 0 0 4px var(--brand-subtle);
-      }
-
-      .co-phone-box--error { border-color: var(--error) !important; background: var(--error-bg) !important; }
-
-      .co-flag-pill {
-        display: flex; align-items: center; gap: 0.35rem;
-        padding: 0.75rem 0.875rem;
-        border-right: 1px solid var(--border-med);
-        background: #FFFFFF; border-top-left-radius: 12px; border-bottom-left-radius: 12px;
-        font-size: 0.8125rem; font-weight: 600; color: var(--ink);
-      }
-
-      .co-phone-input { border: none !important; background: transparent !important; box-shadow: none !important; padding-left: 0.75rem; }
-
-      .co-detected-badge {
-        margin-right: 0.75rem; font-size: 0.6875rem; font-weight: 700;
-        padding: 0.2rem 0.5rem; border-radius: 6px;
-        background: var(--brand); color: #FFFFFF;
-      }
-
-      .co-detected-badge--mtn      { background: #EAB308; color: #000; }
-      .co-detected-badge--telecel  { background: #E60000; color: #fff; }
-      .co-detected-badge--at       { background: #1A2B4C; color: #fff; }
-
-      .co-error-text {
-        font-size: 0.75rem; color: var(--error); font-weight: 500;
-        display: flex; align-items: center; gap: 0.3rem;
-      }
-
-      .co-field-hint { font-size: 0.75rem; color: var(--muted-text); line-height: 1.4; }
-      .co-field-group { display: flex; flex-direction: column; gap: 0.5rem; }
-
-      /* ── Customer Details ── */
-      .co-customer-section {
-        border: 1px solid var(--border-med);
-        border-radius: 14px;
-        overflow: hidden;
-        background: var(--canvas);
-      }
-
-      .co-customer-heading {
-        display: flex; align-items: center; gap: 0.5rem;
-        padding: 0.875rem 1.25rem;
-        font-size: 0.875rem; font-weight: 700; color: var(--ink);
-        border-bottom: 1px solid var(--border);
-        background: #FFFFFF;
-      }
-
-      .co-customer-heading svg { color: var(--brand); flex-shrink: 0; }
-
-      .co-customer-fields {
-        padding: 1rem 1.25rem;
-        display: flex; flex-direction: column; gap: 0.875rem;
-      }
-
-      /* ── Pay Button ── */
-      .co-btn-pay {
-        width: 100%; padding: 0.9375rem 1.5rem; border: none; border-radius: 12px;
-        background: var(--brand); color: #FFFFFF;
-        font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
-        font-size: 1rem; font-weight: 700; letter-spacing: -0.01em;
-        cursor: pointer; box-shadow: 0 4px 14px var(--brand-glow);
-        transition: all 0.15s ease;
-        display: flex; align-items: center; justify-content: center;
-      }
-
-      .co-btn-pay:hover:not(:disabled) { background: var(--brand-hover); transform: translateY(-1px); box-shadow: 0 6px 20px var(--brand-glow); }
-      .co-btn-pay:active:not(:disabled) { transform: translateY(0); }
-      .co-btn-pay:disabled { opacity: 0.45; cursor: not-allowed; }
-
-      .co-trust-strip {
-        display: flex; align-items: center; justify-content: center; gap: 0.5rem;
-        font-size: 0.6875rem; color: var(--muted-text); font-weight: 600;
-        text-transform: uppercase; letter-spacing: 0.04em; margin-top: 0.5rem;
-      }
-
-      .co-trust-strip span { display: flex; align-items: center; gap: 0.25rem; }
-
-      .co-cancel-wrap { display: flex; justify-content: center; margin-top: 0.75rem; }
-
-      .co-cancel-link {
-        display: inline-flex; align-items: center; gap: 0.3rem;
-        font-size: 0.75rem; font-weight: 500; color: var(--muted-text);
-        text-decoration: none; transition: color 0.15s;
-      }
-
-      .co-cancel-link:hover { color: var(--body-text); }
-
-      /* ── Sidebar ── */
-      .co-sidebar-column { display: flex; flex-direction: column; gap: 0.75rem; }
-      .co-cart-panel { padding: 1.25rem 1.25rem; }
-      .co-summary-panel { padding: 1rem 1.25rem; }
-
-      .co-sidebar-title-wrap { display: flex; align-items: center; gap: 0.5rem; color: var(--ink); margin-bottom: 0.875rem; }
-
-      .co-sidebar-title { font-size: 0.9375rem; font-weight: 700; letter-spacing: -0.01em; }
-
-      .co-cart-items-list { display: flex; flex-direction: column; gap: 0.875rem; }
-
-      .co-cart-item {
-        display: flex; align-items: center; gap: 0.875rem;
-        padding-bottom: 0.875rem; border-bottom: 1px solid var(--border);
-      }
-
-      .co-cart-item:last-child { padding-bottom: 0; border-bottom: none; }
-
-      .co-thumb-box {
-        width: 44px; height: 44px; flex-shrink: 0;
-        border-radius: 10px; border: 1px solid var(--border-med);
-        background: var(--canvas); display: flex; align-items: center; justify-content: center;
-        color: var(--subtle-text);
-      }
-
-      .co-thumb-img {
-        width: 44px; height: 44px; flex-shrink: 0;
-        border-radius: 10px; object-fit: cover;
-        border: 1px solid var(--border-med);
-      }
-
-      .co-item-details { flex: 1; display: flex; flex-direction: column; gap: 0.3rem; }
-
-      .co-item-top { display: flex; align-items: flex-start; justify-content: space-between; }
-
-      .co-item-title { font-size: 0.8125rem; font-weight: 600; color: var(--ink); line-height: 1.3; }
-
-      .co-item-bottom { display: flex; align-items: center; justify-content: space-between; }
-
-      .co-item-qty { font-size: 0.75rem; color: var(--muted-text); }
-      .co-item-price { font-size: 0.875rem; font-weight: 700; color: var(--ink); }
-
-      /* ── Summary ── */
-      .co-summary-rows { display: flex; flex-direction: column; gap: 0.625rem; }
-
-      .co-summary-row { display: flex; justify-content: space-between; font-size: 0.8125rem; }
-
-      .co-summary-label { color: var(--prose-text); }
-      .co-summary-val   { font-weight: 600; color: var(--ink); }
-
-      .co-summary-row--discount .co-summary-label,
-      .co-summary-row--discount .co-summary-val { color: var(--success); font-weight: 700; }
-
-      .co-summary-divider { height: 1px; background: var(--border-med); margin: 0.35rem 0; }
-
-      .co-summary-row--total { align-items: center; margin-top: 0.25rem; }
-
-      .co-total-label { font-size: 1rem; font-weight: 800; color: var(--ink); }
-
-      .co-total-val {
-        font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
-        font-size: 1.375rem; font-weight: 800; color: var(--ink); letter-spacing: -0.02em;
-      }
-
-      /* ── Terminal states ── */
-      .co-terminal-panel {
-        max-width: 520px; margin: 2rem auto; padding: 2.5rem 2rem;
-        text-align: center; display: flex; flex-direction: column;
-        align-items: center; gap: 1rem;
-      }
-
-      .co-terminal-title { font-size: 1.375rem; font-weight: 800; color: var(--ink); }
-
-      .co-terminal-desc { font-size: 0.875rem; color: var(--body-text); line-height: 1.6; max-width: 340px; }
-
-      .co-terminal-amount {
-        font-family: 'Plus Jakarta Sans', sans-serif;
-        font-size: 2.25rem; font-weight: 800; color: var(--brand);
-      }
-
-      .co-success-icon-wrap {
-        width: 64px; height: 64px; border-radius: 50%;
-        background: var(--success-bg);
-        display: flex; align-items: center; justify-content: center;
-      }
-
-      .co-warn-icon-wrap {
-        width: 56px; height: 56px; border-radius: 50%;
-        background: #FEF3C7;
-        display: flex; align-items: center; justify-content: center;
-      }
-
-      .co-receipt-box {
-        width: 100%; background: var(--canvas);
-        border: 1px solid var(--border-med); border-radius: 12px;
-        padding: 1rem; display: flex; flex-direction: column; gap: 0.5rem;
-        font-size: 0.8125rem; margin: 0.5rem 0;
-      }
-
-      .co-receipt-row { display: flex; justify-content: space-between; }
-      .co-receipt-mono { font-family: monospace; font-size: 0.75rem; color: var(--muted-text); }
-
-      .co-badge-paid {
-        background: var(--success); color: #FFFFFF;
-        font-size: 0.6875rem; font-weight: 700;
-        padding: 0.2rem 0.5rem; border-radius: 999px;
-      }
-
-      .co-btn-primary {
-        display: inline-flex; align-items: center; justify-content: center;
-        background: var(--brand); color: #FFFFFF;
-        padding: 0.875rem 1.75rem; border-radius: 10px;
-        text-decoration: none; font-weight: 700; font-size: 0.9375rem;
-        transition: opacity 0.15s;
-      }
-
-      .co-btn-primary:hover { opacity: 0.88; }
-      .co-btn-primary:disabled { opacity: 0.55; cursor: not-allowed; }
-
-      .co-btn-secondary {
-        display: inline-flex; align-items: center; justify-content: center;
-        background: transparent; color: #ef4444;
-        border: 1.5px solid #fca5a5; padding: 0.625rem 1.25rem;
-        border-radius: 10px; font-weight: 600; font-size: 0.875rem;
-        transition: background 0.15s, border-color 0.15s; cursor: pointer;
-        width: 100%;
-      }
-      .co-btn-secondary:hover { background: #fef2f2; border-color: #f87171; }
-      .co-btn-secondary:disabled { opacity: 0.5; cursor: not-allowed; }
-
-      .co-btn-ghost {
-        background: transparent; color: var(--body-text);
-        border: 1.5px solid var(--border-med); padding: 0.625rem 1.25rem;
-        border-radius: 10px; font-weight: 600; font-size: 0.875rem;
-        transition: background 0.15s; cursor: pointer;
-      }
-      .co-btn-ghost:hover { background: var(--canvas); }
-
-      /* ── Escrow states ── */
-      .co-escrow-icon-wrap {
-        width: 64px; height: 64px; border-radius: 50%;
-        background: #fef3c7;
-        display: flex; align-items: center; justify-content: center;
-      }
-      .co-escrow-icon-wrap--disputed { background: #eff6ff; }
-
-      .co-escrow-notice {
-        display: flex; align-items: flex-start; gap: 6px;
-        background: #fef9ec; border: 1px solid #fde68a;
-        border-radius: 10px; padding: 0.625rem 0.875rem;
-        font-size: 0.8rem; color: #92400e; line-height: 1.5;
-        width: 100%; text-align: left;
-      }
-
-      .co-escrow-confirm-btn { width: 100%; border: none; cursor: pointer; }
-
-      .co-escrow-divider {
-        font-size: 0.75rem; color: var(--muted-text); text-transform: uppercase;
-        letter-spacing: 0.05em; display: flex; align-items: center; gap: 0.75rem;
-        width: 100%;
-      }
-      .co-escrow-divider::before, .co-escrow-divider::after {
-        content: ""; flex: 1; height: 1px; background: var(--border-med);
-      }
-
-      .co-escrow-dispute-section {
-        width: 100%; display: flex; flex-direction: column; gap: 0.625rem;
-        text-align: left;
-      }
-
-      .co-escrow-dispute-label {
-        font-size: 0.8rem; font-weight: 600; color: var(--body-text);
-      }
-
-      .co-escrow-dispute-note {
-        width: 100%; border: 1.5px solid var(--border-med); border-radius: 10px;
-        padding: 0.625rem 0.875rem; font-size: 0.875rem; color: var(--ink);
-        background: var(--surface); resize: vertical; min-height: 80px;
-        outline: none; transition: border-color 0.15s; font-family: inherit;
-        box-sizing: border-box;
-      }
-      .co-escrow-dispute-note:focus { border-color: var(--brand); }
-
-      .co-badge-escrow {
-        background: #fef3c7; color: #92400e;
-        font-size: 0.6875rem; font-weight: 700;
-        padding: 0.2rem 0.5rem; border-radius: 999px;
-      }
-
-      .co-badge-pending {
-        background: #dbeafe; color: #1e40af;
-        font-size: 0.6875rem; font-weight: 700;
-        padding: 0.2rem 0.5rem; border-radius: 999px;
-      }
-
-      .co-error-banner {
-        width: 100%; background: #fef2f2; border: 1px solid #fecaca;
-        border-radius: 10px; padding: 0.625rem 0.875rem;
-        font-size: 0.8rem; color: #b91c1c; text-align: left;
-      }
-
-      /* ── Confirmation modal ── */
-      .co-modal-overlay {
-        position: fixed; inset: 0; background: rgba(0,0,0,0.5);
-        display: flex; align-items: center; justify-content: center;
-        z-index: 100; padding: 1rem;
-      }
-
-      .co-modal {
-        background: var(--surface); border-radius: 16px;
-        padding: 1.75rem; max-width: 360px; width: 100%;
-        box-shadow: 0 20px 60px rgba(0,0,0,0.2);
-        display: flex; flex-direction: column; gap: 0.875rem;
-      }
-
-      .co-modal-title {
-        font-size: 1.125rem; font-weight: 800; color: var(--ink); margin: 0;
-      }
-
-      .co-modal-body {
-        font-size: 0.875rem; color: var(--body-text); line-height: 1.6; margin: 0;
-      }
-
-      .co-modal-actions {
-        display: flex; gap: 0.625rem; justify-content: flex-end; flex-wrap: wrap;
-      }
-
-      /* ── Spinner ── */
-      .co-spinner { width: 48px; height: 48px; position: relative; }
-
-      .co-spinner-ring {
-        width: 100%; height: 100%; border-radius: 50%;
-        border: 4px solid var(--brand-subtle);
-        border-top-color: var(--brand);
-        animation: coSpin 0.8s linear infinite;
-      }
-
-      @keyframes coSpin { to { transform: rotate(360deg); } }
-
-      .co-progress-bar {
-        width: 100%; height: 6px; background: var(--border-med);
-        border-radius: 999px; overflow: hidden;
-      }
-
-      .co-progress-fill {
-        height: 100%; background: var(--brand); border-radius: 999px;
-        animation: coPulse 2s ease-in-out infinite alternate;
-      }
-
-      @keyframes coPulse { from { width: 30%; } to { width: 90%; } }
-
-      .co-terminal-hint { font-size: 0.75rem; color: var(--muted-text); }
-
-      /* ── Simulate Transfer button (simulation mode only) ── */
-      .co-simulate-transfer-btn {
-        width: 100%; padding: 0.65rem 1rem; font-size: 0.8125rem; font-weight: 600;
-        background: #1c3a2f; color: #4ade80;
-        border: 1px solid #2a5040; border-radius: 10px; cursor: pointer;
-        letter-spacing: 0.01em;
-      }
-      .co-simulate-transfer-btn:hover { background: #1f4434; border-color: #3a6050; }
-
-      /* ── Sandbox notice ── */
-      .co-sandbox-notice {
-        display: flex; align-items: flex-start; gap: 0.625rem;
-        padding: 0.75rem 0.875rem;
-        background: rgba(61,71,245,0.06);
-        border: 1px solid rgba(61,71,245,0.2);
-        border-radius: 10px;
-        color: #3D47F5;
-        font-size: 0.75rem;
-      }
-
-      .co-sandbox-title { font-weight: 700; margin-bottom: 0.35rem; }
-
-      .co-sandbox-cards { display: flex; flex-direction: column; gap: 0.15rem; }
-      .co-sandbox-cards div { color: #374151; }
-      .co-sandbox-cards code {
-        font-family: monospace; font-size: 0.8rem; font-weight: 700;
-        letter-spacing: 0.02em; color: #3D47F5;
-      }
-
-      /* ── Card form ── */
-      .co-card-number-box {
-        display: flex; align-items: center;
-        border: 1px solid var(--border-med); border-radius: 12px;
-        background: var(--canvas); transition: all 0.2s ease; overflow: hidden;
-      }
-
-      .co-card-number-box:focus-within {
-        border-color: var(--brand); background: #FFFFFF;
-        box-shadow: 0 0 0 4px var(--brand-subtle);
-      }
-
-      .co-card-box--error { border-color: var(--error) !important; background: var(--error-bg) !important; }
-
-      .co-card-number-input {
-        flex: 1; padding: 0.75rem 1rem;
-        border: none !important; background: transparent !important; box-shadow: none !important;
-        font-family: monospace; font-size: 0.9375rem; letter-spacing: 0.05em;
-        color: var(--ink);
-      }
-
-      .co-card-number-input:focus { outline: none; }
-
-      .co-card-brand-badge {
-        padding: 0 0.875rem; display: flex; align-items: center; flex-shrink: 0;
-      }
-
-      .co-card-row { display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; }
-
-      /* ── Bank transfer ── */
-      .co-bank-block {
-        display: flex; flex-direction: column; gap: 0.75rem;
-        background: var(--canvas); border: 1px solid var(--border-med);
-        border-radius: 12px; overflow: hidden;
-      }
-
-      .co-bank-heading {
-        padding: 0.75rem 1rem 0;
-        font-size: 0.8125rem; font-weight: 700; color: var(--ink);
-      }
-
-      .co-bank-rows { display: flex; flex-direction: column; padding: 0 1rem; }
-
-      .co-bank-row {
-        display: flex; justify-content: space-between; align-items: center;
-        padding: 0.5rem 0; border-bottom: 1px solid var(--border);
-        gap: 1rem;
-      }
-
-      .co-bank-row:last-child { border-bottom: none; }
-
-      .co-bank-row--highlight { background: rgba(61,71,245,0.04); margin: 0 -1rem; padding: 0.5rem 1rem; }
-
-      .co-bank-label { font-size: 0.75rem; color: var(--muted-text); flex-shrink: 0; }
-      .co-bank-value { font-size: 0.8125rem; font-weight: 600; color: var(--ink); text-align: right; }
-      .co-bank-amount { font-size: 1rem; font-weight: 800; color: var(--brand); }
-      .co-mono { font-family: monospace; letter-spacing: 0.02em; }
-
-      .co-bank-warn {
-        display: flex; align-items: flex-start; gap: 0.4rem;
-        margin: 0 1rem 0.875rem;
-        font-size: 0.75rem; color: #92400e; font-weight: 500; line-height: 1.4;
-      }
-
-      /* ── Bank info notice (in form) ── */
-      .co-bank-info-notice {
-        display: flex; align-items: flex-start; gap: 0.625rem;
-        padding: 0.875rem 1rem;
-        background: rgba(61,71,245,0.05);
-        border: 1px solid rgba(61,71,245,0.18);
-        border-radius: 12px;
-        color: #3D47F5;
-        font-size: 0.8125rem;
-      }
-
-      .co-bank-notice-title { font-weight: 700; margin-bottom: 0.25rem; color: #1e40af; }
-      .co-bank-notice-desc { color: var(--prose-text); line-height: 1.5; }
-      .co-bank-notice-desc strong { color: var(--ink); }
-
-      /* ── Virtual account panel (awaiting_transfer state) ── */
-      .co-terminal-panel--await { gap: 1.25rem; }
-
-      .co-await-status {
-        display: flex; align-items: center; gap: 0.5rem;
-        font-size: 0.8125rem; font-weight: 600; color: var(--muted-text);
-      }
-
-      .co-va-panel {
-        width: 100%; background: var(--canvas);
-        border: 1px solid var(--border-med); border-radius: 14px;
-        overflow: hidden; text-align: left;
-      }
-
-      .co-va-row {
-        display: flex; justify-content: space-between; align-items: center;
-        padding: 0.625rem 1rem; border-bottom: 1px solid var(--border); gap: 1rem;
-      }
-
-      .co-va-row:last-child { border-bottom: none; }
-
-      .co-va-row--accent { background: rgba(61,71,245,0.04); }
-
-      .co-va-row--amount { border-top: 1px solid var(--border-med); }
-
-      .co-va-label { font-size: 0.75rem; color: var(--muted-text); flex-shrink: 0; }
-      .co-va-value { font-size: 0.8125rem; font-weight: 600; color: var(--ink); text-align: right; }
-
-      .co-va-account-wrap {
-        display: flex; align-items: center; gap: 0.5rem;
-      }
-
-      .co-va-number {
-        font-family: monospace; font-size: 0.9375rem; font-weight: 700;
-        color: var(--ink); letter-spacing: 0.05em;
-      }
-
-      .co-va-amount {
-        font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
-        font-size: 1.125rem; font-weight: 800; color: var(--brand); letter-spacing: -0.01em;
-      }
-
-      .co-copy-btn {
-        font-size: 0.6875rem; font-weight: 700;
-        padding: 0.25rem 0.625rem; border-radius: 6px;
-        border: 1px solid var(--brand); background: var(--brand-subtle);
-        color: var(--brand); cursor: pointer; transition: all 0.15s ease;
-        white-space: nowrap; flex-shrink: 0;
-      }
-
-      .co-copy-btn:hover { background: var(--brand); color: #FFFFFF; }
-
-      .co-va-warn {
-        display: flex; align-items: flex-start; gap: 0.4rem;
-        width: 100%; font-size: 0.75rem; color: #92400e; font-weight: 500; line-height: 1.4;
-        padding: 0.625rem 0.875rem;
-        background: #FFFBEB; border: 1px solid #FDE68A; border-radius: 10px;
-      }
-
-      .co-va-meta {
-        display: flex; flex-direction: column; gap: 0.4rem;
-        width: 100%; font-size: 0.75rem; color: var(--muted-text);
-      }
-
-      .co-va-expiry, .co-va-rail {
-        display: flex; align-items: center; gap: 0.35rem;
-      }
-
-      .co-countdown { font-family: monospace; font-weight: 700; color: var(--ink); }
-      .co-countdown--urgent { color: #DC2626; animation: coPulse 1s ease-in-out infinite alternate; }
-
-      /* ── Footer ── */
-      .co-page-footer {
-        text-align: center; font-size: 0.75rem;
-        color: var(--muted-text); padding: 1rem 0;
-      }
-
-      /* ── Checkout headline ── */
-      .co-checkout-headline {
-        margin-bottom: 1.25rem; padding-bottom: 1.25rem;
-        border-bottom: 1px solid var(--border);
-      }
-      .co-checkout-headline p {
-        font-size: 1rem; font-weight: 600; color: var(--body-text); line-height: 1.5;
-      }
-
-      /* ── T&Cs row ── */
-      .co-terms-row {
-        display: flex; align-items: flex-start; gap: 0.625rem;
-        padding: 0.75rem 0.875rem;
-        background: var(--canvas);
-        border: 1px solid var(--border-med);
-        border-radius: 10px;
-      }
-      .co-terms-checkbox {
-        width: 15px; height: 15px; flex-shrink: 0; margin-top: 2px;
-        accent-color: var(--brand); cursor: pointer;
-      }
-      .co-terms-label {
-        font-size: 0.8125rem; color: var(--body-text); line-height: 1.5; cursor: pointer;
-      }
-      .co-terms-link {
-        color: var(--brand); text-decoration: underline; text-underline-offset: 2px;
-      }
-    </style>
     <%= if @brand_color || @font_family do %>
       {raw(build_dynamic_style(@brand_color, @font_family))}
     <% end %>
@@ -2100,20 +1159,20 @@ defmodule YagyeCheckoutWeb.Live.CheckoutLive do
       collect_phone: session["collect_phone"] == true,
       collect_name: session["collect_name"] == true,
       logo_url: (session["checkout_layout"] || %{})["logo_url"],
-      simulation_mode: session["mode"] == "simulation"
+      simulation_mode: session["mode"] == "simulation",
+      checkout_mode: session["mode"] || "live"
     )
     |> then(fn sock ->
       layout = session["checkout_layout"] || %{}
       terms  = layout["terms"] || %{}
       trust  = layout["trust_badges"] || %{}
-      terms_component = (layout["components"] || %{})["terms_checkbox"] || %{}
       assign(sock,
         brand_color:            sanitize_hex_color(layout["brand_color"]),
         font_family:            layout["font_family"],
         checkout_headline:      layout["headline"],
         cta_text:               layout["cta_text"],
         checkout_business_name: layout["business_name"],
-        terms_enabled:          terms_component["visible"] == true,
+        terms_enabled:          terms["enabled"] == true,
         terms_label:            terms["label"] || "I agree to the Terms & Conditions",
         terms_url:              terms["url"] || "",
         terms_accepted:         false,
@@ -2123,7 +1182,23 @@ defmodule YagyeCheckoutWeb.Live.CheckoutLive do
         trust_bog:              trust["bog"] == true
       )
     end)
+    |> assign_psp_context(session["psp_context"])
     |> maybe_start_poll(page_state)
+  end
+
+  defp assign_psp_context(socket, nil), do: socket
+
+  defp assign_psp_context(socket, psp_context) when is_map(psp_context) do
+    card_entry       = psp_context["card"] || %{}
+    bt_entry         = psp_context["bank_transfer"] || %{}
+    momo_entry       = psp_context["mobile_money"] || %{}
+
+    assign(socket,
+      card_psp:          card_entry["code"],
+      stripe_pk:         card_entry["public_key"],
+      bank_transfer_psp: bt_entry["code"],
+      momo_psp:          momo_entry["code"]
+    )
   end
 
   # `allowed_methods` from the session is authoritative for which methods appear.
@@ -2200,6 +1275,7 @@ defmodule YagyeCheckoutWeb.Live.CheckoutLive do
       va_expires_unix: nil,
       now_unix: System.os_time(:second),
       simulation_mode: false,
+      checkout_mode: "live",
       brand_color: nil,
       font_family: nil,
       checkout_headline: nil,
@@ -2220,7 +1296,12 @@ defmodule YagyeCheckoutWeb.Live.CheckoutLive do
       escrow_confirm_modal: false,
       escrow_confirming: false,
       escrow_disputing: false,
-      dispute_note: ""
+      dispute_note: "",
+      card_psp: nil,
+      stripe_pk: nil,
+      bank_transfer_psp: nil,
+      momo_psp: nil,
+      stripe_card_error: nil
     )
   end
 
@@ -2268,7 +1349,7 @@ defmodule YagyeCheckoutWeb.Live.CheckoutLive do
     case CoreClient.pay_session(sid, attrs) do
       {:ok, %{"payment_public_id" => pay_id}} ->
         if connected?(socket), do: Process.send_after(self(), :poll, @poll_ms)
-        {:noreply, assign(socket, submitting: false, page_state: :processing, payment_public_id: pay_id, poll_count: 0, error: nil, phone_error: nil, processing_method: "mobile_money")}
+        {:noreply, assign(socket, submitting: false, page_state: :processing, payment_public_id: pay_id, poll_count: 0, error: nil, phone_error: nil, processing_method: "mobile_money", phone: phone)}
 
       {:error, _} ->
         {:noreply, assign(socket, submitting: false, error: "We couldn't process your payment. Please verify your mobile number and balance.")}
@@ -2292,6 +1373,28 @@ defmodule YagyeCheckoutWeb.Live.CheckoutLive do
       {:ok, %{"payment_public_id" => pay_id}} ->
         if connected?(socket), do: Process.send_after(self(), :poll, @poll_ms)
         {:noreply, assign(socket, submitting: false, page_state: :processing, payment_public_id: pay_id, poll_count: 0, error: nil, card_errors: %{}, processing_method: "card")}
+
+      {:error, _} ->
+        {:noreply, assign(socket, submitting: false, error: "Card payment failed. Please check your details and try again.")}
+    end
+  end
+
+  defp submit_card_stripe(socket, payment_method_id) do
+    %{assigns: %{session_public_id: sid,
+                  customer_email: email, customer_phone: cph, customer_name: name,
+                  submission_token: token, user_agent_hash: ua_hash}} = socket
+
+    attrs =
+      %{method: "card", payment_method_id: payment_method_id, submission_token: token}
+      |> maybe_put(:customer_email, email)
+      |> maybe_put(:customer_phone, cph)
+      |> maybe_put(:customer_name, name)
+      |> maybe_put(:user_agent_hash, ua_hash)
+
+    case CoreClient.pay_session(sid, attrs) do
+      {:ok, %{"payment_public_id" => pay_id}} ->
+        if connected?(socket), do: Process.send_after(self(), :poll, @poll_ms)
+        {:noreply, assign(socket, submitting: false, page_state: :processing, payment_public_id: pay_id, poll_count: 0, error: nil, stripe_card_error: nil, processing_method: "card")}
 
       {:error, _} ->
         {:noreply, assign(socket, submitting: false, error: "Card payment failed. Please check your details and try again.")}
@@ -2463,20 +1566,7 @@ defmodule YagyeCheckoutWeb.Live.CheckoutLive do
   defp currency_symbol("GBP"), do: "£"
   defp currency_symbol(_),     do: "GH₵"
 
-  defp network_label("MTN"),        do: "MTN MoMo"
-  defp network_label("Telecel"),    do: "Telecel Cash"
-  defp network_label("AirtelTigo"), do: "AT Money"
-  defp network_label(n),            do: n || "Mobile Money"
 
-  defp network_prefix_hint("MTN"),        do: "024 · 054 · 055"
-  defp network_prefix_hint("Telecel"),    do: "020 · 050"
-  defp network_prefix_hint("AirtelTigo"), do: "026 · 056 · 027"
-  defp network_prefix_hint(_),            do: ""
-
-  defp network_css_key("MTN"),        do: "mtn"
-  defp network_css_key("Telecel"),    do: "telecel"
-  defp network_css_key("AirtelTigo"), do: "at"
-  defp network_css_key(_),            do: "mtn"
 
   defp method_label("mobile_money"),  do: "Mobile Money"
   defp method_label("card"),          do: "Credit / Debit Card"
@@ -2493,19 +1583,15 @@ defmodule YagyeCheckoutWeb.Live.CheckoutLive do
 
   defp merchant_brand_name(_), do: "Yagye"
 
-  defp network_svg("MTN") do
-    ~s(<svg width="22" height="22" viewBox="0 0 32 32" fill="none"><rect width="32" height="32" rx="16" fill="#FFCC00"/><path d="M7 16c0-4.97 4.03-9 9-9s9 4.03 9 9-4.03 9-9 9-9-4.03-9-9z" fill="#002B49"/><path d="M12 19.5v-7l3 4.5 3-4.5v7" stroke="#FFCC00" stroke-width="2" stroke-linecap="round"/></svg>)
-  end
+  defp network_svg("MTN"),        do: ~s(<img src="/images/momo.png"    width="32" height="32" style="border-radius:7px;object-fit:cover;display:block;" alt="MTN MoMo">)
+  defp network_svg("Telecel"),    do: ~s(<img src="/images/telecel.png" width="32" height="32" style="border-radius:7px;object-fit:cover;display:block;" alt="Telecel Cash">)
+  defp network_svg("AirtelTigo"), do: ~s(<img src="/images/at.png"      width="32" height="32" style="border-radius:7px;object-fit:cover;display:block;" alt="AirtelTigo">)
+  defp network_svg(_),            do: ~s(<span style="width:32px;height:32px;border-radius:7px;background:#E5E7EB;display:block;"></span>)
 
-  defp network_svg("Telecel") do
-    ~s(<svg width="22" height="22" viewBox="0 0 32 32" fill="none"><circle cx="16" cy="16" r="16" fill="#E60000"/><circle cx="16" cy="16" r="10" stroke="#FFF" stroke-width="2.5" fill="none"/><path d="M16 11v10M12 15h8" stroke="#FFF" stroke-width="2.5" stroke-linecap="round"/></svg>)
-  end
-
-  defp network_svg("AirtelTigo") do
-    ~s(<svg width="22" height="22" viewBox="0 0 32 32" fill="none"><circle cx="16" cy="16" r="16" fill="#1A2B4C"/><path d="M0 16a16 16 0 0 0 32 0H0z" fill="#ED1C24"/><text x="16" y="19" font-family="Inter,sans-serif" font-size="12" font-weight="900" fill="#FFF" text-anchor="middle">at</text></svg>)
-  end
-
-  defp network_svg(_), do: ~s(<svg width="22" height="22" viewBox="0 0 32 32" fill="none"><circle cx="16" cy="16" r="16" fill="#E5E7EB"/></svg>)
+  defp network_logo("MTN"),        do: "/images/momo.png"
+  defp network_logo("Telecel"),    do: "/images/telecel.png"
+  defp network_logo("AirtelTigo"), do: "/images/at.png"
+  defp network_logo(_),            do: "/images/momo.png"
 
   # ── Card SVGs ──────────────────────────────────────────────────────────────
 

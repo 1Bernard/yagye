@@ -54,8 +54,9 @@ defmodule YagyeCheckoutWeb.LinkController do
     """)
   end
 
-  def redirect_to_session(conn, %{"slug" => slug}) do
-    case CoreClient.create_session_from_link(slug) do
+  def redirect_to_session(conn, %{"slug" => slug} = params) do
+    preview = params["preview"] == "1"
+    case CoreClient.create_session_from_link(slug, preview: preview) do
       {:ok, %{"token" => token}} ->
         redirect(conn, to: "/s/#{token}")
 

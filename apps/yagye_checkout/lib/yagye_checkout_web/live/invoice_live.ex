@@ -54,120 +54,134 @@ defmodule YagyeCheckoutWeb.Live.InvoiceLive do
     ~H"""
     <div class="inv-page">
       <div class="inv-card">
+
+        <%!-- ── Header: "Invoice" left · merchant right ── --%>
         <div class="inv-header">
+          <div>
+            <div class="inv-title">Invoice</div>
+            <div class="inv-number"><%= @invoice["number"] %></div>
+            <span class={"inv-badge inv-badge--#{@status_class}"}><%= @status_label %></span>
+          </div>
           <div class="inv-merchant">
+            <% merchant_name = get_in(@invoice, ["merchant", "name"]) || "Merchant" %>
             <% logo = get_in(@invoice, ["merchant", "logo_url"]) %>
+            <span class="inv-merchant-name"><%= merchant_name %></span>
             <%= if logo && logo != "" do %>
               <img src={logo} alt="Logo" class="inv-logo" />
             <% else %>
               <div class="inv-logo-bubble">
-                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24"
-                  fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-                  <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
-                </svg>
+                <%= String.upcase(String.slice(merchant_name, 0, 2)) %>
               </div>
             <% end %>
-            <span class="inv-merchant-name">
-              <%= get_in(@invoice, ["merchant", "name"]) || "Merchant" %>
-            </span>
-          </div>
-
-          <div class="inv-meta-right">
-            <div class="inv-number">Invoice #<%= @invoice["number"] %></div>
-            <span class={"inv-status #{@status_class}"}><%= @status_label %></span>
           </div>
         </div>
 
-        <div class="inv-divider" />
-
-        <div class="inv-info-row">
-          <div class="inv-info-block">
-            <div class="inv-label">Bill to</div>
-            <div class="inv-value inv-bill-to">
-              <%= @invoice["customer_reference"] || "—" %>
-            </div>
+        <%!-- ── Billing strip ── --%>
+        <div class="inv-strip-divider" />
+        <div class="inv-billing">
+          <div>
+            <div class="inv-bl">Bill to</div>
+            <div class="inv-bv"><%= @invoice["customer_reference"] || "—" %></div>
           </div>
-          <div class="inv-info-block inv-info-right">
-            <div class="inv-date-pair">
-              <span class="inv-label">Issue date</span>
-              <span class="inv-value"><%= format_date(@invoice["issue_date"]) %></span>
+          <div class="inv-dates">
+            <div class="inv-date-col">
+              <div class="inv-bl">Issued Date</div>
+              <div class="inv-bv"><%= format_date(@invoice["issue_date"]) %></div>
             </div>
-            <div class="inv-date-pair">
-              <span class={"inv-label #{if @overdue, do: "inv-label--danger"}"}> Due date</span>
-              <span class={"inv-value #{if @overdue, do: "inv-value--danger"}"}><%= format_date(@invoice["due_date"]) %></span>
+            <div class="inv-date-col">
+              <div class={"inv-bl #{if @overdue, do: "inv-bl--danger"}"}>Due Date</div>
+              <div class={"inv-bv #{if @overdue, do: "inv-bv--danger"}"}><%= format_date(@invoice["due_date"]) %></div>
             </div>
           </div>
         </div>
+        <div class="inv-strip-divider" />
 
-        <div class="inv-items">
-          <div class="inv-items-header">
-            <span class="inv-col inv-col--desc">Description</span>
-            <span class="inv-col inv-col--qty">Qty</span>
-            <span class="inv-col inv-col--unit">Unit price</span>
-            <span class="inv-col inv-col--total">Total</span>
-          </div>
-          <%= for item <- (@invoice["line_items"] || []) do %>
-            <div class="inv-item-row">
-              <span class="inv-col inv-col--desc">
-                <%= item["description"] %>
-                <%= if (item["tax_rate_bps"] || 0) > 0 do %>
-                  <span class="inv-tax-badge">+<%= div(item["tax_rate_bps"], 100) %>% tax</span>
-                <% end %>
-              </span>
-              <span class="inv-col inv-col--qty"><%= format_quantity(item["quantity"]) %></span>
-              <span class="inv-col inv-col--unit"><%= format_amount(@invoice["currency"], item["unit_amount"]) %></span>
-              <span class="inv-col inv-col--total"><%= format_amount(@invoice["currency"], item["total_amount"]) %></span>
-            </div>
-          <% end %>
+        <%!-- ── Line items ── --%>
+        <div class="inv-table-wrap">
+          <table class="inv-table">
+            <thead>
+              <tr class="inv-thead-row">
+                <th class="inv-th inv-th--desc">Description</th>
+                <th class="inv-th inv-th--num">Qty</th>
+                <th class="inv-th inv-th--num">Unit price</th>
+                <th class="inv-th inv-th--num">Tax</th>
+                <th class="inv-th inv-th--amt">Amount</th>
+              </tr>
+            </thead>
+            <tbody>
+              <%= for item <- (@invoice["line_items"] || []) do %>
+                <% bps = item["tax_rate_bps"] || 0 %>
+                <tr class="inv-tr">
+                  <td class="inv-td inv-td--desc"><%= item["description"] %></td>
+                  <td class="inv-td inv-td--num"><%= format_quantity(item["quantity"]) %></td>
+                  <td class="inv-td inv-td--num"><%= format_amount(@invoice["currency"], item["unit_amount"]) %></td>
+                  <td class="inv-td inv-td--num"><%= if bps > 0, do: "#{div(bps, 100)}%", else: "—" %></td>
+                  <td class="inv-td inv-td--amt"><%= format_amount(@invoice["currency"], item["total_amount"]) %></td>
+                </tr>
+              <% end %>
+            </tbody>
+          </table>
         </div>
 
+        <%!-- ── Totals ── --%>
+        <div class="inv-totals-sep" />
         <div class="inv-totals">
-          <div class="inv-total-row">
-            <span class="inv-total-label">Subtotal</span>
-            <span class="inv-total-value"><%= format_amount(@invoice["currency"], @invoice["subtotal_amount"]) %></span>
+          <div class="inv-totals-inner">
+            <%= if (@invoice["subtotal_amount"] || 0) != (@invoice["total_amount"] || 0) or
+                   (@invoice["tax_amount"] || 0) > 0 or (@invoice["discount_amount"] || 0) > 0 do %>
+              <div class="inv-tr-row">
+                <span class="inv-tl">Subtotal</span>
+                <span class="inv-tv"><%= format_amount(@invoice["currency"], @invoice["subtotal_amount"]) %></span>
+              </div>
+            <% end %>
+            <%= if (@invoice["tax_amount"] || 0) > 0 do %>
+              <div class="inv-tr-row">
+                <span class="inv-tl">Tax</span>
+                <span class="inv-tv"><%= format_amount(@invoice["currency"], @invoice["tax_amount"]) %></span>
+              </div>
+            <% end %>
+            <%= if (@invoice["discount_amount"] || 0) > 0 do %>
+              <div class="inv-tr-row">
+                <span class="inv-tl">Discount</span>
+                <span class="inv-tv inv-tv--green">−<%= format_amount(@invoice["currency"], @invoice["discount_amount"]) %></span>
+              </div>
+            <% end %>
+            <%= if (@invoice["amount_paid"] || 0) > 0 do %>
+              <div class="inv-tr-row">
+                <span class="inv-tl">Paid</span>
+                <span class="inv-tv inv-tv--green">−<%= format_amount(@invoice["currency"], @invoice["amount_paid"]) %></span>
+              </div>
+            <% end %>
+            <div class="inv-totals-line" />
+            <div class="inv-tr-row inv-tr-row--total">
+              <span class="inv-tl inv-tl--total">Total Amount</span>
+              <span class="inv-tv inv-tv--total"><%= format_amount(@invoice["currency"], @invoice["total_amount"]) %></span>
+            </div>
+            <div class="inv-tr-row">
+              <span class="inv-tl">Amount due</span>
+              <span class="inv-tv inv-tv--due"><%= format_amount(@invoice["currency"], @invoice["amount_due"]) %></span>
+            </div>
           </div>
-          <%= if (@invoice["tax_amount"] || 0) > 0 do %>
-            <div class="inv-total-row">
-              <span class="inv-total-label">Tax</span>
-              <span class="inv-total-value"><%= format_amount(@invoice["currency"], @invoice["tax_amount"]) %></span>
-            </div>
-          <% end %>
-          <%= if (@invoice["discount_amount"] || 0) > 0 do %>
-            <div class="inv-total-row">
-              <span class="inv-total-label">Discount</span>
-              <span class="inv-total-value inv-discount">−<%= format_amount(@invoice["currency"], @invoice["discount_amount"]) %></span>
-            </div>
-          <% end %>
-          <div class="inv-divider inv-divider--sm" />
-          <div class="inv-total-row inv-total-row--grand">
-            <span class="inv-total-label">Total</span>
-            <span class="inv-total-value inv-grand-total"><%= format_amount(@invoice["currency"], @invoice["total_amount"]) %></span>
-          </div>
-          <%= if (@invoice["amount_paid"] || 0) > 0 do %>
-            <div class="inv-total-row">
-              <span class="inv-total-label">Amount paid</span>
-              <span class="inv-total-value inv-paid-credit">−<%= format_amount(@invoice["currency"], @invoice["amount_paid"]) %></span>
-            </div>
-            <div class="inv-total-row inv-total-row--due">
-              <span class="inv-total-label">Amount due</span>
-              <span class="inv-total-value inv-amount-due"><%= format_amount(@invoice["currency"], @invoice["amount_due"]) %></span>
-            </div>
-          <% end %>
         </div>
 
-        <%= if @invoice["notes"] do %>
-          <div class="inv-notes">
-            <div class="inv-notes-label">Notes</div>
-            <p class="inv-notes-text"><%= @invoice["notes"] %></p>
-          </div>
-        <% end %>
-        <%= if @invoice["terms"] do %>
-          <div class="inv-notes">
-            <div class="inv-notes-label">Terms</div>
-            <p class="inv-notes-text"><%= @invoice["terms"] %></p>
+        <%!-- ── Notes / Terms ── --%>
+        <%= if @invoice["notes"] || @invoice["terms"] do %>
+          <div class="inv-notes-wrap">
+            <%= if @invoice["notes"] do %>
+              <div class="inv-notes-box">
+                <p class="inv-notes-text"><%= @invoice["notes"] %></p>
+              </div>
+            <% end %>
+            <%= if @invoice["terms"] do %>
+              <div class="inv-notes-box">
+                <div class="inv-bl" style="margin-bottom:6px">Terms &amp; conditions</div>
+                <p class="inv-notes-text"><%= @invoice["terms"] %></p>
+              </div>
+            <% end %>
           </div>
         <% end %>
 
+        <%!-- ── CTA ── --%>
         <div class="inv-cta">
           <%= cond do %>
             <% @void -> %>
@@ -206,13 +220,15 @@ defmodule YagyeCheckoutWeb.Live.InvoiceLive do
           <% end %>
         </div>
 
+        <%!-- ── Footer ── --%>
         <div class="inv-footer">
-          <svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="none"
-            stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-            <rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>
-          </svg>
-          Secured by <strong>Yagye</strong>
+          <div>
+            <div class="inv-footer-label">Payment method</div>
+            <div class="inv-footer-sub">Payment powered by Yagye</div>
+          </div>
+          <div class="inv-footer-date"><%= format_date(Date.utc_today() |> Date.to_iso8601()) %></div>
         </div>
+
       </div>
     </div>
     """
@@ -246,7 +262,7 @@ defmodule YagyeCheckoutWeb.Live.InvoiceLive do
   defp styles(assigns) do
     ~H"""
     <style>
-      *, *::before, *::after { box-sizing: border-box; }
+      *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
       .inv-page {
         min-height: 100svh;
@@ -258,14 +274,15 @@ defmodule YagyeCheckoutWeb.Live.InvoiceLive do
         font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Inter", sans-serif;
       }
 
+      /* ── Card ── */
       .inv-card {
-        background: #ffffff;
+        background: #fff;
         border-radius: 16px;
         border: 1px solid #e2e8f0;
-        box-shadow: 0 4px 24px rgba(0,0,0,0.06), 0 1px 4px rgba(0,0,0,0.04);
+        box-shadow: 0 8px 40px rgba(0,0,0,0.10), 0 2px 12px rgba(0,0,0,0.06);
         width: 100%;
         max-width: 680px;
-        padding: 2rem;
+        overflow: hidden;
       }
 
       .inv-card--error {
@@ -273,227 +290,287 @@ defmodule YagyeCheckoutWeb.Live.InvoiceLive do
         text-align: center;
         padding: 3rem 2rem;
         margin-top: 4rem;
+        overflow: visible;
       }
 
+      /* ── Header ── */
       .inv-header {
         display: flex;
         align-items: flex-start;
         justify-content: space-between;
-        margin-bottom: 1.5rem;
-        gap: 1rem;
+        padding: 2.25rem 2.5rem 1.5rem;
+        gap: 1.5rem;
       }
 
+      .inv-title {
+        font-size: 2.125rem;
+        font-weight: 900;
+        color: #111827;
+        letter-spacing: -0.03em;
+        line-height: 1;
+        margin-bottom: 6px;
+      }
+
+      .inv-number {
+        font-size: 0.8125rem;
+        color: #9ca3af;
+        font-family: ui-monospace, "SF Mono", monospace;
+        margin-bottom: 8px;
+      }
+
+      /* ── Status badge ── */
+      .inv-badge {
+        display: inline-block;
+        font-size: 0.625rem;
+        font-weight: 700;
+        letter-spacing: 0.05em;
+        text-transform: uppercase;
+        padding: 0.2rem 0.6rem;
+        border-radius: 999px;
+      }
+
+      .inv-badge--open    { background: #eff6ff; color: #2563eb; }
+      .inv-badge--partial { background: #fffbeb; color: #d97706; }
+      .inv-badge--paid    { background: #f0fdf4; color: #16a34a; }
+      .inv-badge--overdue { background: #fef2f2; color: #dc2626; }
+      .inv-badge--void    { background: #f9fafb; color: #6b7280; border: 1px solid #e5e7eb; }
+
+      /* ── Merchant (top right) ── */
       .inv-merchant {
         display: flex;
         align-items: center;
         gap: 0.625rem;
-      }
-
-      .inv-logo {
-        width: 36px;
-        height: 36px;
-        border-radius: 8px;
-        object-fit: cover;
-        border: 1px solid #f1f5f9;
         flex-shrink: 0;
-      }
-
-      .inv-logo-bubble {
-        width: 36px;
-        height: 36px;
-        border-radius: 8px;
-        background: #3D47F5;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        color: white;
-        flex-shrink: 0;
+        margin-top: 4px;
       }
 
       .inv-merchant-name {
         font-size: 0.9375rem;
         font-weight: 700;
         color: #111827;
-        letter-spacing: -0.01em;
+        text-align: right;
+        line-height: 1.3;
       }
 
-      .inv-meta-right {
-        text-align: right;
+      .inv-logo {
+        width: 40px;
+        height: 40px;
+        border-radius: 9px;
+        object-fit: cover;
         flex-shrink: 0;
       }
 
-      .inv-number {
-        font-size: 1rem;
-        font-weight: 700;
-        color: #111827;
-        letter-spacing: -0.01em;
-        margin-bottom: 0.375rem;
-      }
-
-      .inv-status {
-        display: inline-block;
-        font-size: 0.6875rem;
-        font-weight: 700;
-        letter-spacing: 0.04em;
-        text-transform: uppercase;
-        padding: 0.2rem 0.625rem;
-        border-radius: 999px;
-      }
-
-      .inv-status--open    { background: #eff6ff; color: #2563eb; }
-      .inv-status--partial { background: #fffbeb; color: #d97706; }
-      .inv-status--paid    { background: #f0fdf4; color: #16a34a; }
-      .inv-status--overdue { background: #fef2f2; color: #dc2626; }
-      .inv-status--void    { background: #f9fafb; color: #6b7280; border: 1px solid #e5e7eb; }
-
-      .inv-divider { height: 1px; background: #f1f5f9; margin: 1.25rem 0; }
-      .inv-divider--sm { margin: 0.75rem 0; }
-
-      .inv-info-row {
-        display: flex;
-        justify-content: space-between;
-        gap: 1rem;
-        margin-bottom: 1.75rem;
-      }
-
-      .inv-info-right { text-align: right; }
-
-      .inv-label {
-        font-size: 0.6875rem;
-        font-weight: 700;
-        letter-spacing: 0.06em;
-        text-transform: uppercase;
-        color: #9ca3af;
-        margin-bottom: 0.25rem;
-      }
-
-      .inv-label--danger { color: #dc2626; }
-
-      .inv-value {
-        font-size: 0.9375rem;
-        font-weight: 600;
-        color: #111827;
-      }
-
-      .inv-value--danger { color: #dc2626; }
-      .inv-bill-to { max-width: 200px; }
-
-      .inv-date-pair {
+      .inv-logo-bubble {
+        width: 40px;
+        height: 40px;
+        border-radius: 9px;
+        background: #3D47F5;
         display: flex;
         align-items: center;
-        gap: 0.75rem;
-        justify-content: flex-end;
-        margin-bottom: 0.35rem;
-      }
-
-      .inv-date-pair .inv-label { margin-bottom: 0; }
-
-      .inv-items-header {
-        display: flex;
-        gap: 0.5rem;
-        padding: 0.5rem 0;
-        border-bottom: 1px solid #f1f5f9;
-        margin-bottom: 0.25rem;
-      }
-
-      .inv-item-row {
-        display: flex;
-        gap: 0.5rem;
-        padding: 0.625rem 0;
-        border-bottom: 1px solid #f8fafc;
-        align-items: flex-start;
-      }
-
-      .inv-col { font-size: 0.8125rem; }
-
-      .inv-items-header .inv-col {
+        justify-content: center;
+        color: #fff;
         font-size: 0.6875rem;
-        font-weight: 700;
-        letter-spacing: 0.05em;
+        font-weight: 800;
+        letter-spacing: -0.01em;
+        flex-shrink: 0;
+      }
+
+      /* ── Billing strip ── */
+      .inv-strip-divider {
+        height: 1px;
+        background: #f1f5f9;
+        margin: 0 2.5rem;
+      }
+
+      .inv-billing {
+        display: flex;
+        align-items: flex-start;
+        justify-content: space-between;
+        padding: 1.25rem 2.5rem;
+        gap: 1rem;
+      }
+
+      .inv-dates {
+        display: flex;
+        align-items: flex-start;
+        gap: 1.75rem;
+      }
+
+      .inv-date-col { text-align: right; }
+
+      /* Billing labels */
+      .inv-bl {
+        font-size: 0.59375rem;
+        font-weight: 600;
+        letter-spacing: 0.1em;
         text-transform: uppercase;
         color: #9ca3af;
+        margin-bottom: 5px;
       }
 
-      .inv-col--desc  { flex: 1; color: #374151; font-weight: 500; }
-      .inv-col--qty   { width: 48px; text-align: center; color: #6b7280; }
-      .inv-col--unit  { width: 100px; text-align: right; color: #6b7280; }
-      .inv-col--total { width: 100px; text-align: right; color: #111827; font-weight: 600; font-variant-numeric: tabular-nums; }
+      .inv-bl--danger { color: #dc2626; }
 
-      .inv-items-header .inv-col--desc,
-      .inv-items-header .inv-col--qty,
-      .inv-items-header .inv-col--unit,
-      .inv-items-header .inv-col--total { color: #9ca3af; }
-
-      .inv-tax-badge {
-        display: inline-block;
-        font-size: 0.625rem;
+      /* Billing values */
+      .inv-bv {
+        font-size: 0.84375rem;
         font-weight: 600;
-        background: #f0fdf4;
-        color: #16a34a;
-        padding: 0.1rem 0.4rem;
-        border-radius: 4px;
-        margin-left: 0.375rem;
-        vertical-align: middle;
+        color: #111827;
+      }
+
+      .inv-bv--danger { color: #dc2626; }
+
+      /* ── Line items table ── */
+      .inv-table-wrap {
+        padding: 0 1.5rem;
+        overflow-x: auto;
+      }
+
+      .inv-table {
+        width: 100%;
+        border-collapse: collapse;
+      }
+
+      .inv-thead-row {
+        background: #f9fafb;
+        border-bottom: 1px solid #f1f5f9;
+      }
+
+      .inv-th {
+        font-size: 0.65625rem;
+        font-weight: 700;
+        letter-spacing: 0.1em;
+        text-transform: uppercase;
+        color: #9ca3af;
+        padding: 0.75rem 0.75rem;
+        white-space: nowrap;
+      }
+
+      .inv-th--desc { text-align: left; padding-left: 1.25rem; padding-right: 0.75rem; }
+      .inv-th--num  { text-align: right; }
+      .inv-th--amt  { text-align: right; padding-right: 1.25rem; }
+
+      .inv-tr { border-bottom: 1px solid #f8fafc; }
+      .inv-tr:last-child { border-bottom: none; }
+
+      .inv-td {
+        padding: 0.875rem 0.75rem;
+        font-size: 0.8125rem;
+        color: #6b7280;
+        font-variant-numeric: tabular-nums;
+      }
+
+      .inv-td--desc {
+        padding-left: 1.25rem;
+        padding-right: 0.75rem;
+        font-size: 0.8125rem;
+        font-weight: 500;
+        color: #1f2937;
+        font-variant-numeric: normal;
+      }
+
+      .inv-td--num { text-align: right; }
+
+      .inv-td--amt {
+        text-align: right;
+        padding-right: 1.25rem;
+        font-size: 0.8125rem;
+        font-weight: 600;
+        color: #111827;
+      }
+
+      /* ── Totals ── */
+      .inv-totals-sep {
+        height: 1px;
+        background: #f1f5f9;
+        margin: 0 1.5rem;
       }
 
       .inv-totals {
-        margin-top: 1rem;
-        padding-top: 0.75rem;
-        max-width: 280px;
-        margin-left: auto;
+        display: flex;
+        justify-content: flex-end;
+        padding: 1.5rem 2.5rem;
       }
 
-      .inv-total-row {
+      .inv-totals-inner {
+        width: 280px;
         display: flex;
-        justify-content: space-between;
+        flex-direction: column;
+        gap: 2px;
+      }
+
+      .inv-tr-row {
+        display: flex;
         align-items: center;
-        padding: 0.3rem 0;
+        justify-content: space-between;
+        padding: 2px 0;
         gap: 1.5rem;
       }
 
-      .inv-total-row--grand { padding: 0.5rem 0; }
-      .inv-total-row--due   { padding-top: 0.5rem; border-top: 1px solid #f1f5f9; }
+      .inv-tr-row--total { padding: 3px 0; }
 
-      .inv-total-label { font-size: 0.8125rem; color: #6b7280; font-weight: 500; }
+      .inv-totals-line {
+        height: 1px;
+        background: #e5e7eb;
+        margin: 8px 0;
+      }
 
-      .inv-total-value {
-        font-size: 0.8125rem;
-        color: #374151;
+      .inv-tl {
+        font-size: 0.75rem;
+        color: #9ca3af;
+        font-weight: 500;
+      }
+
+      .inv-tl--total {
+        font-size: 0.84375rem;
+        font-weight: 700;
+        color: #111827;
+      }
+
+      .inv-tv {
+        font-size: 0.78125rem;
+        color: #4b5563;
         font-weight: 500;
         font-variant-numeric: tabular-nums;
       }
 
-      .inv-grand-total { font-size: 1.0625rem; font-weight: 800; color: #111827; letter-spacing: -0.01em; }
-      .inv-discount    { color: #16a34a; }
-      .inv-paid-credit { color: #16a34a; }
-      .inv-amount-due  { color: #111827; font-weight: 700; }
-
-      .inv-notes {
-        margin-top: 1.5rem;
-        padding: 1rem;
-        background: #f8fafc;
-        border-radius: 10px;
-        border: 1px solid #f1f5f9;
+      .inv-tv--total {
+        font-size: 0.875rem;
+        font-weight: 700;
+        color: #111827;
+        letter-spacing: -0.01em;
       }
 
-      .inv-notes-label {
-        font-size: 0.6875rem;
-        font-weight: 700;
-        letter-spacing: 0.05em;
-        text-transform: uppercase;
-        color: #9ca3af;
-        margin-bottom: 0.4rem;
+      .inv-tv--due {
+        font-size: 0.75rem;
+        font-weight: 600;
+        color: #3D47F5;
+      }
+
+      .inv-tv--green { color: #16a34a; }
+
+      /* ── Notes / Terms ── */
+      .inv-notes-wrap {
+        padding: 0 2.5rem 1.75rem;
+        display: flex;
+        flex-direction: column;
+        gap: 1rem;
+      }
+
+      .inv-notes-box {
+        border: 1px solid #e5e7eb;
+        border-radius: 12px;
+        padding: 1.25rem 1.5rem;
       }
 
       .inv-notes-text {
-        font-size: 0.8125rem;
+        font-size: 0.78125rem;
         color: #4b5563;
         line-height: 1.6;
-        margin: 0;
         white-space: pre-wrap;
       }
 
-      .inv-cta { margin-top: 1.75rem; }
+      /* ── CTA ── */
+      .inv-cta { padding: 0 2.5rem 1.5rem; }
 
       .inv-pay-btn {
         display: flex;
@@ -528,20 +605,35 @@ defmodule YagyeCheckoutWeb.Live.InvoiceLive do
       .inv-banner--void    { background: #f9fafb; color: #6b7280; border: 1px solid #e5e7eb; }
       .inv-banner--overdue { background: #fef2f2; color: #dc2626; }
 
+      /* ── Footer ── */
       .inv-footer {
         display: flex;
         align-items: center;
-        justify-content: center;
-        gap: 0.3rem;
-        margin-top: 1.5rem;
-        padding-top: 1.25rem;
+        justify-content: space-between;
         border-top: 1px solid #f1f5f9;
-        font-size: 0.75rem;
+        padding: 1rem 2.5rem;
+      }
+
+      .inv-footer-label {
+        font-size: 0.59375rem;
+        font-weight: 700;
+        letter-spacing: 0.1em;
+        text-transform: uppercase;
+        color: #9ca3af;
+        margin-bottom: 3px;
+      }
+
+      .inv-footer-sub {
+        font-size: 0.6875rem;
         color: #9ca3af;
       }
 
-      .inv-footer strong { color: #3D47F5; }
+      .inv-footer-date {
+        font-size: 0.65625rem;
+        color: #d1d5db;
+      }
 
+      /* ── Error state ── */
       .inv-error-icon {
         width: 56px;
         height: 56px;
@@ -553,15 +645,26 @@ defmodule YagyeCheckoutWeb.Live.InvoiceLive do
         margin: 0 auto 1.25rem;
       }
 
-      .inv-error-title { font-size: 1.125rem; font-weight: 700; color: #111827; margin: 0 0 0.5rem; }
-      .inv-error-body  { font-size: 0.875rem; color: #6b7280; margin: 0; line-height: 1.6; }
+      .inv-error-title { font-size: 1.125rem; font-weight: 700; color: #111827; margin-bottom: 0.5rem; }
+      .inv-error-body  { font-size: 0.875rem; color: #6b7280; line-height: 1.6; }
 
       @media (max-width: 600px) {
         .inv-page { padding: 1rem 0.75rem 3rem; }
-        .inv-card { padding: 1.25rem; border-radius: 12px; }
-        .inv-col--unit  { width: 80px; }
-        .inv-col--total { width: 80px; }
-        .inv-totals { max-width: 100%; }
+        .inv-header { padding: 1.5rem 1.25rem 1.25rem; }
+        .inv-title { font-size: 1.75rem; }
+        .inv-strip-divider { margin: 0 1.25rem; }
+        .inv-billing { padding: 1rem 1.25rem; flex-wrap: wrap; }
+        .inv-dates { flex-wrap: wrap; gap: 1rem; }
+        .inv-date-col { text-align: left; }
+        .inv-table-wrap { padding: 0 0.5rem; }
+        .inv-th--desc, .inv-td--desc { padding-left: 0.75rem; }
+        .inv-th--amt, .inv-td--amt { padding-right: 0.75rem; }
+        .inv-totals-sep { margin: 0 0.75rem; }
+        .inv-totals { padding: 1rem 1.25rem; }
+        .inv-totals-inner { width: 100%; }
+        .inv-notes-wrap { padding: 0 1.25rem 1.25rem; }
+        .inv-cta { padding: 0 1.25rem 1.25rem; }
+        .inv-footer { padding: 0.875rem 1.25rem; }
       }
     </style>
     """
@@ -576,12 +679,12 @@ defmodule YagyeCheckoutWeb.Live.InvoiceLive do
   defp status_label("void", _),           do: "Void"
   defp status_label(s, _),               do: String.capitalize(s)
 
-  defp status_class("open", true),        do: "inv-status--overdue"
-  defp status_class("open", false),       do: "inv-status--open"
-  defp status_class("partially_paid", _), do: "inv-status--partial"
-  defp status_class("paid", _),           do: "inv-status--paid"
-  defp status_class("void", _),           do: "inv-status--void"
-  defp status_class(_, _),               do: "inv-status--open"
+  defp status_class("open", true),        do: "overdue"
+  defp status_class("open", false),       do: "open"
+  defp status_class("partially_paid", _), do: "partial"
+  defp status_class("paid", _),           do: "paid"
+  defp status_class("void", _),           do: "void"
+  defp status_class(_, _),               do: "open"
 
   defp parse_date(nil), do: nil
 

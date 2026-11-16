@@ -8,7 +8,7 @@ config :logger, :default_handler,
   )
 
 config :yagye_checkout, YagyeCheckoutWeb.Endpoint,
-  http: [ip: {127, 0, 0, 1}, port: 4010],
+  http: [ip: {0, 0, 0, 0}, port: 4010],
   check_origin: false,
   code_reloader: true,
   debug_errors: true,

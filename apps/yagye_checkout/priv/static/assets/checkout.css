@@ -1,0 +1,1194 @@
+/* Checkout is always light — dark mode is disabled intentionally.
+   Trust psychology: users expect payment forms to be clean white.
+   Merchant brand customisation (accent color, logo) is the planned
+   personalisation surface, not dark/light toggling. */
+:root {
+  --page-bg:    #F9FAFB;
+  --card-bg:    #FFFFFF;
+  --border:     #F3F4F6;
+  --border-med: #E5E7EB;
+  --ink:        #111827;
+  --body-text:  #374151;
+  --muted-text: #6B7280;
+  --subtle-text:#9CA3AF;
+  --faint-text: #D1D5DB;
+  --accent:     #3D47F5;
+  --input-bg:   #F9FAFB;
+  --error:      #DC2626;
+  --error-bg:   #FEF2F2;
+  --error-bdr:  #FECACA;
+  --success:    #059669;
+  --success-bg: #ECFDF5;
+  --success-bdr:#A7F3D0;
+}
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  font-family: "Inter", system-ui, -apple-system, sans-serif;
+  background: var(--canvas);
+  color: var(--ink);
+  min-height: 100svh;
+  margin: 0;
+  padding: 2rem 1.25rem 4rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+@media (max-width: 640px) {
+  body { padding: 1rem 0.75rem 3rem; }
+}
+
+/* ── override body layout when split is active ── */
+body:has(.co-split) {
+  padding: 0 !important;
+  align-items: stretch !important;
+  background: #FFFFFF !important;
+  min-height: 100svh;
+}
+
+:root {
+  color-scheme: light;
+  --brand:        #3D47F5;
+  --brand-hover:  rgba(61,71,245,0.9);
+  --brand-tint:   rgba(61,71,245,0.08);
+  --brand-subtle: rgba(61,71,245,0.08);
+  --brand-glow:   rgba(61,71,245,0.15);
+  --canvas:       #F9FAFB;
+  --card-bg:      #FFFFFF;
+  --surface:      #F9FAFB;
+  --ink:          #111827;
+  --body-text:    #374151;
+  --prose-text:   #4B5563;
+  --muted-text:   #6B7280;
+  --subtle-text:  #9CA3AF;
+  --faint-text:   #D1D5DB;
+  --border:       #F3F4F6;
+  --border-med:   #E5E7EB;
+  --success:      #16a34a;
+  --success-bg:   rgba(22,163,74,0.08);
+  --blue-400:     #60A5FA;
+  --blue-ring:    rgba(59,130,246,0.1);
+  --error:        #DC2626;
+  --error-bg:     #FEF2F2;
+}
+
+/* ══ Split layout ══ */
+.co-split {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  min-height: 100svh;
+}
+
+@media (max-width: 860px) {
+  .co-split { grid-template-columns: 1fr; }
+}
+
+/* ── Left panel (order summary) ── */
+.co-panel-left {
+  background: var(--canvas);
+  padding: 4rem 4.5rem 4rem 5rem;
+  display: flex;
+  flex-direction: column;
+}
+
+@media (max-width: 860px) {
+  .co-panel-left { padding: 2rem 1.25rem; border-bottom: 1px solid var(--border-med); }
+}
+
+/* ── Right panel (payment form) ── */
+.co-panel-right {
+  background: #FFFFFF;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding: 3rem 3rem 3rem 2.75rem;
+}
+
+@media (max-width: 860px) {
+  .co-panel-right { padding: 2rem 1.25rem 3rem; }
+}
+
+.co-form-inner {
+  width: 100%;
+  max-width: 400px;
+}
+
+/* ── Breadcrumb ── */
+.co-breadcrumb {
+  display: flex; align-items: center; gap: 6px;
+  font-size: 12.5px; color: var(--muted-text);
+  margin-bottom: 2.25rem; flex-wrap: wrap;
+}
+
+.co-bc-close {
+  display: flex; align-items: center; justify-content: center;
+  width: 24px; height: 24px;
+  border: 1px solid var(--border-med);
+  border-radius: 50%; background: none; cursor: pointer;
+  color: var(--muted-text);
+  text-decoration: none;
+  transition: border-color 0.14s, color 0.14s;
+}
+
+.co-bc-close:hover { border-color: #9CA3AF; color: var(--ink); }
+
+.co-bc-sep { color: var(--faint-text); }
+
+.co-bc-step a {
+  color: var(--muted-text); text-decoration: none;
+}
+
+.co-bc-step a:hover { color: var(--ink); }
+
+.co-bc-active { color: var(--ink); font-weight: 500; }
+
+.co-mode-badge {
+  margin-left: auto;
+  font-size: 10px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase;
+  padding: 2px 8px; border-radius: 999px;
+}
+.co-mode-badge--simulation { background: #FEF3C7; color: #92400E; }
+.co-mode-badge--sandbox    { background: #DBEAFE; color: #1E40AF; }
+
+/* ── Merchant row ── */
+.co-merchant-row {
+  display: flex; align-items: center; gap: 10px;
+  margin-bottom: 2rem;
+}
+
+.co-merchant-logo-img {
+  width: 38px; height: 38px; border-radius: 9px;
+  object-fit: cover;
+  flex-shrink: 0;
+}
+
+.co-merchant-icon-box {
+  width: 38px; height: 38px; border-radius: 9px;
+  background: var(--brand); color: #fff;
+  display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0;
+}
+
+.co-merchant-name-label {
+  font-size: 14px; font-weight: 600;
+  color: var(--ink); line-height: 1.35;
+}
+
+.co-merchant-verified {
+  display: flex; align-items: center; gap: 3px;
+  font-size: 11px; color: var(--success); margin-top: 2px;
+}
+
+/* ── Amount hero ── */
+.co-amount-hero { margin-bottom: 2.25rem; }
+
+.co-amount-hero-label {
+  font-size: 11px; font-weight: 600; text-transform: uppercase;
+  letter-spacing: 0.14em; color: var(--muted-text); margin-bottom: 4px;
+}
+
+.co-amount-hero-val {
+  font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
+  font-size: 36px; font-weight: 800;
+  color: var(--ink); letter-spacing: -0.025em; line-height: 1;
+}
+
+/* ── Simple card (no line items) ── */
+.co-simple-card {
+  background: var(--card-bg);
+  border: 1px solid var(--border-med);
+  border-radius: 14px;
+  padding: 1.25rem 1.5rem;
+  margin-top: 0.5rem;
+}
+
+.co-simple-card-label {
+  display: block;
+  font-size: 0.6875rem; font-weight: 700; text-transform: uppercase;
+  letter-spacing: 0.06em; color: var(--muted-text); margin-bottom: 0.4rem;
+}
+
+.co-simple-card-desc {
+  font-size: 1rem; font-weight: 700; color: var(--ink);
+}
+
+/* ── Section label (left panel) ── */
+.co-section-label {
+  font-size: 10px; font-weight: 700; text-transform: uppercase;
+  letter-spacing: 0.18em; color: var(--muted-text);
+  margin-bottom: 1.25rem;
+}
+
+.co-section-count { font-weight: 400; text-transform: none; letter-spacing: 0; }
+
+/* ── Item card ── */
+.co-item-card {
+  background: var(--card-bg); border: 1px solid var(--border);
+  border-radius: 1rem; padding: 0.875rem 1rem;
+  display: flex; align-items: flex-start; gap: 10px;
+  margin-bottom: 8px;
+}
+
+.co-item-card:last-of-type { margin-bottom: 0; }
+
+.co-item-thumb {
+  width: 52px; height: 52px; border-radius: 9px;
+  background: var(--canvas); display: flex; align-items: center; justify-content: center;
+  color: var(--subtle-text); flex-shrink: 0;
+}
+
+.co-item-thumb-img { width: 52px; height: 52px; border-radius: 9px; object-fit: cover; display: block; }
+
+.co-item-body { flex: 1; min-width: 0; }
+
+.co-item-name {
+  font-size: 13px; font-weight: 600; color: var(--ink);
+  line-height: 1.3; margin-bottom: 2px;
+}
+
+.co-item-bottom { display: flex; align-items: center; justify-content: space-between; }
+
+.co-item-qty {
+  font-size: 11.5px; font-weight: 500;
+  background: var(--canvas); border: 1px solid var(--border-med);
+  border-radius: 6px; padding: 2px 7px; color: var(--body-text);
+}
+
+.co-item-price { font-size: 13px; font-weight: 600; color: var(--ink); }
+
+/* ── Totals block ── */
+.co-totals-block { margin-top: 1.25rem; }
+
+.co-total-row {
+  display: flex; justify-content: space-between; align-items: center;
+  font-size: 13px; padding: 4px 0; color: var(--muted-text);
+}
+
+.co-total-row span:last-child { color: var(--body-text); font-weight: 500; }
+
+.co-total-row--discount .co-disc-label { display: flex; align-items: center; gap: 6px; }
+.co-total-row--discount span:last-child { color: var(--success); font-weight: 600; }
+
+.co-disc-label { display: flex; align-items: center; gap: 6px; }
+
+.co-disc-badge {
+  display: inline-flex; align-items: center;
+  background: var(--success-bg); color: var(--success);
+  font-size: 9.5px; font-weight: 700; letter-spacing: 0.04em;
+  padding: 2px 6px; border-radius: 5px;
+}
+
+.co-grand-row {
+  display: flex; justify-content: space-between; align-items: baseline;
+  margin-top: 0.75rem; padding-top: 0.875rem;
+  border-top: 1px solid var(--border-med);
+}
+
+.co-grand-label { font-size: 15px; font-weight: 700; color: var(--ink); }
+
+.co-grand-val {
+  font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
+  font-size: 22px; font-weight: 800;
+  color: var(--ink); letter-spacing: -0.02em;
+}
+
+/* ══ Right panel form CSS ══ */
+
+/* ── Form section heading (Contact information / Payment method) ── */
+.co-form-section {
+  font-size: 13px; font-weight: 600; color: var(--ink);
+  margin-bottom: 1rem; letter-spacing: -0.01em;
+}
+
+/* ── Field group (wraps label + input) ── */
+.co-f-group { margin-bottom: 0.875rem; }
+
+/* ── Field label ── */
+.co-f-label {
+  font-size: 10px; font-weight: 600; color: var(--muted-text);
+  text-transform: uppercase; letter-spacing: 0.18em;
+  display: block; margin-bottom: 6px;
+}
+
+.co-checkout-container {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+body:has(.co-split) .co-page-footer { display: none; }
+
+/* ── Merchant Panel ── */
+.co-merchant-panel {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 1rem 1.25rem;
+}
+
+.co-merchant-brand { display: flex; align-items: center; gap: 0.625rem; }
+
+.co-merchant-icon {
+  width: 36px; height: 36px; flex-shrink: 0;
+  border-radius: 10px;
+  background: var(--brand-subtle);
+  color: var(--brand);
+  display: flex; align-items: center; justify-content: center;
+}
+
+.co-merchant-name {
+  font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
+  font-size: 1rem; font-weight: 800;
+  color: var(--ink); letter-spacing: -0.02em;
+}
+
+.co-merchant-logo {
+  width: 36px; height: 36px; flex-shrink: 0;
+  border-radius: 10px; object-fit: cover;
+  border: 1px solid var(--border-med);
+}
+
+.co-merchant-ssl {
+  display: flex; align-items: center; gap: 0.3rem;
+  font-size: 0.6875rem; font-weight: 700;
+  color: var(--success);
+  background: var(--success-bg);
+  border: 1px solid rgba(22,163,74,0.18);
+  border-radius: 999px;
+  padding: 0.25rem 0.6rem;
+}
+
+/* ── Product Panel (simple payment) ── */
+.co-product-panel {
+  display: flex; align-items: center; gap: 1rem;
+  padding: 1.25rem 1.25rem;
+}
+
+.co-product-icon {
+  width: 44px; height: 44px; flex-shrink: 0;
+  border-radius: 12px;
+  background: var(--brand-subtle);
+  color: var(--brand);
+  display: flex; align-items: center; justify-content: center;
+}
+
+.co-product-info {
+  flex: 1; display: flex; flex-direction: column; gap: 0.15rem; min-width: 0;
+}
+
+.co-product-label {
+  font-size: 0.6875rem; font-weight: 600;
+  color: var(--muted-text); text-transform: uppercase; letter-spacing: 0.04em;
+}
+
+.co-product-name {
+  font-size: 0.9375rem; font-weight: 700; color: var(--ink);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+
+.co-product-amount {
+  display: flex; align-items: baseline; gap: 0.1rem; flex-shrink: 0;
+}
+
+.co-product-currency {
+  font-size: 0.875rem; font-weight: 700; color: var(--ink);
+}
+
+.co-product-whole {
+  font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
+  font-size: 1.375rem; font-weight: 800; color: var(--ink); letter-spacing: -0.02em;
+}
+
+.co-product-cents {
+  font-size: 0.875rem; font-weight: 700; color: var(--muted-text);
+}
+
+/* ── Form sections ── */
+.co-options-form { display: flex; flex-direction: column; gap: 0; }
+
+.co-section {
+  display: flex; flex-direction: column; gap: 0.75rem;
+}
+
+.co-section-hd {
+  font-size: 0.6875rem; font-weight: 700; text-transform: uppercase;
+  letter-spacing: 0.08em; color: var(--muted-text);
+  margin-bottom: 0.25rem;
+}
+
+/* ── Alert ── */
+.co-alert {
+  display: flex; align-items: flex-start; gap: 0.5rem;
+  padding: 0.75rem 1rem; border-radius: 10px; margin-bottom: 0.5rem;
+  font-size: 0.8125rem; font-weight: 500; line-height: 1.5;
+}
+
+.co-alert--error {
+  background: var(--error-bg);
+  border: 1px solid #FECACA;
+  color: var(--error);
+}
+
+/* ── Icon-prefix input (flex container pattern) ── */
+.co-f-icon-wrap {
+  display: flex; align-items: center;
+  border-radius: 0.75rem; border: 1px solid var(--border-med);
+  background: var(--surface); overflow: hidden;
+  transition: background 0.15s, border-color 0.15s, box-shadow 0.15s;
+}
+
+.co-f-icon-wrap:focus-within {
+  background: var(--card-bg); border-color: var(--brand);
+  box-shadow: 0 0 0 2px var(--brand-subtle);
+}
+
+.co-f-icon-pre {
+  display: flex; align-items: center; justify-content: center;
+  padding: 0 0 0 0.875rem; color: var(--subtle-text); flex-shrink: 0;
+  transition: color 0.15s;
+}
+
+.co-f-icon-wrap:focus-within .co-f-icon-pre { color: var(--muted-text); }
+
+.co-f-icon-field {
+  flex: 1; border: none; background: transparent; box-shadow: none;
+  padding: 0.75rem 1rem 0.75rem 0.5rem;
+  font-family: inherit; font-size: 0.875rem; color: var(--ink); outline: none; min-width: 0;
+  -webkit-appearance: none; appearance: none;
+}
+
+.co-f-icon-field::placeholder { color: var(--subtle-text); }
+
+/* ── Method radio list ── */
+.co-method-list {
+  border: 1px solid var(--border-med);
+  border-radius: 12px; overflow: hidden;
+  margin-bottom: 1.75rem;
+}
+
+.co-method-item {
+  border-bottom: 1px solid var(--border-med);
+  cursor: pointer; transition: background 0.12s;
+}
+
+.co-method-item:last-child, .co-method-item:last-of-type { border-bottom: none; }
+
+/* Method row */
+.co-method-item-hd {
+  display: flex; align-items: center; gap: 11px;
+  padding: 13px 14px;
+  transition: background 0.12s;
+}
+
+.co-method-item:not(.co-method-item--on) .co-method-item-hd:hover { background: var(--canvas); }
+.co-method-item--on .co-method-item-hd { background: rgba(61,71,245,0.03); }
+
+/* Custom radio circle — uses CSS ::after, no child div needed */
+.co-radio-dot {
+  width: 17px; height: 17px; border-radius: 50%;
+  border: 2px solid var(--border-med);
+  display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0; transition: border-color 0.14s;
+}
+
+.co-method-item--on .co-radio-dot { border-color: var(--brand); }
+
+.co-radio-inner {
+  width: 8px; height: 8px; border-radius: 50%;
+  background: transparent; transition: background 0.12s;
+}
+
+.co-method-item--on .co-radio-inner { background: var(--brand); }
+
+.co-method-item-icon {
+  width: 22px; height: 22px; display: flex; align-items: center; justify-content: center;
+  color: var(--muted-text); flex-shrink: 0; transition: color 0.14s;
+}
+
+.co-method-item--on .co-method-item-icon { color: var(--brand); }
+
+.co-method-item-name {
+  flex: 1; font-size: 13px; font-weight: 500; color: var(--body-text);
+  transition: color 0.14s;
+}
+
+.co-method-item--on .co-method-item-name { font-weight: 600; color: var(--ink); }
+
+.co-method-item-logos { display: flex; align-items: center; gap: 3px; }
+
+.co-method-item-body {
+  padding: 0 14px 14px;
+  display: flex; flex-direction: column; gap: 0;
+}
+
+/* ── option-body alias kept for card/bank inner content ── */
+.co-option-body {
+  padding: 0 1rem 1rem;
+  border-top: 1px solid var(--border);
+  padding-top: 1rem;
+  display: flex; flex-direction: column; gap: 1rem;
+  animation: coFadeIn 0.2s ease-out;
+}
+
+@keyframes coFadeIn {
+  from { opacity: 0; transform: translateY(-4px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* ── Method panel body (card/bank inner) ── */
+.co-method-panel-body { display: flex; flex-direction: column; gap: 0.875rem; }
+
+/* ── Network provider tab strip ── */
+.co-net-tabs {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 6px;
+  margin-bottom: 0;
+}
+
+.co-net-tab {
+  display: flex; flex-direction: column; align-items: center; gap: 5px;
+  padding: 10px 6px 8px;
+  border: 1px solid var(--border-med);
+  border-radius: 10px;
+  background: var(--card-bg);
+  cursor: pointer; font-family: inherit;
+  font-size: 11px; font-weight: 500; color: var(--muted-text);
+  transition: border-color 0.14s, background 0.14s, color 0.14s;
+  text-align: center; outline: none; -webkit-tap-highlight-color: transparent;
+}
+
+.co-net-tab:hover { border-color: #9CA3AF; background: var(--canvas); }
+.co-net-tab:focus, .co-net-tab:focus-visible { outline: none; }
+
+.co-net-tab--active {
+  border-color: var(--brand) !important;
+  color: var(--brand); font-weight: 600;
+}
+
+.co-net-tab-logo {
+  width: 32px; height: 32px; border-radius: 7px;
+  overflow: hidden; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+}
+
+.co-net-tab-label {
+  font-size: 11px; font-weight: inherit; color: inherit;
+  line-height: 1.1; white-space: nowrap;
+}
+
+.co-net-tab-hint {
+  font-size: 9px; color: var(--muted-text); line-height: 1; opacity: 0.8;
+}
+
+.co-net-tab--active .co-net-tab-hint { color: var(--brand); opacity: 0.7; }
+
+.co-net-prompt {
+  font-size: 0.8125rem; color: var(--muted-text);
+  text-align: center; padding: 0.625rem 0 0.25rem;
+  font-style: italic;
+}
+
+.co-phone-field { margin-top: 0.25rem; }
+
+/* ── Form controls ── */
+.co-field { display: flex; flex-direction: column; gap: 0; margin-bottom: 0.875rem; }
+.co-card-row > .co-field { margin-bottom: 0; }
+.co-method-item-body > .co-field:last-child { margin-bottom: 0; }
+
+.co-field-label {
+  font-size: 10px; font-weight: 600; color: var(--muted-text);
+  text-transform: uppercase; letter-spacing: 0.18em;
+  display: block; margin-bottom: 6px;
+}
+
+input:not([type="checkbox"]):not([type="radio"]) {
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+.co-input {
+  display: block; width: 100%; padding: 0.75rem 1rem;
+  border: 1px solid var(--border-med); border-radius: 0.75rem;
+  background: var(--surface); font-family: inherit;
+  font-size: 0.875rem; color: var(--ink); outline: none;
+  -webkit-appearance: none; appearance: none;
+  transition: background 0.15s, border-color 0.15s, box-shadow 0.15s;
+}
+
+.co-input::placeholder { color: var(--subtle-text); }
+
+.co-input:focus {
+  background: var(--card-bg);
+  border-color: var(--brand);
+  box-shadow: 0 0 0 2px var(--brand-subtle);
+}
+
+.co-input--error { border-color: var(--error) !important; background: var(--error-bg) !important; }
+
+/* Phone Box — matches artifact .phone-wrap */
+.co-phone-box {
+  display: flex; align-items: center;
+  border-radius: 0.75rem; border: 1px solid var(--border-med);
+  background: var(--surface); overflow: hidden;
+  transition: background 0.15s, border-color 0.15s, box-shadow 0.15s;
+}
+
+.co-phone-box:focus-within {
+  background: var(--card-bg); border-color: var(--brand);
+  box-shadow: 0 0 0 2px var(--brand-subtle);
+}
+
+.co-phone-box--error { border-color: var(--error) !important; background: var(--error-bg) !important; }
+
+.co-flag-pill {
+  display: flex; align-items: center; gap: 5px;
+  padding: 0.75rem;
+  font-size: 0.875rem; font-weight: 500; color: var(--body-text);
+  border-right: 1px solid var(--border-med);
+  background: var(--canvas); flex-shrink: 0; white-space: nowrap;
+}
+
+.co-phone-input {
+  flex: 1; border: none !important; background: transparent !important;
+  padding: 0.75rem 0.75rem; font-family: inherit; font-size: 0.875rem;
+  color: var(--ink); outline: none; min-width: 0; box-shadow: none !important;
+  -webkit-appearance: none; appearance: none;
+}
+
+.co-detected-badge {
+  margin-right: 0.75rem; font-size: 0.6875rem; font-weight: 700;
+  padding: 0.2rem 0.5rem; border-radius: 6px;
+  background: var(--brand); color: #FFFFFF;
+}
+
+.co-detected-badge--mtn      { background: #EAB308; color: #000; }
+.co-detected-badge--telecel  { background: #E60000; color: #fff; }
+.co-detected-badge--at       { background: #1A2B4C; color: #fff; }
+
+.co-error-text { font-size: 0.75rem; color: var(--error); font-weight: 500; }
+
+.co-field-hint { font-size: 0.75rem; color: var(--muted-text); line-height: 1.4; }
+.co-card-row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 0.875rem; }
+
+/* Notice box (sandbox / bank info) — blue tint */
+.co-sandbox-notice, .co-bank-info-notice {
+  display: flex; align-items: flex-start; gap: 8px;
+  padding: 10px 12px; border-radius: 10px;
+  background: rgba(59,130,246,0.05); border: 1px solid rgba(59,130,246,0.15);
+  color: #1D4ED8; font-size: 12px; line-height: 1.5;
+  margin-bottom: 1rem;
+}
+
+.co-sandbox-notice svg, .co-bank-info-notice svg { flex-shrink: 0; margin-top: 1px; }
+
+.co-sandbox-title, .co-bank-notice-title { font-weight: 600; margin-bottom: 2px; }
+
+.co-sandbox-cards div { margin-top: 2px; }
+
+.co-sandbox-cards code, .co-bank-info-notice code {
+  font-family: ui-monospace,monospace; font-weight: 700;
+  color: var(--brand); letter-spacing: 0.03em;
+}
+
+.co-bank-notice-desc { font-size: 12px; color: #1D4ED8; line-height: 1.5; }
+
+/* Card number wrapper */
+.co-card-number-box {
+  display: flex; align-items: center;
+  border-radius: 0.75rem; border: 1px solid var(--border-med);
+  background: var(--surface); overflow: hidden;
+  transition: background 0.15s, border-color 0.15s, box-shadow 0.15s;
+}
+
+.co-card-number-box:focus-within {
+  background: var(--card-bg); border-color: var(--brand);
+  box-shadow: 0 0 0 2px var(--brand-subtle);
+}
+
+.co-card-box--error { border-color: var(--error) !important; background: var(--error-bg) !important; }
+
+.co-card-number-input {
+  flex: 1; border: none; background: transparent; box-shadow: none;
+  padding: 0.75rem 1rem; font-family: ui-monospace,monospace;
+  font-size: 0.875rem; letter-spacing: 0.06em; color: var(--ink); outline: none; min-width: 0;
+}
+
+.co-card-number-input::placeholder { font-family: inherit; letter-spacing: 0; color: var(--subtle-text); }
+
+.co-card-brand-badge { display: flex; align-items: center; gap: 3px; padding: 0 10px; flex-shrink: 0; }
+
+/* ── Pay summary (top-border separator) ── */
+.co-pay-sum {
+  border-top: 1px solid var(--border); padding-top: 0.875rem;
+  margin-top: 0.25rem; display: flex; flex-direction: column; gap: 4px;
+}
+
+.co-ps-row {
+  display: flex; justify-content: space-between; font-size: 12.5px; color: var(--muted-text);
+}
+
+.co-ps-row span:last-child { color: var(--body-text); font-weight: 500; }
+.co-ps-row--discount span:last-child { color: var(--success); font-weight: 600; }
+
+.co-ps-total {
+  display: flex; justify-content: space-between;
+  font-size: 14px; font-weight: 700; color: var(--ink); padding-top: 6px;
+}
+
+/* ── Pay button ── */
+.co-btn-pay {
+  position: relative; display: flex; align-items: center; justify-content: center;
+  width: 100%; padding: 13px 16px; border: none; border-radius: 8px;
+  background: var(--brand); color: #fff;
+  font-family: inherit; font-size: 13px; font-weight: 600;
+  cursor: pointer; transition: opacity 0.15s;
+  margin-top: 1rem;
+}
+
+.co-btn-pay-lock { position: absolute; right: 14px; opacity: 0.65; }
+
+.co-btn-pay:hover { opacity: 0.9; }
+.co-btn-pay:disabled { opacity: 0.45; cursor: not-allowed; }
+
+/* ── Trust footer (inline lock + text) ── */
+.co-trust-footer {
+  display: flex; align-items: center; justify-content: center; gap: 5px;
+  margin-top: 0.75rem; font-size: 11.5px; color: var(--muted-text);
+}
+
+.co-trust-footer a {
+  color: var(--muted-text); text-decoration: none; transition: color 0.12s;
+}
+
+.co-trust-footer a:hover { color: var(--ink); }
+
+/* ── Right footer (Powered by · Terms · Privacy) ── */
+.co-right-footer {
+  margin-top: 1.25rem; display: flex; align-items: center; justify-content: center; gap: 6px;
+  font-size: 11.5px; color: var(--muted-text);
+}
+
+.co-right-footer a {
+  color: var(--muted-text); text-decoration: none; transition: color 0.12s;
+}
+
+.co-right-footer a:hover { color: var(--ink); }
+
+.co-rf-sep { color: var(--faint-text); }
+
+.co-cancel-wrap { display: flex; justify-content: center; margin-top: 0.75rem; }
+
+.co-cancel-link {
+  display: inline-flex; align-items: center; gap: 0.3rem;
+  font-size: 0.75rem; font-weight: 500; color: var(--muted-text);
+  text-decoration: none; transition: color 0.15s;
+}
+
+.co-cancel-link:hover { color: var(--body-text); }
+
+/* ── Terminal states ── */
+.co-terminal-panel {
+  max-width: 520px; margin: 2rem auto; padding: 2.5rem 2rem;
+  text-align: center; display: flex; flex-direction: column;
+  align-items: center; gap: 1rem;
+}
+
+.co-terminal-title { font-size: 1.375rem; font-weight: 800; color: var(--ink); }
+
+.co-terminal-desc { font-size: 0.875rem; color: var(--body-text); line-height: 1.6; max-width: 340px; }
+
+.co-terminal-amount {
+  font-family: 'Plus Jakarta Sans', sans-serif;
+  font-size: 2.25rem; font-weight: 800; color: var(--brand);
+}
+
+.co-success-icon-wrap {
+  width: 64px; height: 64px; border-radius: 50%;
+  background: var(--success-bg);
+  display: flex; align-items: center; justify-content: center;
+}
+
+.co-warn-icon-wrap {
+  width: 56px; height: 56px; border-radius: 50%;
+  background: #FEF3C7;
+  display: flex; align-items: center; justify-content: center;
+}
+
+.co-receipt-box {
+  width: 100%; background: var(--canvas);
+  border: 1px solid var(--border-med); border-radius: 12px;
+  padding: 1rem; display: flex; flex-direction: column; gap: 0.5rem;
+  font-size: 0.8125rem; margin: 0.5rem 0;
+}
+
+.co-receipt-row { display: flex; justify-content: space-between; align-items: flex-start; gap: 0.75rem; }
+.co-receipt-mono { font-family: monospace; font-size: 0.75rem; color: var(--muted-text); word-break: break-all; text-align: right; }
+
+.co-badge-paid {
+  background: var(--success); color: #FFFFFF;
+  font-size: 0.6875rem; font-weight: 700;
+  padding: 0.2rem 0.5rem; border-radius: 999px;
+}
+
+.co-btn-primary {
+  display: inline-flex; align-items: center; justify-content: center;
+  background: var(--brand); color: #FFFFFF;
+  padding: 0.875rem 1.75rem; border-radius: 10px;
+  text-decoration: none; font-weight: 700; font-size: 0.9375rem;
+  transition: opacity 0.15s;
+}
+
+.co-btn-primary:hover { opacity: 0.88; }
+.co-btn-primary:disabled { opacity: 0.55; cursor: not-allowed; }
+
+.co-btn-secondary {
+  display: inline-flex; align-items: center; justify-content: center;
+  background: transparent; color: #ef4444;
+  border: 1.5px solid #fca5a5; padding: 0.625rem 1.25rem;
+  border-radius: 10px; font-weight: 600; font-size: 0.875rem;
+  transition: background 0.15s, border-color 0.15s; cursor: pointer;
+  width: 100%;
+}
+.co-btn-secondary:hover { background: #fef2f2; border-color: #f87171; }
+.co-btn-secondary:disabled { opacity: 0.5; cursor: not-allowed; }
+
+.co-btn-ghost {
+  background: transparent; color: var(--body-text);
+  border: 1.5px solid var(--border-med); padding: 0.625rem 1.25rem;
+  border-radius: 10px; font-weight: 600; font-size: 0.875rem;
+  transition: background 0.15s; cursor: pointer;
+}
+.co-btn-ghost:hover { background: var(--canvas); }
+
+/* ── Escrow states ── */
+.co-escrow-icon-wrap {
+  width: 64px; height: 64px; border-radius: 50%;
+  background: #fef3c7;
+  display: flex; align-items: center; justify-content: center;
+}
+.co-escrow-icon-wrap--disputed { background: #eff6ff; }
+
+.co-escrow-notice {
+  display: flex; align-items: flex-start; gap: 6px;
+  background: #fef9ec; border: 1px solid #fde68a;
+  border-radius: 10px; padding: 0.625rem 0.875rem;
+  font-size: 0.8rem; color: #92400e; line-height: 1.5;
+  width: 100%; text-align: left;
+}
+
+.co-escrow-confirm-btn { width: 100%; border: none; cursor: pointer; }
+
+.co-escrow-divider {
+  font-size: 0.75rem; color: var(--muted-text); text-transform: uppercase;
+  letter-spacing: 0.05em; display: flex; align-items: center; gap: 0.75rem;
+  width: 100%;
+}
+.co-escrow-divider::before, .co-escrow-divider::after {
+  content: ""; flex: 1; height: 1px; background: var(--border-med);
+}
+
+.co-escrow-dispute-section {
+  width: 100%; display: flex; flex-direction: column; gap: 0.625rem;
+  text-align: left;
+}
+
+.co-escrow-dispute-label {
+  font-size: 0.8rem; font-weight: 600; color: var(--body-text);
+}
+
+.co-escrow-dispute-note {
+  width: 100%; border: 1.5px solid var(--border-med); border-radius: 10px;
+  padding: 0.625rem 0.875rem; font-size: 0.875rem; color: var(--ink);
+  background: var(--surface); resize: vertical; min-height: 80px;
+  outline: none; transition: border-color 0.15s; font-family: inherit;
+  box-sizing: border-box;
+}
+.co-escrow-dispute-note:focus { border-color: var(--brand); }
+
+.co-badge-escrow {
+  background: #fef3c7; color: #92400e;
+  font-size: 0.6875rem; font-weight: 700;
+  padding: 0.2rem 0.5rem; border-radius: 999px;
+}
+
+.co-badge-pending {
+  background: #dbeafe; color: #1e40af;
+  font-size: 0.6875rem; font-weight: 700;
+  padding: 0.2rem 0.5rem; border-radius: 999px;
+}
+
+.co-error-banner {
+  width: 100%; background: #fef2f2; border: 1px solid #fecaca;
+  border-radius: 10px; padding: 0.625rem 0.875rem;
+  font-size: 0.8rem; color: #b91c1c; text-align: left;
+}
+
+/* ── Confirmation modal ── */
+.co-modal-overlay {
+  position: fixed; inset: 0; background: rgba(0,0,0,0.5);
+  display: flex; align-items: center; justify-content: center;
+  z-index: 100; padding: 1rem;
+}
+
+.co-modal {
+  background: var(--surface); border-radius: 16px;
+  padding: 1.75rem; max-width: 360px; width: 100%;
+  box-shadow: 0 20px 60px rgba(0,0,0,0.2);
+  display: flex; flex-direction: column; gap: 0.875rem;
+}
+
+.co-modal-title {
+  font-size: 1.125rem; font-weight: 800; color: var(--ink); margin: 0;
+}
+
+.co-modal-body {
+  font-size: 0.875rem; color: var(--body-text); line-height: 1.6; margin: 0;
+}
+
+.co-modal-actions {
+  display: flex; gap: 0.625rem; justify-content: flex-end; flex-wrap: wrap;
+}
+
+/* ── Spinner ── */
+.co-spinner { width: 48px; height: 48px; position: relative; }
+
+.co-spinner-ring {
+  width: 100%; height: 100%; border-radius: 50%;
+  border: 4px solid var(--brand-subtle);
+  border-top-color: var(--brand);
+  animation: coSpin 0.8s linear infinite;
+}
+
+@keyframes coSpin { to { transform: rotate(360deg); } }
+
+.co-progress-bar {
+  width: 100%; height: 6px; background: var(--border-med);
+  border-radius: 999px; overflow: hidden;
+}
+
+.co-progress-fill {
+  height: 100%; background: var(--brand); border-radius: 999px;
+  animation: coPulse 2s ease-in-out infinite alternate;
+}
+
+@keyframes coPulse { from { width: 30%; } to { width: 90%; } }
+
+.co-terminal-hint { font-size: 0.75rem; color: var(--muted-text); }
+
+/* ── Simulate Transfer button (simulation mode only) ── */
+.co-simulate-transfer-btn {
+  width: 100%; padding: 0.65rem 1rem; font-size: 0.8125rem; font-weight: 600;
+  background: #1c3a2f; color: #4ade80;
+  border: 1px solid #2a5040; border-radius: 10px; cursor: pointer;
+  letter-spacing: 0.01em;
+}
+.co-simulate-transfer-btn:hover { background: #1f4434; border-color: #3a6050; }
+
+/* ── Sandbox notice ── */
+.co-sandbox-notice {
+  display: flex; align-items: flex-start; gap: 0.625rem;
+  padding: 0.75rem 0.875rem;
+  background: rgba(61,71,245,0.06);
+  border: 1px solid rgba(61,71,245,0.2);
+  border-radius: 10px;
+  color: #3D47F5;
+  font-size: 0.75rem;
+  margin-bottom: 1rem;
+}
+
+.co-sandbox-title { font-weight: 700; margin-bottom: 0.35rem; }
+
+.co-sandbox-cards { display: flex; flex-direction: column; gap: 0.15rem; }
+.co-sandbox-cards div { color: #374151; }
+.co-sandbox-cards code {
+  font-family: monospace; font-size: 0.8rem; font-weight: 700;
+  letter-spacing: 0.02em; color: #3D47F5;
+}
+
+/* ── Card form ── */
+.co-card-number-box {
+  display: flex; align-items: center;
+  border: 1px solid var(--border-med); border-radius: 12px;
+  background: var(--canvas); transition: all 0.2s ease; overflow: hidden;
+}
+
+.co-card-number-box:focus-within {
+  border-color: var(--brand); background: #FFFFFF;
+  box-shadow: 0 0 0 2px var(--brand-subtle);
+}
+
+.co-card-box--error { border-color: var(--error) !important; background: var(--error-bg) !important; }
+
+.co-card-number-input {
+  flex: 1; padding: 0.75rem 1rem;
+  border: none !important; background: transparent !important; box-shadow: none !important;
+  font-family: monospace; font-size: 0.9375rem; letter-spacing: 0.05em;
+  color: var(--ink);
+}
+
+.co-card-number-input:focus { outline: none; }
+
+.co-card-brand-badge {
+  padding: 0 0.875rem; display: flex; align-items: center; flex-shrink: 0;
+}
+
+.co-card-row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 0.875rem; }
+
+/* ── Bank transfer ── */
+.co-bank-block {
+  display: flex; flex-direction: column; gap: 0.75rem;
+  background: var(--canvas); border: 1px solid var(--border-med);
+  border-radius: 12px; overflow: hidden;
+}
+
+.co-bank-heading {
+  padding: 0.75rem 1rem 0;
+  font-size: 0.8125rem; font-weight: 700; color: var(--ink);
+}
+
+.co-bank-rows { display: flex; flex-direction: column; padding: 0 1rem; }
+
+.co-bank-row {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 0.5rem 0; border-bottom: 1px solid var(--border);
+  gap: 1rem;
+}
+
+.co-bank-row:last-child { border-bottom: none; }
+
+.co-bank-row--highlight { background: rgba(61,71,245,0.04); margin: 0 -1rem; padding: 0.5rem 1rem; }
+
+.co-bank-label { font-size: 0.75rem; color: var(--muted-text); flex-shrink: 0; }
+.co-bank-value { font-size: 0.8125rem; font-weight: 600; color: var(--ink); text-align: right; }
+.co-bank-amount { font-size: 1rem; font-weight: 800; color: var(--brand); }
+.co-mono { font-family: monospace; letter-spacing: 0.02em; }
+
+.co-bank-warn {
+  display: flex; align-items: flex-start; gap: 0.4rem;
+  margin: 0 1rem 0.875rem;
+  font-size: 0.75rem; color: #92400e; font-weight: 500; line-height: 1.4;
+}
+
+/* ── Bank info notice (in form) ── */
+.co-bank-info-notice {
+  display: flex; align-items: flex-start; gap: 0.625rem;
+  padding: 0.875rem 1rem;
+  background: rgba(61,71,245,0.05);
+  border: 1px solid rgba(61,71,245,0.18);
+  border-radius: 12px;
+  color: #3D47F5;
+  font-size: 0.8125rem;
+  margin-bottom: 1rem;
+}
+
+.co-bank-notice-title { font-weight: 700; margin-bottom: 0.25rem; color: #1e40af; }
+.co-bank-notice-desc { color: var(--prose-text); line-height: 1.5; }
+.co-bank-notice-desc strong { color: var(--ink); }
+
+/* ── Virtual account panel (awaiting_transfer state) ── */
+.co-terminal-panel--await { gap: 1.25rem; }
+
+.co-await-status {
+  display: flex; align-items: center; gap: 0.5rem;
+  font-size: 0.8125rem; font-weight: 600; color: var(--muted-text);
+}
+
+.co-va-panel {
+  width: 100%; background: var(--canvas);
+  border: 1px solid var(--border-med); border-radius: 14px;
+  overflow: hidden; text-align: left;
+}
+
+.co-va-row {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 0.625rem 1rem; border-bottom: 1px solid var(--border); gap: 1rem;
+}
+
+.co-va-row:last-child { border-bottom: none; }
+
+.co-va-row--accent { background: rgba(61,71,245,0.04); }
+
+.co-va-row--amount { border-top: 1px solid var(--border-med); }
+
+.co-va-label { font-size: 0.75rem; color: var(--muted-text); flex-shrink: 0; }
+.co-va-value { font-size: 0.8125rem; font-weight: 600; color: var(--ink); text-align: right; }
+
+.co-va-account-wrap {
+  display: flex; align-items: center; gap: 0.5rem;
+}
+
+.co-va-number {
+  font-family: monospace; font-size: 0.9375rem; font-weight: 700;
+  color: var(--ink); letter-spacing: 0.05em;
+}
+
+.co-va-amount {
+  font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
+  font-size: 1.125rem; font-weight: 800; color: var(--brand); letter-spacing: -0.01em;
+}
+
+.co-copy-btn {
+  font-size: 0.6875rem; font-weight: 700;
+  padding: 0.25rem 0.625rem; border-radius: 6px;
+  border: 1px solid var(--brand); background: var(--brand-subtle);
+  color: var(--brand); cursor: pointer; transition: all 0.15s ease;
+  white-space: nowrap; flex-shrink: 0;
+}
+
+.co-copy-btn:hover { background: var(--brand); color: #FFFFFF; }
+
+.co-va-warn {
+  display: flex; align-items: flex-start; gap: 0.4rem;
+  width: 100%; font-size: 0.75rem; color: #92400e; font-weight: 500; line-height: 1.4;
+  padding: 0.625rem 0.875rem;
+  background: #FFFBEB; border: 1px solid #FDE68A; border-radius: 10px;
+}
+
+.co-va-meta {
+  display: flex; flex-direction: column; gap: 0.4rem;
+  width: 100%; font-size: 0.75rem; color: var(--muted-text);
+}
+
+.co-va-expiry, .co-va-rail {
+  display: flex; align-items: center; gap: 0.35rem;
+}
+
+.co-countdown { font-family: monospace; font-weight: 700; color: var(--ink); }
+.co-countdown--urgent { color: #DC2626; animation: coPulse 1s ease-in-out infinite alternate; }
+
+/* ── Footer ── */
+.co-page-footer {
+  text-align: center; font-size: 0.75rem;
+  color: var(--muted-text); padding: 1rem 0;
+}
+
+/* ── Checkout headline ── */
+.co-checkout-headline {
+  margin-bottom: 1.25rem; padding-bottom: 1.25rem;
+  border-bottom: 1px solid var(--border);
+}
+.co-checkout-headline p {
+  font-size: 1rem; font-weight: 600; color: var(--body-text); line-height: 1.5;
+}
+
+/* ── T&Cs row ── */
+.co-terms-row {
+  display: flex; align-items: flex-start; gap: 0.625rem;
+  padding: 0.75rem 0.875rem;
+  background: var(--canvas);
+  border: 1px solid var(--border-med);
+  border-radius: 10px;
+  margin-bottom: 1rem;
+}
+.co-terms-checkbox {
+  width: 15px; height: 15px; flex-shrink: 0; margin-top: 2px;
+  accent-color: var(--brand); cursor: pointer;
+}
+.co-terms-label {
+  font-size: 0.8125rem; color: var(--body-text); line-height: 1.5; cursor: pointer;
+}
+.co-terms-link {
+  color: var(--brand); text-decoration: underline; text-underline-offset: 2px;
+}

@@ -16,11 +16,12 @@ defmodule YagyeCheckoutWeb.Router do
     plug :put_secure_browser_headers, %{
       "content-security-policy" =>
         "default-src 'self'; " <>
-          "script-src 'self' 'unsafe-inline' cdn.jsdelivr.net; " <>
+          "script-src 'self' 'unsafe-inline' cdn.jsdelivr.net js.stripe.com; " <>
           "style-src 'self' 'unsafe-inline' fonts.googleapis.com; " <>
           "font-src fonts.gstatic.com; " <>
           "img-src 'self' data: https:#{@extra_img_src}; " <>
-          "connect-src 'self' ws: wss:;"
+          "frame-src js.stripe.com hooks.stripe.com; " <>
+          "connect-src 'self' ws: wss: api.stripe.com;"
     }
   end
 
