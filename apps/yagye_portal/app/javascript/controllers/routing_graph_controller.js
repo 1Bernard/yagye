@@ -526,6 +526,9 @@ export default class extends Controller {
       const p = this.providersValue.find(p => p.code === value)
       if (p) newData.label = p.label
     }
+    // Changing the field makes the current value semantically stale (e.g. "mobile_money"
+    // is not a valid currency). Reset it so the user is prompted to enter the right value.
+    if (field === "field") newData.value = ""
     this.editor.updateNodeDataFromId(nodeId, newData)
     const contentEl = this.canvasTarget.querySelector(`#node-${nodeId} .drawflow_content_node`)
     if (!contentEl) return
