@@ -69,7 +69,7 @@ function previewRowHTML(desc, qty, unit, bps, currency) {
   <td class="pl-5 pr-3 py-3.5 text-[12.5px] text-gray-800">${desc || "<span class='text-gray-300'>—</span>"}</td>
   <td class="px-3 py-3.5 text-right tabular-nums text-[12px] text-gray-400">${qtyStr}</td>
   <td class="px-3 py-3.5 text-right tabular-nums text-[12px] text-gray-400">${sym(currency)}&thinsp;${(unit / 100).toFixed(2)}</td>
-  <td class="px-3 py-3.5 text-right tabular-nums text-[12px] text-gray-400">${bps > 0 ? (bps / 100).toFixed(1) + "%" : "—"}</td>
+  <td class="px-3 py-3.5 text-right tabular-nums text-[12px] text-gray-400">${bps > 0 ? parseFloat((bps / 100).toFixed(4)).toString() + "%" : "—"}</td>
   <td class="pl-3 pr-5 py-3.5 text-right tabular-nums text-[12.5px] font-semibold text-gray-900">${fmt(amount, currency)}</td>
 </tr>`
 }
