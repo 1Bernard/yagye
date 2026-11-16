@@ -50,6 +50,7 @@ module Checkout
             background-image: radial-gradient(circle at 1px 1px, #d1d5db 1px, transparent 0);
             background-size: 24px 24px;
           }
+          @page { size: auto; margin: 15mm; }
           @media print {
             .inv-no-print { display: none !important; }
             #inv-show-canvas { background: none; position: static; height: auto; overflow: visible; }
