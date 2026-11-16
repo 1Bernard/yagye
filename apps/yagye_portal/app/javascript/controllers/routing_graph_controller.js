@@ -154,6 +154,11 @@ export default class extends Controller {
     this.editor.on("nodeCreated",    ()  => this._updateEmptyState())
     this.editor.on("nodeRemoved",    ()  => this._updateEmptyState())
 
+    // Re-render downstream ProviderNodes when a connection is added or removed so
+    // the provider dropdown filters to only methods compatible with the upstream condition.
+    this.editor.on("connectionCreated", ({ output_id, input_id }) => this._rerenderProviderNode(input_id))
+    this.editor.on("connectionRemoved", ({ output_id, input_id }) => this._rerenderProviderNode(input_id))
+
     // Capture-phase delete listener — fires before Drawflow's bubble-phase handlers
     // so Drawflow cannot preventDefault/stopPropagation the click away from us.
     this._onDelCapture = e => {
@@ -300,7 +305,7 @@ export default class extends Controller {
     return this.editor.addNode(type, def.inputs, def.outputs, x, y, type, d, this._nodeHtml(type, def, d))
   }
 
-  _nodeHtml(type, def, data) {
+  _nodeHtml(type, def, data, nodeId = null) {
     const icon = this.NODE_ICONS[type] || ""
     const rc   = "this.closest('[data-controller]').__routingGraph"
 
@@ -372,12 +377,24 @@ export default class extends Controller {
     }
 
     if (type === "ProviderNode" || type === "FallbackNode") {
-      const nativeProviders = this.providersValue.filter(p => p.kind !== "simulator")
+      const upstreamMethod = this._upstreamMethod(nodeId)
+      const eligibleProviders = this.providersValue.filter(p => {
+        if (p.kind === "simulator") return false
+        if (!upstreamMethod) return true
+        // If the provider has no methods list, include it (safe fallback for unlisted PSPs)
+        if (!p.methods || !p.methods.length) return true
+        return p.methods.includes(upstreamMethod)
+      })
+      const methodHint = upstreamMethod
+        ? `<div style="font-size:10px;color:#9ca3af;margin-top:-5px;margin-bottom:9px;">
+             Showing providers that support <strong style="color:#6b7280">${upstreamMethod.replace("_", " ")}</strong>
+           </div>`
+        : ""
       const provOpts = `<option value="">Choose provider…</option>` +
-        nativeProviders.map(p =>
+        eligibleProviders.map(p =>
           `<option value="${p.code}" ${p.code === data.provider_code ? "selected" : ""}>${p.label}</option>`
         ).join("")
-      body = fieldDiv("Provider", selectWrap("provider_code", provOpts))
+      body = methodHint + fieldDiv("Provider", selectWrap("provider_code", provOpts))
       if (type === "FallbackNode") {
         body += fieldDiv("Max retries",
           `<input type="number" min="1" max="10" value="${data.max_retries ?? 3}"
@@ -451,6 +468,36 @@ export default class extends Controller {
     return def.label
   }
 
+  // ── Method-aware provider filtering ──────────────────────────────────────
+
+  // Walk the graph to find the nearest upstream ConditionNode filtering on
+  // field=method. Returns the method value string (e.g. "mobile_money") or null.
+  _upstreamMethod(nodeId) {
+    if (!nodeId) return null
+    const allNodes = this.editor?.drawflow?.drawflow?.Home?.data
+    if (!allNodes) return null
+    const node = allNodes[nodeId]
+    if (!node) return null
+    const inputConns = Object.values(node.inputs || {}).flatMap(inp => inp.connections || [])
+    for (const conn of inputConns) {
+      const upstream = allNodes[conn.node]
+      if (upstream?.name === "ConditionNode" && upstream.data?.field === "method") {
+        return upstream.data.value || null
+      }
+    }
+    return null
+  }
+
+  // Re-render a ProviderNode or FallbackNode in-place so its dropdown reflects
+  // any new upstream method filter (called on connectionCreated/connectionRemoved).
+  _rerenderProviderNode(nodeId) {
+    const node = this.editor.getNodeFromId(nodeId)
+    if (!node || (node.name !== "ProviderNode" && node.name !== "FallbackNode")) return
+    const contentEl = this.canvasTarget.querySelector(`#node-${nodeId} .drawflow_content_node`)
+    if (!contentEl) return
+    contentEl.innerHTML = this._nodeHtml(node.name, this.NODE_TYPES[node.name], node.data, nodeId)
+  }
+
   // ── Selection state (no separate panel) ──────────────────────────────────
 
   _onNodeSelected(id) {
@@ -485,7 +532,7 @@ export default class extends Controller {
     // Full re-render for select fields (interaction is done); title-only for text/number
     const isSelect = ["provider_code", "field", "operator"].includes(field)
     if (isSelect) {
-      contentEl.innerHTML = this._nodeHtml(node.name, this.NODE_TYPES[node.name], newData)
+      contentEl.innerHTML = this._nodeHtml(node.name, this.NODE_TYPES[node.name], newData, nodeId)
     } else {
       const titleEl = contentEl.querySelector(".rg-node-title")
       if (titleEl) titleEl.innerHTML = this._nodeTitle(node.name, this.NODE_TYPES[node.name], newData)

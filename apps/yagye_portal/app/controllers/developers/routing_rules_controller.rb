@@ -5,16 +5,16 @@ module Developers
     # Native rails — Yagye holds platform-level live credentials for these.
     # These are the only providers valid in a published (live) routing configuration.
     NATIVE_PROVIDERS = [
-      { code: "mtn_momo",     label: "MTN MoMo",        color: "#FFCC00", kind: "native_rail" },
-      { code: "telecel_cash", label: "Telecel Cash",     color: "#E2001A", kind: "native_rail" },
-      { code: "airteltigo",   label: "AirtelTigo Money", color: "#FF6B00", kind: "native_rail" }
+      { code: "mtn_momo",     label: "MTN MoMo",        color: "#FFCC00", kind: "native_rail", methods: %w[mobile_money] },
+      { code: "telecel_cash", label: "Telecel Cash",     color: "#E2001A", kind: "native_rail", methods: %w[mobile_money] },
+      { code: "airteltigo",   label: "AirtelTigo Money", color: "#FF6B00", kind: "native_rail", methods: %w[mobile_money] }
     ].freeze
 
     # Simulator — test/development only. Has no live-mode credentials.
     # Shown in the graph editor so ops can build and preview configurations,
     # but publishing a config that routes to the Simulator will fail at Core.
     SIMULATOR_PROVIDERS = [
-      { code: "simulator", label: "Gateway Simulator", color: "#6b7280", kind: "simulator" }
+      { code: "simulator", label: "Gateway Simulator", color: "#6b7280", kind: "simulator", methods: %w[mobile_money] }
     ].freeze
 
     PROVIDERS = (NATIVE_PROVIDERS + SIMULATOR_PROVIDERS).freeze

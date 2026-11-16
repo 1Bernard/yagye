@@ -120,6 +120,15 @@ module Developers
     # breaking the settlement chain and fee model.
     NATIVE_RAIL_CODES = %w[mtn_momo mtn_momo_gh telecel_cash telecel_cash_gh airteltigo airteltigo_money_gh simulator].freeze
 
+    # Known method capabilities per provider code. Unlisted providers get all methods.
+    PSP_METHODS = {
+      "stripe"           => %w[card],
+      "paystack"         => %w[mobile_money card],
+      "paystack_gh"      => %w[mobile_money card],
+      "flutterwave"      => %w[mobile_money card bank_transfer],
+      "flutterwave_gh"   => %w[mobile_money card bank_transfer]
+    }.freeze
+
     def build_provider_list(conn_result)
       return [] unless conn_result.success?
 
@@ -127,10 +136,11 @@ module Developers
         .select { |c| c["status"] == "active" && NATIVE_RAIL_CODES.exclude?(c["provider_code"].to_s) }
         .map do |c|
           {
-            code:  c["provider_code"],
-            label: c["provider_name"] || c["provider_code"].to_s.titleize,
-            color: psp_color(c["provider_code"]),
-            kind:  "external_psp"
+            code:    c["provider_code"],
+            label:   c["provider_name"] || c["provider_code"].to_s.titleize,
+            color:   psp_color(c["provider_code"]),
+            kind:    "external_psp",
+            methods: PSP_METHODS.fetch(c["provider_code"].to_s, %w[mobile_money card bank_transfer])
           }
         end
     end
