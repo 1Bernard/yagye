@@ -510,6 +510,11 @@ export default class extends Controller {
       body = `<div style="display:flex;gap:6px;">
         ${halfCard("pct_a","label_a", data.pct_a??70, data.label_a||"Primary",   def.color, def.bg)}
         ${halfCard("pct_b","label_b", data.pct_b??30, data.label_b||"Secondary", "#6b7280", "#f9fafb")}
+      </div>
+      <div style="margin-top:8px;background:#fffbeb;border:1px solid #fde68a;border-radius:8px;
+                  padding:7px 9px;font-size:10.5px;color:#92400e;line-height:1.45;">
+        <strong style="font-weight:700;">Percentages not enforced yet.</strong>
+        Both branches compile as equal-priority rules — weighted traffic split is a planned feature.
       </div>`
     }
 

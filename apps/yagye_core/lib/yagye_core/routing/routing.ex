@@ -353,8 +353,8 @@ defmodule YagyeCore.Routing do
   end
 
   # Both SplitNode branches compile — percentage weighting is informational only.
-  # True weighted routing (70/30 traffic split) requires runtime randomisation and
-  # will be added when the smart-routing ML layer lands at P20.
+  # True weighted routing (70/30 traffic split) requires runtime randomisation
+  # (weighted random selection at evaluate/4 time). Not yet scheduled.
   defp walk_split_node(node, nodes, edges_by_source, conds) do
     outgoing = Map.get(edges_by_source, node["id"], [])
 
