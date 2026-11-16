@@ -69,16 +69,22 @@ defmodule YagyeCore.Payments.Adapters.MTNMomoAdapterTest do
   # ── charge/3 ─────────────────────────────────────────────────────────────────
 
   describe "charge/3" do
-    test "202 response returns pending with provider_reference = idempotency_token" do
+    test "202 response returns pending with provider_reference = X-Reference-Id sent to MTN" do
       token = Ecto.UUID.generate()
 
       with_token_stub(:mtn_momo_http, fn conn ->
         assert conn.request_path == "/collection/v1_0/requesttopay"
+        # Adapter generates a fresh UUID v4 for X-Reference-Id (MTN rejects UUID v7).
+        # Capture it so we can assert provider_reference matches what was actually sent.
+        ref_id = conn |> Plug.Conn.get_req_header("x-reference-id") |> List.first()
+        send(self(), {:captured_ref_id, ref_id})
         empty_resp(conn, 202)
       end)
 
-      assert {:pending, %{provider_reference: ^token}} =
+      assert {:pending, %{provider_reference: ref}} =
                MTNMomoAdapter.charge(payment(), attempt(token), @credential)
+
+      assert_receive {:captured_ref_id, ^ref}
     end
 
     test "400 response returns definite_failure / invalid_request" do

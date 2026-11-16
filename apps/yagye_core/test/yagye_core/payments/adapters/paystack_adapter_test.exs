@@ -148,6 +148,43 @@ defmodule YagyeCore.Payments.Adapters.PaystackAdapterTest do
       PaystackAdapter.charge(p, attempt(), @credential)
     end
 
+    test "AirtelTigo network maps to tgo provider code" do
+      for net <- ["AirtelTigo", "AIRTELTIGO", "airteltigo"] do
+        p = %{payment() | metadata: Map.put(payment().metadata, "network", net)}
+
+        Req.Test.stub(:paystack_http, fn conn ->
+          {:ok, body, conn} = Plug.Conn.read_body(conn)
+          assert Jason.decode!(body)["mobile_money"]["provider"] == "tgo"
+
+          Req.Test.json(conn, %{
+            "status" => true,
+            "data" => %{"status" => "pending", "reference" => "ref-at"}
+          })
+        end)
+
+        assert {:pending, %{provider_reference: "ref-at"}} =
+                 PaystackAdapter.charge(p, attempt("ref-at"), @credential)
+      end
+    end
+
+    test "timeout returns indeterminate / timeout" do
+      Req.Test.stub(:paystack_http, fn conn ->
+        Req.Test.transport_error(conn, :timeout)
+      end)
+
+      assert {:error, %{error_class: :indeterminate, response_code: "timeout"}} =
+               PaystackAdapter.charge(payment(), attempt(), @credential)
+    end
+
+    test "network error returns indeterminate / network_error" do
+      Req.Test.stub(:paystack_http, fn conn ->
+        Req.Test.transport_error(conn, :econnrefused)
+      end)
+
+      assert {:error, %{error_class: :indeterminate, response_code: "network_error"}} =
+               PaystackAdapter.charge(payment(), attempt(), @credential)
+    end
+
     test "Telecel network maps to vod provider code" do
       for net <- ["Telecel", "TELECEL", "telecel"] do
         p = %{payment() | metadata: Map.put(payment().metadata, "network", net)}
@@ -230,6 +267,17 @@ defmodule YagyeCore.Payments.Adapters.PaystackAdapterTest do
 
       assert {:error, %{error_class: :retryable_error, response_code: "http_500"}} =
                PaystackAdapter.query_charge(attempt_with_ref("ref-err"), @credential)
+    end
+
+    test "transport error (timeout or refused) returns indeterminate / network_error" do
+      for reason <- [:timeout, :econnrefused] do
+        Req.Test.stub(:paystack_http, fn conn ->
+          Req.Test.transport_error(conn, reason)
+        end)
+
+        assert {:error, %{error_class: :indeterminate, response_code: "network_error"}} =
+                 PaystackAdapter.query_charge(attempt_with_ref("ref-net"), @credential)
+      end
     end
   end
 
@@ -347,6 +395,185 @@ defmodule YagyeCore.Payments.Adapters.PaystackAdapterTest do
       end)
 
       assert {:pending, _} = PaystackAdapter.disburse(@disburse_params, @credential)
+    end
+
+    test "transfer 5xx returns retryable_error" do
+      Req.Test.stub(:paystack_http, fn conn ->
+        case conn.request_path do
+          "/transferrecipient" ->
+            Req.Test.json(conn, %{
+              "status" => true,
+              "data" => %{"recipient_code" => "RCP_ok"}
+            })
+
+          "/transfer" ->
+            Plug.Conn.send_resp(conn, 503, "")
+        end
+      end)
+
+      assert {:error, %{error_class: :retryable_error, response_code: "http_503"}} =
+               PaystackAdapter.disburse(@disburse_params, @credential)
+    end
+
+    test "transfer network timeout returns indeterminate" do
+      Req.Test.stub(:paystack_http, fn conn ->
+        case conn.request_path do
+          "/transferrecipient" ->
+            Req.Test.json(conn, %{
+              "status" => true,
+              "data" => %{"recipient_code" => "RCP_ok"}
+            })
+
+          "/transfer" ->
+            Req.Test.transport_error(conn, :timeout)
+        end
+      end)
+
+      assert {:error, %{error_class: :indeterminate, response_code: "timeout"}} =
+               PaystackAdapter.disburse(@disburse_params, @credential)
+    end
+
+    test "recipient network error returns indeterminate" do
+      Req.Test.stub(:paystack_http, fn conn ->
+        Req.Test.transport_error(conn, :econnrefused)
+      end)
+
+      assert {:error, %{error_class: :indeterminate, response_code: "network_error"}} =
+               PaystackAdapter.disburse(@disburse_params, @credential)
+    end
+  end
+
+  # ── charge/3 — bank_transfer ─────────────────────────────────────────────────
+
+  describe "charge/3 — bank_transfer" do
+    defp bank_transfer_payment do
+      %Payment{
+        id: Ecto.UUID.generate(),
+        amount: 50_000,
+        currency: "GHS",
+        method: "bank_transfer",
+        metadata: %{"customer_email" => "buyer@test.com"}
+      }
+    end
+
+    defp bt_attempt do
+      %PaymentAttempt{
+        id: Ecto.UUID.generate(),
+        idempotency_token: "bt-idem-#{System.unique_integer([:positive])}"
+      }
+    end
+
+    defp pay_offline_response(ref, with_account \\ true) do
+      data =
+        %{"status" => "pay_offline", "reference" => ref}
+        |> then(fn d ->
+          if with_account do
+            Map.put(d, "bank_transfer", %{
+              "account_number" => "1234567890",
+              "bank_name" => "GhIPSS Test Bank",
+              "account_name" => "YAGYE COLLECT",
+              "expiry_date" => "2026-12-31T23:59:59Z"
+            })
+          else
+            d
+          end
+        end)
+
+      %{"status" => true, "data" => data}
+    end
+
+    test "pay_offline with bank_transfer details returns pending with virtual_account" do
+      Req.Test.stub(:paystack_http, fn conn ->
+        Req.Test.json(conn, pay_offline_response("ref_bt1"))
+      end)
+
+      assert {:pending, %{provider_reference: "ref_bt1", virtual_account: va}} =
+               PaystackAdapter.charge(bank_transfer_payment(), bt_attempt(), @credential)
+
+      assert va.account_number == "1234567890"
+      assert va.bank_name == "GhIPSS Test Bank"
+      assert va.account_name == "YAGYE COLLECT"
+      assert va.expires_at == "2026-12-31T23:59:59Z"
+    end
+
+    test "pay_offline without account details returns pending with nil virtual_account" do
+      Req.Test.stub(:paystack_http, fn conn ->
+        Req.Test.json(conn, pay_offline_response("ref_bt2", false))
+      end)
+
+      assert {:pending, %{provider_reference: "ref_bt2", virtual_account: nil}} =
+               PaystackAdapter.charge(bank_transfer_payment(), bt_attempt(), @credential)
+    end
+
+    test "pending status returns pending" do
+      Req.Test.stub(:paystack_http, fn conn ->
+        Req.Test.json(conn, %{
+          "status" => true,
+          "data" => %{"status" => "pending", "reference" => "ref_bt3"}
+        })
+      end)
+
+      assert {:pending, %{provider_reference: "ref_bt3"}} =
+               PaystackAdapter.charge(bank_transfer_payment(), bt_attempt(), @credential)
+    end
+
+    test "paystack_error returns definite_failure" do
+      Req.Test.stub(:paystack_http, fn conn ->
+        Req.Test.json(conn, %{"status" => false, "message" => "Invalid amount"})
+      end)
+
+      assert {:error,
+              %{
+                error_class: :definite_failure,
+                response_code: "paystack_error",
+                response_message: "Invalid amount"
+              }} =
+               PaystackAdapter.charge(bank_transfer_payment(), bt_attempt(), @credential)
+    end
+
+    test "sends correct bank transfer body" do
+      Req.Test.stub(:paystack_http, fn conn ->
+        {:ok, body, conn} = Plug.Conn.read_body(conn)
+        parsed = Jason.decode!(body)
+        assert parsed["bank"]["type"] == "bank_transfer"
+        assert parsed["bank"]["account_bank"] == "GH"
+        assert parsed["currency"] == "GHS"
+        assert parsed["amount"] == 50_000
+
+        Req.Test.json(conn, pay_offline_response("ref_body_check"))
+      end)
+
+      PaystackAdapter.charge(bank_transfer_payment(), bt_attempt(), @credential)
+    end
+
+    test "sends customer_email in body" do
+      Req.Test.stub(:paystack_http, fn conn ->
+        {:ok, body, conn} = Plug.Conn.read_body(conn)
+        parsed = Jason.decode!(body)
+        assert parsed["email"] == "buyer@test.com"
+
+        Req.Test.json(conn, pay_offline_response("ref_email_check"))
+      end)
+
+      PaystackAdapter.charge(bank_transfer_payment(), bt_attempt(), @credential)
+    end
+
+    test "timeout returns indeterminate" do
+      Req.Test.stub(:paystack_http, fn conn ->
+        Req.Test.transport_error(conn, :timeout)
+      end)
+
+      assert {:error, %{error_class: :indeterminate, response_code: "timeout"}} =
+               PaystackAdapter.charge(bank_transfer_payment(), bt_attempt(), @credential)
+    end
+
+    test "5xx returns retryable_error" do
+      Req.Test.stub(:paystack_http, fn conn ->
+        Plug.Conn.send_resp(conn, 503, "")
+      end)
+
+      assert {:error, %{error_class: :retryable_error, response_code: "http_503"}} =
+               PaystackAdapter.charge(bank_transfer_payment(), bt_attempt(), @credential)
     end
   end
 end
