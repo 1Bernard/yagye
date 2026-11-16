@@ -52,12 +52,12 @@ export default class extends Controller {
     network_routing: {
       name: "Network routing",
       nodes: [
-        { id: 1, type: "ConditionNode", x:  80, y:  80, data: { field: "network", operator: "eq", value: "MTN" } },
-        { id: 2, type: "ProviderNode",  x: 400, y:  80, data: { provider_code: "mtn_momo",     label: "MTN MoMo" } },
-        { id: 3, type: "ConditionNode", x:  80, y: 260, data: { field: "network", operator: "eq", value: "TELECEL" } },
-        { id: 4, type: "ProviderNode",  x: 400, y: 260, data: { provider_code: "telecel_cash", label: "Telecel Cash" } },
-        { id: 5, type: "ConditionNode", x:  80, y: 440, data: { field: "network", operator: "eq", value: "AIRTELTIGO" } },
-        { id: 6, type: "ProviderNode",  x: 400, y: 440, data: { provider_code: "airteltigo",   label: "AirtelTigo Money" } }
+        { id: 1, type: "ConditionNode", x:  60, y:  60, data: { field: "network", operator: "eq", value: "MTN" } },
+        { id: 2, type: "ProviderNode",  x: 440, y:  60, data: { provider_code: "mtn_momo",     label: "MTN MoMo" } },
+        { id: 3, type: "ConditionNode", x:  60, y: 280, data: { field: "network", operator: "eq", value: "TELECEL" } },
+        { id: 4, type: "ProviderNode",  x: 440, y: 280, data: { provider_code: "telecel_cash", label: "Telecel Cash" } },
+        { id: 5, type: "ConditionNode", x:  60, y: 500, data: { field: "network", operator: "eq", value: "AIRTELTIGO" } },
+        { id: 6, type: "ProviderNode",  x: 440, y: 500, data: { provider_code: "airteltigo",   label: "AirtelTigo Money" } }
       ],
       connections: [
         { from: 1, fromOutput: 1, to: 2, toInput: 1 },
@@ -73,9 +73,9 @@ export default class extends Controller {
     traffic_split: {
       name: "Traffic split",
       nodes: [
-        { id: 1, type: "SplitNode",    x: 180, y: 180, data: { pct_a: 70, pct_b: 30, label_a: "Primary", label_b: "Secondary" } },
-        { id: 2, type: "ProviderNode", x: 500, y:  90, data: { provider_code: "", label: "Primary processor" } },
-        { id: 3, type: "ProviderNode", x: 500, y: 280, data: { provider_code: "", label: "Secondary processor" } }
+        { id: 1, type: "SplitNode",    x: 160, y: 200, data: { pct_a: 70, pct_b: 30, label_a: "Primary", label_b: "Secondary" } },
+        { id: 2, type: "ProviderNode", x: 560, y:  80, data: { provider_code: "", label: "Primary processor" } },
+        { id: 3, type: "ProviderNode", x: 560, y: 320, data: { provider_code: "", label: "Secondary processor" } }
       ],
       connections: [
         { from: 1, fromOutput: 1, to: 2, toInput: 1 },
@@ -90,8 +90,8 @@ export default class extends Controller {
     network_filter: {
       name: "Network filter",
       nodes: [
-        { id: 1, type: "ConditionNode", x: 160, y: 180, data: { field: "network", operator: "eq", value: "MTN" } },
-        { id: 2, type: "ProviderNode",  x: 480, y: 180, data: { provider_code: "mtn_momo", label: "MTN MoMo" } }
+        { id: 1, type: "ConditionNode", x: 100, y: 180, data: { field: "network", operator: "eq", value: "MTN" } },
+        { id: 2, type: "ProviderNode",  x: 500, y: 180, data: { provider_code: "mtn_momo", label: "MTN MoMo" } }
       ],
       connections: [
         { from: 1, fromOutput: 1, to: 2, toInput: 1 }
@@ -105,10 +105,10 @@ export default class extends Controller {
     method_routing: {
       name: "Method routing",
       nodes: [
-        { id: 1, type: "ConditionNode", x:  80, y:  80, data: { field: "method", operator: "eq", value: "mobile_money" } },
-        { id: 2, type: "ProviderNode",  x: 420, y:  80, data: { provider_code: "", label: "MoMo provider" } },
-        { id: 3, type: "ConditionNode", x:  80, y: 270, data: { field: "method", operator: "eq", value: "card" } },
-        { id: 4, type: "ProviderNode",  x: 420, y: 270, data: { provider_code: "", label: "Card provider" } }
+        { id: 1, type: "ConditionNode", x:  60, y:  60, data: { field: "method", operator: "eq", value: "mobile_money" } },
+        { id: 2, type: "ProviderNode",  x: 460, y:  60, data: { provider_code: "", label: "Mobile money provider" } },
+        { id: 3, type: "ConditionNode", x:  60, y: 280, data: { field: "method", operator: "eq", value: "card" } },
+        { id: 4, type: "ProviderNode",  x: 460, y: 280, data: { provider_code: "", label: "Card provider" } }
       ],
       connections: [
         { from: 1, fromOutput: 1, to: 2, toInput: 1 },
@@ -308,6 +308,8 @@ export default class extends Controller {
       try { this.editor.addConnection(from, to, `output_${c.fromOutput}`, `input_${c.toInput}`) } catch(_) {}
     })
     this._updateEmptyState()
+    // Centre the view on the loaded template so nodes aren't off-screen
+    requestAnimationFrame(() => this.fitView())
   }
 
   // ── Node rendering ───────────────────────────────────────────────────────
