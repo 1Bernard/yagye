@@ -2,6 +2,8 @@
 
 module Ai
   class MerchantChatController < ApplicationController
+    include Ai::ChatHistory
+
     before_action :authenticate_user!
     before_action :require_merchant!
 
@@ -32,22 +34,33 @@ module Ai
 
     def create
       skip_authorization
-      messages = sanitized_history
-      return render json: { error: "Message is required" }, status: :unprocessable_entity if messages.empty?
+
+      raw = params[:message].to_s.strip.truncate(4000)
+      return render json: { error: "Message is required" }, status: :unprocessable_entity if raw.blank?
+
+      thread = find_or_create_thread(params[:thread_id])
+      thread.ai_chat_messages.create!(role: "user", content: raw)
 
       merchant_code = current_user.merchant_code
-      dispatcher = Ai::MerchantToolDispatcher.new(merchant_code: merchant_code)
-      client     = Ai::AnthropicClient.new
+      dispatcher    = Ai::MerchantToolDispatcher.new(merchant_code: merchant_code)
+      client        = Ai::AnthropicClient.new
 
       result = client.chat(
-        system:   format(SYSTEM_PROMPT, merchant_name: current_user.active_membership&.merchant_name.presence || merchant_code, date: Date.current.iso8601),
-        messages: messages,
+        system:   format(SYSTEM_PROMPT,
+                         merchant_name: current_user.active_membership&.merchant_name.presence || merchant_code,
+                         date:          Date.current.iso8601),
+        messages: thread.messages_for_llm,
         tools:    dispatcher.tool_definitions,
         on_tool:  ->(name, input) { dispatcher.dispatch(name, input) }
       )
 
       if result.success?
-        render json: { reply: result.text }
+        thread.ai_chat_messages.create!(role: "assistant", content: result.text)
+        thread.update!(
+          last_message_at: Time.current,
+          title:           thread.title.presence || AiChatThread.title_from(raw)
+        )
+        render json: { reply: result.text, thread_id: thread.id }
       else
         Rails.logger.warn("[Ai::MerchantChatController] #{result.error}")
         render json: { error: "AI assistant unavailable. Please try again." }, status: :service_unavailable
@@ -59,21 +72,10 @@ module Ai
 
     private
 
-    def sanitized_history
-      raw = params[:history]
-      return [] unless raw.is_a?(Array)
-      raw.last(20).filter_map do |turn|
-        role    = turn[:role].to_s
-        content = turn[:content].to_s.strip
-        next unless %w[user assistant].include?(role) && content.present?
-        { role: role, content: content.truncate(4000) }
-      end
-    end
+    def chat_context = AiChatThread::CONTEXT_MERCHANT
 
     def require_merchant!
-      unless current_user&.merchant_user?
-        render json: { error: "Not authorized" }, status: :forbidden
-      end
+      render json: { error: "Not authorized" }, status: :forbidden unless current_user&.merchant_user?
     end
   end
 end

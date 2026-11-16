@@ -409,11 +409,17 @@ get "payouts/:id/statement",            to: "payouts#statement",               a
   # ── AI Analytics Chatbot ──────────────────────────────────────────────────
   scope module: "ai" do
     # Ops chatbot — internal_staff only (enforced in controller)
-    get  "ai/ops-chat",  to: "ops_chat#index",  as: :ai_ops_chat
-    post "ai/ops-chat",  to: "ops_chat#create"
+    get    "ai/ops-chat",                            to: "ops_chat#index",          as: :ai_ops_chat
+    post   "ai/ops-chat",                            to: "ops_chat#create"
+    get    "ai/ops-chat/threads",                    to: "ops_chat#threads",        as: :ai_ops_chat_threads
+    get    "ai/ops-chat/threads/:thread_id",         to: "ops_chat#messages",       as: :ai_ops_chat_thread_messages
+    delete "ai/ops-chat/threads/:thread_id",         to: "ops_chat#destroy_thread", as: :ai_ops_chat_delete_thread
 
     # Merchant chatbot — merchant scope enforced in controller
-    get  "ai/chat",      to: "merchant_chat#index",  as: :ai_merchant_chat
-    post "ai/chat",      to: "merchant_chat#create"
+    get    "ai/chat",                                to: "merchant_chat#index",          as: :ai_merchant_chat
+    post   "ai/chat",                                to: "merchant_chat#create"
+    get    "ai/chat/threads",                        to: "merchant_chat#threads",        as: :ai_merchant_chat_threads
+    get    "ai/chat/threads/:thread_id",             to: "merchant_chat#messages",       as: :ai_merchant_chat_thread_messages
+    delete "ai/chat/threads/:thread_id",             to: "merchant_chat#destroy_thread", as: :ai_merchant_chat_delete_thread
   end
 end

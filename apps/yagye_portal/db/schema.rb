@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_11_08_000001) do
+ActiveRecord::Schema[8.1].define(version: 2026_11_16_000001) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pgcrypto"
@@ -41,6 +41,27 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_08_000001) do
     t.uuid "blob_id", null: false
     t.string "variation_digest", null: false
     t.index ["blob_id", "variation_digest"], name: "index_active_storage_variant_records_uniqueness", unique: true
+  end
+
+  create_table "ai_chat_messages", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+    t.uuid "ai_chat_thread_id", null: false
+    t.text "content", null: false
+    t.datetime "created_at", null: false
+    t.text "role", null: false
+    t.index ["ai_chat_thread_id", "created_at"], name: "idx_ai_messages_thread_order"
+    t.index ["ai_chat_thread_id"], name: "index_ai_chat_messages_on_ai_chat_thread_id"
+  end
+
+  create_table "ai_chat_threads", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+    t.datetime "archived_at"
+    t.text "context", null: false
+    t.datetime "created_at", null: false
+    t.datetime "last_message_at"
+    t.text "title"
+    t.datetime "updated_at", null: false
+    t.uuid "user_id", null: false
+    t.index ["user_id", "context", "last_message_at"], name: "idx_ai_threads_active_user_context", order: { last_message_at: :desc }, where: "(archived_at IS NULL)"
+    t.index ["user_id"], name: "index_ai_chat_threads_on_user_id"
   end
 
   create_table "audit_logs", force: :cascade do |t|
@@ -649,6 +670,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_08_000001) do
 
   add_foreign_key "active_storage_attachments", "active_storage_blobs", column: "blob_id"
   add_foreign_key "active_storage_variant_records", "active_storage_blobs", column: "blob_id"
+  add_foreign_key "ai_chat_messages", "ai_chat_threads"
+  add_foreign_key "ai_chat_threads", "users"
   add_foreign_key "audit_logs", "users"
   add_foreign_key "merchant_memberships", "users"
   add_foreign_key "merchant_memberships", "users", column: "invited_by_id"

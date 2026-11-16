@@ -876,3 +876,33 @@ TableGroup identity_extensions {
   sso_configurations
   user_audit_events
 }
+
+// ─── AI CHAT ──────────────────────────────────────────────────────────────────
+
+Table ai_chat_threads [headercolor: #4F46E5] {
+  id              uuid        [pk]
+  user_id         uuid        [not null, ref: > users.id]
+  context         text        [not null, note: '"merchant" | "ops" — scopes access and system prompt selection']
+  title           text        [note: 'auto-set from first user message via truncate(60); NULL until first send']
+  last_message_at timestamptz [note: 'denormalized for efficient recency ordering; updated on each assistant reply']
+  archived_at     timestamptz [note: 'soft delete — threads hidden from list once set; never hard-deleted']
+  created_at      timestamptz [not null]
+  updated_at      timestamptz [not null]
+
+  Note: 'One row per conversation session. Partial index on (user_id, context, last_message_at DESC) WHERE archived_at IS NULL powers the thread list query. LLM context window loads the last 20 messages from ai_chat_messages.'
+}
+
+Table ai_chat_messages [headercolor: #6366F1] {
+  id              uuid        [pk]
+  ai_chat_thread_id uuid      [not null, ref: > ai_chat_threads.id]
+  role            text        [not null, note: '"user" | "assistant"']
+  content         text        [not null]
+  created_at      timestamptz [not null]
+
+  Note: 'Append-only — no updated_at. Index on (ai_chat_thread_id, created_at ASC) for ordered load. Content is truncated to 4 000 chars at write time to bound token usage.'
+}
+
+TableGroup ai_chat {
+  ai_chat_threads
+  ai_chat_messages
+}

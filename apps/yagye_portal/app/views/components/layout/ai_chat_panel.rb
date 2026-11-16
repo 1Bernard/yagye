@@ -50,9 +50,9 @@ module Layout
                    "translate-x-full transition-transform duration-300 ease-out bg-white overflow-hidden",
             style: "border-left:1px solid #f0f0f0;box-shadow:-12px 0 48px rgba(0,0,0,0.07)",
             data: { ai_chat_target: "panel" }) do
-          header_section   # starts hidden; revealed on first send
-          messages_section(first_name, greeting, suggestions)
-          input_section(placeholder)
+          header_section
+          chat_screen(first_name, greeting, suggestions, placeholder)
+          thread_screen
         end
       end
     end
@@ -78,16 +78,22 @@ module Layout
       end
     end
 
-    # ── Messages ──────────────────────────────────────────────────────────────
+    # ── Chat screen (default) ─────────────────────────────────────────────────
+
+    def chat_screen(first_name, greeting, suggestions, placeholder)
+      div(class: "flex-1 flex flex-col min-h-0",
+          data: { ai_chat_target: "chatScreen" }) do
+        messages_section(first_name, greeting, suggestions)
+        input_section(placeholder)
+      end
+    end
 
     def messages_section(first_name, greeting, suggestions)
       div(class: "flex-1 overflow-y-auto pt-4",
           style: "scroll-behavior:smooth",
           data: { ai_chat_target: "messages" }) do
-        # Welcome / empty state — hidden once the user sends a message
         div(class: "flex flex-col items-center px-6 pt-10 pb-6 text-center",
             data: { ai_chat_target: "welcome" }) do
-          # Logo mark — minimal, centered
           img(src: asset_path("yagye.png"),
               alt: "Yagye",
               class: "mx-auto mb-5",
@@ -101,7 +107,6 @@ module Layout
           p(class: "text-[12.5px] leading-relaxed max-w-[260px]",
             style: "color:#adb5bd") { plain greeting }
 
-          # 2-column suggestion chip grid
           div(class: "mt-7 grid grid-cols-2 gap-2 w-full text-left") do
             suggestions.each do |s|
               button(type: "button",
@@ -118,8 +123,6 @@ module Layout
         end
       end
     end
-
-    # ── Input ─────────────────────────────────────────────────────────────────
 
     def input_section(placeholder)
       div(class: "flex-shrink-0 px-4 pb-5 pt-3",
@@ -157,7 +160,7 @@ module Layout
                             "leading-relaxed placeholder-gray-400 outline-none max-h-[120px]",
                      data: { ai_chat_target: "input",
                              action: "keydown->ai-chat#keydown input->ai-chat#autoResizeInput" })
-            # Attach CSV — icon-only, inside pill
+            # Attach CSV
             button(type: "button",
                    class: "flex-shrink-0 w-7 h-7 rounded-lg flex items-center justify-center transition-colors hover:bg-gray-100",
                    style: "color:#cbd5e1",
@@ -165,7 +168,15 @@ module Layout
                    data: { action: "click->ai-chat#attach" }) do
               span(class: "flex w-[13px] h-[13px]") { render UI::Icon.new(:file, class: "w-full h-full") }
             end
-            # Send — dark, neutral
+            # History
+            button(type: "button",
+                   class: "flex-shrink-0 w-7 h-7 rounded-lg flex items-center justify-center transition-colors hover:bg-gray-100",
+                   style: "color:#cbd5e1",
+                   title: "Conversation history",
+                   data: { action: "click->ai-chat#showThreads" }) do
+              span(class: "flex w-[13px] h-[13px]") { render UI::Icon.new(:clock, class: "w-full h-full") }
+            end
+            # Send
             button(type: "submit",
                    class: "flex-shrink-0 w-7 h-7 rounded-[9px] flex items-center justify-center transition-all " \
                           "disabled:opacity-25 disabled:cursor-not-allowed",
@@ -179,6 +190,46 @@ module Layout
                 class: "hidden",
                 data: { ai_chat_target: "fileInput",
                         action: "change->ai-chat#fileChange" })
+        end
+      end
+    end
+
+    # ── Thread screen ─────────────────────────────────────────────────────────
+
+    def thread_screen
+      div(class: "hidden flex-1 flex flex-col min-h-0",
+          data: { ai_chat_target: "threadScreen" }) do
+        # Thread screen header
+        div(class: "flex-shrink-0 flex items-center justify-between px-4 py-3",
+            style: "border-bottom:1px solid #f5f5f5") do
+          button(type: "button",
+                 class: "flex items-center gap-1.5 text-[13px] font-medium transition-colors hover:text-gray-900",
+                 style: "color:#6b7280",
+                 data: { action: "click->ai-chat#hideThreads" }) do
+            span(class: "flex w-[14px] h-[14px]") { render UI::Icon.new(:arrow_left, class: "w-full h-full") }
+            plain "Back"
+          end
+          p(class: "text-[13px] font-semibold", style: "color:#0f172a") { plain "History" }
+          # Spacer to balance header
+          button(type: "button",
+                 class: "w-7 h-7 rounded-lg flex items-center justify-center transition-colors hover:bg-gray-100 " \
+                        "text-[12px] font-semibold",
+                 style: "color:#6366f1",
+                 title: "New conversation",
+                 data: { action: "click->ai-chat#newChat" }) do
+            span(class: "flex w-[14px] h-[14px]") { render UI::Icon.new(:pencil, class: "w-full h-full") }
+          end
+        end
+
+        # Thread list (populated by JS)
+        div(class: "flex-1 overflow-y-auto py-2",
+            data: { ai_chat_target: "threadsList" }) do
+          # Loading placeholder — replaced by JS on open
+          div(class: "flex flex-col gap-1 px-3 animate-pulse") do
+            3.times do
+              div(class: "h-[52px] rounded-xl bg-gray-100")
+            end
+          end
         end
       end
     end
