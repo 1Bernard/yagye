@@ -255,11 +255,10 @@ module Checkout
           amt_row("Discount", "− #{format_money(discount)}") if discount > 0
           amt_row("Total",    format_money(total), bold: true)
           amt_row("Paid",     "− #{format_money(paid)}", color: "text-green-600") if paid > 0
-
-          div(class: "mt-2 flex items-center justify-between rounded-xl " \
-                     "bg-[#3D47F5]/[0.07] px-3 py-2.5") do
-            p(class: "text-[11.5px] font-bold text-[#3D47F5]") { plain "Amount due" }
-            p(class: "text-[14px] font-bold text-[#3D47F5] tabular-nums") do
+          div(class: "h-px bg-gray-100 my-1")
+          div(class: "flex items-center justify-between") do
+            p(class: "text-[11.5px] font-bold text-gray-700") { plain "Amount due" }
+            p(class: "text-[13px] font-bold text-[#3D47F5] tabular-nums") do
               plain format_money(amount_due)
             end
           end

@@ -34,7 +34,7 @@ module Payments
         ) do
           render UI::PageHeader.new(
             title:    "Customers",
-            subtitle: "Customers are created automatically when a payment is initiated."
+            subtitle: "Customers are created automatically when a payment is initiated or an invoice is issued."
           )
 
           customers_table
