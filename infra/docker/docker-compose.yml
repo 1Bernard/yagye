@@ -95,6 +95,7 @@ services:
   # ---------------------------------------------------------------------------
 
   yagye_core:
+    profiles: ["full"]
     build:
       context: ../../apps/yagye_core
       dockerfile: Dockerfile
@@ -152,6 +153,7 @@ services:
       - observability # Sends OTLP to Alloy; Alloy scrapes /metrics
 
   yagye_simulator:
+    profiles: ["full"]
     build:
       context: ../../apps/yagye_simulator
       dockerfile: Dockerfile
@@ -181,6 +183,7 @@ services:
     # NOT on edge — Simulator has no business reaching Portal
 
   yagye_checkout:
+    profiles: ["full"]
     build:
       context: ../../apps/yagye_checkout
       dockerfile: Dockerfile
@@ -209,6 +212,7 @@ services:
     # NOT on data — checkout never touches the DB directly; all state is in Core
 
   yagye_portal:
+    profiles: ["full"]
     build:
       context: ../../apps/yagye_portal
       dockerfile: Dockerfile
@@ -337,6 +341,7 @@ services:
   # ---------------------------------------------------------------------------
 
   yagye_data:
+    profiles: ["full"]
     build:
       context: ../../apps/yagye_data
       dockerfile: Dockerfile
@@ -473,6 +478,7 @@ services:
   # ---------------------------------------------------------------------------
 
   yagye_scoring:
+    profiles: ["full"]
     build:
       context: ../../apps/yagye_scoring
       dockerfile: Dockerfile
@@ -509,6 +515,7 @@ services:
   # Karafka consumer — separate process, scales independently from the web tier.
   # Reads events from Redpanda and writes to portal_* read model tables.
   yagye_portal_karafka:
+    profiles: ["full"]
     build:
       context: ../../apps/yagye_portal
       dockerfile: Dockerfile
