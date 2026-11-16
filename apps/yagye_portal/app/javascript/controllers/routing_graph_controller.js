@@ -159,6 +159,19 @@ export default class extends Controller {
     this.editor.on("connectionCreated", ({ output_id, input_id }) => this._rerenderProviderNode(input_id))
     this.editor.on("connectionRemoved", ({ output_id, input_id }) => this._rerenderProviderNode(input_id))
 
+    // Delegated change listener — catches all <select> and <input> changes inside
+    // any node card. Using delegation means it works after innerHTML re-renders and
+    // never relies on inline onchange strings or the __routingGraph reference trick.
+    this._onCanvasChange = e => {
+      const field = e.target.dataset.rgField
+      if (!field) return
+      const nodeEl = e.target.closest("[id^='node-']")
+      if (!nodeEl) return
+      const nodeId = nodeEl.id.replace("node-", "")
+      this.updateNodeField(field, e.target.value, nodeId)
+    }
+    this.canvasTarget.addEventListener("change", this._onCanvasChange)
+
     // Capture-phase delete listener — fires before Drawflow's bubble-phase handlers
     // so Drawflow cannot preventDefault/stopPropagation the click away from us.
     this._onDelCapture = e => {
@@ -214,7 +227,8 @@ export default class extends Controller {
 
   disconnect() {
     delete this.element.__routingGraph
-    if (this._onDelCapture)  this.element.removeEventListener("click", this._onDelCapture, { capture: true })
+    if (this._onDelCapture)   this.element.removeEventListener("click",  this._onDelCapture, { capture: true })
+    if (this._onCanvasChange) this.canvasTarget.removeEventListener("change", this._onCanvasChange)
     if (this._onDocClick)     document.removeEventListener("click",     this._onDocClick)
     if (this._onDocDragstart) document.removeEventListener("dragstart", this._onDocDragstart)
     if (this._onDocDragend)   document.removeEventListener("dragend",   this._onDocDragend)
@@ -307,7 +321,6 @@ export default class extends Controller {
 
   _nodeHtml(type, def, data, nodeId = null) {
     const icon = this.NODE_ICONS[type] || ""
-    const rc   = "this.closest('[data-controller]').__routingGraph"
 
     const inputCss = `width:100%;border:1px solid rgba(0,0,0,0.10);border-radius:8px;background:#fafafa;
                       padding:6px 10px;font-size:12px;color:#111827;outline:none;box-sizing:border-box;
@@ -318,7 +331,7 @@ export default class extends Controller {
       `<div style="margin-bottom:9px;"><label style="${labelCss}">${label}</label>${inner}</div>`
     const selectWrap = (key, opts) =>
       `<div style="position:relative;">
-         <select onchange="${rc}.updateNodeField('${key}', this.value, this)"
+         <select data-rg-field="${key}"
                  style="${inputCss}padding-right:26px;cursor:pointer;">${opts}</select>
          <span style="position:absolute;right:9px;top:50%;transform:translateY(-50%);
                       color:#9ca3af;pointer-events:none;font-size:10px;line-height:1;">▾</span>
@@ -398,7 +411,7 @@ export default class extends Controller {
       if (type === "FallbackNode") {
         body += fieldDiv("Max retries",
           `<input type="number" min="1" max="10" value="${data.max_retries ?? 3}"
-                  onchange="${rc}.updateNodeField('max_retries', this.value, this)"
+                  data-rg-field="max_retries"
                   style="${inputCss}">`)
       }
     }
@@ -416,7 +429,7 @@ export default class extends Controller {
              fieldDiv("Operator", selectWrap("operator", opOpts)) +
              fieldDiv("Value",
                `<input type="text" value="${data.value ?? ""}" placeholder="e.g. GHS"
-                       onchange="${rc}.updateNodeField('value', this.value, this)"
+                       data-rg-field="value"
                        style="${inputCss}">`)
     }
 
@@ -426,7 +439,7 @@ export default class extends Controller {
                      background:${bg};text-align:center;">
            <div>
              <input type="number" min="1" max="99" value="${pctVal}"
-                    onchange="${rc}.updateNodeField('${pctKey}', this.value, this)"
+                    data-rg-field="${pctKey}"
                     style="width:60%;border:none;background:transparent;font-size:20px;font-weight:800;
                            color:${accent};outline:none;text-align:center;padding:0;font-family:inherit;">
              <span style="font-size:12px;font-weight:700;color:${accent};">%</span>
@@ -508,16 +521,7 @@ export default class extends Controller {
     this._selectedNodeId = null
   }
 
-  updateNodeField(field, value, el) {
-    // Drawflow's nodeSelected event often doesn't fire when the user interacts
-    // directly with an <input> or <select> inside a node (the DOM element captures
-    // the click before Drawflow's handlers run). Walk up the DOM from the element
-    // that fired the change event to find the node ID as a reliable fallback.
-    let nodeId = this._selectedNodeId
-    if (!nodeId && el) {
-      const nodeEl = el.closest?.(".drawflow-node")
-      if (nodeEl) nodeId = nodeEl.id.replace("node-", "")
-    }
+  updateNodeField(field, value, nodeId) {
     if (!nodeId) return
     const node = this.editor.getNodeFromId(nodeId)
     if (!node) return
