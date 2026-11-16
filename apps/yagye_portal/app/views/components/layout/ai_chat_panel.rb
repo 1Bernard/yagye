@@ -217,7 +217,7 @@ module Layout
                  style: "color:#6366f1",
                  title: "New conversation",
                  data: { action: "click->ai-chat#newChat" }) do
-            span(class: "flex w-[14px] h-[14px]") { render UI::Icon.new(:pencil, class: "w-full h-full") }
+            span(class: "flex w-[14px] h-[14px]") { render UI::Icon.new(:edit, class: "w-full h-full") }
           end
         end
 
