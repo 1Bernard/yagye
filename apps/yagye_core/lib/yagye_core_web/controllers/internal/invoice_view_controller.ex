@@ -3,6 +3,7 @@ defmodule YagyeCoreWeb.Controllers.Internal.InvoiceViewController do
 
   action_fallback YagyeCoreWeb.FallbackController
 
+  alias YagyeCore.Checkout.Schemas.MerchantCheckoutConfig
   alias YagyeCore.Invoices
   alias YagyeCore.Merchants.Schemas.Merchant
   alias YagyeCore.PaymentLinks.Schemas.PaymentLink
@@ -14,7 +15,7 @@ defmodule YagyeCoreWeb.Controllers.Internal.InvoiceViewController do
     with {:ok, invoice} <- Invoices.get_invoice(public_id),
          :ok <- ensure_not_draft(invoice) do
       merchant = Repo.get(Merchant, invoice.merchant_id)
-      logo_url = fetch_logo_url(invoice.payment_link_id)
+      logo_url = fetch_logo_url(invoice.payment_link_id, invoice.merchant_id)
 
       conn
       |> put_status(:ok)
@@ -31,14 +32,23 @@ defmodule YagyeCoreWeb.Controllers.Internal.InvoiceViewController do
   defp ensure_not_draft(%{state: "draft"}), do: {:error, :draft}
   defp ensure_not_draft(_), do: :ok
 
-  defp fetch_logo_url(nil), do: nil
+  defp fetch_logo_url(payment_link_id, merchant_id) do
+    pl_logo =
+      case payment_link_id && Repo.get(PaymentLink, payment_link_id) do
+        %PaymentLink{} = link -> presence((link.checkout_layout || %{})["logo_url"])
+        _ -> nil
+      end
 
-  defp fetch_logo_url(payment_link_id) do
-    case Repo.get(PaymentLink, payment_link_id) do
-      nil -> nil
-      link -> (link.checkout_layout || %{})["logo_url"]
-    end
+    pl_logo ||
+      case Repo.get(MerchantCheckoutConfig, merchant_id) do
+        %{logo_url: url} -> presence(url)
+        _ -> nil
+      end
   end
+
+  defp presence(nil), do: nil
+  defp presence(""), do: nil
+  defp presence(val), do: val
 
   defp render_invoice(invoice, merchant, logo_url) do
     customer_ref =

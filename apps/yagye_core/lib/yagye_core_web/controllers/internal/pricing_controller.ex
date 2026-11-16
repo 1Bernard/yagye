@@ -146,7 +146,7 @@ defmodule YagyeCoreWeb.Controllers.Internal.PricingController do
   end
 
   defp rule_attrs(params) do
-    ~w[method provider_code card_brand region amount_min amount_max
+    ~w[fee_kind method provider_code card_brand region amount_min amount_max
        percentage_bps fixed_amount minimum_fee maximum_fee rounding]
     |> Enum.flat_map(fn k ->
       case params[k] do
@@ -179,6 +179,7 @@ defmodule YagyeCoreWeb.Controllers.Internal.PricingController do
   defp rule_data(rule) do
     %{
       id: rule.id,
+      fee_kind: rule.fee_kind,
       specificity: rule.specificity,
       method: rule.method,
       provider_code: rule.provider_code,

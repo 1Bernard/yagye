@@ -36,6 +36,7 @@ defmodule YagyeCore.Checkout.Schemas.CheckoutSession do
     field :template_id, Uniq.UUID
     belongs_to :payment, Payment, type: Uniq.UUID, foreign_key: :payment_id
     field :metadata, :map, default: %{}
+    field :is_preview, :boolean, default: false
     field :expires_at, :utc_datetime_usec
     field :completed_at, :utc_datetime_usec
 
@@ -75,6 +76,7 @@ defmodule YagyeCore.Checkout.Schemas.CheckoutSession do
       :template_id,
       :payment_id,
       :metadata,
+      :is_preview,
       :expires_at,
       :completed_at
     ])

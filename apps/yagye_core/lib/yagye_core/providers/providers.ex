@@ -155,6 +155,42 @@ defmodule YagyeCore.Providers do
 
   def get_provider_by_code(code), do: fetch_provider_by_code(code)
 
+  # Returns a map of method => %{code, public_key} describing which PSP will handle
+  # each checkout payment method for this merchant in the given mode. Used by the
+  # checkout session response so the checkout UI can conditionally load PSP SDKs
+  # (e.g. Stripe.js for card entry when Stripe is the card provider).
+  # Only card, mobile_money, and bank_transfer are resolved.
+  # Simulation mode always routes to the simulator — public_key will be nil.
+  def resolve_checkout_psp_context(merchant_id, mode) do
+    methods = [
+      {"card", %{}},
+      {"mobile_money", %{"network" => "MTN"}},
+      {"bank_transfer", %{}}
+    ]
+
+    Enum.reduce(methods, %{}, fn {method, meta}, acc ->
+      fake_payment = %{
+        mode: mode,
+        merchant_id: merchant_id,
+        method: method,
+        currency: "GHS",
+        amount: 100,
+        metadata: meta
+      }
+
+      case get_provider_for_payment(fake_payment, []) do
+        {:ok, {provider, credential_map, _routing_meta}} ->
+          Map.put(acc, method, %{
+            "code" => provider.code,
+            "public_key" => credential_map["api_key"]
+          })
+
+        _ ->
+          acc
+      end
+    end)
+  end
+
   def list_merchant_connections(merchant_id, mode \\ nil) do
     query =
       from(c in MerchantProviderConnection,

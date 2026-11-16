@@ -24,6 +24,7 @@ defmodule YagyeCoreWeb.Controllers.PaymentLinks.PaymentLinkJSON do
       use_count: link.use_count,
       active: link.active,
       expires_at: link.expires_at,
+      discount_amount: link.discount_amount || 0,
       metadata: link.metadata,
       checkout_layout: link.checkout_layout,
       inserted_at: link.inserted_at

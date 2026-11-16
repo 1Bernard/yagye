@@ -31,6 +31,7 @@ defmodule YagyeCore.Payments.Schemas.Payment do
     field :fee_amount, :integer, virtual: true
     field :risk_score, :decimal
     field :risk_decision, :string
+    field :risk_assessed_at, :utc_datetime_usec
     field :risk_flagged_at, :utc_datetime_usec
 
     belongs_to :merchant, Merchant
@@ -76,7 +77,7 @@ defmodule YagyeCore.Payments.Schemas.Payment do
 
   def risk_changeset(payment, attrs) do
     payment
-    |> cast(attrs, [:risk_score, :risk_decision, :risk_flagged_at])
+    |> cast(attrs, [:risk_score, :risk_decision, :risk_assessed_at, :risk_flagged_at])
     |> validate_inclusion(:risk_decision, ~w[allow review block])
   end
 

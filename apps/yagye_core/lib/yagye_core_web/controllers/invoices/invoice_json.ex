@@ -1,9 +1,17 @@
 defmodule YagyeCoreWeb.Controllers.Invoices.InvoiceJSON do
   @moduledoc false
 
+  alias YagyeCore.Checkout.Schemas.MerchantCheckoutConfig
   alias YagyeCore.Invoices.Schemas.Invoice
+  alias YagyeCore.Repo
 
   def data(%Invoice{} = invoice) do
+    logo_url =
+      case Repo.get(MerchantCheckoutConfig, invoice.merchant_id) do
+        %{logo_url: url} -> url
+        _ -> nil
+      end
+
     customer_ref =
       case invoice.customer do
         %{merchant_customer_ref: ref} -> ref
@@ -41,6 +49,8 @@ defmodule YagyeCoreWeb.Controllers.Invoices.InvoiceJSON do
           _ -> nil
         end,
       invoice_view_url: "#{checkout_base_url()}/inv/#{invoice.public_id}",
+      pdf_s3_key: invoice.pdf_s3_key,
+      checkout_layout: %{logo_url: logo_url},
       line_items: line_items,
       sent_at: invoice.sent_at,
       paid_at: invoice.paid_at,

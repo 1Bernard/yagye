@@ -41,7 +41,9 @@ defmodule YagyeCore.Invoices do
     line_item_attrs = Map.get(attrs, :line_items, [])
     invoice_attrs = Map.drop(attrs, [:line_items, :customer_reference, :merchant_customer_ref])
 
-    {subtotal, tax, total} = compute_totals(line_item_attrs)
+    {subtotal, tax, total_before_discount} = compute_totals(line_item_attrs)
+    discount = max(Map.get(invoice_attrs, :discount_amount, 0), 0)
+    total = max(total_before_discount - discount, 0)
 
     base_attrs =
       invoice_attrs
@@ -50,7 +52,7 @@ defmodule YagyeCore.Invoices do
       |> Map.put(:mode, mode)
       |> Map.put(:subtotal_amount, subtotal)
       |> Map.put(:tax_amount, tax)
-      |> Map.put(:discount_amount, Map.get(invoice_attrs, :discount_amount, 0))
+      |> Map.put(:discount_amount, discount)
       |> Map.put(:total_amount, total)
       |> Map.put(:amount_due, total)
 
@@ -95,12 +97,15 @@ defmodule YagyeCore.Invoices do
     line_item_attrs = Map.get(attrs, :line_items, [])
 
     invoice_attrs = Map.drop(attrs, [:line_items, :customer_reference, :merchant_customer_ref])
-    {subtotal, tax, total} = compute_totals(line_item_attrs)
+    {subtotal, tax, total_before_discount} = compute_totals(line_item_attrs)
+    discount = max(Map.get(invoice_attrs, :discount_amount, 0), 0)
+    total = max(total_before_discount - discount, 0)
 
     base_attrs =
       invoice_attrs
       |> Map.put(:subtotal_amount, subtotal)
       |> Map.put(:tax_amount, tax)
+      |> Map.put(:discount_amount, discount)
       |> Map.put(:total_amount, total)
       |> Map.put(:amount_due, total)
 

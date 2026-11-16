@@ -778,9 +778,9 @@ defmodule YagyeCore.Ledger do
   Debit  : merchant_payable — reduce what we owe the merchant by the split amount
   Credit : split_payable    — record the split obligation to the sub-merchant/leg
   """
-  def post_split_distribution(%Payment{} = payment, split_record_id, amount) do
+  def post_split_distribution(%Payment{} = payment, split_record_id, amount, sub_merchant_id) do
     OpenTelemetry.Tracer.with_span "ledger.post_split_distribution" do
-      with {:ok, merchant_account} <-
+      with {:ok, owner_account} <-
              get_or_create_account(%{
                account_type: "merchant_payable",
                normal_balance: "credit",
@@ -790,23 +790,23 @@ defmodule YagyeCore.Ledger do
                mode: payment.mode,
                allows_negative: false
              }),
-           {:ok, split_account} <-
+           {:ok, sub_merchant_account} <-
              get_or_create_account(%{
-               account_type: "split_payable",
+               account_type: "merchant_payable",
                normal_balance: "credit",
-               scope_type: "payment",
-               scope_id: payment.id,
+               scope_type: "merchant",
+               scope_id: sub_merchant_id,
                currency: payment.currency,
                mode: payment.mode,
                allows_negative: false
              }),
            {:ok, entry} <- insert_split_distribution_entry(payment, split_record_id),
            {:ok, debit} <-
-             insert_posting(entry, merchant_account, "debit", amount, payment.merchant_id),
+             insert_posting(entry, owner_account, "debit", amount, payment.merchant_id),
            {:ok, credit} <-
-             insert_posting(entry, split_account, "credit", amount, payment.merchant_id) do
-        apply_balance(merchant_account.id, amount, :debit, debit.id)
-        apply_balance(split_account.id, amount, :credit, credit.id)
+             insert_posting(entry, sub_merchant_account, "credit", amount, sub_merchant_id) do
+        apply_balance(owner_account.id, amount, :debit, debit.id)
+        apply_balance(sub_merchant_account.id, amount, :credit, credit.id)
         {:ok, entry}
       end
     end

@@ -32,7 +32,7 @@ defmodule YagyeCore.Payments.Adapters.PaystackAdapter do
   Ghana MoMo networks in Paystack:
   - "mtn"        → MTN Mobile Money
   - "vod"        → Vodafone Cash
-  - "airteltigo" → AirtelTigo Money
+  - "tgo"        → AirtelTigo Money
   """
 
   @behaviour YagyeCore.Payments.Providers.ProviderAdapter
@@ -45,12 +45,12 @@ defmodule YagyeCore.Payments.Adapters.PaystackAdapter do
     "VODAFONE" => "vod",
     "Telecel" => "vod",
     "TELECEL" => "vod",
-    "AirtelTigo" => "airteltigo",
-    "AIRTELTIGO" => "airteltigo",
+    "AirtelTigo" => "tgo",
+    "AIRTELTIGO" => "tgo",
     "mtn" => "mtn",
     "vodafone" => "vod",
     "telecel" => "vod",
-    "airteltigo" => "airteltigo"
+    "airteltigo" => "tgo"
   }
 
   @impl true
@@ -75,6 +75,28 @@ defmodule YagyeCore.Payments.Adapters.PaystackAdapter do
       [json: body, headers: auth_headers(credential), receive_timeout: 15_000] ++ extra_req_opts()
     )
     |> translate_charge_http_response()
+  end
+
+  def charge(%Payment{method: "bank_transfer"} = payment, %PaymentAttempt{} = attempt, credential) do
+    email = get_in(payment.metadata, ["customer_email"]) || "payments@yagye.com"
+
+    body = %{
+      amount: payment.amount,
+      email: email,
+      currency: payment.currency,
+      reference: attempt.idempotency_token,
+      bank: %{
+        account_bank: "GH",
+        account_number: nil,
+        type: "bank_transfer"
+      }
+    }
+
+    Req.post(
+      url("/charge", credential),
+      [json: body, headers: auth_headers(credential), receive_timeout: 15_000] ++ extra_req_opts()
+    )
+    |> translate_bank_transfer_response()
   end
 
   def charge(%Payment{} = _payment, %PaymentAttempt{} = _attempt, _credential) do
@@ -286,6 +308,69 @@ defmodule YagyeCore.Payments.Adapters.PaystackAdapter do
     {:error,
      %{error_class: :retryable_error, response_code: "ps_#{status}", response_message: nil}}
   end
+
+  defp translate_bank_transfer_response(
+         {:ok, %Req.Response{status: 200, body: %{"status" => true, "data" => data}}}
+       ) do
+    case data do
+      %{"status" => "pay_offline", "reference" => ref} ->
+        {:pending, %{provider_reference: ref, virtual_account: extract_virtual_account(data)}}
+
+      %{"status" => "pending", "reference" => ref} ->
+        {:pending, %{provider_reference: ref}}
+
+      %{"reference" => ref} ->
+        {:pending, %{provider_reference: ref}}
+
+      _ ->
+        {:error,
+         %{
+           error_class: :retryable_error,
+           response_code: "unexpected_bt_response",
+           response_message: nil
+         }}
+    end
+  end
+
+  defp translate_bank_transfer_response(
+         {:ok, %Req.Response{status: 200, body: %{"status" => false, "message" => msg}}}
+       ) do
+    {:error,
+     %{error_class: :definite_failure, response_code: "paystack_error", response_message: msg}}
+  end
+
+  defp translate_bank_transfer_response(
+         {:ok, %Req.Response{status: 400, body: %{"message" => msg}}}
+       ) do
+    {:error,
+     %{error_class: :definite_failure, response_code: "invalid_request", response_message: msg}}
+  end
+
+  defp translate_bank_transfer_response({:ok, %Req.Response{status: status}}) do
+    {:error,
+     %{error_class: :retryable_error, response_code: "http_#{status}", response_message: nil}}
+  end
+
+  defp translate_bank_transfer_response({:error, %{reason: :timeout}}) do
+    {:error, %{error_class: :indeterminate, response_code: "timeout", response_message: nil}}
+  end
+
+  defp translate_bank_transfer_response({:error, _}) do
+    {:error,
+     %{error_class: :indeterminate, response_code: "network_error", response_message: nil}}
+  end
+
+  defp extract_virtual_account(%{"bank_transfer" => %{"account_number" => _} = bt}) do
+    %{
+      account_number: bt["account_number"],
+      bank_name: bt["bank_name"] || "GhIPSS",
+      account_name: bt["account_name"] || "YAGYE COLLECT",
+      expires_at: bt["expiry_date"],
+      payment_reference: nil
+    }
+  end
+
+  defp extract_virtual_account(_data), do: nil
 
   defp translate_verify_response(%{"status" => "success", "reference" => ref}) do
     {:ok, %{provider_reference: ref, auth_code: nil}}

@@ -34,9 +34,10 @@ end
 
 # Checkout base URL — the public host that serves the hosted checkout pages.
 # Override via CHECKOUT_BASE_URL in docker-compose / staging / production.
-# Defaults to the production domain so unset prod deploys still work.
-config :yagye_core,
-  checkout_base_url: System.get_env("CHECKOUT_BASE_URL", "https://pay.yagye.com")
+# Only applied when explicitly set — dev.exs owns the local default.
+if url = System.get_env("CHECKOUT_BASE_URL") do
+  config :yagye_core, checkout_base_url: url
+end
 
 # S3 endpoint override — applies in all environments (docker-compose Floci, CI, etc.).
 # When AWS_S3_HOST is set, route ex_aws S3 calls to that host instead of real AWS.

@@ -5,6 +5,7 @@ defmodule YagyeCoreWeb.Controllers.Internal.InvoicesController do
 
   alias YagyeCore.Invoices
   alias YagyeCore.Merchants
+  alias YagyeCore.Shared.DocumentStore
   alias YagyeCoreWeb.Controllers.Invoices.InvoiceJSON
   alias YagyeCoreWeb.Response
 
@@ -30,7 +31,7 @@ defmodule YagyeCoreWeb.Controllers.Internal.InvoicesController do
   end
 
   @allowed_create_fields ~w[customer_reference number currency issue_date due_date
-                             notes terms payment_link_id line_items]
+                             notes terms payment_link_id discount_amount pdf_s3_key line_items]
 
   # POST /internal/invoices
   def create(conn, %{"merchant_code" => merchant_code} = params) do
@@ -52,7 +53,7 @@ defmodule YagyeCoreWeb.Controllers.Internal.InvoicesController do
     end
   end
 
-  @allowed_update_fields ~w[customer_reference number currency issue_date due_date notes terms line_items]
+  @allowed_update_fields ~w[customer_reference number currency issue_date due_date notes terms discount_amount pdf_s3_key line_items]
 
   # PATCH /internal/invoices/:id
   def update(conn, %{"id" => id} = params) do
@@ -90,6 +91,14 @@ defmodule YagyeCoreWeb.Controllers.Internal.InvoicesController do
 
     with {:ok, invoice} <- Invoices.issue_invoice(id, payment_config) do
       Response.ok(conn, InvoiceJSON.data(invoice))
+    end
+  end
+
+  # POST /internal/invoices/presign-pdf
+  def presign_pdf(conn, %{"merchant_code" => merchant_code}) do
+    with {:ok, merchant} <- Merchants.get_merchant(merchant_code),
+         {:ok, result} <- DocumentStore.presign_invoice_pdf(merchant.id, Uniq.UUID.uuid7()) do
+      Response.ok(conn, result)
     end
   end
 

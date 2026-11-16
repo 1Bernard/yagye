@@ -25,6 +25,25 @@ defmodule YagyeCore.Shared.DocumentStore do
     end
   end
 
+  @doc """
+  Generates a presigned S3 PUT URL for a merchant invoice PDF.
+  Returns `{:ok, %{presigned_url: url, s3_key: key}}`.
+  """
+  def presign_invoice_pdf(merchant_id, temp_id) do
+    cfg = ex_aws_config()
+    bucket = bucket()
+    key = "invoices/#{merchant_id}/#{temp_id}.pdf"
+    expiry = upload_expiry()
+
+    case ExAws.S3.presigned_url(cfg, :put, bucket, key,
+           expires_in: expiry,
+           headers: [{"content-type", "application/pdf"}]
+         ) do
+      {:ok, url} -> {:ok, %{presigned_url: rewrite_host(url), s3_key: key}}
+      {:error, reason} -> {:error, reason}
+    end
+  end
+
   @doc "Generates a presigned S3 GET URL for document download."
   def presign_download(s3_key) do
     cfg = ex_aws_config()

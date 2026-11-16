@@ -30,6 +30,7 @@ defmodule YagyeCore.PaymentLinks.Schemas.PaymentLink do
     field :expires_at, :utc_datetime_usec
     field :metadata, :map, default: %{}
     field :checkout_layout, :map, default: %{}
+    field :discount_amount, :integer, default: 0
     field :escrow_enabled, :boolean, default: false
     field :escrow_hold_days, :integer, default: 3
     field :escrow_dispute_window_hours, :integer, default: 48
@@ -43,7 +44,7 @@ defmodule YagyeCore.PaymentLinks.Schemas.PaymentLink do
   @required ~w[merchant_id mode url_slug kind currency description]a
   @optional ~w[amount image_url allowed_methods collect_email collect_phone collect_name
                reusable max_uses use_count active expires_at metadata checkout_layout
-               escrow_enabled escrow_hold_days escrow_dispute_window_hours
+               discount_amount escrow_enabled escrow_hold_days escrow_dispute_window_hours
                escrow_auto_release_days]a
 
   def changeset(link, attrs) do
@@ -56,6 +57,7 @@ defmodule YagyeCore.PaymentLinks.Schemas.PaymentLink do
     |> validate_amount_for_kind()
     |> validate_number(:max_uses, greater_than: 0)
     |> validate_number(:use_count, greater_than_or_equal_to: 0)
+    |> validate_number(:discount_amount, greater_than_or_equal_to: 0)
     |> validate_checkout_layout()
     |> put_public_id()
     |> unique_constraint(:public_id)
@@ -64,7 +66,7 @@ defmodule YagyeCore.PaymentLinks.Schemas.PaymentLink do
   end
 
   @updatable ~w[description allowed_methods collect_email collect_phone collect_name
-                max_uses expires_at checkout_layout]a
+                max_uses expires_at checkout_layout discount_amount]a
 
   def update_changeset(link, attrs) do
     link

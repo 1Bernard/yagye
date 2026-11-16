@@ -368,6 +368,7 @@ defmodule YagyeCoreWeb.Router do
     # P13 — Invoices (portal read/write via service token)
     get("/merchants/:merchant_code/invoices", InternalInvoicesController, :index)
     post("/invoices", InternalInvoicesController, :create)
+    post("/invoices/presign-pdf", InternalInvoicesController, :presign_pdf)
     get("/invoices/:id", InternalInvoicesController, :show)
     get("/invoices/:public_id/view", InvoiceViewController, :show)
     patch("/invoices/:id", InternalInvoicesController, :update)

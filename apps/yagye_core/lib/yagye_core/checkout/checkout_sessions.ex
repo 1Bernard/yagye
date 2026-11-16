@@ -33,21 +33,29 @@ defmodule YagyeCore.CheckoutSessions do
   Returns {:ok, {session, url_token}} — the raw url_token is returned ONCE
   for embedding in the hosted checkout URL; only its hash is stored.
   """
-  def create_from_link(slug, attrs \\ %{}) do
+  def create_from_link(slug, opts \\ []) do
+    preview = Keyword.get(opts, :preview, false)
+    attrs = Keyword.get(opts, :attrs, %{})
+
     with {:ok, link} <- PaymentLinks.get_link_by_slug(slug),
          :ok <- validate_link_usable(link) do
       {url_token, url_token_hash} = generate_token_pair()
       line_items = attrs[:line_items] || []
-      session_attrs = build_link_session_attrs(link, attrs, url_token_hash)
 
-      Multi.new()
-      |> Multi.insert(:session, CheckoutSession.changeset(%CheckoutSession{}, session_attrs))
-      |> Multi.run(:line_items, fn _repo, %{session: session} ->
-        insert_line_items(session, line_items)
-      end)
-      |> Multi.insert(:created_event, fn %{session: session} ->
-        event_changeset(session, "viewed", %{source: "payment_link"})
-      end)
+      session_attrs =
+        build_link_session_attrs(link, attrs, url_token_hash)
+        |> Map.put(:is_preview, preview)
+
+      multi =
+        Multi.new()
+        |> Multi.insert(:session, CheckoutSession.changeset(%CheckoutSession{}, session_attrs))
+        |> Multi.run(:line_items, fn _repo, %{session: session} ->
+          insert_line_items(session, line_items)
+        end)
+
+      multi = maybe_add_viewed_event(multi, preview)
+
+      multi
       |> Repo.transaction()
       |> case do
         {:ok, %{session: session}} ->
@@ -126,6 +134,7 @@ defmodule YagyeCore.CheckoutSessions do
     rows =
       from(cs in CheckoutSession,
         where: cs.merchant_id == ^merchant_id,
+        where: not cs.is_preview,
         group_by: cs.state,
         select: {cs.state, count(cs.id)}
       )
@@ -148,7 +157,8 @@ defmodule YagyeCore.CheckoutSessions do
 
     base =
       from(cs in CheckoutSession,
-        where: cs.merchant_id == ^merchant_id
+        where: cs.merchant_id == ^merchant_id,
+        where: not cs.is_preview
       )
 
     base = if state, do: where(base, [cs], cs.state == ^state), else: base
@@ -407,10 +417,10 @@ defmodule YagyeCore.CheckoutSessions do
 
   # Carry through per-link display overrides from the link's checkout_layout JSONB.
   defp merge_link_overrides(base, link_layout) do
-    ~w[headline cta_text terms methods]
+    ~w[logo_url headline cta_text terms methods]
     |> Enum.reduce(base, fn key, acc ->
       case Map.fetch(link_layout, key) do
-        {:ok, v} when not is_nil(v) -> Map.put(acc, key, v)
+        {:ok, v} when not is_nil(v) and v != "" -> Map.put(acc, key, v)
         _ -> acc
       end
     end)
@@ -457,6 +467,7 @@ defmodule YagyeCore.CheckoutSessions do
     session_base =
       from(cs in CheckoutSession,
         where: cs.merchant_id == ^merchant_id,
+        where: not cs.is_preview,
         where: cs.inserted_at >= ^from_dt,
         where: cs.inserted_at <= ^to_dt
       )
@@ -567,13 +578,16 @@ defmodule YagyeCore.CheckoutSessions do
 
   defp normalize_attrs(link, attrs) do
     amount = link.amount
+    discount = (link.discount_amount || 0) + Map.get(attrs, :discount_amount, 0)
+    subtotal = amount || Map.get(attrs, :subtotal_amount, 0)
+    total = max((amount || Map.get(attrs, :total_amount, 0)) - discount, 0)
 
     %{
-      subtotal_amount: amount || Map.get(attrs, :subtotal_amount, 0),
-      total_amount: amount || Map.get(attrs, :total_amount, 0),
+      subtotal_amount: subtotal,
+      total_amount: total,
       tax_amount: Map.get(attrs, :tax_amount, 0),
       shipping_amount: Map.get(attrs, :shipping_amount, 0),
-      discount_amount: Map.get(attrs, :discount_amount, 0),
+      discount_amount: discount,
       merchant_reference: Map.get(attrs, :merchant_reference) || generate_reference(),
       success_url: Map.get(attrs, :success_url) || checkout_base_url(),
       cancel_url: Map.get(attrs, :cancel_url) || checkout_base_url()
@@ -671,6 +685,14 @@ defmodule YagyeCore.CheckoutSessions do
 
   defp ensure_map(m) when is_struct(m), do: Map.from_struct(m)
   defp ensure_map(m), do: m
+
+  defp maybe_add_viewed_event(multi, true), do: multi
+
+  defp maybe_add_viewed_event(multi, false) do
+    Multi.insert(multi, :created_event, fn %{session: session} ->
+      event_changeset(session, "viewed", %{source: "payment_link"})
+    end)
+  end
 
   defp event_changeset(%CheckoutSession{} = session, event_type, payload, extra \\ %{}) do
     base = %{

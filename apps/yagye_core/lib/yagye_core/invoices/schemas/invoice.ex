@@ -28,6 +28,7 @@ defmodule YagyeCore.Invoices.Schemas.Invoice do
     field :issue_date, :date
     field :due_date, :date
     belongs_to :payment_link, PaymentLink, foreign_key: :payment_link_id
+    field :pdf_s3_key, :string
     field :notes, :string
     field :terms, :string
     field :sent_at, :utc_datetime_usec
@@ -61,6 +62,7 @@ defmodule YagyeCore.Invoices.Schemas.Invoice do
       :issue_date,
       :due_date,
       :payment_link_id,
+      :pdf_s3_key,
       :notes,
       :terms,
       :sent_at,

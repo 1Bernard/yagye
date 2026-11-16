@@ -7,7 +7,7 @@
 
 alias YagyeCore.Merchants
 alias YagyeCore.Merchants.Schemas.{Merchant, MerchantApplication, MerchantMode}
-alias YagyeCore.Providers.Schemas.{Provider, ProviderCredential}
+alias YagyeCore.Providers.Schemas.{Provider, ProviderCredential, MerchantProviderConnection}
 alias YagyeCore.Shared.Vault
 alias YagyeCore.Customers
 alias YagyeCore.Invoices
@@ -222,6 +222,37 @@ case Repo.get_by(Merchant, public_id: "MCH_DEMO_001") do
     │  Or create a fresh key from the portal Developers page.         │
     └──────────────────────────────────────────────────────────────────┘
     """)
+end
+
+# ── 6a. Kofi Builds — sandbox provider connection (MTN Momo) ─────────────────
+# Without this, sandbox payments fail with no_provider_available.
+# Simulation mode bypasses merchant_provider_connections entirely;
+# sandbox mode uses static_priority fallback which requires this record.
+
+with %Merchant{id: merchant_id} <- Repo.get_by(Merchant, public_id: "MCH_DEMO_001"),
+     %Provider{id: provider_id} <- Repo.get_by(Provider, code: "mtn_momo_gh") do
+  case Repo.get_by(MerchantProviderConnection,
+         merchant_id: merchant_id,
+         provider_id: provider_id,
+         mode: "sandbox"
+       ) do
+    %MerchantProviderConnection{} ->
+      IO.puts("MCH_DEMO_001 sandbox  : mtn_momo_gh connection already exists")
+
+    nil ->
+      %MerchantProviderConnection{}
+      |> MerchantProviderConnection.changeset(%{
+        merchant_id: merchant_id,
+        provider_id: provider_id,
+        mode: "sandbox",
+        priority: 1,
+        enabled_methods: ["mobile_money"],
+        status: "active"
+      })
+      |> Repo.insert!()
+
+      IO.puts("MCH_DEMO_001 sandbox  : wired to mtn_momo_gh (priority 1)")
+  end
 end
 
 # ── 6b. Demo KYB application (APP_DEMO_001) — matches portal seed ─────────────

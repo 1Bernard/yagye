@@ -80,12 +80,14 @@ defmodule YagyeCore.Payments do
   end
 
   defp apply_risk_score(attrs, merchant) do
+    now = DateTime.utc_now()
+
     case ScoringClient.score_risk(build_payment_shell(attrs), merchant) do
       {:ok, %{decision: decision, risk_score: score}} ->
-        %{risk_score: score, risk_decision: decision}
+        %{risk_score: score, risk_decision: decision, risk_assessed_at: now}
 
       {:ok, %{decision: decision, score: score}} ->
-        %{risk_score: score, risk_decision: decision}
+        %{risk_score: score, risk_decision: decision, risk_assessed_at: now}
 
       _ ->
         %{}
@@ -311,7 +313,8 @@ defmodule YagyeCore.Payments do
           customer_msisdn: get_in(p.metadata, ["msisdn"]),
           latency_ms: attempt.latency_ms,
           risk_score: p.risk_score,
-          risk_decision: p.risk_decision
+          risk_decision: p.risk_decision,
+          risk_assessed_at: p.risk_assessed_at && DateTime.to_iso8601(p.risk_assessed_at)
         },
         correlation_id: p.public_id
       )
@@ -347,7 +350,8 @@ defmodule YagyeCore.Payments do
               mode: p.mode,
               customer_msisdn: get_in(p.metadata, ["msisdn"]),
               risk_score: p.risk_score,
-              risk_decision: p.risk_decision
+              risk_decision: p.risk_decision,
+              risk_assessed_at: p.risk_assessed_at && DateTime.to_iso8601(p.risk_assessed_at)
             },
             correlation_id: p.public_id
           )
@@ -491,7 +495,7 @@ defmodule YagyeCore.Payments do
     end)
     |> Multi.run(:fee, fn _repo, %{succeeded: p} -> fetch_payment_fee(p) end)
     |> Multi.run(:fee_record, fn _repo, %{succeeded: p, fee: fee} ->
-      record_payment_fee(attempt.id, p, fee)
+      record_payment_fee(attempt.id, p, fee, provider_kind_from_attempt(attempt))
     end)
     |> Multi.run(:payment_customer, fn _repo, %{succeeded: p} -> fetch_payment_customer(p) end)
     |> Multi.insert(:succeeded_outbox, fn %{succeeded: p, fee_record: fr, payment_customer: c} ->
@@ -520,7 +524,8 @@ defmodule YagyeCore.Payments do
           latency_ms: attempt.latency_ms,
           paid_at: DateTime.utc_now() |> DateTime.to_iso8601(),
           risk_score: p.risk_score,
-          risk_decision: p.risk_decision
+          risk_decision: p.risk_decision,
+          risk_assessed_at: p.risk_assessed_at && DateTime.to_iso8601(p.risk_assessed_at)
         },
         correlation_id: p.public_id
       )
@@ -645,7 +650,8 @@ defmodule YagyeCore.Payments do
           method: p.method,
           mode: p.mode,
           risk_score: p.risk_score,
-          risk_decision: p.risk_decision
+          risk_decision: p.risk_decision,
+          risk_assessed_at: p.risk_assessed_at && DateTime.to_iso8601(p.risk_assessed_at)
         },
         correlation_id: p.public_id
       )
@@ -774,7 +780,15 @@ defmodule YagyeCore.Payments do
         |> Map.merge(%{merchant_id: merchant.id, mode: mode})
         |> update_metadata_msisdn_hash()
 
-      Payment.changeset(%Payment{}, merged)
+      risk_fields = Map.take(merged, [:risk_score, :risk_decision, :risk_assessed_at])
+
+      changeset = Payment.changeset(%Payment{}, merged)
+
+      if map_size(risk_fields) > 0 do
+        Payment.risk_changeset(changeset, risk_fields)
+      else
+        changeset
+      end
     end)
     |> Multi.run(:event, fn _repo, %{payment: p} ->
       insert_event(p, "payment.created", nil, "created")
@@ -859,11 +873,21 @@ defmodule YagyeCore.Payments do
     end
   end
 
-  defp record_payment_fee(_attempt_id, _payment, nil),
+  defp record_payment_fee(_attempt_id, _payment, nil, _provider_kind),
     do: {:ok, nil}
 
-  defp record_payment_fee(attempt_id, payment, fee),
-    do: Pricing.record_fee("payment_attempt", attempt_id, payment.merchant_id, fee, payment.mode)
+  defp record_payment_fee(attempt_id, payment, fee, provider_kind) do
+    fee_kind = if provider_kind == "external_psp", do: "orchestration_fee", else: "psp_margin"
+
+    Pricing.record_fee(
+      "payment_attempt",
+      attempt_id,
+      payment.merchant_id,
+      fee,
+      payment.mode,
+      fee_kind
+    )
+  end
 
   defp network_to_provider(network) when is_binary(network) do
     case String.upcase(network) do

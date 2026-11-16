@@ -56,9 +56,14 @@ defmodule YagyeCore.Payments.Adapters.MTNMomoAdapter do
       msisdn = normalise_msisdn(get_in(payment.metadata, ["msisdn"]) || "")
       amount_str = to_major_units_str(payment.amount, payment.currency)
 
+      # MTN requires X-Reference-Id to be a UUID v4. idempotency_token is UUID v7
+      # which the sandbox rejects with a silent 400. Generate a fresh v4 for the
+      # header; keep idempotency_token as externalId for our internal tracing.
+      reference_id = uuid4()
+
       body = %{
         "amount" => amount_str,
-        "currency" => payment.currency,
+        "currency" => mtn_currency(payment.currency, credential),
         "externalId" => attempt.idempotency_token,
         "payer" => %{
           "partyIdType" => "MSISDN",
@@ -67,8 +72,6 @@ defmodule YagyeCore.Payments.Adapters.MTNMomoAdapter do
         "payerMessage" => get_in(payment.metadata, ["description"]) || "Payment",
         "payeeNote" => attempt.idempotency_token
       }
-
-      reference_id = attempt.idempotency_token
 
       Req.post(
         collection_url(credential, "/requesttopay"),
@@ -131,7 +134,7 @@ defmodule YagyeCore.Payments.Adapters.MTNMomoAdapter do
 
       body = %{
         "amount" => to_major_units_str(amount, currency),
-        "currency" => currency,
+        "currency" => mtn_currency(currency, credential),
         "externalId" => to_string(ref),
         "payee" => %{
           "partyIdType" => "MSISDN",
@@ -358,7 +361,7 @@ defmodule YagyeCore.Payments.Adapters.MTNMomoAdapter do
          {:ok, %Req.Response{status: 200, body: %{"status" => "SUCCESSFUL"} = body}}
        ) do
     financial_id = body["financialTransactionId"]
-    # provider_reference stays as the X-Reference-Id (our idempotency_token);
+    # Switch provider_reference to our externalId (idempotency_token) on success;
     # the MTN financial transaction id goes into auth_code for reconciliation.
     {:ok, %{provider_reference: body["externalId"], auth_code: financial_id}}
   end
@@ -520,6 +523,14 @@ defmodule YagyeCore.Payments.Adapters.MTNMomoAdapter do
   end
 
   defp extract_mtn_error(_), do: "mtn_error"
+
+  defp mtn_currency(_currency, %{"target_environment" => "sandbox"}), do: "EUR"
+
+  defp mtn_currency(currency, %{"base_url" => url}) when is_binary(url) do
+    if String.contains?(url, "sandbox"), do: "EUR", else: currency
+  end
+
+  defp mtn_currency(currency, _credential), do: currency
 
   defp extra_req_opts, do: Application.get_env(:yagye_core, :mtn_momo_req_opts, [])
 end
