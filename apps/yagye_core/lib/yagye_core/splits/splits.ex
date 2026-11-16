@@ -153,7 +153,7 @@ defmodule YagyeCore.Splits do
   defp insert_legs(rule, legs_attrs) do
     results =
       Enum.reduce_while(legs_attrs, [], fn attrs, acc ->
-        merged = Map.merge(attrs, %{split_rule_id: rule.id, merchant_id: rule.merchant_id})
+        merged = Map.merge(%{split_rule_id: rule.id, merchant_id: rule.merchant_id}, attrs)
 
         case Repo.insert(SplitRuleLeg.changeset(%SplitRuleLeg{}, merged)) do
           {:ok, leg} -> {:cont, [leg | acc]}

@@ -58,6 +58,8 @@ defmodule YagyeCore.Risk do
                 risk_decision: updated.risk_decision,
                 risk_score: updated.risk_score && Decimal.to_float(updated.risk_score),
                 merchant_id: to_string(updated.merchant_id),
+                risk_assessed_at:
+                  updated.risk_assessed_at && DateTime.to_iso8601(updated.risk_assessed_at),
                 risk_flagged_at:
                   updated.risk_flagged_at && DateTime.to_iso8601(updated.risk_flagged_at)
               },

@@ -149,6 +149,76 @@ defmodule YagyeCore.Webhooks.Workers.WebhookProcessorWorker do
     end
   end
 
+  # ── Stripe ───────────────────────────────────────────────────────────────────
+  # Stripe uses PaymentIntent ids (pi_...) as the canonical lookup key.
+  # These are stored as provider_reference on the PaymentAttempt.
+
+  defp route("stripe", "payment_intent.succeeded", %{"data" => %{"object" => intent}}) do
+    pi_id = intent["id"]
+
+    with {:ok, attempt} <- Payments.get_attempt_by_provider_ref(pi_id),
+         {:ok, payment} <- Payments.get_payment_by_id(attempt.payment_id) do
+      charge_id = get_in(intent, ["latest_charge"])
+      result = {:ok, %{provider_reference: pi_id, auth_code: charge_id}}
+      process_payment_webhook(attempt, payment, result)
+    end
+  end
+
+  defp route("stripe", "payment_intent.payment_failed", %{"data" => %{"object" => intent}}) do
+    pi_id = intent["id"]
+    err_msg = get_in(intent, ["last_payment_error", "message"])
+
+    with {:ok, attempt} <- Payments.get_attempt_by_provider_ref(pi_id),
+         {:ok, payment} <- Payments.get_payment_by_id(attempt.payment_id) do
+      result =
+        {:error,
+         %{
+           error_class: :definite_failure,
+           response_code: "stripe_failed",
+           response_message: err_msg
+         }}
+
+      process_payment_webhook(attempt, payment, result)
+    end
+  end
+
+  defp route("stripe", "payment_intent.canceled", %{"data" => %{"object" => intent}}) do
+    pi_id = intent["id"]
+
+    with {:ok, attempt} <- Payments.get_attempt_by_provider_ref(pi_id),
+         {:ok, payment} <- Payments.get_payment_by_id(attempt.payment_id) do
+      result =
+        {:error,
+         %{
+           error_class: :definite_failure,
+           response_code: "canceled",
+           response_message: intent["cancellation_reason"]
+         }}
+
+      process_payment_webhook(attempt, payment, result)
+    end
+  end
+
+  defp route("stripe", "charge.dispute.updated", %{"data" => %{"object" => dispute}}) do
+    with {:ok, attempt} <- Payments.get_attempt_by_provider_ref(dispute["payment_intent"]),
+         {:ok, payment} <- Payments.get_payment_by_id(attempt.payment_id) do
+      maybe_retract_dispute(payment.id, dispute["status"])
+    end
+
+    :ok
+  end
+
+  defp maybe_retract_dispute(payment_id, status) when status in ["won", "charge_refunded"] do
+    with {:ok, d} <- Disputes.find_open_dispute_for_payment(payment_id) do
+      Disputes.retract_dispute(d)
+    end
+  end
+
+  defp maybe_retract_dispute(_payment_id, _status), do: :ok
+
+  # Ignore other Stripe events (checkout sessions, customers, etc.)
+  defp route("stripe", _event_type, _payload), do: :ok
+
   # ── Dispute Retractions ────────────────────────────────────────────────────────
   # Card networks may signal a chargeback withdrawal via charge.dispute.retracted or
   # charge.refunded. Look up the payment by provider reference and retract its

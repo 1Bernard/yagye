@@ -9,6 +9,7 @@ defmodule YagyeCore.Settlement.Workers.SettlementProcessorWorker do
   alias YagyeCore.Ledger
   alias YagyeCore.Merchants.Schemas.Merchant
   alias YagyeCore.Outbox
+  alias YagyeCore.Pricing
   alias YagyeCore.Providers.Schemas.Provider
   alias YagyeCore.Repo
   alias YagyeCore.Settlement
@@ -28,6 +29,8 @@ defmodule YagyeCore.Settlement.Workers.SettlementProcessorWorker do
 
   defp process(%SettlementBatch{} = batch) do
     fee_totals = compute_fee_totals(batch)
+    cross_net_amount = compute_cross_net_amount(batch)
+    net_after_cross_net = fee_totals.expected_net - cross_net_amount
 
     result =
       Multi.new()
@@ -36,7 +39,7 @@ defmodule YagyeCore.Settlement.Workers.SettlementProcessorWorker do
         batch
         |> SettlementBatch.transition_changeset("processing")
         |> Ecto.Changeset.put_change(:platform_fees, fee_totals.expected_platform_fees)
-        |> Ecto.Changeset.put_change(:net_amount, fee_totals.expected_net)
+        |> Ecto.Changeset.put_change(:net_amount, net_after_cross_net)
         |> Ecto.Changeset.put_change(:reserved_amount, Map.get(fee_totals, :reserved_amount, 0))
       )
       |> Multi.run(:ledger, fn _repo, %{processing: b} ->
@@ -71,7 +74,7 @@ defmodule YagyeCore.Settlement.Workers.SettlementProcessorWorker do
 
     case result do
       {:ok, %{settled: settled_batch}} ->
-        try_record_settlement(settled_batch)
+        try_record_settlement(settled_batch, cross_net_amount)
         {:ok, settled_batch}
 
       {:error, _step, reason, _changes} ->
@@ -87,12 +90,41 @@ defmodule YagyeCore.Settlement.Workers.SettlementProcessorWorker do
     end
   end
 
-  # Best-effort: create the Settlement + SettlementItems for reconciliation.
+  # Returns the pending cross_net orchestration fee amount for this merchant.
+  # Zero when billing method is not cross_net or no uncollected fees exist.
+  defp compute_cross_net_amount(%SettlementBatch{} = batch) do
+    merchant = Repo.get!(Merchant, batch.merchant_id)
+
+    if merchant.orchestration_billing_method == "cross_net" do
+      case Pricing.pending_orchestration_fees(batch.merchant_id, batch.currency, batch.mode) do
+        {:ok, amount} -> amount
+        _ -> 0
+      end
+    else
+      0
+    end
+  end
+
+  # Best-effort: create the Settlement + SettlementItems for reconciliation,
+  # and (when cross_net_amount > 0) create the platform_fee_invoice.
   # Failure here does not roll back the batch settlement.
-  defp try_record_settlement(settled_batch) do
+  defp try_record_settlement(settled_batch, cross_net_amount) do
     case Settlement.create_settlement_from_batch(settled_batch) do
-      {:ok, _} -> :ok
-      {:error, reason} -> {:warning, "settlement record creation failed: #{inspect(reason)}"}
+      {:ok, %{settlement: settlement}} ->
+        if cross_net_amount > 0 do
+          Pricing.create_cross_net_invoice(
+            settled_batch.merchant_id,
+            settled_batch.mode,
+            settled_batch.currency,
+            cross_net_amount,
+            settlement.id
+          )
+        end
+
+        :ok
+
+      {:error, reason} ->
+        {:warning, "settlement record creation failed: #{inspect(reason)}"}
     end
   end
 

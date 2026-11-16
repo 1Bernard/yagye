@@ -74,7 +74,7 @@ defmodule YagyeCore.Settlement.Schemas.Settlement do
       :expected_net
     ])
     |> validate_length(:currency, is: 3)
-    |> validate_inclusion(:mode, ~w[simulation live])
+    |> validate_inclusion(:mode, ~w[simulation sandbox live])
     |> foreign_key_constraint(:merchant_id)
     |> foreign_key_constraint(:provider_id)
     |> unique_constraint(

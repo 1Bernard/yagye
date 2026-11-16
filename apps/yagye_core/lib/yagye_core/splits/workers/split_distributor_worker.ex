@@ -46,7 +46,8 @@ defmodule YagyeCore.Splits.Workers.SplitDistributorWorker do
   end
 
   defp post_and_settle(%Payment{} = payment, %SplitRecord{} = record) do
-    with {:ok, _entry} <- Ledger.post_split_distribution(payment, record.id, record.amount),
+    with {:ok, _entry} <-
+           Ledger.post_split_distribution(payment, record.id, record.amount, record.merchant_id),
          {:ok, _} <- Splits.mark_settled(record.id) do
       :ok
     else

@@ -54,17 +54,18 @@ defmodule YagyeCore.Pricing do
   @doc """
   Persists a fee record for a succeeded payment attempt.
 
+  `fee_kind` must be `"psp_margin"` (native_rail) or `"orchestration_fee"` (external_psp).
   Idempotent on (source_type, source_id, party) — safe to call in a Multi.
   Returns `{:ok, fee_record}` or an Ecto error.
   """
-  def record_fee(source_type, source_id, merchant_id, fee_result, mode) do
+  def record_fee(source_type, source_id, merchant_id, fee_result, mode, fee_kind \\ "psp_margin") do
     FeeRecord.record_changeset(%FeeRecord{}, %{
       source_type: source_type,
       source_id: source_id,
       merchant_id: merchant_id,
       mode: mode,
       party: "platform",
-      fee_kind: "psp_margin",
+      fee_kind: fee_kind,
       amount: fee_result.amount,
       currency: fee_result.currency,
       pricing_plan_id: fee_result.plan_id,
@@ -106,6 +107,87 @@ defmodule YagyeCore.Pricing do
         {:ok, plan}
     end
   end
+
+  @doc """
+  Returns the total uncollected orchestration fees for a merchant/mode/currency triple.
+
+  Sums all `orchestration_fee` fee_records and subtracts the total already covered by
+  existing `platform_fee_invoices` (excluding written-off ones). Used by
+  `SettlementProcessorWorker` to compute the cross_net deduction on each settlement run.
+  """
+  def pending_orchestration_fees(merchant_id, currency, mode) do
+    total_fees =
+      from(fr in FeeRecord,
+        where:
+          fr.merchant_id == ^merchant_id and
+            fr.mode == ^mode and
+            fr.currency == ^currency and
+            fr.fee_kind == "orchestration_fee" and
+            fr.party == "platform",
+        select: sum(fr.amount)
+      )
+      |> Repo.one()
+      |> coerce_decimal()
+
+    already_invoiced =
+      from(pfi in PlatformFeeInvoice,
+        where:
+          pfi.merchant_id == ^merchant_id and
+            pfi.mode == ^mode and
+            pfi.currency == ^currency and
+            pfi.state != "written_off",
+        select: sum(pfi.total_amount)
+      )
+      |> Repo.one()
+      |> coerce_decimal()
+
+    {:ok, max(0, total_fees - already_invoiced)}
+  end
+
+  @doc """
+  Inserts a cross_net platform_fee_invoice for the given merchant, linking it to
+  the settlement it was deducted from. Idempotent via unique constraint on
+  (merchant_id, mode, period_start, period_end).
+  """
+  def create_cross_net_invoice(merchant_id, mode, currency, amount, settlement_id) do
+    today = Date.utc_today()
+
+    period_start =
+      from(pfi in PlatformFeeInvoice,
+        where:
+          pfi.merchant_id == ^merchant_id and
+            pfi.mode == ^mode and
+            pfi.currency == ^currency,
+        order_by: [desc: pfi.period_end],
+        limit: 1,
+        select: pfi.period_end
+      )
+      |> Repo.one()
+      |> case do
+        nil -> today
+        date -> Date.add(date, 1)
+      end
+
+    %PlatformFeeInvoice{}
+    |> PlatformFeeInvoice.create_changeset(%{
+      merchant_id: merchant_id,
+      mode: mode,
+      period_start: period_start,
+      period_end: today,
+      currency: currency,
+      total_amount: amount,
+      collection_method: "cross_net",
+      settled_against_settlement_id: settlement_id
+    })
+    |> Repo.insert(
+      on_conflict: :nothing,
+      conflict_target: [:merchant_id, :mode, :period_start, :period_end]
+    )
+  end
+
+  defp coerce_decimal(nil), do: 0
+  defp coerce_decimal(%Decimal{} = d), do: Decimal.to_integer(d)
+  defp coerce_decimal(n) when is_integer(n), do: n
 
   def list_fee_invoices(merchant_id, opts \\ []) do
     limit = Keyword.get(opts, :limit, 50)

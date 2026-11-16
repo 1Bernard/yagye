@@ -2,9 +2,11 @@ defmodule YagyeCore.Settlement.Workers.SettlementProcessorWorkerTest do
   use YagyeCore.DataCase, async: true
 
   alias YagyeCore.Fixtures
+  alias YagyeCore.Merchants.Schemas.Merchant
   alias YagyeCore.Outbox.Schemas.OutboxMessage
   alias YagyeCore.Payments.Schemas.{Payment, PaymentAttempt}
-  alias YagyeCore.Pricing.Schemas.FeeRecord
+  alias YagyeCore.Pricing
+  alias YagyeCore.Pricing.Schemas.{FeeRecord, PlatformFeeInvoice}
   alias YagyeCore.Repo
   alias YagyeCore.Settlement
   alias YagyeCore.Settlement.Workers.SettlementProcessorWorker
@@ -156,6 +158,199 @@ defmodule YagyeCore.Settlement.Workers.SettlementProcessorWorkerTest do
       payload = msg.envelope["payload"]
       assert Map.has_key?(payload, "net_amount")
       assert Map.has_key?(payload, "platform_fees")
+    end
+  end
+
+  describe "cross_net orchestration fee collection" do
+    defp cross_net_merchant do
+      merchant = Fixtures.merchant_fixture()
+
+      merchant
+      |> Merchant.changeset(%{orchestration_billing_method: "cross_net"})
+      |> Repo.update!()
+    end
+
+    defp insert_orchestration_fee(merchant, attempt_id, amount) do
+      Repo.insert!(
+        FeeRecord.record_changeset(%FeeRecord{}, %{
+          source_type: "payment_attempt",
+          source_id: attempt_id,
+          merchant_id: merchant.id,
+          mode: "simulation",
+          party: "platform",
+          fee_kind: "orchestration_fee",
+          amount: amount,
+          currency: "GHS",
+          computation: %{"basis_points" => 50}
+        })
+      )
+    end
+
+    test "deducts pending orchestration fees from net_amount" do
+      merchant = cross_net_merchant()
+      native_provider = Fixtures.simulator_provider_fixture()
+
+      # External PSP payment (separate attempt, orchestration_fee already recorded)
+      ext_payment = Fixtures.payment_fixture(merchant, %{currency: "GHS", amount: 50_000})
+
+      ext_attempt =
+        Repo.insert!(
+          PaymentAttempt.changeset(%PaymentAttempt{}, %{
+            payment_id: ext_payment.id,
+            provider_id: native_provider.id,
+            attempt_number: 1,
+            state: "succeeded",
+            provider_reference: "ps_ext_#{System.unique_integer([:positive])}",
+            idempotency_token: Uniq.UUID.uuid7()
+          })
+        )
+
+      insert_orchestration_fee(merchant, ext_attempt.id, 250)
+
+      # Native_rail batch payment
+      payment = Fixtures.payment_fixture(merchant, %{currency: "GHS", amount: 20_000})
+
+      Repo.insert!(
+        PaymentAttempt.changeset(%PaymentAttempt{}, %{
+          payment_id: payment.id,
+          provider_id: native_provider.id,
+          attempt_number: 1,
+          state: "succeeded",
+          provider_reference: "chg_#{System.unique_integer([:positive])}",
+          idempotency_token: Uniq.UUID.uuid7()
+        })
+      )
+
+      {:ok, _} = payment |> Payment.transition_changeset("succeeded") |> Repo.update()
+      {:ok, batch} = Settlement.create_batch(merchant.id, native_provider.id, "GHS", "simulation")
+
+      assert {:ok, settled} = run_worker(batch)
+      # net_amount = gross - psp_margin_fees - cross_net_orchestration_fee
+      assert settled.net_amount == 20_000 - 250
+    end
+
+    test "creates a platform_fee_invoice linked to the settlement" do
+      merchant = cross_net_merchant()
+      native_provider = Fixtures.simulator_provider_fixture()
+
+      ext_payment = Fixtures.payment_fixture(merchant, %{currency: "GHS", amount: 80_000})
+
+      ext_attempt =
+        Repo.insert!(
+          PaymentAttempt.changeset(%PaymentAttempt{}, %{
+            payment_id: ext_payment.id,
+            provider_id: native_provider.id,
+            attempt_number: 1,
+            state: "succeeded",
+            provider_reference: "ps_ext_#{System.unique_integer([:positive])}",
+            idempotency_token: Uniq.UUID.uuid7()
+          })
+        )
+
+      insert_orchestration_fee(merchant, ext_attempt.id, 400)
+
+      payment = Fixtures.payment_fixture(merchant, %{currency: "GHS", amount: 30_000})
+
+      Repo.insert!(
+        PaymentAttempt.changeset(%PaymentAttempt{}, %{
+          payment_id: payment.id,
+          provider_id: native_provider.id,
+          attempt_number: 1,
+          state: "succeeded",
+          provider_reference: "chg_#{System.unique_integer([:positive])}",
+          idempotency_token: Uniq.UUID.uuid7()
+        })
+      )
+
+      {:ok, _} = payment |> Payment.transition_changeset("succeeded") |> Repo.update()
+      {:ok, batch} = Settlement.create_batch(merchant.id, native_provider.id, "GHS", "simulation")
+      {:ok, _settled} = run_worker(batch)
+
+      invoice =
+        Repo.get_by(PlatformFeeInvoice,
+          merchant_id: merchant.id,
+          currency: "GHS",
+          collection_method: "cross_net"
+        )
+
+      assert invoice != nil
+      assert invoice.total_amount == 400
+      assert invoice.state == "draft"
+      assert invoice.settled_against_settlement_id != nil
+    end
+
+    test "does not deduct when no pending orchestration fees" do
+      merchant = cross_net_merchant()
+      native_provider = Fixtures.simulator_provider_fixture()
+      {batch, payment} = batch_with_payment(merchant, native_provider)
+
+      assert {:ok, settled} = run_worker(batch)
+      assert settled.net_amount == payment.amount
+
+      refute Repo.get_by(PlatformFeeInvoice, merchant_id: merchant.id)
+    end
+
+    test "does not deduct for merchant without cross_net billing" do
+      merchant = Fixtures.merchant_fixture()
+      native_provider = Fixtures.simulator_provider_fixture()
+
+      ext_attempt_id = Uniq.UUID.uuid7()
+      insert_orchestration_fee(merchant, ext_attempt_id, 500)
+
+      {batch, payment} = batch_with_payment(merchant, native_provider)
+
+      assert {:ok, settled} = run_worker(batch)
+      assert settled.net_amount == payment.amount
+    end
+
+    test "already-invoiced fees are not double-counted" do
+      merchant = cross_net_merchant()
+      native_provider = Fixtures.simulator_provider_fixture()
+
+      ext_attempt_id = Uniq.UUID.uuid7()
+      insert_orchestration_fee(merchant, ext_attempt_id, 300)
+
+      # Simulate a prior invoice that already covered 300
+      Repo.insert!(
+        PlatformFeeInvoice.create_changeset(%PlatformFeeInvoice{}, %{
+          merchant_id: merchant.id,
+          mode: "simulation",
+          period_start: ~D[2026-01-01],
+          period_end: ~D[2026-01-31],
+          currency: "GHS",
+          total_amount: 300,
+          collection_method: "cross_net"
+        })
+      )
+
+      {batch, payment} = batch_with_payment(merchant, native_provider)
+
+      assert {:ok, settled} = run_worker(batch)
+      # 300 already invoiced, 0 uncollected → no additional deduction
+      assert settled.net_amount == payment.amount
+    end
+
+    test "pending_orchestration_fees returns correct uncollected amount" do
+      merchant = cross_net_merchant()
+
+      ext_attempt_id = Uniq.UUID.uuid7()
+      insert_orchestration_fee(merchant, ext_attempt_id, 600)
+
+      assert {:ok, 600} = Pricing.pending_orchestration_fees(merchant.id, "GHS", "simulation")
+
+      Repo.insert!(
+        PlatformFeeInvoice.create_changeset(%PlatformFeeInvoice{}, %{
+          merchant_id: merchant.id,
+          mode: "simulation",
+          period_start: ~D[2026-01-01],
+          period_end: ~D[2026-01-31],
+          currency: "GHS",
+          total_amount: 200,
+          collection_method: "cross_net"
+        })
+      )
+
+      assert {:ok, 400} = Pricing.pending_orchestration_fees(merchant.id, "GHS", "simulation")
     end
   end
 

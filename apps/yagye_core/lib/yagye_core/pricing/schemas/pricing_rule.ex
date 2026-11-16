@@ -7,6 +7,7 @@ defmodule YagyeCore.Pricing.Schemas.PricingRule do
   alias YagyeCore.Pricing.Schemas.PricingPlan
 
   @valid_roundings ~w[half_up bankers]
+  @valid_fee_kinds ~w[psp_margin orchestration_fee]
 
   @type t :: %__MODULE__{}
 
@@ -22,6 +23,7 @@ defmodule YagyeCore.Pricing.Schemas.PricingRule do
     field(:fixed_amount, :integer, default: 0)
     field(:minimum_fee, :integer)
     field(:maximum_fee, :integer)
+    field(:fee_kind, :string, default: "psp_margin")
     field(:rounding, :string, default: "half_up")
 
     field(:created_by, :string)
@@ -37,6 +39,7 @@ defmodule YagyeCore.Pricing.Schemas.PricingRule do
     rule
     |> cast(attrs, [
       :plan_id,
+      :fee_kind,
       :method,
       :provider_code,
       :card_brand,
@@ -54,6 +57,7 @@ defmodule YagyeCore.Pricing.Schemas.PricingRule do
     |> validate_number(:percentage_bps, greater_than_or_equal_to: 0)
     |> validate_number(:fixed_amount, greater_than_or_equal_to: 0)
     |> validate_rate_present()
+    |> validate_inclusion(:fee_kind, @valid_fee_kinds)
     |> validate_inclusion(:rounding, @valid_roundings)
     |> foreign_key_constraint(:plan_id)
     |> put_specificity()
