@@ -113,18 +113,56 @@ defmodule YagyeCore.Routing do
       nil ->
         {:error, :no_matching_rule}
 
-      rule ->
-        action =
-          rule.actions
-          |> Enum.sort_by(& &1.priority)
-          |> Enum.find(fn a -> a.provider_id not in all_excluded end)
+      %{split_group_id: g} when not is_nil(g) ->
+        evaluate_split_group(ordered, g, payment_attrs, all_excluded)
 
-        if action do
-          {:ok, {action.provider_id, rule.id, rule.routing_configuration_id}}
-        else
-          {:error, :rule_has_no_actions}
-        end
+      rule ->
+        resolve_rule_action(rule, all_excluded)
     end
+  end
+
+  defp evaluate_split_group(ordered, group_id, payment_attrs, all_excluded) do
+    siblings =
+      Enum.filter(ordered, fn r ->
+        r.split_group_id == group_id and
+          rule_matches?(r, payment_attrs) and
+          not rule_excluded?(r, all_excluded)
+      end)
+
+    case weighted_select_rule(siblings) do
+      nil -> {:error, :no_matching_rule}
+      selected -> resolve_rule_action(selected, all_excluded)
+    end
+  end
+
+  defp resolve_rule_action(rule, all_excluded) do
+    action =
+      rule.actions
+      |> Enum.sort_by(& &1.priority)
+      |> Enum.find(fn a -> a.provider_id not in all_excluded end)
+
+    if action do
+      {:ok, {action.provider_id, rule.id, rule.routing_configuration_id}}
+    else
+      {:error, :rule_has_no_actions}
+    end
+  end
+
+  # Weighted random selection across a list of rules carrying a :weight field.
+  # Returns nil on empty input; the single element if only one rule exists.
+  defp weighted_select_rule([]), do: nil
+  defp weighted_select_rule([rule]), do: rule
+
+  defp weighted_select_rule(rules) do
+    total = Enum.sum(Enum.map(rules, fn r -> r.weight || 100 end))
+    rand = :rand.uniform(total)
+
+    rules
+    |> Enum.reduce_while({0, List.last(rules)}, fn rule, {acc, _last} ->
+      new_acc = acc + (rule.weight || 100)
+      if rand <= new_acc, do: {:halt, {new_acc, rule}}, else: {:cont, {new_acc, rule}}
+    end)
+    |> elem(1)
   end
 
   defp rule_excluded?(%RoutingRule{actions: actions}, excluded) when excluded != [] do
@@ -288,7 +326,7 @@ defmodule YagyeCore.Routing do
           "rule_count" => length(paths),
           "compiled_at" => DateTime.to_iso8601(DateTime.utc_now()),
           "paths" =>
-            Enum.map(paths, fn {conditions, terminal} ->
+            Enum.map(paths, fn {conditions, terminal, _split_meta} ->
               %{
                 "provider" => terminal["data"]["provider_code"],
                 "condition_count" => length(conditions)
@@ -308,11 +346,12 @@ defmodule YagyeCore.Routing do
   end
 
   # DFS walk from a node, accumulating conditions.
-  # Returns a list of {conditions, terminal_node} tuples — one per complete path.
+  # Returns a list of {conditions, terminal_node, split_meta} triples — one per complete path.
+  # split_meta is %{} for non-split paths, or %{split_group_id: uuid, weight: int} for split paths.
   defp walk_paths(node, nodes, edges_by_source, conds) do
     case node["type"] do
       type when type in ["ProviderNode", "FallbackNode"] ->
-        [{conds, node}]
+        [{conds, node, %{}}]
 
       "ConditionNode" ->
         walk_condition_node(node, nodes, edges_by_source, conds)
@@ -352,18 +391,40 @@ defmodule YagyeCore.Routing do
     match_paths ++ no_match_paths
   end
 
-  # Both SplitNode branches compile — percentage weighting is informational only.
-  # True weighted routing (70/30 traffic split) requires runtime randomisation
-  # (weighted random selection at evaluate/4 time). Not yet scheduled.
+  # Compiles both SplitNode branches with a shared split_group_id so evaluate/4
+  # can collect siblings and do weighted random selection at runtime.
+  # pct_a/pct_b from the node data are stored as integer weights (ratio-based, not percent).
   defp walk_split_node(node, nodes, edges_by_source, conds) do
     outgoing = Map.get(edges_by_source, node["id"], [])
+    group_id = Uniq.UUID.uuid7()
 
-    Enum.flat_map(outgoing, fn edge ->
-      case Map.get(nodes, edge["target"]) do
-        nil -> []
-        target -> walk_paths(target, nodes, edges_by_source, conds)
+    pct_a = round(get_in(node, ["data", "pct_a"]) || 50)
+    pct_b = round(get_in(node, ["data", "pct_b"]) || 50)
+
+    branch_a = for e <- outgoing, e["sourceHandle"] == "output_1", do: {e["target"], pct_a}
+    branch_b = for e <- outgoing, e["sourceHandle"] == "output_2", do: {e["target"], pct_b}
+
+    Enum.flat_map(branch_a ++ branch_b, fn {tid, weight} ->
+      case Map.get(nodes, tid) do
+        nil ->
+          []
+
+        target ->
+          walk_paths(target, nodes, edges_by_source, conds)
+          |> Enum.map(&tag_split_meta(&1, group_id, weight))
       end
     end)
+  end
+
+  # Attaches split group metadata to a compiled path tuple.
+  # put_new ensures an inner SplitNode's group_id is not overwritten by an outer one.
+  defp tag_split_meta({c, t, existing_meta}, group_id, weight) do
+    split_meta =
+      existing_meta
+      |> Map.put_new(:split_group_id, group_id)
+      |> Map.put_new(:weight, weight)
+
+    {c, t, split_meta}
   end
 
   defp node_condition(%{"data" => data}, direction) do
@@ -406,7 +467,7 @@ defmodule YagyeCore.Routing do
   defp build_provider_cache(paths) do
     codes =
       paths
-      |> Enum.map(fn {_conds, terminal} -> terminal["data"]["provider_code"] end)
+      |> Enum.map(fn {_conds, terminal, _meta} -> terminal["data"]["provider_code"] end)
       |> Enum.uniq()
       |> Enum.reject(&is_nil/1)
 
@@ -416,32 +477,16 @@ defmodule YagyeCore.Routing do
   end
 
   defp compile_paths(paths, provider_cache, config_id, scope, merchant_id, mode) do
+    ctx = %{config_id: config_id, scope: scope, merchant_id: merchant_id, mode: mode}
+
     paths
     |> Enum.with_index()
-    |> Enum.flat_map(fn {{conditions, terminal}, priority} ->
-      compile_path(
-        conditions,
-        terminal,
-        provider_cache,
-        config_id,
-        scope,
-        merchant_id,
-        mode,
-        priority
-      )
+    |> Enum.flat_map(fn {{conditions, terminal, split_meta}, priority} ->
+      compile_path(conditions, terminal, provider_cache, ctx, priority, split_meta)
     end)
   end
 
-  defp compile_path(
-         conditions,
-         terminal,
-         provider_cache,
-         config_id,
-         scope,
-         merchant_id,
-         mode,
-         priority
-       ) do
+  defp compile_path(conditions, terminal, provider_cache, ctx, priority, split_meta) do
     provider_code = terminal["data"]["provider_code"]
     provider_id = Map.get(provider_cache, provider_code)
 
@@ -449,38 +494,24 @@ defmodule YagyeCore.Routing do
       Logger.warning("[routing] compile skipping unknown provider_code=#{provider_code}")
       [{:error, "unknown provider: #{provider_code}"}]
     else
-      case insert_compiled_rule(
-             conditions,
-             provider_id,
-             config_id,
-             scope,
-             merchant_id,
-             mode,
-             priority
-           ) do
+      case insert_compiled_rule(conditions, provider_id, ctx, priority, split_meta) do
         {:ok, _} -> []
         {:error, reason} -> [{:error, reason}]
       end
     end
   end
 
-  defp insert_compiled_rule(
-         conditions,
-         provider_id,
-         config_id,
-         scope,
-         merchant_id,
-         mode,
-         priority
-       ) do
+  defp insert_compiled_rule(conditions, provider_id, ctx, priority, split_meta) do
     rule_attrs = %{
-      scope: scope,
-      merchant_id: merchant_id,
-      routing_configuration_id: config_id,
-      mode: mode,
+      scope: ctx.scope,
+      merchant_id: ctx.merchant_id,
+      routing_configuration_id: ctx.config_id,
+      mode: ctx.mode,
       name: "compiled_#{priority}",
       priority: priority,
-      active: true
+      active: true,
+      split_group_id: Map.get(split_meta, :split_group_id),
+      weight: Map.get(split_meta, :weight, 100)
     }
 
     Multi.new()

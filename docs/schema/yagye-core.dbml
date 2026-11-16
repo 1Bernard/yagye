@@ -570,10 +570,13 @@ Table routing_rules [headercolor: #2E4A73] {
   priority integer [not null, note: 'lower wins within scope. Platform rules are evaluated AFTER merchant-scope rules — a merchant override always wins.']
   routing_configuration_id uuid [note: 'FK to routing_configurations. NULL for legacy rules not yet associated with a configuration. When set, this rule belongs to a versioned routing configuration graph.']
   active boolean [not null]
+  split_group_id uuid [note: 'NULL for non-split rules. UUID shared by all rules compiled from the same SplitNode — sibling rules evaluated together via weighted random selection at dispatch time.']
+  weight integer [not null, default: 100, note: 'Integer weight for weighted random selection within a split group. Ratio between siblings determines traffic fraction (e.g. 70:30). Default 100 for non-split rules — has no effect when split_group_id is NULL.']
   inserted_at timestamptz [not null]
   updated_at timestamptz [not null]
   indexes {
     (scope, merchant_id, mode, priority) [unique, note: 'platform rules: merchant_id IS NULL. merchant rules: merchant_id IS NOT NULL. NULLS DISTINCT keeps the two namespaces separate.']
+    split_group_id [note: 'partial index (WHERE split_group_id IS NOT NULL) for efficient sibling lookup at evaluate time']
   }
   Note: 'INTERNAL / ENTERPRISE ONLY. Standard merchants never see this — their accepted payment methods are configured via checkout_template_components.config.provider_allowlist (the simple toggle). This table is for Yagye ops configuring platform-wide routing policy, and for large enterprise merchants who have negotiated custom routing. Platform-scope rules (merchant_id IS NULL) may only reference native_rail providers (Yagye-owned agreements). Merchant-scope enterprise rules (merchant_id IS NOT NULL, entitlements.orchestration_enabled: true) may also reference external_psp providers where the merchant has active credentials in merchant_provider_connections — this is the Model B orchestration path.'
 }

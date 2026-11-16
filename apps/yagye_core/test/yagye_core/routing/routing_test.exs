@@ -544,6 +544,54 @@ defmodule YagyeCore.Routing.RoutingTest do
       assert Enum.all?(rules, fn r -> r.conditions == [] end)
     end
 
+    test "SplitNode compiles with shared split_group_id and graph-defined weights" do
+      provider_a = Fixtures.provider_fixture()
+      provider_b = Fixtures.provider_fixture()
+
+      {:ok, config} = build_config(split_graph(provider_a.code, provider_b.code))
+      assert {:ok, _} = Routing.publish_configuration(config)
+
+      {:ok, rules} = Routing.list_rules(mode: "live")
+      assert length(rules) == 2
+
+      group_ids = Enum.map(rules, & &1.split_group_id)
+      assert Enum.uniq(group_ids) |> length() == 1
+      assert hd(group_ids) != nil
+
+      weights = Enum.sort(Enum.map(rules, & &1.weight))
+      assert weights == [30, 70]
+    end
+
+    test "evaluate does weighted random selection across a split group" do
+      merchant = Fixtures.merchant_fixture()
+      provider_a = Fixtures.provider_fixture()
+      provider_b = Fixtures.provider_fixture()
+
+      {:ok, config} =
+        build_config_for_merchant(split_graph(provider_a.code, provider_b.code), merchant.id)
+
+      assert {:ok, _} = Routing.publish_configuration(config)
+
+      # Run many evaluations and verify both providers get selected.
+      # At 70/30, with 100 trials, the chance of getting only one provider is negligible.
+      results =
+        for _ <- 1..100 do
+          {:ok, {provider_id, _rule_id, _config_id}} =
+            Routing.evaluate(merchant.id, "live", %{}, [])
+
+          provider_id
+        end
+
+      unique_providers = Enum.uniq(results)
+      assert length(unique_providers) == 2
+      assert provider_a.id in unique_providers
+      assert provider_b.id in unique_providers
+
+      # Rough distribution check: 70/30 split, 100 trials — count(a) should be in 50..90.
+      count_a = Enum.count(results, &(&1 == provider_a.id))
+      assert count_a in 50..90
+    end
+
     test "empty graph publishes with zero rules" do
       {:ok, config} = build_config(%{"nodes" => [], "edges" => [], "schema_version" => 1})
 
@@ -873,6 +921,15 @@ defmodule YagyeCore.Routing.RoutingTest do
     Routing.create_configuration(%{
       scope: "platform",
       name: "Test config #{System.unique_integer([:positive])}",
+      graph_payload: graph_payload
+    })
+  end
+
+  defp build_config_for_merchant(graph_payload, merchant_id) do
+    Routing.create_configuration(%{
+      scope: "merchant",
+      merchant_id: merchant_id,
+      name: "Merchant config #{System.unique_integer([:positive])}",
       graph_payload: graph_payload
     })
   end

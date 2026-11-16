@@ -65,11 +65,12 @@ export default class extends Controller {
         { from: 5, fromOutput: 1, to: 6, toInput: 1 }
       ]
     },
-    // Percentage traffic split between two providers — for card or bank payments
-    // where either processor can handle the same transaction (e.g. Paystack / Flutterwave).
-    // NOT for mobile money: each MSISDN is locked to one network and cannot be
-    // redirected to a different one. True weighted randomisation requires runtime
-    // support (planned for P20).
+    // Weighted traffic split between two providers — sends pct_a% of payments to the
+    // first branch and pct_b% to the second using weighted random selection at runtime.
+    // Best used for card or bank payments where either PSP can process the same transaction
+    // (e.g. 70% Paystack / 30% Flutterwave for load balancing or PSP testing).
+    // NOT for mobile money: each MSISDN is locked to one network — use a ConditionNode
+    // per network instead of a SplitNode.
     traffic_split: {
       name: "Traffic split",
       nodes: [
@@ -511,11 +512,7 @@ export default class extends Controller {
         ${halfCard("pct_a","label_a", data.pct_a??70, data.label_a||"Primary",   def.color, def.bg)}
         ${halfCard("pct_b","label_b", data.pct_b??30, data.label_b||"Secondary", "#6b7280", "#f9fafb")}
       </div>
-      <div style="margin-top:8px;background:#fffbeb;border:1px solid #fde68a;border-radius:8px;
-                  padding:7px 9px;font-size:10.5px;color:#92400e;line-height:1.45;">
-        <strong style="font-weight:700;">Percentages not enforced yet.</strong>
-        Both branches compile as equal-priority rules — weighted traffic split is a planned feature.
-      </div>`
+      `
     }
 
     const bodyWrap = body

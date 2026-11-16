@@ -17,6 +17,8 @@ defmodule YagyeCore.Routing.Schemas.RoutingRule do
     field :name, :string
     field :priority, :integer
     field :active, :boolean, default: true
+    field :split_group_id, Uniq.UUID
+    field :weight, :integer, default: 100
 
     has_many :conditions, RoutingRuleCondition, foreign_key: :rule_id
     has_many :actions, RoutingRuleAction, foreign_key: :rule_id
@@ -33,7 +35,9 @@ defmodule YagyeCore.Routing.Schemas.RoutingRule do
       :mode,
       :name,
       :priority,
-      :active
+      :active,
+      :split_group_id,
+      :weight
     ])
     |> validate_required([:scope, :mode, :name, :priority])
     |> validate_inclusion(:scope, @valid_scopes)

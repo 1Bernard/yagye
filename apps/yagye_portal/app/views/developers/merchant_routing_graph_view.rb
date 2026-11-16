@@ -196,7 +196,7 @@ module Developers
           picker_section("Logic")
           picker_node("ConditionNode", :filter,  "#d97706", "rgba(217,119,6,0.10)",   "Condition", "Branch on a field value")
           picker_node("FallbackNode",  :refresh, "#6b7280", "rgba(107,114,128,0.10)", "Fallback",  "Retry with another PSP on failure")
-          picker_node("SplitNode",     :swap,    "#3D47F5", "rgba(61,71,245,0.10)",   "Split",     "Percentage traffic split")
+          picker_node("SplitNode",     :swap,    "#3D47F5", "rgba(61,71,245,0.10)",   "Split",     "Weighted split between two of your connected PSPs")
         end
       end
     end
@@ -287,7 +287,7 @@ module Developers
             template_card("method_routing", :filter, "#3D47F5", "Method routing",
                           "Route MoMo to one PSP, card to another — select your providers after loading")
             template_card("traffic_split",  :swap,   "#6b7280", "Traffic split",
-                          "Percentage traffic split between two providers")
+                          "Weighted split between two PSPs — 70% to primary, 30% to secondary")
           end
         end
       end

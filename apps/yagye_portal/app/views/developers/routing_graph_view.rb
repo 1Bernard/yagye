@@ -248,7 +248,7 @@ module Developers
           div(class: "h-px bg-gray-100 my-[5px] mx-1")
           picker_section("Logic")
           picker_node("ConditionNode", :filter,  "#d97706", "rgba(217,119,6,0.10)",   "Condition", "Branch on a field value")
-          picker_node("SplitNode",     :swap,    "#3D47F5", "rgba(61,71,245,0.10)",   "Split",     "Percentage traffic split (cards/bank only — not mobile money)")
+          picker_node("SplitNode",     :swap,    "#3D47F5", "rgba(61,71,245,0.10)",   "Split",     "Weighted split between two rails — card or bank only, not mobile money")
           div(class: "h-px bg-gray-100 my-[5px] mx-1")
           picker_section("Development")
           div(class: "px-2 pb-[5px]") do
@@ -353,7 +353,7 @@ module Developers
 
         div(class: "grid grid-cols-3 gap-[10px] w-full") do
           template_card("network_routing", :swap,    "#3D47F5", "Network routing",  "Explicit condition per network — MTN, Telecel, AirtelTigo")
-          template_card("traffic_split",  :swap,    "#6b7280", "Traffic split",    "Percentage split between two providers")
+          template_card("traffic_split",  :swap,    "#6b7280", "Traffic split",    "Weighted split between two rails — 70/30 by default, card or bank only")
           template_card("network_filter", :filter,  "#d97706", "Network filter",   "One condition, match-only — duplicate for each network")
         end
       end
