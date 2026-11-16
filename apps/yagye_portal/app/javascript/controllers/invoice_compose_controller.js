@@ -6,6 +6,12 @@ const MONTHS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov
 function sym(code) { return CURRENCY_SYMBOLS[code] || code }
 function fmt(cents, code) { return `${sym(code)}${(cents / 100).toFixed(2)}` }
 
+function fmtSize(bytes) {
+  if (bytes < 1024) return `${bytes} B`
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
+}
+
 function fmtDate(str) {
   if (!str) return "—"
   try {
@@ -98,24 +104,66 @@ export default class extends Controller {
     "pvTerms",
     "pvTermsSection",
     "pvNotesTermsSection",
-    "pdfS3Key",   // hidden input for uploaded PDF s3 key
-    "pdfStatus"   // status / error line below the PDF upload button
+    "pdfS3Key",    // hidden input for uploaded PDF s3 key
+    "pdfStatus",   // status / error line below the file card
+    "pdfDropZone", // the dashed drop zone container
+    "pdfInput",    // the hidden file input
+    "pdfFileCard", // file item row (shown after pick)
+    "pdfFileName", // filename text in the file card
+    "pdfFileMeta"  // size / status text in the file card
   ]
 
   connect() { this.syncPreview() }
 
-  async handlePdfUpload(e) {
+  handlePdfUpload(e) {
     const file = e.target.files[0]
     if (!file) return
+    this.#processFile(file)
+  }
 
-    const show = (msg, color = "#6b7280") => {
-      if (!this.hasPdfStatusTarget) return
-      this.pdfStatusTarget.textContent = msg
-      this.pdfStatusTarget.style.color = color
-      this.pdfStatusTarget.classList.remove("hidden")
+  browsePdf() {
+    if (this.hasPdfInputTarget) this.pdfInputTarget.click()
+  }
+
+  onDragOver(e) {
+    e.preventDefault()
+    if (!this.hasPdfDropZoneTarget) return
+    this.pdfDropZoneTarget.classList.add("!border-[#3D47F5]/50", "!bg-[#3D47F5]/[0.03]")
+    this.pdfDropZoneTarget.classList.remove("border-gray-200")
+  }
+
+  onDragLeave() {
+    if (!this.hasPdfDropZoneTarget) return
+    this.pdfDropZoneTarget.classList.remove("!border-[#3D47F5]/50", "!bg-[#3D47F5]/[0.03]")
+    this.pdfDropZoneTarget.classList.add("border-gray-200")
+  }
+
+  onDrop(e) {
+    e.preventDefault()
+    this.onDragLeave()
+    const file = e.dataTransfer?.files[0]
+    if (!file) return
+    this.#processFile(file)
+  }
+
+  clearPdf() {
+    if (this.hasPdfInputTarget)    this.pdfInputTarget.value = ""
+    if (this.hasPdfFileCardTarget) this.pdfFileCardTarget.classList.add("hidden")
+    if (this.hasPdfS3KeyTarget)    this.pdfS3KeyTarget.value = ""
+    if (this.hasPdfStatusTarget) {
+      this.pdfStatusTarget.textContent = ""
+      this.pdfStatusTarget.classList.add("hidden")
+    }
+  }
+
+  async #processFile(file) {
+    if (!file.type.includes("pdf") && !file.name.toLowerCase().endsWith(".pdf")) {
+      this.#showStatus("Only PDF files are supported.", "#ef4444")
+      return
     }
 
-    show("Extracting invoice data…")
+    this.#showFileCard(file, "Extracting…")
+    if (this.hasPdfStatusTarget) this.pdfStatusTarget.classList.add("hidden")
 
     const form = new FormData()
     form.append("pdf", file)
@@ -126,8 +174,10 @@ export default class extends Controller {
       const res  = await fetch("/invoices/extract-pdf", { method: "POST", body: form })
       const data = await res.json()
 
+      this.#setFileMeta(fmtSize(file.size))
+
       if (!res.ok || data.error) {
-        show(data.error || "Extraction failed — please enter details manually.", "#ef4444")
+        this.#showStatus(data.error || "Extraction failed — please enter details manually.", "#ef4444")
         return
       }
 
@@ -145,15 +195,33 @@ export default class extends Controller {
       if (Array.isArray(f.line_items) && f.line_items.length > 0) this.#prefillLineItems(f.line_items)
 
       this.syncPreview()
-      e.target.value = ""
 
       const msg = data.extraction_error
         ? `Partial import — ${data.extraction_error}`
         : "Invoice imported. Review and adjust as needed."
-      show(msg, data.extraction_error ? "#f59e0b" : "#10b981")
+      this.#showStatus(msg, data.extraction_error ? "#f59e0b" : "#10b981")
     } catch {
-      show("Network error — please try again.", "#ef4444")
+      this.#setFileMeta(fmtSize(file.size))
+      this.#showStatus("Network error — please try again.", "#ef4444")
     }
+  }
+
+  #showFileCard(file, meta = "") {
+    if (!this.hasPdfFileCardTarget) return
+    if (this.hasPdfFileNameTarget) this.pdfFileNameTarget.textContent = file.name
+    this.#setFileMeta(meta)
+    this.pdfFileCardTarget.classList.remove("hidden")
+  }
+
+  #setFileMeta(text) {
+    if (this.hasPdfFileMetaTarget) this.pdfFileMetaTarget.textContent = text
+  }
+
+  #showStatus(msg, color = "#6b7280") {
+    if (!this.hasPdfStatusTarget) return
+    this.pdfStatusTarget.textContent = msg
+    this.pdfStatusTarget.style.color = color
+    this.pdfStatusTarget.classList.remove("hidden")
   }
 
   saveDraft(e) {

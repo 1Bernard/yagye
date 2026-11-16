@@ -222,29 +222,87 @@ module Checkout
 
       def pdf_upload_section
         div(class: "px-4 pt-3 pb-3") do
-          label(class: "flex items-center gap-2 cursor-pointer group w-full") do
-            input(
-              type:   "file",
-              accept: ".pdf,application/pdf",
-              class:  "sr-only",
-              data:   { action: "change->invoice-compose#handlePdfUpload" }
-            )
-            div(
-              class: "flex items-center gap-[7px] w-full px-3 py-[7px] rounded-xl " \
-                     "border border-dashed border-gray-200 hover:border-gray-300 " \
-                     "hover:bg-gray-50/60 transition-colors"
-            ) do
+          # Drop zone
+          div(
+            class: "rounded-xl border-2 border-dashed border-gray-200 py-4 px-3 " \
+                   "flex flex-col items-center gap-2 text-center " \
+                   "hover:border-[#3D47F5]/40 hover:bg-[#3D47F5]/[0.025] transition-colors",
+            data:  {
+              invoice_compose_target: "pdfDropZone",
+              action: "dragover->invoice-compose#onDragOver " \
+                      "dragleave->invoice-compose#onDragLeave " \
+                      "drop->invoice-compose#onDrop"
+            }
+          ) do
+            div(class: "w-9 h-9 rounded-xl bg-gray-100 flex items-center justify-center flex-shrink-0") do
               raw safe(<<~SVG)
-                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor"
                      stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
-                     class="text-gray-400 flex-shrink-0">
+                     class="text-gray-400">
                   <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
                   <polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/>
                 </svg>
               SVG
-              span(class: "text-[12px] text-gray-500 leading-tight") { plain "Import from PDF" }
+            end
+            div do
+              p(class: "text-[12.5px] font-semibold text-gray-700 leading-tight") { plain "Import from PDF" }
+              div(class: "flex items-center justify-center gap-1 mt-[3px] flex-wrap") do
+                span(class: "text-[11px] text-gray-400") { plain "Drop here or" }
+                button(
+                  type:  "button",
+                  class: "text-[11px] font-semibold text-[#3D47F5] hover:underline",
+                  data:  { action: "click->invoice-compose#browsePdf" }
+                ) { plain "browse" }
+                span(class: "text-[11px] text-gray-400") { plain "· PDF · Max 10 MB" }
+              end
+            end
+            input(
+              type:   "file",
+              accept: ".pdf,application/pdf",
+              class:  "sr-only",
+              data:   {
+                invoice_compose_target: "pdfInput",
+                action: "change->invoice-compose#handlePdfUpload"
+              }
+            )
+          end
+
+          # File card — shown after a file is chosen
+          div(
+            class: "hidden mt-2 rounded-xl border border-gray-200 px-3 py-2.5 " \
+                   "flex items-center gap-2.5",
+            data:  { invoice_compose_target: "pdfFileCard" }
+          ) do
+            div(class: "w-8 h-8 flex-shrink-0 rounded-lg bg-red-50 border border-red-100 " \
+                       "flex items-center justify-center") do
+              span(class: "text-[9px] font-bold tracking-wider text-red-500") { plain "PDF" }
+            end
+            div(class: "flex-1 min-w-0") do
+              p(
+                class: "text-[11.5px] font-medium text-gray-800 truncate",
+                data:  { invoice_compose_target: "pdfFileName" }
+              )
+              p(
+                class: "text-[10.5px] text-gray-400 mt-px",
+                data:  { invoice_compose_target: "pdfFileMeta" }
+              )
+            end
+            button(
+              type:  "button",
+              class: "w-6 h-6 flex-shrink-0 flex items-center justify-center rounded-lg " \
+                     "hover:bg-gray-100 text-gray-300 hover:text-gray-500 transition-colors",
+              data:  { action: "click->invoice-compose#clearPdf" }
+            ) do
+              raw safe(<<~SVG)
+                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                     stroke-width="2.5" stroke-linecap="round">
+                  <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+                </svg>
+              SVG
             end
           end
+
+          # Status line
           p(
             class: "text-[11px] mt-1.5 leading-snug hidden",
             data:  { invoice_compose_target: "pdfStatus" }
