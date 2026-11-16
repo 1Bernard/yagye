@@ -253,9 +253,9 @@ module Checkout
           amt_row("Subtotal", format_money(subtotal))
           amt_row("Tax",      format_money(tax))             if tax > 0
           amt_row("Discount", "− #{format_money(discount)}") if discount > 0
+          div(class: "h-px bg-gray-100 my-1")
           amt_row("Total",    format_money(total), bold: true)
           amt_row("Paid",     "− #{format_money(paid)}", color: "text-green-600") if paid > 0
-          div(class: "h-px bg-gray-100 my-1")
           div(class: "flex items-center justify-between") do
             p(class: "text-[11.5px] font-bold text-gray-700") { plain "Amount due" }
             p(class: "text-[13px] font-bold text-[#3D47F5] tabular-nums") do
