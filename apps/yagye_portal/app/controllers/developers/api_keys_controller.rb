@@ -38,12 +38,26 @@ module Developers
         false
       end
 
+      sandbox_connections = if sandbox_enabled && current_user.merchant_user?
+        result = CoreApiClient.new.list_provider_connections(current_user.merchant_code)
+        if result.success?
+          (result.body["data"] || []).select do |c|
+            c["mode"] == "sandbox" && c["status"] == "active" && c["provider_kind"] == "external_psp"
+          end
+        else
+          []
+        end
+      else
+        []
+      end
+
       render Developers::IndexView.new(
         tab: tab, api_keys: api_keys, webhooks: webhooks,
         deliveries: deliveries, pagy: pagy, reveal_key: reveal_key,
         reveal_webhook_secret: reveal_webhook_secret,
         openapi_spec: spec,
-        sandbox_enabled: sandbox_enabled
+        sandbox_enabled: sandbox_enabled,
+        sandbox_connections: sandbox_connections
       )
     end
 

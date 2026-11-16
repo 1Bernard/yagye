@@ -41,7 +41,13 @@ module Developers
       merchant.kyb.approved merchant.kyb.rejected
     ].freeze
 
-    def initialize(tab: "api_keys", api_keys: [], webhooks: [], deliveries: nil, pagy: nil, reveal_key: nil, reveal_webhook_secret: nil, openapi_spec: {}, sandbox_enabled: false)
+    SANDBOX_PSP_META = {
+      "paystack"    => { label: "Paystack test mode",   region: "Ghana / Card",   color: "#00c3f7" },
+      "flutterwave" => { label: "Flutterwave sandbox",  region: "Ghana / Card",   color: "#f5a623" },
+      "stripe"      => { label: "Stripe test mode",     region: "Global / Card",  color: "#635bff" }
+    }.freeze
+
+    def initialize(tab: "api_keys", api_keys: [], webhooks: [], deliveries: nil, pagy: nil, reveal_key: nil, reveal_webhook_secret: nil, openapi_spec: {}, sandbox_enabled: false, sandbox_connections: [])
       @tab          = tab
       @api_keys     = api_keys
       @webhooks     = webhooks
@@ -51,6 +57,7 @@ module Developers
       @reveal_webhook_secret = reveal_webhook_secret
       @openapi_spec          = openapi_spec || {}
       @sandbox_enabled       = sandbox_enabled
+      @sandbox_connections   = sandbox_connections || []
     end
 
     def view_template
@@ -1282,9 +1289,19 @@ module Developers
           div(class: "px-4 py-2.5 bg-gray-50 border-b border-gray-100") do
             p(class: "text-[10.5px] font-bold text-gray-500 uppercase tracking-wide") { plain "Active sandbox providers" }
           end
-          sandbox_provider_row("MTN MoMo sandbox",    "Ghana / MoMo",  "#ffcc00", last: false)
-          sandbox_provider_row("Paystack test mode",  "Ghana / Card",  "#00c3f7", last: false)
-          sandbox_provider_row("Flutterwave sandbox", "Ghana / Card",  "#f5a623", last: true)
+          if @sandbox_connections.empty?
+            div(class: "px-4 py-3") do
+              p(class: "text-[12px] text-gray-400 italic") { plain "No sandbox providers configured. Add one under PSP Connections." }
+            end
+          else
+            @sandbox_connections.each_with_index do |conn, i|
+              meta  = SANDBOX_PSP_META[conn["provider_code"]] || {}
+              label = meta[:label] || conn["provider_name"] || conn["provider_code"].to_s.titleize
+              region = meta[:region] || conn["enabled_methods"]&.map(&:humanize)&.join(" / ") || "—"
+              color = meta[:color] || "#6b7280"
+              sandbox_provider_row(label, region, color, last: i == @sandbox_connections.size - 1)
+            end
+          end
         end
 
         # simulator override note
