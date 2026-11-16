@@ -254,7 +254,7 @@ module Developers
     end
 
     def empty_state_panel
-      div(class: "pointer-events-auto flex flex-col items-center gap-6 max-w-[520px] px-4") do
+      div(class: "pointer-events-auto flex flex-col items-center gap-6 max-w-[480px] px-4") do
         div(class: "text-center") do
           div(class: "w-12 h-12 rounded-2xl bg-white border border-gray-200 flex items-center " \
                      "justify-center mx-auto mb-5 shadow-[0_2px_8px_rgba(0,0,0,0.06)]") do
@@ -262,15 +262,16 @@ module Developers
               render UI::Icon.new(:swap, class: "w-full h-full")
             end
           end
-          p(class: "text-[17px] font-bold text-gray-900 tracking-tight mb-1") do
-            plain @providers.any? ? "Start building your routing" : "No PSPs connected yet"
-          end
-          p(class: "text-[13px] text-gray-400 leading-snug") do
-            if @providers.any?
-              plain "Click "
+          if @providers.any?
+            p(class: "text-[17px] font-bold text-gray-900 tracking-tight mb-1") { plain "Start with a template" }
+            p(class: "text-[13px] text-gray-400 leading-snug") do
+              plain "Or click "
               span(class: "font-semibold text-gray-600") { plain "+ Add node" }
-              plain " to add your connected PSP providers and logic nodes."
-            else
+              plain " to build from scratch."
+            end
+          else
+            p(class: "text-[17px] font-bold text-gray-900 tracking-tight mb-1") { plain "No PSPs connected yet" }
+            p(class: "text-[13px] text-gray-400 leading-snug") do
               plain "Connect at least one PSP under "
               a(href: developers_providers_path, class: "font-semibold text-blue-600 underline") do
                 plain "PSP Providers"
@@ -279,6 +280,38 @@ module Developers
             end
           end
         end
+
+        if @providers.any?
+          div(class: "grid grid-cols-2 gap-[10px] w-full") do
+            template_card("method_routing", :filter, "#3D47F5", "Method routing",
+                          "Route MoMo to one PSP, card to another — select your providers after loading")
+            template_card("traffic_split",  :swap,   "#6b7280", "Traffic split",
+                          "Percentage traffic split between two providers")
+          end
+        end
+      end
+    end
+
+    def template_card(template_id, icon, color, title, desc)
+      button(
+        type: "button",
+        class: "text-left p-[14px] bg-white border border-gray-100 rounded-2xl " \
+               "hover:border-gray-200 hover:shadow-lg transition-all cursor-pointer",
+        data: {
+          action: "click->routing-graph#loadTemplate",
+          routing_graph_template_param: template_id
+        }
+      ) do
+        div(
+          class: "w-8 h-8 rounded-xl flex items-center justify-center mb-3",
+          style: "background:#{color}1A;border:1px solid #{color}22"
+        ) do
+          span(class: "flex w-[13px] h-[13px]", style: "color:#{color}") do
+            render UI::Icon.new(icon, class: "w-full h-full")
+          end
+        end
+        p(class: "text-[12.5px] font-semibold text-gray-900 mb-[3px] leading-tight") { plain title }
+        p(class: "text-[11px] text-gray-400 leading-snug") { plain desc }
       end
     end
   end

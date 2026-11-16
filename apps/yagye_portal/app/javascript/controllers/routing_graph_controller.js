@@ -96,6 +96,24 @@ export default class extends Controller {
       connections: [
         { from: 1, fromOutput: 1, to: 2, toInput: 1 }
       ]
+    },
+    // Route by payment method — MoMo goes to one PSP, card to another.
+    // Provider nodes are left blank so you pick your connected PSPs.
+    // Unmatched methods (e.g. bank transfer) fall through to the static
+    // priority fallback; wire the no-match output (output_2) to handle them
+    // explicitly if needed.
+    method_routing: {
+      name: "Method routing",
+      nodes: [
+        { id: 1, type: "ConditionNode", x:  80, y:  80, data: { field: "method", operator: "eq", value: "mobile_money" } },
+        { id: 2, type: "ProviderNode",  x: 420, y:  80, data: { provider_code: "", label: "MoMo provider" } },
+        { id: 3, type: "ConditionNode", x:  80, y: 270, data: { field: "method", operator: "eq", value: "card" } },
+        { id: 4, type: "ProviderNode",  x: 420, y: 270, data: { provider_code: "", label: "Card provider" } }
+      ],
+      connections: [
+        { from: 1, fromOutput: 1, to: 2, toInput: 1 },
+        { from: 3, fromOutput: 1, to: 4, toInput: 1 }
+      ]
     }
   }
 
@@ -220,14 +238,20 @@ export default class extends Controller {
   }
 
   addNodeFromPicker(event) {
-    const type = event.params.nodeType
+    const type         = event.params.nodeType
+    const providerCode = event.params.providerCode
     if (!type) return
     this.closePicker()
     const rect = this.canvasTarget.getBoundingClientRect()
     // Place near canvas center with slight jitter so stacked nodes are visible
     const x = (rect.width  / 2 - this.editor.canvas_x) / this.editor.zoom - 120 + (Math.random() * 60 - 30)
     const y = (rect.height / 2 - this.editor.canvas_y) / this.editor.zoom -  60 + (Math.random() * 60 - 30)
-    this._addNode(type, x, y, null)
+    let data = null
+    if (providerCode && type === "ProviderNode") {
+      const p = this.providersValue.find(p => p.code === providerCode)
+      if (p) data = { provider_code: p.code, label: p.label }
+    }
+    this._addNode(type, x, y, data)
     this._updateEmptyState()
   }
 
