@@ -38,7 +38,7 @@ module Checkout
         @prefill  = prefill
         @editing  = invoice.present?
         @logo_url = logo_url
-        @default_number = "INV-#{Time.now.strftime('%Y%m%d')}-#{SecureRandom.hex(2).upcase}"
+        @default_number = "INV-#{Time.now.strftime('%Y%m%d%H%M%S%L')}"
       end
 
       def view_template
@@ -371,7 +371,7 @@ module Checkout
           p(class: "text-[9px] font-bold uppercase tracking-[0.1em] text-gray-400 mb-3") { plain "Invoice details" }
           div(class: "flex flex-col gap-2.5") do
             div do
-              span(class: "text-[9px] font-bold uppercase tracking-[0.1em] text-gray-400 block mb-[5px]") { plain "Number" }
+              span(class: "text-[9px] font-bold uppercase tracking-[0.1em] text-gray-400 block mb-[5px]") { plain "Invoice #" }
               input(type: "text", name: "number",
                     value: @editing ? @invoice["number"].to_s : (@prefill ? @prefill["number"].to_s : @default_number),
                     placeholder: "INV-00001", class: panel_input_cls,

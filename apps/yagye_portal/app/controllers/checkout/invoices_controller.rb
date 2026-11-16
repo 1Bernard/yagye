@@ -185,11 +185,18 @@ module Checkout
       }
     end
 
+    FIELD_LABELS = {
+      "number" => "Invoice number"
+    }.freeze
+
     def extract_errors(result)
       if result.error_code == "validation_failed"
         details = result.body.dig("error", "details") || {}
         if details.any?
-          details.flat_map { |field, msgs| msgs.map { |m| "#{field.to_s.humanize} #{m}" } }
+          details.flat_map do |field, msgs|
+            label = FIELD_LABELS[field.to_s] || field.to_s.humanize
+            msgs.map { |m| "#{label} #{m}" }
+          end
         else
           [ result.error_message ]
         end
