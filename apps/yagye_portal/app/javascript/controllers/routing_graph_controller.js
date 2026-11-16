@@ -289,7 +289,7 @@ export default class extends Controller {
       `<div style="margin-bottom:9px;"><label style="${labelCss}">${label}</label>${inner}</div>`
     const selectWrap = (key, opts) =>
       `<div style="position:relative;">
-         <select onchange="${rc}.updateNodeField('${key}', this.value)"
+         <select onchange="${rc}.updateNodeField('${key}', this.value, this)"
                  style="${inputCss}padding-right:26px;cursor:pointer;">${opts}</select>
          <span style="position:absolute;right:9px;top:50%;transform:translateY(-50%);
                       color:#9ca3af;pointer-events:none;font-size:10px;line-height:1;">▾</span>
@@ -357,7 +357,7 @@ export default class extends Controller {
       if (type === "FallbackNode") {
         body += fieldDiv("Max retries",
           `<input type="number" min="1" max="10" value="${data.max_retries ?? 3}"
-                  onchange="${rc}.updateNodeField('max_retries', this.value)"
+                  onchange="${rc}.updateNodeField('max_retries', this.value, this)"
                   style="${inputCss}">`)
       }
     }
@@ -375,7 +375,7 @@ export default class extends Controller {
              fieldDiv("Operator", selectWrap("operator", opOpts)) +
              fieldDiv("Value",
                `<input type="text" value="${data.value ?? ""}" placeholder="e.g. GHS"
-                       onchange="${rc}.updateNodeField('value', this.value)"
+                       onchange="${rc}.updateNodeField('value', this.value, this)"
                        style="${inputCss}">`)
     }
 
@@ -385,7 +385,7 @@ export default class extends Controller {
                      background:${bg};text-align:center;">
            <div>
              <input type="number" min="1" max="99" value="${pctVal}"
-                    onchange="${rc}.updateNodeField('${pctKey}', this.value)"
+                    onchange="${rc}.updateNodeField('${pctKey}', this.value, this)"
                     style="width:60%;border:none;background:transparent;font-size:20px;font-weight:800;
                            color:${accent};outline:none;text-align:center;padding:0;font-family:inherit;">
              <span style="font-size:12px;font-weight:700;color:${accent};">%</span>
@@ -437,24 +437,33 @@ export default class extends Controller {
     this._selectedNodeId = null
   }
 
-  updateNodeField(field, value) {
-    if (!this._selectedNodeId) return
-    const node = this.editor.getNodeFromId(this._selectedNodeId)
+  updateNodeField(field, value, el) {
+    // Drawflow's nodeSelected event often doesn't fire when the user interacts
+    // directly with an <input> or <select> inside a node (the DOM element captures
+    // the click before Drawflow's handlers run). Walk up the DOM from the element
+    // that fired the change event to find the node ID as a reliable fallback.
+    let nodeId = this._selectedNodeId
+    if (!nodeId && el) {
+      const nodeEl = el.closest?.(".drawflow-node")
+      if (nodeEl) nodeId = nodeEl.id.replace("node-", "")
+    }
+    if (!nodeId) return
+    const node = this.editor.getNodeFromId(nodeId)
     if (!node) return
     const newData = { ...node.data, [field]: value }
     if (field === "provider_code") {
       const p = this.providersValue.find(p => p.code === value)
       if (p) newData.label = p.label
     }
-    this.editor.updateNodeDataFromId(this._selectedNodeId, newData)
-    const el = this.canvasTarget.querySelector(`#node-${this._selectedNodeId} .drawflow_content_node`)
-    if (!el) return
+    this.editor.updateNodeDataFromId(nodeId, newData)
+    const contentEl = this.canvasTarget.querySelector(`#node-${nodeId} .drawflow_content_node`)
+    if (!contentEl) return
     // Full re-render for select fields (interaction is done); title-only for text/number
     const isSelect = ["provider_code", "field", "operator"].includes(field)
     if (isSelect) {
-      el.innerHTML = this._nodeHtml(node.name, this.NODE_TYPES[node.name], newData)
+      contentEl.innerHTML = this._nodeHtml(node.name, this.NODE_TYPES[node.name], newData)
     } else {
-      const titleEl = el.querySelector(".rg-node-title")
+      const titleEl = contentEl.querySelector(".rg-node-title")
       if (titleEl) titleEl.innerHTML = this._nodeTitle(node.name, this.NODE_TYPES[node.name], newData)
     }
   }
