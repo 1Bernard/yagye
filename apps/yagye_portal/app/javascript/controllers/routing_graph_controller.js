@@ -449,21 +449,28 @@ export default class extends Controller {
     }
 
     if (type === "ConditionNode") {
-      const fieldOpts = [
-        ["network",    "network — MTN / Telecel / AirtelTigo"],
-        ["method",     "method — mobile_money / card / bank_transfer"],
-        ["currency",   "currency — GHS / USD / EUR"],
-        ["amount",     "amount — transaction value (minor units)"],
-        ["card_brand", "card_brand — Visa / Mastercard"],
-        ["risk_score", "risk_score — 0–100 from scoring service"]
-      ].map(([v, l]) => `<option value="${v}" ${v === data.field ? "selected" : ""}>${l}</option>`).join("")
+      const fieldHints = {
+        network:    "e.g. MTN · Telecel · AirtelTigo",
+        method:     "e.g. mobile_money · card · bank_transfer",
+        currency:   "e.g. GHS · USD · EUR",
+        amount:     "in minor units (pesewas / cents)",
+        card_brand: "e.g. visa · mastercard",
+        risk_score: "0 – 100"
+      }
+      const fieldOpts = ["network","method","currency","amount","card_brand","risk_score"]
+        .map(f => `<option value="${f}" ${f === data.field ? "selected" : ""}>${f}</option>`).join("")
+      const fieldHint = fieldHints[data.field]
+        ? `<div style="font-size:10px;color:#9ca3af;margin-top:-5px;margin-bottom:9px;padding:0 2px;">
+             ${fieldHints[data.field]}
+           </div>`
+        : ""
       const opOpts = [
         ["eq","= equals"],["neq","≠ not equals"],
         ["gt","> greater than"],["gte","≥ at least"],
         ["lt","< less than"],["lte","≤ at most"],
         ["in","in list"],["not_in","not in list"]
       ].map(([v,l]) => `<option value="${v}" ${v === data.operator ? "selected" : ""}>${l}</option>`).join("")
-      body = fieldDiv("Field", selectWrap("field", fieldOpts)) +
+      body = fieldDiv("Field", selectWrap("field", fieldOpts) + fieldHint) +
              fieldDiv("Operator", selectWrap("operator", opOpts)) +
              fieldDiv("Value",
                `<input type="text" value="${data.value ?? ""}" placeholder="e.g. GHS"
