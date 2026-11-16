@@ -449,20 +449,19 @@ export default class extends Controller {
     }
 
     if (type === "ConditionNode") {
-      const fieldHints = {
-        network:    "e.g. MTN · Telecel · AirtelTigo",
-        method:     "e.g. mobile_money · card · bank_transfer",
-        currency:   "e.g. GHS · USD · EUR",
-        amount:     "in minor units (pesewas / cents)",
-        card_brand: "e.g. visa · mastercard",
-        risk_score: "0 – 100"
-      }
-      const fieldOpts = ["network","method","currency","amount","card_brand","risk_score"]
-        .map(f => `<option value="${f}" ${f === data.field ? "selected" : ""}>${f}</option>`).join("")
-      const fieldHint = fieldHints[data.field]
-        ? `<div style="font-size:10px;color:#9ca3af;margin-top:-5px;margin-bottom:9px;padding:0 2px;">
-             ${fieldHints[data.field]}
-           </div>`
+      const fieldMeta = [
+        { value: "network",    label: "network",         hint: "e.g. MTN · Telecel · AirtelTigo" },
+        { value: "method",     label: "payment method",  hint: "e.g. mobile_money · card · bank_transfer" },
+        { value: "currency",   label: "currency",        hint: "e.g. GHS · USD · EUR" },
+        { value: "amount",     label: "amount",          hint: "in minor units — pesewas or cents" },
+        { value: "card_brand", label: "card brand",      hint: "e.g. visa · mastercard" },
+        { value: "risk_score", label: "risk score",      hint: "0 – 100" }
+      ]
+      const fieldOpts = fieldMeta
+        .map(f => `<option value="${f.value}" ${f.value === data.field ? "selected" : ""}>${f.label}</option>`).join("")
+      const hintText = (fieldMeta.find(f => f.value === data.field) || {}).hint
+      const fieldHint = hintText
+        ? `<div style="font-size:10px;color:#9ca3af;margin-top:6px;margin-bottom:9px;padding:0 2px;">${hintText}</div>`
         : ""
       const opOpts = [
         ["eq","= equals"],["neq","≠ not equals"],
