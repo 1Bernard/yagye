@@ -519,7 +519,9 @@ export default class extends Controller {
     if (type === "ConditionNode") {
       const op  = { eq:"=",neq:"≠",gt:">",gte:"≥",lt:"<",lte:"≤",in:"in",not_in:"not in" }[data.operator] || "="
       const val = data.value ? `"${data.value}"` : "…"
-      return `${data.field || "field"} ${op} ${val}`
+      const fieldLabel = { network:"network", method:"payment method", currency:"currency",
+                           amount:"amount", card_brand:"card brand", risk_score:"risk score" }[data.field] || (data.field || "field")
+      return `${fieldLabel} ${op} ${val}`
     }
     if (type === "SplitNode") return `${data.pct_a || 70}% / ${data.pct_b || 30}%`
     return def.label
