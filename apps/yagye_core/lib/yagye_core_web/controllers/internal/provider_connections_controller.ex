@@ -150,6 +150,7 @@ defmodule YagyeCoreWeb.Controllers.Internal.ProviderConnectionsController do
       provider_code: c.provider && c.provider.code,
       provider_name: c.provider && c.provider.display_name,
       provider_kind: c.provider && c.provider.kind,
+      provider_capabilities: c.provider && c.provider.capabilities,
       mode: c.mode,
       priority: c.priority,
       enabled_methods: c.enabled_methods,

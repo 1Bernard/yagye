@@ -5,9 +5,9 @@ module Developers
     before_action :require_approved_merchant!
 
     SUPPORTED_PSPS = [
-      { code: "paystack",    label: "Paystack",    color: "#00C3F7" },
-      { code: "flutterwave", label: "Flutterwave", color: "#F5A623" },
-      { code: "stripe",      label: "Stripe",      color: "#635BFF" }
+      { code: "paystack",    label: "Paystack",    color: "#00C3F7", methods: %w[card mobile_money] },
+      { code: "flutterwave", label: "Flutterwave", color: "#F5A623", methods: %w[card mobile_money] },
+      { code: "stripe",      label: "Stripe",      color: "#635BFF", methods: %w[card] }
     ].freeze
 
     def index

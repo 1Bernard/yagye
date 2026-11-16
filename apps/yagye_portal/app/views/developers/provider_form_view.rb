@@ -10,6 +10,13 @@ module Developers
       { value: "bank_transfer", label: "Bank transfer" }
     ].freeze
 
+    # Maps a method value to the capabilities key on the provider record.
+    # A method with no entry here is shown for all PSPs (e.g. bank_transfer).
+    METHOD_CAPABILITY = {
+      "mobile_money" => "mobile_money_gh",
+      "card"         => "card"
+    }.freeze
+
     FIELD_LABEL = "text-[12px] font-semibold text-gray-700 leading-tight"
 
     def initialize(connection:, psps:, mode:, error: nil)
@@ -84,10 +91,14 @@ module Developers
     def psp_selector_field
       div(class: "flex flex-col gap-1") do
         label(for: "provider_code", class: FIELD_LABEL) { plain "Provider" }
-        select(name: "provider_code", id: "provider_code", class: SELECT_FIELD) do
+        select(name: "provider_code", id: "provider_code", class: SELECT_FIELD,
+               data: { action: "change->psp-methods#filter" }) do
           option(value: "", disabled: true, selected: true) { plain "Select a PSP…" }
           @psps.each do |psp|
-            option(value: psp[:code]) { plain psp[:label] }
+            option(value: psp[:code],
+                   data: { methods: (psp[:methods] || []).join(",") }) do
+              plain psp[:label]
+            end
           end
         end
         p(class: FORM_HINT) { plain "Choose the external PSP to connect to your account." }
@@ -116,17 +127,22 @@ module Developers
     end
 
     def enabled_methods_field
-      selected = @connection ? Array(@connection["enabled_methods"]) : []
-      # Default all checked only when creating a new connection (no connection record yet).
-      # When editing, honour the saved methods exactly — don't re-check everything.
-      new_connection = @connection.nil?
+      selected  = @connection ? Array(@connection["enabled_methods"]) : []
+      caps      = @connection ? (@connection["provider_capabilities"] || {}) : nil
+      new_conn  = @connection.nil?
 
-      div(class: "flex flex-col gap-2") do
+      div(class: "flex flex-col gap-2",
+          data: { controller: "psp-methods" }) do
         p(class: FIELD_LABEL) { plain "Enabled payment methods" }
         div(class: "flex flex-col gap-2") do
           METHODS.each do |m|
-            checked = selected.include?(m[:value]) || new_connection
-            label(class: "flex items-center gap-3 cursor-pointer") do
+            # For edit: hide methods the PSP doesn't support (capability is explicitly false).
+            cap_key   = METHOD_CAPABILITY[m[:value]]
+            supported = cap_key.nil? || caps.nil? || caps.fetch(cap_key, true)
+            checked   = supported && (selected.include?(m[:value]) || new_conn)
+
+            label(class: "flex items-center gap-3 cursor-pointer #{'hidden' unless supported || new_conn}",
+                  data: { psp_methods_target: "row", method: m[:value] }) do
               input(type: "checkbox", name: "enabled_methods[]",
                     value: m[:value], checked: checked,
                     class: "w-4 h-4 rounded text-brand-600 border-gray-300 cursor-pointer")

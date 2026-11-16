@@ -296,25 +296,27 @@ end
     display_name: "Flutterwave",
     adapter_module: "YagyeCore.Payments.Adapters.FlutterwaveAdapter",
     kind: "external_psp",
-    capabilities: %{"mobile_money_gh" => true, "card" => false}
+    capabilities: %{"mobile_money_gh" => true, "card" => true}
   },
   %{
     code: "paystack",
     display_name: "Paystack",
     adapter_module: "YagyeCore.Payments.Adapters.PaystackAdapter",
     kind: "external_psp",
-    capabilities: %{"mobile_money_gh" => true, "card" => false}
+    capabilities: %{"mobile_money_gh" => true, "card" => true}
+  },
+  %{
+    code: "stripe",
+    display_name: "Stripe",
+    adapter_module: "YagyeCore.Payments.Adapters.StripeAdapter",
+    kind: "external_psp",
+    capabilities: %{"mobile_money_gh" => false, "card" => true}
   }
 ]
 |> Enum.each(fn attrs ->
-  case Repo.get_by(Provider, code: attrs.code) do
-    %Provider{} = p ->
-      IO.puts("#{String.pad_trailing(attrs.display_name, 22)}: already exists (#{p.id})")
-
-    nil ->
-      {:ok, p} = %Provider{} |> Provider.changeset(attrs) |> Repo.insert()
-      IO.puts("#{String.pad_trailing(attrs.display_name, 22)}: created (#{p.id})")
-  end
+  p = Repo.get_by(Provider, code: attrs.code) || %Provider{}
+  {:ok, p} = p |> Provider.changeset(attrs) |> Repo.insert_or_update()
+  IO.puts("#{String.pad_trailing(attrs.display_name, 22)}: upserted (#{p.id})")
 end)
 
 # ── 6b. MTN MoMo native-rail provider + sandbox credentials ───────────────────
