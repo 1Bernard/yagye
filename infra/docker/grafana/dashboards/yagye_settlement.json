@@ -1,0 +1,258 @@
+{
+  "title": "Yagye Settlement Pipeline",
+  "uid": "yagye-settlement",
+  "tags": ["yagye", "settlement", "finance"],
+  "schemaVersion": 39,
+  "refresh": "30s",
+  "time": { "from": "now-3h", "to": "now" },
+  "panels": [
+    {
+      "id": 1,
+      "title": "Pending Batches",
+      "type": "stat",
+      "gridPos": { "x": 0, "y": 0, "w": 6, "h": 4 },
+      "datasource": { "uid": "prometheus", "type": "prometheus" },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": { "uid": "prometheus", "type": "prometheus" },
+          "expr": "sum(yagye_settlement_batch_pending_total)",
+          "legendFormat": "pending"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 5 },
+              { "color": "red", "value": 20 }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": { "calcs": ["lastNotNull"] },
+        "colorMode": "background",
+        "graphMode": "area",
+        "orientation": "auto",
+        "textMode": "auto"
+      }
+    },
+    {
+      "id": 2,
+      "title": "Oldest Batch Age",
+      "type": "stat",
+      "gridPos": { "x": 6, "y": 0, "w": 6, "h": 4 },
+      "datasource": { "uid": "prometheus", "type": "prometheus" },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": { "uid": "prometheus", "type": "prometheus" },
+          "expr": "max(yagye_settlement_batch_age_seconds)",
+          "legendFormat": "max age"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 7200 },
+              { "color": "red", "value": 14400 }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": { "calcs": ["lastNotNull"] },
+        "colorMode": "background",
+        "graphMode": "none",
+        "orientation": "auto",
+        "textMode": "auto"
+      }
+    },
+    {
+      "id": 3,
+      "title": "Dispatch Queue Depth",
+      "type": "stat",
+      "gridPos": { "x": 12, "y": 0, "w": 6, "h": 4 },
+      "datasource": { "uid": "prometheus", "type": "prometheus" },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": { "uid": "prometheus", "type": "prometheus" },
+          "expr": "sum(oban_queue_depth{queue=~\"settlement.*|dispatch.*\"})",
+          "legendFormat": "queued"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 10 },
+              { "color": "red", "value": 50 }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": { "calcs": ["lastNotNull"] },
+        "colorMode": "background",
+        "graphMode": "area",
+        "orientation": "auto",
+        "textMode": "auto"
+      }
+    },
+    {
+      "id": 4,
+      "title": "Recon Breaks (1h)",
+      "type": "stat",
+      "gridPos": { "x": 18, "y": 0, "w": 6, "h": 4 },
+      "datasource": { "uid": "prometheus", "type": "prometheus" },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": { "uid": "prometheus", "type": "prometheus" },
+          "expr": "sum(increase(yagye_reconciliation_break_total[1h]))",
+          "legendFormat": "breaks"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 1 },
+              { "color": "red", "value": 5 }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": { "calcs": ["lastNotNull"] },
+        "colorMode": "background",
+        "graphMode": "none",
+        "orientation": "auto",
+        "textMode": "auto"
+      }
+    },
+    {
+      "id": 5,
+      "title": "Settlement Batch State",
+      "type": "timeseries",
+      "gridPos": { "x": 0, "y": 4, "w": 12, "h": 8 },
+      "datasource": { "uid": "prometheus", "type": "prometheus" },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": { "uid": "prometheus", "type": "prometheus" },
+          "expr": "sum(yagye_settlement_batch_pending_total)",
+          "legendFormat": "pending"
+        },
+        {
+          "refId": "B",
+          "datasource": { "uid": "prometheus", "type": "prometheus" },
+          "expr": "sum(yagye_settlement_batch_dispatched_total)",
+          "legendFormat": "dispatched"
+        },
+        {
+          "refId": "C",
+          "datasource": { "uid": "prometheus", "type": "prometheus" },
+          "expr": "sum(yagye_settlement_batch_failed_total)",
+          "legendFormat": "failed"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": { "unit": "short" },
+        "overrides": []
+      },
+      "options": {
+        "tooltip": { "mode": "multi" },
+        "legend": { "displayMode": "list", "placement": "bottom" }
+      }
+    },
+    {
+      "id": 6,
+      "title": "Net Settlement Amount by Currency",
+      "type": "timeseries",
+      "gridPos": { "x": 12, "y": 4, "w": 12, "h": 8 },
+      "datasource": { "uid": "prometheus", "type": "prometheus" },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": { "uid": "prometheus", "type": "prometheus" },
+          "expr": "sum by(currency) (yagye_settlement_net_amount_total)",
+          "legendFormat": "{{currency}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": { "unit": "short" },
+        "overrides": []
+      },
+      "options": {
+        "tooltip": { "mode": "multi" },
+        "legend": { "displayMode": "list", "placement": "bottom" }
+      }
+    },
+    {
+      "id": 7,
+      "title": "Sweep Frequency",
+      "type": "timeseries",
+      "gridPos": { "x": 0, "y": 12, "w": 12, "h": 8 },
+      "datasource": { "uid": "prometheus", "type": "prometheus" },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": { "uid": "prometheus", "type": "prometheus" },
+          "expr": "sum(rate(yagye_settlement_sweep_total[5m])) * 60",
+          "legendFormat": "sweeps/min"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": { "unit": "short" },
+        "overrides": []
+      },
+      "options": {
+        "tooltip": { "mode": "multi" },
+        "legend": { "displayMode": "list", "placement": "bottom" }
+      }
+    },
+    {
+      "id": 8,
+      "title": "Settlement Job Duration p95",
+      "type": "timeseries",
+      "gridPos": { "x": 12, "y": 12, "w": 12, "h": 8 },
+      "datasource": { "uid": "prometheus", "type": "prometheus" },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": { "uid": "prometheus", "type": "prometheus" },
+          "expr": "histogram_quantile(0.95, sum by(le) (rate(oban_job_execution_duration_milliseconds_bucket{queue=~\"settlement.*|dispatch.*\"}[5m])))",
+          "legendFormat": "p95"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": { "unit": "ms" },
+        "overrides": []
+      },
+      "options": {
+        "tooltip": { "mode": "multi" },
+        "legend": { "displayMode": "list", "placement": "bottom" }
+      }
+    }
+  ]
+}

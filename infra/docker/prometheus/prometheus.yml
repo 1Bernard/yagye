@@ -10,7 +10,7 @@ rule_files:
 alerting:
   alertmanagers:
     - static_configs:
-        - targets: []  # No alertmanager in local dev; alerts evaluated, not routed.
+        - targets: [alertmanager:9093]
 
 scrape_configs:
   - job_name: prometheus

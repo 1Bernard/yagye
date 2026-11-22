@@ -2,6 +2,50 @@ groups:
   - name: yagye.alerts
 
     rules:
+      # ── Service health ────────────────────────────────────────────────────
+      # Core: scraped natively via /metrics → up{job="yagye_core"} exists.
+      # Portal/Simulator/Checkout: probed via blackbox_exporter HTTP probes
+      # (probe_success{service="..."} written by Alloy's blackbox scrape).
+      # Scoring: scraped natively via OTLP → up{job="yagye_scoring"} exists.
+
+      - alert: CoreApiDown
+        expr: up{job="yagye_core"} == 0
+        for: 1m
+        labels:
+          severity: critical
+          team: engineering
+        annotations:
+          summary: "Core API is unreachable"
+          description: >
+            yagye_core on {{ $labels.instance }} has not responded to Prometheus
+            scrapes for 1 minute. Check the container, DB connectivity, and Oban.
+
+      - alert: ScoringServiceDown
+        expr: up{job="yagye_scoring"} == 0
+        for: 2m
+        labels:
+          severity: warning
+          team: engineering
+        annotations:
+          summary: "Scoring service is unreachable"
+          description: >
+            yagye_scoring on {{ $labels.instance }} has not responded for 2 minutes.
+            Payment routing falls back to rule-based scoring (shadow mode), so this
+            does not block payments — but ML features are unavailable.
+
+      - alert: ServiceDown
+        expr: probe_success{job="blackbox"} == 0
+        for: 1m
+        labels:
+          severity: critical
+          team: engineering
+        annotations:
+          summary: "{{ $labels.service }} is not responding to HTTP health checks"
+          description: >
+            Blackbox probe of {{ $labels.instance }} returned probe_success=0 for
+            1 minute. The service may be crashed, OOM-killed, or failing its
+            health check. Check container logs: docker logs docker-{{ $labels.service }}-1
+
       # ── Settlement stuck ──────────────────────────────────────────────────
       - alert: SettlementSweepMissing
         expr: |

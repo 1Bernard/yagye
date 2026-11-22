@@ -1,0 +1,149 @@
+// Grafana Alloy — PRODUCTION config (Grafana Cloud endpoints)
+//
+// Usage:
+//   On ECS, mount this file as /etc/alloy/config.alloy in the Alloy sidecar.
+//   Set the three secret env vars in your ECS task definition or Secrets Manager:
+//     GRAFANA_METRICS_USER  — Prometheus remote-write username (numeric ID from Grafana Cloud)
+//     GRAFANA_LOGS_USER     — Loki username (numeric ID from Grafana Cloud)
+//     GRAFANA_TEMPO_USER    — Tempo username (numeric ID from Grafana Cloud)
+//     GRAFANA_API_KEY       — A Grafana Cloud API key with MetricsPublisher + LogsPublisher + TracesPublisher scopes
+//
+// The local config.alloy and this file are architecturally identical.
+// Only the remote endpoint URLs and auth blocks change — no dashboards,
+// alert rules, or SLOs need to be updated when switching to Grafana Cloud.
+//
+// Grafana Cloud stack URLs:
+//   Replace the host segments below with your stack's actual URLs from:
+//   https://grafana.com/orgs/<your-org>/stacks
+
+// ── OTLP receiver (traces + metrics from app sidecars) ───────────────────────
+otelcol.receiver.otlp "default" {
+  grpc { endpoint = "0.0.0.0:4317" }
+  http { endpoint = "0.0.0.0:4318" }
+
+  output {
+    traces  = [otelcol.processor.attributes.pii_scrub.input]
+    metrics = [otelcol.processor.batch.default.input]
+  }
+}
+
+// ── PII scrubber — strip db.statement on sensitive tables ────────────────────
+// Runs on every trace span before export. Removes db.statement attributes on
+// queries touching users, merchants, and kyb_documents to comply with PII policy.
+otelcol.processor.attributes "pii_scrub" {
+  action {
+    key    = "db.statement"
+    action = "delete"
+  }
+
+  output {
+    traces = [otelcol.processor.batch.default.input]
+  }
+}
+
+otelcol.processor.batch "default" {
+  output {
+    traces  = [otelcol.exporter.otlphttp.tempo.input]
+    metrics = [otelcol.exporter.prometheus.default.input]
+  }
+}
+
+// ── Traces → Grafana Cloud Tempo ─────────────────────────────────────────────
+otelcol.auth.basic "grafana" {
+  username = env("GRAFANA_TEMPO_USER")
+  password = env("GRAFANA_API_KEY")
+}
+
+otelcol.exporter.otlphttp "tempo" {
+  client {
+    endpoint = "https://tempo-prod-XX-prod-XX.grafana.net:443"
+    auth     = otelcol.auth.basic.grafana.handler
+  }
+}
+
+// ── OTel metrics → Prometheus remote-write ───────────────────────────────────
+otelcol.exporter.prometheus "default" {
+  forward_to = [prometheus.remote_write.grafana_cloud.receiver]
+}
+
+// ── Prometheus scrape: Core ───────────────────────────────────────────────────
+// In ECS, Core runs in the same task. Sidecar reaches it on localhost.
+prometheus.scrape "yagye_core" {
+  targets = [
+    {"__address__" = "localhost:4000", "job" = "yagye_core"},
+  ]
+  forward_to      = [prometheus.remote_write.grafana_cloud.receiver]
+  scrape_interval = "15s"
+  metrics_path    = "/metrics"
+}
+
+// ── Prometheus scrape: Redpanda (MSK-compatible Kafka on AWS) ─────────────────
+// Replace redpanda-broker-XX with your MSK/Redpanda broker address.
+prometheus.scrape "redpanda" {
+  targets = [
+    {"__address__" = "redpanda-broker-XX:9644", "job" = "redpanda"},
+  ]
+  forward_to      = [prometheus.remote_write.grafana_cloud.receiver]
+  scrape_interval = "15s"
+  metrics_path    = "/public_metrics"
+}
+
+// ── Prometheus scrape: RabbitMQ ───────────────────────────────────────────────
+prometheus.scrape "rabbitmq" {
+  targets = [
+    {"__address__" = "rabbitmq-XX:15692", "job" = "rabbitmq"},
+  ]
+  forward_to      = [prometheus.remote_write.grafana_cloud.receiver]
+  scrape_interval = "15s"
+}
+
+// ── Prometheus scrape: Redis exporter ─────────────────────────────────────────
+prometheus.scrape "redis" {
+  targets = [
+    {"__address__" = "localhost:9121", "job" = "redis"},
+  ]
+  forward_to      = [prometheus.remote_write.grafana_cloud.receiver]
+  scrape_interval = "15s"
+}
+
+// ── Prometheus scrape: PostgreSQL exporter ────────────────────────────────────
+prometheus.scrape "postgres" {
+  targets = [
+    {"__address__" = "localhost:9187", "job" = "postgres"},
+  ]
+  forward_to      = [prometheus.remote_write.grafana_cloud.receiver]
+  scrape_interval = "15s"
+}
+
+// ── Remote-write to Grafana Cloud Prometheus ──────────────────────────────────
+prometheus.remote_write "grafana_cloud" {
+  endpoint {
+    url = "https://prometheus-prod-XX-prod-XX.grafana.net/api/prom/push"
+
+    basic_auth {
+      username = env("GRAFANA_METRICS_USER")
+      password = env("GRAFANA_API_KEY")
+    }
+  }
+}
+
+// ── Logs → Grafana Cloud Loki ─────────────────────────────────────────────────
+// In ECS, Alloy reads logs from the ECS task's stdout/stderr via the
+// awslogs log driver. Configure the log group name to match your ECS task.
+loki.source.cloudwatch "ecs_logs" {
+  log_groups  = ["/ecs/yagye"]
+  region      = env("AWS_DEFAULT_REGION")
+  forward_to  = [loki.write.grafana_cloud.receiver]
+  poll_interval = "15s"
+}
+
+loki.write "grafana_cloud" {
+  endpoint {
+    url = "https://logs-prod-XX.grafana.net/loki/api/v1/push"
+
+    basic_auth {
+      username = env("GRAFANA_LOGS_USER")
+      password = env("GRAFANA_API_KEY")
+    }
+  }
+}

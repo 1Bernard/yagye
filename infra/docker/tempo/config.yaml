@@ -14,11 +14,20 @@ distributor:
 
 storage:
   trace:
-    backend: local
+    # Floci (local AWS emulator) backs trace storage in dev.
+    # In production, swap endpoint for the real S3 regional endpoint,
+    # insecure: false, and supply real credentials via IAM / secrets manager.
+    backend: s3
+    s3:
+      bucket: tempo-traces
+      endpoint: floci:4566
+      region: us-east-1
+      access_key: test
+      secret_key: test
+      insecure: true             # no TLS against Floci
+      forcepathstyle: true       # required for LocalStack-compatible endpoints
     wal:
       path: /var/tempo/wal
-    local:
-      path: /var/tempo/blocks
 
 metrics_generator:
   registry:

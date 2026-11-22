@@ -1,0 +1,265 @@
+{
+  "title": "Yagye Infrastructure",
+  "uid": "yagye-infrastructure",
+  "tags": ["yagye", "infrastructure", "postgres", "redis"],
+  "schemaVersion": 39,
+  "refresh": "30s",
+  "time": { "from": "now-3h", "to": "now" },
+  "panels": [
+    {
+      "id": 1,
+      "title": "DB Connections",
+      "type": "stat",
+      "gridPos": { "x": 0, "y": 0, "w": 6, "h": 4 },
+      "datasource": { "uid": "prometheus", "type": "prometheus" },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": { "uid": "prometheus", "type": "prometheus" },
+          "expr": "sum(pg_stat_database_numbackends{datname=~\"yagye_.*\"})",
+          "legendFormat": "connections"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 50 },
+              { "color": "red", "value": 90 }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": { "calcs": ["lastNotNull"] },
+        "colorMode": "background",
+        "graphMode": "area",
+        "orientation": "auto",
+        "textMode": "auto"
+      }
+    },
+    {
+      "id": 2,
+      "title": "Redis Memory Used",
+      "type": "stat",
+      "gridPos": { "x": 6, "y": 0, "w": 6, "h": 4 },
+      "datasource": { "uid": "prometheus", "type": "prometheus" },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": { "uid": "prometheus", "type": "prometheus" },
+          "expr": "redis_memory_used_bytes",
+          "legendFormat": "used"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "bytes",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 200000000 },
+              { "color": "red", "value": 240000000 }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": { "calcs": ["lastNotNull"] },
+        "colorMode": "background",
+        "graphMode": "area",
+        "orientation": "auto",
+        "textMode": "auto"
+      }
+    },
+    {
+      "id": 3,
+      "title": "Redis Hit Rate",
+      "type": "stat",
+      "gridPos": { "x": 12, "y": 0, "w": 6, "h": 4 },
+      "datasource": { "uid": "prometheus", "type": "prometheus" },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": { "uid": "prometheus", "type": "prometheus" },
+          "expr": "rate(redis_keyspace_hits_total[5m]) / (rate(redis_keyspace_hits_total[5m]) + rate(redis_keyspace_misses_total[5m]))",
+          "legendFormat": "hit rate"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "red", "value": null },
+              { "color": "yellow", "value": 0.8 },
+              { "color": "green", "value": 0.95 }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": { "calcs": ["lastNotNull"] },
+        "colorMode": "background",
+        "graphMode": "none",
+        "orientation": "auto",
+        "textMode": "auto"
+      }
+    },
+    {
+      "id": 4,
+      "title": "Largest DB Size",
+      "type": "stat",
+      "gridPos": { "x": 18, "y": 0, "w": 6, "h": 4 },
+      "datasource": { "uid": "prometheus", "type": "prometheus" },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": { "uid": "prometheus", "type": "prometheus" },
+          "expr": "max(pg_database_size_bytes{datname=~\"yagye_.*\"})",
+          "legendFormat": "largest"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "bytes",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [{ "color": "blue", "value": null }]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": { "calcs": ["lastNotNull"] },
+        "colorMode": "background",
+        "graphMode": "none",
+        "orientation": "auto",
+        "textMode": "auto"
+      }
+    },
+    {
+      "id": 5,
+      "title": "DB Connections by Database",
+      "type": "timeseries",
+      "gridPos": { "x": 0, "y": 4, "w": 12, "h": 8 },
+      "datasource": { "uid": "prometheus", "type": "prometheus" },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": { "uid": "prometheus", "type": "prometheus" },
+          "expr": "pg_stat_database_numbackends{datname=~\"yagye_.*\"}",
+          "legendFormat": "{{datname}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": { "unit": "short" },
+        "overrides": []
+      },
+      "options": {
+        "tooltip": { "mode": "multi" },
+        "legend": { "displayMode": "list", "placement": "bottom" }
+      }
+    },
+    {
+      "id": 6,
+      "title": "Active Non-Idle DB Sessions",
+      "type": "timeseries",
+      "gridPos": { "x": 12, "y": 4, "w": 12, "h": 8 },
+      "datasource": { "uid": "prometheus", "type": "prometheus" },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": { "uid": "prometheus", "type": "prometheus" },
+          "expr": "sum(pg_stat_activity_count{state=\"active\",wait_event_type!=\"Client\"})",
+          "legendFormat": "active"
+        },
+        {
+          "refId": "B",
+          "datasource": { "uid": "prometheus", "type": "prometheus" },
+          "expr": "sum(pg_stat_activity_count{state=\"idle in transaction\"})",
+          "legendFormat": "idle in tx"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": { "unit": "short" },
+        "overrides": []
+      },
+      "options": {
+        "tooltip": { "mode": "multi" },
+        "legend": { "displayMode": "list", "placement": "bottom" }
+      }
+    },
+    {
+      "id": 7,
+      "title": "Redis Memory & Clients",
+      "type": "timeseries",
+      "gridPos": { "x": 0, "y": 12, "w": 12, "h": 8 },
+      "datasource": { "uid": "prometheus", "type": "prometheus" },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": { "uid": "prometheus", "type": "prometheus" },
+          "expr": "redis_memory_used_bytes",
+          "legendFormat": "memory"
+        },
+        {
+          "refId": "B",
+          "datasource": { "uid": "prometheus", "type": "prometheus" },
+          "expr": "redis_connected_clients",
+          "legendFormat": "clients"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": { "unit": "short" },
+        "overrides": [
+          {
+            "matcher": { "id": "byName", "options": "memory" },
+            "properties": [{ "id": "unit", "value": "bytes" }]
+          }
+        ]
+      },
+      "options": {
+        "tooltip": { "mode": "multi" },
+        "legend": { "displayMode": "list", "placement": "bottom" }
+      }
+    },
+    {
+      "id": 8,
+      "title": "Redpanda Request Latency",
+      "type": "timeseries",
+      "gridPos": { "x": 12, "y": 12, "w": 12, "h": 8 },
+      "datasource": { "uid": "prometheus", "type": "prometheus" },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": { "uid": "prometheus", "type": "prometheus" },
+          "expr": "histogram_quantile(0.5, sum by(le) (rate(redpanda_kafka_request_latency_seconds_bucket[5m])))",
+          "legendFormat": "p50"
+        },
+        {
+          "refId": "B",
+          "datasource": { "uid": "prometheus", "type": "prometheus" },
+          "expr": "histogram_quantile(0.99, sum by(le) (rate(redpanda_kafka_request_latency_seconds_bucket[5m])))",
+          "legendFormat": "p99"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": { "unit": "s" },
+        "overrides": []
+      },
+      "options": {
+        "tooltip": { "mode": "multi" },
+        "legend": { "displayMode": "list", "placement": "bottom" }
+      }
+    }
+  ]
+}

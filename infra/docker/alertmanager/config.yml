@@ -1,0 +1,37 @@
+global:
+  smtp_smarthost: 'mailpit:1025'
+  smtp_from: 'alerts@yagye.com'
+  smtp_require_tls: false
+  # Production: replace mailpit:1025 with email-smtp.<region>.amazonaws.com:587
+  # and set smtp_auth_username/smtp_auth_password from Secrets Manager.
+
+route:
+  group_by: [alertname, severity, team]
+  group_wait: 30s
+  group_interval: 5m
+  repeat_interval: 4h
+  receiver: warning-email
+  routes:
+    - matchers:
+        - severity="critical"
+      receiver: critical-email
+      repeat_interval: 1h
+
+receivers:
+  - name: warning-email
+    email_configs:
+      - to: 'ops@yagye.com'
+        headers:
+          Subject: '[WARNING] {{ .GroupLabels.alertname }}'
+
+  - name: critical-email
+    email_configs:
+      - to: 'ops@yagye.com'
+        headers:
+          Subject: '[CRITICAL] {{ .GroupLabels.alertname }} — Yagye PSP'
+
+inhibit_rules:
+  # Suppress warning if critical fires for the same alertname + team.
+  - source_matchers: [severity="critical"]
+    target_matchers: [severity="warning"]
+    equal: [alertname, team]

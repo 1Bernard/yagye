@@ -1,0 +1,19 @@
+# dev_bootstrap.yml — LOCAL DEV ONLY. DO NOT DEPLOY TO PRODUCTION.
+#
+# In local Docker dev, settlement sweeps never run (no live payments) and
+# pg_basebackup has no backup agent, so their timestamp metrics are always
+# absent. The absent() condition in SettlementSweepMissing and
+# PostgresBackupStale fires immediately and stays firing forever.
+#
+# These recording rules set the timestamp metrics to time() so the absent()
+# and staleness conditions never trigger in dev. In production these rules
+# don't exist — only real application telemetry populates the metrics.
+groups:
+  - name: dev.timestamp_bootstrap
+    interval: 60s
+    rules:
+      - record: yagye:settlement:last_sweep_timestamp
+        expr: time()
+
+      - record: yagye:db:last_backup_completed_timestamp
+        expr: time()

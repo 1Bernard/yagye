@@ -20,8 +20,14 @@ datasources:
     access: proxy
     jsonData:
       derivedFields:
-        - matcherRegex: '"trace_id":"([^"]+)"'
+        # Portal (Rails/lograge) logs "trace_id":"<hex32>" in JSON format
+        - matcherRegex: '"trace_id":"([a-f0-9]{32})"'
           name: TraceID
+          url: '$${__value.raw}'
+          datasourceUid: tempo
+        # Core (Elixir/LoggerJSON) logs "trace":"<hex32>" in JSON format
+        - matcherRegex: '"trace":"([a-f0-9]{32})"'
+          name: TraceID_Core
           url: '$${__value.raw}'
           datasourceUid: tempo
 

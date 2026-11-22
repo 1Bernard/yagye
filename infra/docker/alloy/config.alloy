@@ -1,10 +1,26 @@
 // Grafana Alloy — single collector for all three signals (traces, metrics, logs).
-// Receives OTLP from Elixir apps, scrapes /metrics, ships Docker logs.
+// Receives OTLP from Elixir/Ruby apps, scrapes /metrics, ships Docker logs.
+
+// ── OTLP receiver bearer-token auth ─────────────────────────────────────────
+// Validates that every app sending OTLP carries:
+//   Authorization: Bearer <OTLP_BEARER_TOKEN>
+// OTLP_BEARER_TOKEN is set in the alloy service env in docker-compose.yml.
+// In production, inject via secrets manager and rotate on the same schedule
+// as the other service-to-service secrets.
+otelcol.auth.bearer "otlp_server" {
+  token = env("OTLP_BEARER_TOKEN")
+}
 
 // ── OTLP receiver (traces + metrics from apps) ──────────────────────────────
 otelcol.receiver.otlp "default" {
-  grpc { endpoint = "0.0.0.0:4317" }
-  http { endpoint = "0.0.0.0:4318" }
+  grpc {
+    endpoint = "0.0.0.0:4317"
+    auth      = otelcol.auth.bearer.otlp_server.handler
+  }
+  http {
+    endpoint = "0.0.0.0:4318"
+    auth      = otelcol.auth.bearer.otlp_server.handler
+  }
 
   output {
     traces  = [otelcol.processor.batch.default.input]
@@ -14,8 +30,46 @@ otelcol.receiver.otlp "default" {
 
 otelcol.processor.batch "default" {
   output {
-    traces  = [otelcol.exporter.otlphttp.tempo.input]
+    // Traces go to tail sampling before Tempo; metrics go straight to Prometheus.
+    traces  = [otelcol.processor.tail_sampling.default.input]
     metrics = [otelcol.exporter.prometheus.default.input]
+  }
+}
+
+// ── Tail-based trace sampling ────────────────────────────────────────────────
+// Decision is made after decision_wait (10 s) once all spans of a trace arrive.
+// Policy evaluation is OR-based: a trace is kept when ANY policy matches.
+//   1. sample_errors  — keep 100 % of traces that contain an ERROR span
+//   2. sample_slow    — keep 100 % of traces whose root span exceeds 1 s
+//   3. sample_10pct   — keep 10 % of all remaining (healthy, fast) traces
+// Adjust sampling_percentage upward in staging / production as volume allows.
+otelcol.processor.tail_sampling "default" {
+  decision_wait               = "10s"
+  num_traces                  = 50000
+  expected_new_traces_per_sec = 10
+
+  policy {
+    name = "sample_errors"
+    type = "status_code"
+    status_code { status_codes = ["ERROR"] }
+  }
+
+  policy {
+    name = "sample_slow"
+    type = "latency"
+    latency { threshold_ms = 1000 }
+  }
+
+  policy {
+    name = "sample_pct"
+    type = "probabilistic"
+    // 100% locally so every request appears in Tempo for development.
+    // Drop to 10 (or lower) for staging/production to control Tempo storage costs.
+    probabilistic { sampling_percentage = 100 }
+  }
+
+  output {
+    traces = [otelcol.exporter.otlphttp.tempo.input]
   }
 }
 
@@ -46,11 +100,91 @@ prometheus.scrape "yagye_core" {
   metrics_path    = "/metrics"
 }
 
+// ── Prometheus scrape: Redpanda ──────────────────────────────────────────────
+// Use /public_metrics — the low-cardinality endpoint (not /metrics which has
+// per-partition labels that cause cardinality explosion at scale).
+prometheus.scrape "redpanda" {
+  targets = [
+    {"__address__" = "redpanda:9644", "job" = "redpanda"},
+  ]
+  forward_to      = [prometheus.remote_write.default.receiver]
+  scrape_interval = "15s"
+  metrics_path    = "/public_metrics"
+}
+
+// ── Prometheus scrape: RabbitMQ ──────────────────────────────────────────────
+// rabbitmq_prometheus plugin exposes metrics on port 15692.
+// Plugin is enabled via infra/docker/rabbitmq/enabled_plugins.
+prometheus.scrape "rabbitmq" {
+  targets = [
+    {"__address__" = "rabbitmq:15692", "job" = "rabbitmq"},
+  ]
+  forward_to      = [prometheus.remote_write.default.receiver]
+  scrape_interval = "15s"
+}
+
+// ── Prometheus scrape: Redis (via redis_exporter sidecar) ────────────────────
+prometheus.scrape "redis" {
+  targets = [
+    {"__address__" = "redis_exporter:9121", "job" = "redis"},
+  ]
+  forward_to      = [prometheus.remote_write.default.receiver]
+  scrape_interval = "15s"
+}
+
+// ── Prometheus scrape: PostgreSQL (via postgres_exporter sidecar) ────────────
+prometheus.scrape "postgres" {
+  targets = [
+    {"__address__" = "postgres_exporter:9187", "job" = "postgres"},
+  ]
+  forward_to      = [prometheus.remote_write.default.receiver]
+  scrape_interval = "15s"
+}
+
+// ── Prometheus scrape: Node Exporter (host CPU/RAM/disk) ─────────────────────
+prometheus.scrape "node_exporter" {
+  targets = [
+    {"__address__" = "node_exporter:9100", "job" = "node"},
+  ]
+  forward_to      = [prometheus.remote_write.default.receiver]
+  scrape_interval = "15s"
+}
+
+// ── Prometheus scrape: cAdvisor (per-container metrics) ──────────────────────
+prometheus.scrape "cadvisor" {
+  targets = [
+    {"__address__" = "cadvisor:8080", "job" = "cadvisor"},
+  ]
+  forward_to      = [prometheus.remote_write.default.receiver]
+  scrape_interval = "15s"
+}
+
 // ── Remote-write to Prometheus ────────────────────────────────────────────────
 prometheus.remote_write "default" {
   endpoint {
     url = "http://prometheus:9090/api/v1/write"
   }
+}
+
+// ── Prometheus scrape: Blackbox HTTP probes ──────────────────────────────────
+// Multi-target pattern: Alloy calls blackbox:9115/probe?target=<url>&module=http_2xx
+// for each service. prometheus.relabel copies __param_target → instance so that
+// probe_success{instance="http://yagye_portal:80/up", service="yagye_portal"} etc.
+// are queryable in Prometheus alert rules.
+// Core is excluded — it has native /metrics with up{job="yagye_core"}.
+// Set instance = target URL directly in the target labels (non-__ labels survive
+// scraping and are included in the written metrics). No separate relabel needed.
+// Probed services: Portal only in the basic stack (Core has native /metrics with
+// up{job="yagye_core"}; Simulator/Checkout are full-profile only and not probed
+// here to avoid false alerts when they're not running in local dev).
+// When running the full profile in staging/production, add their targets back.
+prometheus.scrape "blackbox" {
+  targets = [
+    {"__address__" = "blackbox:9115", "__param_target" = "http://yagye_portal:80/up", "__param_module" = "http_2xx", "job" = "blackbox", "service" = "yagye_portal", "instance" = "yagye_portal"},
+  ]
+  metrics_path    = "/probe"
+  forward_to      = [prometheus.remote_write.default.receiver]
+  scrape_interval = "15s"
 }
 
 // ── Docker log collection → Loki ─────────────────────────────────────────────

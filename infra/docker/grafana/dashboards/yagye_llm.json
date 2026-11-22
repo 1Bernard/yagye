@@ -1,0 +1,250 @@
+{
+  "title": "Yagye LLM Usage",
+  "uid": "yagye-llm",
+  "tags": ["yagye", "llm", "ai", "openlit"],
+  "schemaVersion": 39,
+  "refresh": "30s",
+  "time": { "from": "now-3h", "to": "now" },
+  "panels": [
+    {
+      "id": 1,
+      "title": "Requests / min",
+      "type": "stat",
+      "gridPos": { "x": 0, "y": 0, "w": 6, "h": 4 },
+      "datasource": { "uid": "prometheus", "type": "prometheus" },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": { "uid": "prometheus", "type": "prometheus" },
+          "expr": "sum(rate(gen_ai_client_operation_duration_seconds_count[5m])) * 60",
+          "legendFormat": "req/min"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [{ "color": "green", "value": null }]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": { "calcs": ["lastNotNull"] },
+        "colorMode": "background",
+        "graphMode": "area",
+        "orientation": "auto",
+        "textMode": "auto"
+      }
+    },
+    {
+      "id": 2,
+      "title": "p95 Response Latency",
+      "type": "stat",
+      "gridPos": { "x": 6, "y": 0, "w": 6, "h": 4 },
+      "datasource": { "uid": "prometheus", "type": "prometheus" },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": { "uid": "prometheus", "type": "prometheus" },
+          "expr": "histogram_quantile(0.95, sum by(le) (rate(gen_ai_client_operation_duration_seconds_bucket[5m])))",
+          "legendFormat": "p95"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 3 },
+              { "color": "red", "value": 10 }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": { "calcs": ["lastNotNull"] },
+        "colorMode": "background",
+        "graphMode": "none",
+        "orientation": "auto",
+        "textMode": "auto"
+      }
+    },
+    {
+      "id": 3,
+      "title": "Total Tokens (1h)",
+      "type": "stat",
+      "gridPos": { "x": 12, "y": 0, "w": 6, "h": 4 },
+      "datasource": { "uid": "prometheus", "type": "prometheus" },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": { "uid": "prometheus", "type": "prometheus" },
+          "expr": "sum(increase(gen_ai_client_token_usage_total[1h]))",
+          "legendFormat": "tokens"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [{ "color": "blue", "value": null }]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": { "calcs": ["lastNotNull"] },
+        "colorMode": "background",
+        "graphMode": "area",
+        "orientation": "auto",
+        "textMode": "auto"
+      }
+    },
+    {
+      "id": 4,
+      "title": "Error Rate",
+      "type": "stat",
+      "gridPos": { "x": 18, "y": 0, "w": 6, "h": 4 },
+      "datasource": { "uid": "prometheus", "type": "prometheus" },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": { "uid": "prometheus", "type": "prometheus" },
+          "expr": "sum(rate(gen_ai_client_operation_duration_seconds_count{gen_ai_response_finish_reason=\"error\"}[5m])) / sum(rate(gen_ai_client_operation_duration_seconds_count[5m]))",
+          "legendFormat": "error rate"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 0.01 },
+              { "color": "red", "value": 0.05 }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": { "calcs": ["lastNotNull"] },
+        "colorMode": "background",
+        "graphMode": "none",
+        "orientation": "auto",
+        "textMode": "auto"
+      }
+    },
+    {
+      "id": 5,
+      "title": "Request Rate by Model",
+      "type": "timeseries",
+      "gridPos": { "x": 0, "y": 4, "w": 12, "h": 8 },
+      "datasource": { "uid": "prometheus", "type": "prometheus" },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": { "uid": "prometheus", "type": "prometheus" },
+          "expr": "sum by(gen_ai_request_model) (rate(gen_ai_client_operation_duration_seconds_count[5m]))",
+          "legendFormat": "{{gen_ai_request_model}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": { "unit": "reqps" },
+        "overrides": []
+      },
+      "options": {
+        "tooltip": { "mode": "multi" },
+        "legend": { "displayMode": "list", "placement": "bottom" }
+      }
+    },
+    {
+      "id": 6,
+      "title": "Response Latency Percentiles",
+      "type": "timeseries",
+      "gridPos": { "x": 12, "y": 4, "w": 12, "h": 8 },
+      "datasource": { "uid": "prometheus", "type": "prometheus" },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": { "uid": "prometheus", "type": "prometheus" },
+          "expr": "histogram_quantile(0.5, sum by(le) (rate(gen_ai_client_operation_duration_seconds_bucket[5m])))",
+          "legendFormat": "p50"
+        },
+        {
+          "refId": "B",
+          "datasource": { "uid": "prometheus", "type": "prometheus" },
+          "expr": "histogram_quantile(0.95, sum by(le) (rate(gen_ai_client_operation_duration_seconds_bucket[5m])))",
+          "legendFormat": "p95"
+        },
+        {
+          "refId": "C",
+          "datasource": { "uid": "prometheus", "type": "prometheus" },
+          "expr": "histogram_quantile(0.99, sum by(le) (rate(gen_ai_client_operation_duration_seconds_bucket[5m])))",
+          "legendFormat": "p99"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": { "unit": "s" },
+        "overrides": []
+      },
+      "options": {
+        "tooltip": { "mode": "multi" },
+        "legend": { "displayMode": "list", "placement": "bottom" }
+      }
+    },
+    {
+      "id": 7,
+      "title": "Token Usage by Type",
+      "type": "timeseries",
+      "gridPos": { "x": 0, "y": 12, "w": 12, "h": 8 },
+      "datasource": { "uid": "prometheus", "type": "prometheus" },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": { "uid": "prometheus", "type": "prometheus" },
+          "expr": "sum by(gen_ai_token_type) (rate(gen_ai_client_token_usage_total[5m]))",
+          "legendFormat": "{{gen_ai_token_type}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": { "unit": "short" },
+        "overrides": []
+      },
+      "options": {
+        "tooltip": { "mode": "multi" },
+        "legend": { "displayMode": "list", "placement": "bottom" }
+      }
+    },
+    {
+      "id": 8,
+      "title": "Requests by Operation",
+      "type": "timeseries",
+      "gridPos": { "x": 12, "y": 12, "w": 12, "h": 8 },
+      "datasource": { "uid": "prometheus", "type": "prometheus" },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": { "uid": "prometheus", "type": "prometheus" },
+          "expr": "sum by(gen_ai_operation_name) (rate(gen_ai_client_operation_duration_seconds_count[5m]))",
+          "legendFormat": "{{gen_ai_operation_name}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": { "unit": "reqps" },
+        "overrides": []
+      },
+      "options": {
+        "tooltip": { "mode": "multi" },
+        "legend": { "displayMode": "list", "placement": "bottom" }
+      }
+    }
+  ]
+}
