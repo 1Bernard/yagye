@@ -661,7 +661,7 @@ import duckdb
 con = duckdb.connect()
 con.execute("""
   INSTALL httpfs; LOAD httpfs;
-  SET s3_endpoint = 'floci:9000';  -- Floci in dev, AWS S3 in prod
+  SET s3_endpoint = 'floci:4566';  -- Floci in dev, AWS S3 in prod
   SET s3_access_key_id = ...;
 
   INSERT INTO silver_payments
@@ -1116,19 +1116,19 @@ The S3 endpoint URL is the only configuration difference:
 s3_endpoint = "https://s3.amazonaws.com"
 
 # development
-s3_endpoint = "http://floci:9000"
+s3_endpoint = "http://floci:4566"
 ```
 
 ### Development workflow
 
 ```bash
 # Start Floci
-docker run -p 9000:9000 ghcr.io/floci-io/floci:latest
+docker run -p 4566:4566 floci/floci:latest
 
-# Create buckets
-aws --endpoint-url http://localhost:9000 s3 mb s3://yagye-lake-raw
-aws --endpoint-url http://localhost:9000 s3 mb s3://yagye-lake-silver
-aws --endpoint-url http://localhost:9000 s3 mb s3://yagye-lake-gold
+# Create buckets (Floci runs on port 4566, LocalStack-compatible)
+aws --endpoint-url http://localhost:4566 s3 mb s3://yagye-lake-raw
+aws --endpoint-url http://localhost:4566 s3 mb s3://yagye-lake-silver
+aws --endpoint-url http://localhost:4566 s3 mb s3://yagye-lake-gold
 
 # Run Silver ETL (DuckDB reads from Floci)
 python scripts/etl/silver_payments.py --env=dev
