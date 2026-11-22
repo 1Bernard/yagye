@@ -277,7 +277,7 @@ module Auth
           end
 
           form(action: users_complete_totp_enrollment_path, method: :post, id: "enroll-form") do
-            input(type: "hidden", name: :authenticity_token, value: @csrf_token)
+            input(type: "hidden", name: "authenticity_token", value: @csrf_token)
             input(type: "hidden", name: "otp_code", id: "enroll-hidden", value: "")
 
             # 6 individual digit boxes

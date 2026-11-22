@@ -25,12 +25,11 @@ Rails.application.configure do
   # Store uploaded files on the local file system (see config/storage.yml for options).
   config.active_storage.service = :local
 
-  # All traffic arrives via an SSL-terminating reverse proxy.
-  config.assume_ssl = true
-
-  # Force HTTPS, HSTS, and secure cookies. Health check is excluded so the
-  # load balancer can reach /up over plain HTTP from inside the VPC.
-  config.force_ssl = true
+  # All traffic arrives via an SSL-terminating reverse proxy in production.
+  # Set PORTAL_DISABLE_SSL=true in Docker local dev (Thruster has no cert).
+  _ssl_enabled = !ENV["PORTAL_DISABLE_SSL"]
+  config.assume_ssl = _ssl_enabled
+  config.force_ssl  = _ssl_enabled
   config.ssl_options = { redirect: { exclude: ->(request) { request.path == "/up" } } }
 
   # Log to STDOUT with the current request id as a default log tag.
@@ -65,17 +64,19 @@ Rails.application.configure do
     Rails.application.routes.default_url_options = { host: ENV.fetch("PORTAL_HOST", "portal.yagye.com"), protocol: "https" }
   end
 
-  # Brevo SMTP relay for transactional email.
+  # SMTP relay for transactional email.
+  # Docker dev: SMTP_HOST=mailpit, SMTP_PORT=1025, no auth, no TLS → Mailpit catches all mail.
+  # Production: SMTP_HOST=email-smtp.<region>.amazonaws.com, SMTP_PORT=587, SES SMTP credentials.
   config.action_mailer.delivery_method      = :smtp
   config.action_mailer.perform_deliveries   = true
   config.action_mailer.raise_delivery_errors = true
   config.action_mailer.smtp_settings = {
-    address:              "smtp-relay.brevo.com",
-    port:                 587,
-    authentication:       :login,
-    user_name:            ENV["BREVO_SMTP_LOGIN"],
-    password:             ENV["BREVO_SMTP_KEY"],
-    enable_starttls_auto: true
+    address:              ENV.fetch("SMTP_HOST", "smtp-relay.brevo.com"),
+    port:                 ENV.fetch("SMTP_PORT", "587").to_i,
+    user_name:            ENV["SMTP_USER"],
+    password:             ENV["SMTP_PASSWORD"],
+    authentication:       ENV["SMTP_USER"].present? ? :login : nil,
+    enable_starttls_auto: ENV.fetch("SMTP_TLS", "true") == "true"
   }
 
   # Enable locale fallbacks for I18n (makes lookups for any locale fall back to
@@ -92,20 +93,9 @@ Rails.application.configure do
   config.hosts = [ ENV.fetch("PORTAL_HOST", "portal.yagye.com") ]
   config.host_authorization = { exclude: ->(request) { request.path == "/up" } }
 
-  # Structured JSON request logs — one line per request, machine-readable.
-  config.lograge.enabled = true
-  config.lograge.formatter = Lograge::Formatters::Json.new
-  config.lograge.custom_options = lambda do |event|
-    {
-      time:          Time.current.utc.iso8601(3),
-      service:       "yagye_portal",
-      environment:   Rails.env,
-      release:       ENV.fetch("RELEASE_SHA", "local"),
-      host:          Socket.gethostname,
-      trace_id:      CorrelationId.current,
-      merchant_code: event.payload[:merchant_code],
-      mode:          event.payload[:mode],
-      user_id:       event.payload[:user_id]
-    }.compact
-  end
+  # Request logging is handled by config/initializers/request_logging.rb which
+  # subscribes directly to process_action.action_controller and writes JSON to
+  # fd/1. Lograge is disabled because it doesn't flush reliably under
+  # Puma 8 + Thruster in Rails 8.1.
+  config.lograge.enabled = false
 end

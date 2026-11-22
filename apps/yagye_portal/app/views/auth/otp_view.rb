@@ -105,7 +105,7 @@ module Auth
 
     def otp_content
       form(action: users_verify_otp_path, method: :post, id: "otp-form") do
-        input(type: "hidden", name: :authenticity_token, value: @csrf_token)
+        input(type: "hidden", name: "authenticity_token", value: @csrf_token)
         input(type: "hidden", name: "user[otp_attempt]", id: "otp-hidden", value: "")
 
         div(class: "flex justify-center gap-2 mb-2") do
@@ -184,7 +184,7 @@ module Auth
         span(class: "text-[12.5px] text-gray-400") { plain "Didn't receive it?" }
         span(id: "resend-countdown") { plain " Resend in 60s" }
         form(action: users_request_email_otp_path, method: :post, id: "resend-form", class: "inline") do
-          input(type: "hidden", name: :authenticity_token, value: @csrf_token)
+          input(type: "hidden", name: "authenticity_token", value: @csrf_token)
           button(type: :submit, id: "resend-btn",
                  class: "text-[12.5px] font-semibold bg-transparent border-0 cursor-pointer p-0",
                  style: "color:#3D47F5") do
@@ -197,7 +197,7 @@ module Auth
     # TOTP path: "send email code instead" as a real outlined button
     def email_fallback_button
       form(action: users_request_email_otp_path, method: :post) do
-        input(type: "hidden", name: :authenticity_token, value: @csrf_token)
+        input(type: "hidden", name: "authenticity_token", value: @csrf_token)
         button(type: :submit, class: "otp-alt-btn") do
           span(class: "btn-icon") { render UI::Icon.new(:mail, class: "w-full h-full") }
           plain "Send a code to my email instead"

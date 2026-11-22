@@ -91,7 +91,7 @@ module Settings
                action: settings_sso_path(config),
                method: :post, class: "hidden") do
             input type: :hidden, name: "_method", value: "delete"
-            input type: :hidden, name: :authenticity_token, value: helpers.form_authenticity_token
+            input type: :hidden, name: "authenticity_token", value: helpers.form_authenticity_token
           end
         end
       end

@@ -14,9 +14,10 @@ module Layout
     SEP      = "margin:0 7px;color:#{FAINT_TEXT};font-size:11px;user-select:none;line-height:1"
     HOME_ICON_CLR = FAINT_TEXT
 
-    def initialize(title:, subtitle: nil, breadcrumbs: nil)
+    def initialize(title:, subtitle: nil, breadcrumbs: nil, hide_ai_btn: false)
       @title       = title
       @breadcrumbs = breadcrumbs
+      @hide_ai_btn = hide_ai_btn
     end
 
     def view_template
@@ -98,6 +99,7 @@ module Layout
     end
 
     def ai_btn
+      return if @hide_ai_btn
       return unless current_user
       button(type: "button",
              class: "topbar-icon-btn",

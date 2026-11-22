@@ -32,7 +32,7 @@ module Settings
               method: :post,
               class: "space-y-5"
             ) do
-              input type: :hidden, name: :authenticity_token, value: helpers.form_authenticity_token
+              input type: :hidden, name: "authenticity_token", value: helpers.form_authenticity_token
               if @action == :edit
                 input type: :hidden, name: "_method", value: "patch"
               end

@@ -58,6 +58,11 @@ gem "rack-attack"
 # Structured single-line JSON request logs
 gem "lograge"
 
+# Observability — OpenTelemetry (ADR-0028)
+gem "opentelemetry-sdk"
+gem "opentelemetry-exporter-otlp"
+gem "opentelemetry-instrumentation-all"
+
 # Thread-local request context (correlation ID, current user) outside controllers
 gem "request_store"
 

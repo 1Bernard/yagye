@@ -17,7 +17,7 @@ module Auth
         render UI::ErrorSummary.new(errors: @resource.errors)
 
         form action: user_password_path, method: :post, class: "space-y-5" do
-          input type: :hidden, name: :authenticity_token, value: @csrf_token
+          input type: :hidden, name: "authenticity_token", value: @csrf_token
 
           render UI::InputField.new(
             name:         "user[email]",

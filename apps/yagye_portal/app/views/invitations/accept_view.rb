@@ -26,7 +26,7 @@ module Invitations
         end
 
         form action: accept_invitation_path(@token), method: :post, class: "space-y-5" do
-          input type: :hidden, name: :authenticity_token, value: @csrf_token
+          input type: :hidden, name: "authenticity_token", value: @csrf_token
           input type: :hidden, name: "_method", value: "patch"
 
           div(class: "flex flex-col gap-1.5") do

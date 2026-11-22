@@ -126,6 +126,7 @@ GRANT_MATRIX = {
     reserves.manage reserves.approve
     team.view team.manage
     platform_finance.view
+    risk.view risk.disposition
   ],
   "compliance_analyst" => %w[
     payments.view
@@ -153,7 +154,7 @@ end
 puts "Seeded #{Role.count} roles, #{Permission.count} permissions, #{RolePermission.count} grants."
 
 # ── Development users ───────────────────────────────────────────────────────────
-if Rails.env.development? || Rails.env.test?
+if Rails.env.development? || Rails.env.test? || ENV["SEED_DEV_DATA"]
   # Internal ops admin
   admin = User.find_or_create_by!(email: "admin@yagye.com") do |u|
     u.password               = "Yagye2026!gh"
@@ -247,4 +248,64 @@ if Rails.env.development? || Rails.env.test?
   end
 
   puts "Demo merchant: #{DEMO_MERCHANT_CODE} (KofiBuild)"
+
+  # ── Kofi Builds merchant owner user ──────────────────────────────────────
+  # Represents the state after ops has approved the application and invited
+  # the merchant owner, who has accepted and set up their account.
+  kofi = User.find_or_initialize_by(email: "owner@kofibuilds.com")
+  kofi.assign_attributes(
+    password:               "Yagye2026!gh",
+    first_name:             "Kofi",
+    last_name:              "Mensah",
+    kind:                   "merchant_user",
+    otp_required_for_login: false
+  )
+  kofi.save!
+
+  UserRole.find_or_create_by!(user_id: kofi.id, role_key: "merchant_owner") do |ur|
+    ur.granted_by = admin
+    ur.granted_at = now
+  end
+
+  MerchantMembership.find_or_create_by!(user_id: kofi.id, merchant_code: DEMO_MERCHANT_CODE) do |m|
+    m.merchant_name = DEMO_MERCHANT_NAME
+    m.state         = "active"
+    m.invited_by    = admin
+    m.accepted_at   = 2.days.ago
+  end
+
+  puts "Merchant owner: owner@kofibuilds.com / Yagye2026!gh (merchant_owner for #{DEMO_MERCHANT_CODE})"
+
+  # ── Demo payments ─────────────────────────────────────────────────────────
+  # Three email-only customers (no MSISDN) linked to MCH_DEMO_001.
+  # customer_email matches Core's merchant_customer_ref so CustomerStatsQuery
+  # resolves velocity / network / total-spent on the Customers page.
+  DEMO_PAYMENTS = [
+    { id: "pay_risk_001", customer_email: "sefa@techstartup.io",    provider: "mtn",         amount: 175_000, fee: 2_625,  net: 172_375, days_ago: 14 },
+    { id: "pay_risk_002", customer_email: "nana@buildersgh.com",    provider: "vodafone",    amount: 220_000, fee: 3_300,  net: 216_700, days_ago: 13 },
+    { id: "pay_risk_003", customer_email: "acme@globaltrading.com", provider: "mtn",         amount: 310_000, fee: 4_650,  net: 305_350, days_ago: 13 },
+    { id: "pay_risk_004", customer_email: "sefa@techstartup.io",    provider: "mtn",         amount: 890_000, fee: 13_350, net: 876_650, days_ago: 12 },
+    { id: "pay_risk_005", customer_email: "nana@buildersgh.com",    provider: "airtel_tigo", amount: 540_000, fee: 8_100,  net: 531_900, days_ago: 12 },
+  ].freeze
+
+  DEMO_PAYMENTS.each do |p|
+    ts = p[:days_ago].days.ago
+    Payment.find_or_create_by!(core_payment_id: p[:id]) do |pay|
+      pay.merchant_code   = DEMO_MERCHANT_CODE
+      pay.amount          = p[:amount]
+      pay.fee_amount      = p[:fee]
+      pay.net_amount      = p[:net]
+      pay.currency        = "GHS"
+      pay.status          = "paid"
+      pay.mode            = "test"
+      pay.payment_method  = "mobile_money"
+      pay.provider        = p[:provider]
+      pay.customer_email  = p[:customer_email]
+      pay.paid_at         = ts
+      pay.created_at      = ts
+      pay.updated_at      = ts
+    end
+  end
+
+  puts "Demo payments: #{DEMO_PAYMENTS.size} payments for #{DEMO_MERCHANT_CODE}"
 end

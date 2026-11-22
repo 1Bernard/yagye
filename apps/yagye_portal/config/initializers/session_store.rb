@@ -13,7 +13,7 @@ if (redis_url = ENV["REDIS_URL"].presence)
   Rails.application.config.session_store(
     :redis_session_store,
     key:          "_yagye_portal_session",
-    secure:       Rails.env.production?,
+    secure:       Rails.env.production? && !ENV["PORTAL_DISABLE_SSL"],
     httponly:     true,
     same_site:    :lax,
     expire_after: 12.hours,
@@ -31,7 +31,7 @@ else
   Rails.application.config.session_store(
     :cookie_store,
     key:      "_yagye_portal_session",
-    secure:   Rails.env.production?,
+    secure:   Rails.env.production? && !ENV["PORTAL_DISABLE_SSL"],
     httponly: true,
     same_site: :lax
   )

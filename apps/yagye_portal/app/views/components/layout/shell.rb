@@ -20,7 +20,9 @@ module Layout
       div(class: "flex h-screen overflow-hidden bg-gray-50 font-sans") do
         render Layout::Sidebar.new(active: @active_nav) unless @hide_sidebar
         div(class: "flex-1 flex flex-col min-w-0 overflow-hidden") do
-          render Layout::Topbar.new(title: @title, subtitle: @subtitle, breadcrumbs: @breadcrumbs) unless @hide_topbar
+          render Layout::Topbar.new(title: @title, subtitle: @subtitle,
+                                    breadcrumbs: @breadcrumbs,
+                                    hide_ai_btn: @active_nav == :ai_chat) unless @hide_topbar
           if current_user&.merchant_user? && @show_kyb_banner && (progress = kyb_banner_progress)
             div(class: "print:hidden") { render Shared::KybBanner.new(progress: progress) }
           end

@@ -18,6 +18,20 @@ require "action_cable/engine"
 # you've limited to :test, :development, or :production.
 Bundler.require(*Rails.groups)
 
+# Configure OpenTelemetry after Bundler loads the gems but before initialize!
+# runs, so the ActionPack Railtie's before_initialize hook finds the Rack
+# instrumentation already installed with our custom options.
+OpenTelemetry::SDK.configure do |c|
+  c.service_name    = ENV.fetch("OTEL_SERVICE_NAME", "yagye_portal")
+  c.service_version = "1.0.0"
+  c.use_all(
+    "OpenTelemetry::Instrumentation::Rack" => {
+      record_frontend_span: true,
+      use_rack_events:      false
+    }
+  )
+end
+
 module YagyePortal
   class Application < Rails::Application
     # Initialize configuration defaults for originally generated Rails version.
@@ -45,15 +59,14 @@ module YagyePortal
     config.eager_load_paths << Rails.root.join("app/views")
     Rails.autoloaders.main.collapse(Rails.root.join("app/views/components"))
 
-    # Rate limiting — must sit before auth so throttled requests never touch Devise.
-    config.middleware.use Rack::Attack
+    # Rack::Attack and RequestStore::Middleware are inserted automatically by
+    # their respective Railties — no explicit use needed here.
 
     # Correlation ID + structured logging middleware (runs before Devise/auth).
     # Explicit require because application.rb runs before Zeitwerk is active.
     require_relative "../app/middleware/correlation_id"
     require_relative "../app/middleware/correlation_id_middleware"
     config.middleware.use CorrelationIdMiddleware
-    config.middleware.use RequestStore::Middleware
 
     # Don't generate system test files.
     config.generators.system_tests = nil

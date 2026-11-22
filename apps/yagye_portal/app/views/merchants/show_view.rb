@@ -120,7 +120,7 @@ module Merchants
             icon:  screening_clear? ? :check_circle : (open_hits.any? ? :alert_circle : :clock),
             color: screening_clear? ? GREEN : (open_hits.any? ? RED : AMBER),
             tint:  screening_clear? ? TINT_GREEN : (open_hits.any? ? TINT_RED : TINT_AMBER),
-            label: screening_clear? ? "Screening clear" : "#{open_hits.size} open #{"hit".pluralize(open_hits.size)}",
+            label: screening_label,
             sub:   screening_summary_label
           )
         end
@@ -382,10 +382,7 @@ module Merchants
         c.body do
           div(class: "flex items-center gap-[10px] mb-3") do
             render UI::StatusBadge.new(status: @app.status)
-            p(class: TYPE_CAPTION) { plain @app.status_label }
-          end
-          p(class: TYPE_CAPTION) do
-            plain "Last updated #{fmt_datetime(@app.last_applied_at)}"
+            p(class: TYPE_CAPTION) { plain "Last updated #{fmt_datetime(@app.last_applied_at)}" }
           end
           if @app.reviewed_by.present? || @app.approved_by.present?
             div(class: "divide-y divide-gray-50 mt-3 pt-3 border-t border-gray-100") do
@@ -639,7 +636,20 @@ module Merchants
             suspend_form    if @app.approved?
             reactivate_form if @app.suspended?
 
-            if @app.merchant_code.present?
+            p(class: "#{TYPE_CAPTION} text-center mt-1") do
+              plain "Status changes are logged and visible to the compliance team."
+            end
+          end
+
+          if @app.merchant_code.present?
+            div(class: "border-t border-gray-100 mt-2 pt-3 flex flex-col gap-2") do
+              p(class: "#{TYPE_MICRO} mb-0.5") { plain "Navigate" }
+              render UI::Button.new(variant: :secondary,
+                                    href:    merchant_customers_path(@app),
+                                    class:   "w-full justify-center") do
+                render UI::Icon.new(:users, class: ICON_SM)
+                plain "Customers"
+              end
               render UI::Button.new(variant: :secondary,
                                     href:    merchant_settlement_controls_path(@app),
                                     class:   "w-full justify-center") do
@@ -652,10 +662,6 @@ module Merchants
                 render UI::Icon.new(:refresh, class: ICON_SM)
                 plain "Refund Policy"
               end
-            end
-
-            p(class: "#{TYPE_CAPTION} text-center mt-1") do
-              plain "Status changes are logged and visible to the compliance team."
             end
           end
         end
@@ -747,15 +753,20 @@ module Merchants
     end
 
     def screening_clear?
-      open_hits.empty? &&
-        (@screening&.dig("subjects") || []).all? { |s|
-          s["screening_status"].in?(%w[clean cleared])
-        }
+      subjects = @screening&.dig("subjects") || []
+      subjects.any? && open_hits.empty? &&
+        subjects.all? { |s| s["screening_status"].in?(%w[clean cleared]) }
+    end
+
+    def screening_label
+      subjects = @screening&.dig("subjects") || []
+      return "No subjects enrolled" if subjects.empty?
+      screening_clear? ? "Screening clear" : "#{open_hits.size} open #{"hit".pluralize(open_hits.size)}"
     end
 
     def screening_summary_label
       subjects = @screening&.dig("subjects") || []
-      return "No subjects enrolled" if subjects.empty?
+      return "Enroll via beneficial owners" if subjects.empty?
       clean = subjects.count { |s| s["screening_status"].in?(%w[clean cleared]) }
       "#{clean}/#{subjects.size} subjects clear"
     end

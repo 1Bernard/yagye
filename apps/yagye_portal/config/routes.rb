@@ -85,7 +85,9 @@ Rails.application.routes.draw do
     get   "merchants/:id/reject-modal",            to: "merchants#reject_modal",       as: :reject_modal_merchant
     get   "merchants/:id/suspend-modal",           to: "merchants#suspend_modal",      as: :suspend_modal_merchant
     get   "merchants/:id/reactivate-modal",        to: "merchants#reactivate_modal",   as: :reactivate_modal_merchant
-    get   "merchants/:id/settlement-controls",     to: "settlement_controls#show",     as: :merchant_settlement_controls
+    get   "merchants/:id/customers",               to: "customers#index",              as: :merchant_customers
+    get   "merchants/:id/customers/:customer_id", to: "customers#show",               as: :merchant_customer
+    get   "merchants/:id/settlement-controls",    to: "settlement_controls#show",     as: :merchant_settlement_controls
     patch "merchants/:id/settlement-controls",     to: "settlement_controls#update"
     get   "merchants/:id/refund-policy",           to: "refund_policies#show",         as: :merchant_refund_policy
     patch "merchants/:id/refund-policy",           to: "refund_policies#update"

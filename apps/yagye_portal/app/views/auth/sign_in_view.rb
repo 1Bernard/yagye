@@ -22,7 +22,7 @@ module Auth
           sso_domain_initiate_url_value: sso_initiate_path
         }) do
         form action: user_session_path, method: :post, class: "space-y-5" do
-          input type: :hidden, name: :authenticity_token, value: @csrf_token
+          input type: :hidden, name: "authenticity_token", value: @csrf_token
 
           # ── Email ──────────────────────────────────────────────────────────
           render UI::InputField.new(

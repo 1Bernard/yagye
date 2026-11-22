@@ -199,7 +199,13 @@ class Users::SessionsController < Devise::SessionsController
     user = User.find_by(email: sign_in_params[:email]&.strip&.downcase)
     return unless user&.valid_password?(sign_in_params[:password].to_s)
 
-    if user.otp_required_for_login
+    if ENV["SKIP_MFA"]
+      # Docker dev bypass — set SKIP_MFA=true in docker-compose, never in production.
+      sign_in(:user, user)
+      establish_user_session!(user)
+      UserAuditEvents::Record.call(user: user, event_type: :signed_in, request: request)
+      redirect_to after_sign_in_path_for(user)
+    elsif user.otp_required_for_login
       session[:otp_user_id] = user.id.to_s
       redirect_to users_otp_challenge_path
     elsif user.internal_staff?

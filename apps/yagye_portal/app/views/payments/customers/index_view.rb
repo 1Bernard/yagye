@@ -19,21 +19,34 @@ module Payments
         unknown:   { label: "—",          css: "bg-gray-100 text-gray-400" }
       }.freeze
 
-      def initialize(customers:, query: nil, stats: {}, networks: {})
+      def initialize(customers:, query: nil, stats: {}, networks: {}, back_path: nil, merchant: nil)
         @customers = customers
         @query     = query
         @stats     = stats
         @networks  = networks
+        @back_path = back_path
+        @merchant  = merchant
       end
 
       def view_template
-        render Layout::Shell.new(
-          active_nav: :customers,
-          title:      "Customers",
-          subtitle:   "All customers who have transacted through your account"
-        ) do
+        merchant_name = @merchant&.trading_name.presence || @merchant&.legal_name
+        title    = merchant_name ? "#{merchant_name} — Customers" : "Customers"
+        subtitle = merchant_name \
+          ? "Customers of #{merchant_name}" \
+          : "All customers who have transacted through your account"
+
+        render Layout::Shell.new(active_nav: :customers, title: title, subtitle: subtitle) do
+          if @back_path
+            div(class: "mb-4") do
+              a(href: @back_path, class: "inline-flex items-center gap-1.5 text-[12.5px] text-gray-500 hover:text-gray-700") do
+                render UI::Icon.new(:arrow_left, class: "w-3.5 h-3.5")
+                plain "Back to #{merchant_name}"
+              end
+            end
+          end
+
           render UI::PageHeader.new(
-            title:    "Customers",
+            title:    title,
             subtitle: "Customers are created automatically when a payment is initiated or an invoice is issued."
           )
 
@@ -173,10 +186,18 @@ module Payments
             end
           end
 
+          back_path = @back_path
+          merchant_app_id = @merchant&.application_code
+
           t.actions do |c|
-            a(href: customer_path(c["id"]), class: DROPDOWN_ITEM) do
-              render UI::Icon.new(:eye, class: ICON_SM)
-              plain "View"
+            if c["id"]
+              path = merchant_app_id \
+                ? helpers.merchant_customer_path(merchant_app_id, c["id"]) \
+                : helpers.customer_path(c["id"])
+              a(href: path, class: DROPDOWN_ITEM) do
+                render UI::Icon.new(:eye, class: ICON_SM)
+                plain "View"
+              end
             end
           end
         end

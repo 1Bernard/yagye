@@ -18,7 +18,7 @@ module Auth
         render UI::ErrorSummary.new(errors: @resource.errors)
 
         form action: user_password_path, method: :post, class: "space-y-5" do
-          input type: :hidden, name: :authenticity_token, value: @csrf_token
+          input type: :hidden, name: "authenticity_token", value: @csrf_token
           input type: :hidden, name: "_method", value: "patch"
           input type: :hidden, name: "user[reset_password_token]", value: @token
 

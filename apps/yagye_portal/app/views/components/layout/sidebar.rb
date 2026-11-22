@@ -10,68 +10,77 @@ module Layout
       {
         label: nil,
         items: [
-          { key: :dashboard,     icon: :home,        label: "Dashboard",     path: :authenticated_root_path },
-          { key: :payments,      icon: :credit_card, label: "Payments",      path: :payments_path },
-          { key: :disputes,      icon: :flag,        label: "Disputes",      path: :disputes_path },
-          { key: :payouts,       icon: :paper_plane, label: "Payouts",       path: :payouts_path,
-            merchant_only: true },
-          { key: :payment_links,     icon: :link,        label: "Payment Links",     path: :payment_links_path,
-            merchant_only: true },
-          { key: :invoices,          icon: :file,        label: "Invoices",          path: :invoices_path,
-            merchant_only: true },
-          { key: :checkout_sessions, icon: :wallet,      label: "Checkout Sessions", path: :checkout_sessions_path,
-            merchant_only: true },
-          { key: :customers,         icon: :users,       label: "Customers",         path: :customers_path,
-            merchant_only: true },
-          { key: :settlement_batches, icon: :layers,     label: "Settlement Batches", path: :settlement_batches_path,
-            merchant_only: true },
-          { key: :reserves,          icon: :lock,        label: "Reserves",          path: :reserves_path,
+          { key: :dashboard, icon: :home,        label: "Dashboard", path: :authenticated_root_path },
+          { key: :payments,  icon: :credit_card, label: "Payments",  path: :payments_path },
+          { key: :disputes,  icon: :flag,        label: "Disputes",  path: :disputes_path },
+          { key: :customers, icon: :users,       label: "Customers", path: :customers_path,
             merchant_only: true }
+        ]
+      },
+      {
+        label: "PRODUCTS",
+        merchant_only: true,
+        items: [
+          { key: :payment_links,     icon: :link,   label: "Payment Links",     path: :payment_links_path },
+          { key: :invoices,          icon: :file,   label: "Invoices",          path: :invoices_path },
+          { key: :checkout_sessions, icon: :wallet, label: "Checkout Sessions", path: :checkout_sessions_path }
+        ]
+      },
+      {
+        label: "FINANCE",
+        merchant_only: true,
+        items: [
+          { key: :payouts,            icon: :paper_plane, label: "Payouts",            path: :payouts_path },
+          { key: :settlement_batches, icon: :layers,      label: "Settlement Batches", path: :settlement_batches_path },
+          { key: :reserves,           icon: :lock,        label: "Reserves",           path: :reserves_path }
         ]
       },
       {
         label: "TEAM",
         items: [
-          { key: :team_users,        icon: :users,  label: "Users",             path: :team_users_path },
-          { key: :team_role_requests, icon: :clock,  label: "Role Requests",     path: :team_role_requests_path,
+          { key: :team_users,         icon: :users,  label: "Users",               path: :team_users_path },
+          { key: :team_role_requests, icon: :clock,  label: "Role Requests",       path: :team_role_requests_path,
             internal_only: true },
-          { key: :team_roles,        icon: :shield, label: "Roles & Permissions", path: :team_roles_path }
+          { key: :team_roles,         icon: :shield, label: "Roles & Permissions", path: :team_roles_path }
         ]
       },
       {
         label: "OPERATIONS",
         internal_only: true,
         items: [
-          { key: :merchants,       icon: :building,     label: "Merchants",       path: :merchants_path },
-          { key: :kyb_reviews,     icon: :shield,       label: "KYB Review",      path: :kyb_reviews_path },
-          { key: :approvals,       icon: :check_circle, label: "Approvals",       path: :compliance_approvals_path },
-          { key: :pricing_plans,   icon: :tag,          label: "Pricing Plans",   path: :pricing_plans_path },
-          { key: :routing_rules,   icon: :swap,         label: "Routing Rules",   path: :developers_routing_rules_path },
-          { key: :reconciliation,  icon: :trending_up,  label: "Reconciliation",  path: :reconciliation_path },
-          { key: :bank_statements, icon: :file,         label: "Bank Statements",  path: :payments_bank_statements_path },
-          { key: :settlements,     icon: :wallet,       label: "Settlements",      path: :settlements_path },
-          { key: :webhook_deliveries, icon: :refresh,    label: "Webhook Deliveries", path: :developers_deliveries_path,
+          { key: :merchants,          icon: :building,       label: "Merchants",          path: :merchants_path },
+          { key: :kyb_reviews,        icon: :shield,         label: "KYB Review",         path: :kyb_reviews_path },
+          { key: :approvals,          icon: :check_circle,   label: "Approvals",          path: :compliance_approvals_path },
+          { key: :pricing_plans,      icon: :tag,            label: "Pricing Plans",      path: :pricing_plans_path },
+          { key: :routing_rules,      icon: :swap,           label: "Routing Rules",      path: :developers_routing_rules_path },
+          { key: :reconciliation,     icon: :trending_up,    label: "Reconciliation",     path: :reconciliation_path },
+          { key: :bank_statements,    icon: :file,           label: "Bank Statements",    path: :payments_bank_statements_path },
+          { key: :settlements,        icon: :wallet,         label: "Settlements",        path: :settlements_path },
+          { key: :webhook_deliveries, icon: :refresh,        label: "Webhook Deliveries", path: :developers_deliveries_path,
             internal_only: true },
-          { key: :risk,              icon: :alert_triangle, label: "Risk & Fraud",    path: :risk_flagged_payments_path,
+          { key: :risk,               icon: :alert_triangle, label: "Risk & Fraud",       path: :risk_flagged_payments_path,
             internal_only: true }
+        ]
+      },
+      {
+        label: "DEVELOPERS",
+        merchant_only: true,
+        items: [
+          { key: :developers,       icon: :hash,   label: "Developers",   path: :developers_path },
+          { key: :psp_providers,    icon: :layers, label: "PSP Providers", path: :developers_providers_path },
+          { key: :merchant_routing, icon: :swap,   label: "My Routing",    path: :developers_merchant_routing_index_path }
         ]
       },
       {
         label: "ACCOUNT",
         items: [
-          { key: :activity,   icon: :clock,    label: "Activity",       path: :activity_path },
-          { key: :developers, icon: :hash,     label: "Developers",     path: :developers_path,
+          { key: :activity,         icon: :clock,    label: "Activity",       path: :activity_path },
+          { key: :ai_chat,          icon: :chart,    label: "AI Assistant",   path: :ai_merchant_chat_path,
+            staff_path: :ai_ops_chat_path },
+          { key: :settings,         icon: :settings, label: "Settings",       path: :settings_path },
+          { key: :settings_pricing, icon: :tag,      label: "Pricing & Fees", path: :settings_pricing_path,
             merchant_only: true },
-          { key: :psp_providers, icon: :layers,  label: "PSP Providers",  path: :developers_providers_path,
-            merchant_only: true },
-          { key: :merchant_routing, icon: :swap, label: "My Routing",     path: :developers_merchant_routing_index_path,
-            merchant_only: true },
-          { key: :settings,   icon: :settings, label: "Settings",       path: :settings_path },
-          { key: :settings_pricing, icon: :tag, label: "Pricing & Fees", path: :settings_pricing_path,
-            merchant_only: true },
-          { key: :ai_chat,    icon: :chart,    label: "AI Assistant",   path: :ai_merchant_chat_path,
-            merchant_only: true },
-          { key: :help,       icon: :headset,  label: "Help & Support", path: :help_path }
+          { key: :help,             icon: :headset,  label: "Help & Support", path: :help_path }
         ]
       }
     ].freeze
@@ -147,6 +156,7 @@ module Layout
 
     def nav_section(section)
       return if section[:internal_only] && !internal_staff?
+      return if section[:merchant_only] && internal_staff?
 
       div(class: "px-3 mb-1") do
         if section[:label]
@@ -160,12 +170,13 @@ module Layout
       return if item[:internal_only] && !internal_staff?
       return if item[:merchant_only] && internal_staff?
 
-      active = @active == item[:key]
-      path   = begin
-                 send(item[:path])
-               rescue NameError, NoMethodError
-                 "#"
-               end
+      active    = @active == item[:key]
+      path_key  = internal_staff? && item[:staff_path] ? item[:staff_path] : item[:path]
+      path      = begin
+                    send(path_key)
+                  rescue NameError, NoMethodError
+                    "#"
+                  end
       base   = active ? NAV_ITEM_ON : NAV_ITEM
       # sidebar-nav-item enables CSS targeting for collapsed centering + tooltip
       cls    = "#{base} sidebar-nav-item"

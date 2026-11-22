@@ -47,23 +47,14 @@ class Rack::Attack
   end
 
   # ── Blocklist ───────────────────────────────────────────────────────────────
-
-  # Block IPs that have been throttled on login more than 30 times in an hour.
-  blocklist("brute-force/ip") do |req|
-    Rack::Attack::Allow2Ban.filter(req.ip, maxretry: 30, findtime: 1.hour, bantime: 1.day) do
-      req.path == "/users/sign_in" && req.post?
-    end
-  end
+  # Allow2Ban moved to P22 — Rack::Attack.cache requires Redis (P17).
 
   # ── Response ────────────────────────────────────────────────────────────────
 
-  self.throttled_responder = lambda do |env|
+  self.throttled_responder = lambda do |_request|
     [
       429,
-      {
-        "Content-Type"  => "application/json",
-        "Retry-After"   => env["rack.attack.match_data"][:period].to_s
-      },
+      { "Content-Type" => "application/json" },
       [ { error: "Too many requests. Please wait before trying again." }.to_json ]
     ]
   end
