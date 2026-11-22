@@ -12,6 +12,10 @@ RUN uv sync --no-dev --frozen --no-install-project
 COPY src/ ./src/
 RUN uv sync --no-dev --frozen
 
+# Auto-detect installed frameworks (FastAPI, Redis, etc.) and install matching
+# OTel instrumentation packages into the venv.
+RUN .venv/bin/opentelemetry-bootstrap -a install
+
 # ── Runtime ───────────────────────────────────────────────────────────────────
 FROM python:3.12-slim AS runtime
 
@@ -31,4 +35,4 @@ USER yagye
 
 EXPOSE 8000
 
-CMD ["uvicorn", "yagye_scoring.main:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["opentelemetry-instrument", "uvicorn", "yagye_scoring.main:app", "--host", "0.0.0.0", "--port", "8000"]

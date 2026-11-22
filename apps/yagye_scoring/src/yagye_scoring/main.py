@@ -8,10 +8,14 @@ from typing import AsyncGenerator
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import JSONResponse
 
+import openlit
+
 from yagye_scoring.config import settings
 from yagye_scoring.registry import ModelRegistry
 from yagye_scoring.routers import churn, reserve, risk, routing
 from yagye_scoring.shared.logging import configure_logging, get_logger
+
+openlit.init()
 
 logger = get_logger(__name__)
 
