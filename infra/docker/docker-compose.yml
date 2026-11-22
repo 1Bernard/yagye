@@ -111,7 +111,10 @@ services:
       PHX_HOST: localhost
       # P18 — Observability: send OTLP traces to Alloy
       OTEL_EXPORTER_OTLP_ENDPOINT: http://alloy:4318
+      OTEL_EXPORTER_OTLP_HEADERS: "Authorization=Bearer ${OTLP_BEARER_TOKEN:-yagye_dev_otlp_token}"
       OTEL_RESOURCE_ATTRIBUTES: service.name=yagye_core,deployment.environment=local
+      OTEL_TRACES_ENABLED: "true"
+      OTEL_PROPAGATORS: tracecontext,baggage
       # P21 — Floci (local AWS emulator)
       AWS_ACCESS_KEY_ID: test
       AWS_SECRET_ACCESS_KEY: test
@@ -165,6 +168,11 @@ services:
       PORT: "4001"
       PHX_HOST: localhost
       DB_SSL_VERIFY_NONE: "1"
+      # Observability — send OTLP traces to Alloy
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://alloy:4318
+      OTEL_EXPORTER_OTLP_HEADERS: "Authorization=Bearer ${OTLP_BEARER_TOKEN:-yagye_dev_otlp_token}"
+      OTEL_RESOURCE_ATTRIBUTES: service.name=yagye_simulator,deployment.environment=local
+      OTEL_PROPAGATORS: tracecontext,baggage
     command: >
       /bin/sh -c "
         /app/bin/simulator eval 'Simulator.Release.migrate()' &&
@@ -178,8 +186,9 @@ services:
       yagye_core:
         condition: service_healthy
     networks:
-      - data       # PostgreSQL access
-      - core_mesh  # Core ↔ Simulator calls
+      - data          # PostgreSQL access
+      - core_mesh     # Core ↔ Simulator calls
+      - observability # Sends OTLP to Alloy
     # NOT on edge — Simulator has no business reaching Portal
 
   yagye_checkout:
@@ -231,8 +240,41 @@ services:
       RAILS_LOG_TO_STDOUT: "true"
       RUBY_IO_BUFFERING: "0"
       PORTAL_ORIGIN: http://localhost:3000
+      PORTAL_HOST: localhost
+      PORTAL_DISABLE_SSL: "true"
+      SKIP_MFA: "true"
+      # Thruster (the Go HTTP/2 proxy that normally wraps Puma) caches responses in
+      # an in-memory store that is not fully controlled by CACHE_SIZE/MAX_CACHE_ITEM_SIZE
+      # in Thruster 0.1.26.  In practice it caches the first sign-in-page response and
+      # serves every subsequent request from that cache without ever connecting to Puma,
+      # which breaks request logging and OTel tracing.  In local Docker we bypass Thruster
+      # and run Puma directly on port 80 so every request goes through the Rack middleware
+      # chain and Puma's stdout flows straight to Docker logs.  Thruster is still used in
+      # the production Dockerfile CMD — this override is Docker-compose-only.
+      PORT: "80"
+      SEED_DEV_DATA: "true"
+      # AR encryption keys for dev Docker (stable, non-secret dev values).
+      # These let Rails encrypt/decrypt otp_secret without needing RAILS_MASTER_KEY.
+      ACTIVE_RECORD_ENCRYPTION_PRIMARY_KEY: "dev_primary_key_32bytes_yagye_ok"
+      ACTIVE_RECORD_ENCRYPTION_DETERMINISTIC_KEY: "dev_determ_key_32bytes_yagye_ok!"
+      ACTIVE_RECORD_ENCRYPTION_KEY_DERIVATION_SALT: "dev_salt_20bytes_yagye"
+      # Observability — send OTLP traces/metrics to Alloy
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://alloy:4318
+      OTEL_EXPORTER_OTLP_HEADERS: "Authorization=Bearer ${OTLP_BEARER_TOKEN:-yagye_dev_otlp_token}"
+      OTEL_TRACES_EXPORTER: otlp
+      OTEL_RESOURCE_ATTRIBUTES: service.name=yagye_portal,deployment.environment=local
+      OTEL_PROPAGATORS: tracecontext,baggage
+      # Mailer — Mailpit in dev (no auth, no TLS); production: SES SMTP credentials
+      SMTP_HOST: mailpit
+      SMTP_PORT: "1025"
+      SMTP_TLS: "false"
+    # Bypass Thruster: run Puma directly on port 80 so every request hits the Rack
+    # middleware chain and Puma's stdout is the Docker log pipe (no intermediary pipe).
+    # PORT=80 (above) makes puma.rb bind to :80.  Production uses the Dockerfile CMD
+    # ("./bin/thrust ./bin/rails server") unchanged — this override is local-dev only.
+    command: ["./bin/rails", "server"]
     ports:
-      - "3000:80"  # Thruster listens on :80 inside the container
+      - "3000:80"  # Puma listens on :80 inside the container (PORT=80 above)
     depends_on:
       db:
         condition: service_healthy
@@ -243,8 +285,9 @@ services:
       redpanda:
         condition: service_healthy
     networks:
-      - data  # Portal DB (portal_* read models) + Redpanda bootstrap
-      - edge  # Portal → Core HTTP via CoreApiClient
+      - data          # Portal DB (portal_* read models) + Redpanda bootstrap
+      - edge          # Portal → Core HTTP via CoreApiClient
+      - observability # Sends OTLP to Alloy
     # NOT on core_mesh — Portal must go through Core's API, never Simulator directly
 
   redis:
@@ -272,13 +315,42 @@ services:
     ports:
       - "5673:5672"    # AMQP — host:5673 → container:5672 (5672 clashes with Docker Desktop VPN-kit on some machines)
       - "15673:15672"  # Management UI — http://localhost:15673 (15672 held by Docker Desktop VPN-kit)
+      - "15692:15692"  # Prometheus metrics — rabbitmq_prometheus plugin
     volumes:
       - rabbitmq_data:/var/lib/rabbitmq
+      - ./rabbitmq/enabled_plugins:/etc/rabbitmq/enabled_plugins:ro
     healthcheck:
       test: ["CMD", "rabbitmq-diagnostics", "ping"]
       interval: 10s
       timeout: 10s
       retries: 10
+    networks:
+      - data
+
+  redis_exporter:
+    image: oliver006/redis_exporter:v1.66.0
+    restart: unless-stopped
+    environment:
+      REDIS_ADDR: redis:6379
+    depends_on:
+      redis:
+        condition: service_healthy
+    networks:
+      - data
+
+  postgres_exporter:
+    image: prometheuscommunity/postgres-exporter:v0.16.0
+    restart: unless-stopped
+    # --no-collector.stat_bgwriter: checkpoint columns moved to pg_stat_checkpointer
+    # in PG17+; this exporter version doesn't support that view yet. All other
+    # collectors (stat_database, stat_user_tables, settings, replication, WAL) work.
+    command:
+      - --no-collector.stat_bgwriter
+    environment:
+      DATA_SOURCE_NAME: "postgresql://postgres:postgres@db:5432/postgres?sslmode=disable"
+    depends_on:
+      db:
+        condition: service_healthy
     networks:
       - data
 
@@ -292,6 +364,24 @@ services:
   # Without it those services show as unavailable in the Floci UI. The socket is
   # read-write so Floci can manage container lifecycle; this is equivalent to
   # giving Floci Docker-in-Docker capability — acceptable for local dev only.
+  # One-shot init container: creates S3 buckets in Floci that must exist before
+  # dependent services start (Tempo trace storage).  Runs once and exits 0.
+  # Compose waits for service_completed_successfully before starting dependents.
+  floci_init:
+    image: amazon/aws-cli:2.22.3
+    entrypoint: ["/bin/sh", "-c"]
+    command: >
+      "aws --endpoint-url http://floci:4566 s3 mb s3://tempo-traces --region us-east-1 2>/dev/null || true"
+    environment:
+      AWS_ACCESS_KEY_ID: test
+      AWS_SECRET_ACCESS_KEY: test
+      AWS_DEFAULT_REGION: us-east-1
+    depends_on:
+      floci:
+        condition: service_started
+    networks:
+      - data
+
   floci:
     image: floci/floci:latest
     restart: unless-stopped
@@ -496,6 +586,12 @@ services:
       # Shadow mode: both rollout percents stay 0 until post-P22 activation
       ROUTING_ML_ROLLOUT_PERCENT: 0
       RISK_ML_ROLLOUT_PERCENT: 0
+      # Observability — OpenTelemetry + OpenLIT (ADR-0028)
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://alloy:4318
+      OTEL_EXPORTER_OTLP_PROTOCOL: http/protobuf
+      OTEL_EXPORTER_OTLP_HEADERS: "Authorization=Bearer ${OTLP_BEARER_TOKEN:-yagye_dev_otlp_token}"
+      OTEL_RESOURCE_ATTRIBUTES: service.name=yagye_scoring,deployment.environment=local
+      OTEL_PROPAGATORS: tracecontext,baggage
     ports:
       - "8000:8000"
     healthcheck:
@@ -509,8 +605,9 @@ services:
       floci:
         condition: service_started
     networks:
-      - core_mesh  # Core calls /score/* from PaymentDispatchWorker / VelocityChecker
-      - data       # Floci S3 for ONNX model loading at startup
+      - core_mesh     # Core calls /score/* from PaymentDispatchWorker / VelocityChecker
+      - data          # Floci S3 for ONNX model loading at startup
+      - observability # Sends OTLP to Alloy
 
   # Karafka consumer — separate process, scales independently from the web tier.
   # Reads events from Redpanda and writes to portal_* read model tables.
@@ -526,6 +623,11 @@ services:
       KAFKA_BOOTSTRAP_SERVERS: redpanda:9092
       RAILS_LOG_TO_STDOUT: "true"
       RUBY_IO_BUFFERING: "0"
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://alloy:4318
+      OTEL_EXPORTER_OTLP_HEADERS: "Authorization=Bearer ${OTLP_BEARER_TOKEN:-yagye_dev_otlp_token}"
+      OTEL_TRACES_EXPORTER: otlp
+      OTEL_RESOURCE_ATTRIBUTES: service.name=yagye_portal_karafka,deployment.environment=local
+      OTEL_PROPAGATORS: tracecontext,baggage
     command: ["bundle", "exec", "karafka", "server"]
     depends_on:
       db:
@@ -535,7 +637,8 @@ services:
       yagye_portal:
         condition: service_started
     networks:
-      - data  # DB writes + Redpanda consumption only
+      - data          # DB writes + Redpanda consumption only
+      - observability # Sends OTLP to Alloy
     # NOT on edge or core_mesh — consumers write to DB, they don't call other services
 
   # ---------------------------------------------------------------------------
@@ -554,6 +657,11 @@ services:
   alloy:
     image: grafana/alloy:latest
     restart: unless-stopped
+    environment:
+      # Bearer token that all OTLP sender services must include in
+      # Authorization: Bearer <token> headers.  Override via .env at the
+      # project root for local dev; in production inject via secrets manager.
+      OTLP_BEARER_TOKEN: ${OTLP_BEARER_TOKEN:-yagye_dev_otlp_token}
     volumes:
       - ./alloy/config.alloy:/etc/alloy/config.alloy:ro
       - /var/run/docker.sock:/var/run/docker.sock
@@ -565,6 +673,7 @@ services:
     networks:
       - observability
       - core_mesh   # Scrapes yagye_core:4000/metrics
+      - data        # Scrapes Redpanda, RabbitMQ, redis_exporter, postgres_exporter
     depends_on:
       - tempo
       - loki
@@ -574,11 +683,23 @@ services:
     image: grafana/tempo:latest
     restart: unless-stopped
     command: -config.file=/etc/tempo/config.yaml
+    environment:
+      # Credentials for Floci S3 (trace storage). In production, inject via
+      # IAM instance role or secrets manager — do not ship these values.
+      AWS_ACCESS_KEY_ID: test
+      AWS_SECRET_ACCESS_KEY: test
+      AWS_DEFAULT_REGION: us-east-1
     volumes:
       - ./tempo/config.yaml:/etc/tempo/config.yaml:ro
-      - tempo_data:/var/tempo
+      - tempo_data:/var/tempo  # WAL only — trace blocks go to Floci S3
+    ports:
+      - "3201:3200"   # Tempo HTTP API http://localhost:3201
+    depends_on:
+      floci_init:
+        condition: service_completed_successfully
     networks:
       - observability
+      - data          # Reaches Floci S3 on the data network
 
   loki:
     image: grafana/loki:latest
@@ -597,6 +718,7 @@ services:
       - --config.file=/etc/prometheus/prometheus.yml
       - --storage.tsdb.retention.time=15d
       - --web.enable-remote-write-receiver
+      - --web.enable-lifecycle   # enables POST /-/reload for hot rule reloads
     volumes:
       - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
       - ./prometheus/rules:/etc/prometheus/rules:ro
@@ -626,6 +748,126 @@ services:
       - tempo
     networks:
       - observability
+
+  # ---------------------------------------------------------------------------
+  # Alertmanager — routes Prometheus alerts to email (via Mailpit in dev,
+  # SES SMTP in production). Prometheus targets this on port 9093.
+  # ---------------------------------------------------------------------------
+  alertmanager:
+    image: prom/alertmanager:latest
+    restart: unless-stopped
+    command:
+      - --config.file=/etc/alertmanager/config.yml
+      - --storage.path=/alertmanager
+    volumes:
+      - ./alertmanager/config.yml:/etc/alertmanager/config.yml:ro
+    ports:
+      - "9093:9093"   # Alertmanager UI http://localhost:9093
+    networks:
+      - observability
+
+  # ---------------------------------------------------------------------------
+  # Mailpit — local SMTP sink and email preview UI for dev.
+  # Catches all outgoing emails (Alertmanager alerts, portal mailer).
+  # Production: remove this service and point SMTP to SES.
+  # ---------------------------------------------------------------------------
+  mailpit:
+    image: axllent/mailpit:latest
+    restart: unless-stopped
+    ports:
+      - "1025:1025"   # SMTP (all services send here in dev)
+      - "8025:8025"   # Mailpit UI  http://localhost:8025
+    networks:
+      - observability
+      - edge           # Portal mailer reaches mailpit
+
+  # ---------------------------------------------------------------------------
+  # Node Exporter — host-level metrics: CPU, RAM, disk, network.
+  # Required by the disk/RAM/CPU alert rules already in prometheus/rules/alerts.yml.
+  # On macOS Docker Desktop, /proc and /sys are the Linux VM's — that is correct.
+  # ---------------------------------------------------------------------------
+  node_exporter:
+    image: prom/node-exporter:latest
+    restart: unless-stopped
+    pid: host
+    volumes:
+      - /proc:/host/proc:ro
+      - /sys:/host/sys:ro
+      - /:/rootfs:ro
+    command:
+      - '--path.procfs=/host/proc'
+      - '--path.sysfs=/host/sys'
+      - '--path.rootfs=/rootfs'
+      - '--collector.filesystem.mount-points-exclude=^/(sys|proc|dev|host|etc)($$|/)'
+    networks:
+      - observability
+
+  # ---------------------------------------------------------------------------
+  # cAdvisor — per-container metrics: CPU, RAM, network per service.
+  # Lets you see which container is consuming resources in Grafana.
+  # ---------------------------------------------------------------------------
+  cadvisor:
+    image: gcr.io/cadvisor/cadvisor:latest
+    restart: unless-stopped
+    volumes:
+      - /:/rootfs:ro
+      - /var/run:/var/run:ro
+      - /sys:/sys:ro
+      - /var/lib/docker/:/var/lib/docker:ro
+    networks:
+      - observability
+
+  # ---------------------------------------------------------------------------
+  # Blackbox Exporter — HTTP probes for services that don't expose /metrics.
+  #
+  # Alloy scrapes it via the multi-target pattern:
+  #   GET /probe?target=http://yagye_portal:80/up&module=http_2xx
+  # and exports probe_success{instance="<target_url>"} = 1 / 0.
+  #
+  # Covers: Portal (/up), Simulator (/health), Checkout (/health).
+  # Core is already scraped natively via /metrics (up{job="yagye_core"}).
+  # ---------------------------------------------------------------------------
+  blackbox:
+    image: prom/blackbox-exporter:v0.25.0
+    restart: unless-stopped
+    volumes:
+      - ./blackbox/config.yml:/etc/blackbox/config.yml:ro
+    command:
+      - --config.file=/etc/blackbox/config.yml
+    networks:
+      - observability
+      - edge       # Reaches Portal on port 80
+      - core_mesh  # Reaches Simulator (:4001) and Checkout (:4010)
+
+  # ---------------------------------------------------------------------------
+  # P18 / ADR-0028 — Langfuse: self-hosted LLM conversation observability
+  #
+  #   UI at http://localhost:3200  (create an account on first visit)
+  #
+  #   Traces AI chat conversations, stores prompt versions, eval scores,
+  #   and cost-per-session. The merchant AI thumbs-up/down feedback emits
+  #   langfuse.score events (value 1 or -1) for quality trend tracking.
+  #
+  #   Never expose on a public endpoint — all conversation content is
+  #   stored here. VPC-only in production.
+  # ---------------------------------------------------------------------------
+
+  langfuse:
+    image: langfuse/langfuse:2
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: postgresql://postgres:postgres@db:5432/langfuse_dev
+      NEXTAUTH_URL: http://localhost:3200
+      NEXTAUTH_SECRET: dev_langfuse_secret_change_in_production
+      SALT: dev_langfuse_salt_change_in_production
+    ports:
+      - "3200:3000"   # Langfuse UI http://localhost:3200
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - data  # Postgres access
+      - edge  # Receives SDK calls from Portal and Core
 
 volumes:
   postgres_data:

@@ -16,4 +16,6 @@ psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "postgres" <<-EOSQL
     WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = 'yagye_portal_development')\gexec
   SELECT 'CREATE DATABASE yagye_portal_test'
     WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = 'yagye_portal_test')\gexec
+  SELECT 'CREATE DATABASE langfuse_dev'
+    WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = 'langfuse_dev')\gexec
 EOSQL
