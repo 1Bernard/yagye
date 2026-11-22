@@ -27,8 +27,9 @@ module Layout
     end
 
     def view_template
-      is_ops      = @user.internal_staff?
-      chat_url    = is_ops ? "/ai/ops-chat" : "/ai/chat"
+      is_ops         = @user.internal_staff?
+      chat_url       = is_ops ? "/ai/ops-chat" : "/ai/chat"
+      @full_page_url = chat_url
       first_name  = @user.full_name.to_s.split.first.presence || "there"
       greeting    = is_ops \
         ? "Analyze payments, check provider health, review risk flags, and more." \
@@ -69,11 +70,20 @@ module Layout
             class: "invisible",
             style: "height:26px;width:auto;object-fit:contain;transition:opacity 0.25s ease",
             data: { ai_chat_target: "header" })
-        button(type: "button",
-               class: "w-8 h-8 rounded-lg flex items-center justify-center transition-colors hover:bg-gray-100",
-               style: "color:#adb5bd",
-               data: { action: "click->ai-chat#close" }) do
-          span(class: "flex w-[14px] h-[14px]") { render UI::Icon.new(:x, class: "w-full h-full") }
+        div(class: "flex items-center gap-1") do
+          a(href: @full_page_url,
+            class: "flex items-center gap-1 px-2 py-1.5 rounded-lg transition-colors hover:bg-gray-100",
+            style: "color:#9ca3af;text-decoration:none",
+            title: "Open full page") do
+            span(class: "flex w-[13px] h-[13px]") { render UI::Icon.new(:external_link, class: "w-full h-full") }
+            span(class: "text-[11.5px] font-medium") { plain "Full view" }
+          end
+          button(type: "button",
+                 class: "w-8 h-8 rounded-lg flex items-center justify-center transition-colors hover:bg-gray-100",
+                 style: "color:#adb5bd",
+                 data: { action: "click->ai-chat#close" }) do
+            span(class: "flex w-[14px] h-[14px]") { render UI::Icon.new(:x, class: "w-full h-full") }
+          end
         end
       end
     end

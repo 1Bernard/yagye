@@ -118,15 +118,28 @@ module Ai
         message     = choice&.dig("message") || {}
 
         if finish == "stop"
-          return Result.new(text: message["content"].to_s)
+          return Result.new(text: clean_content(message["content"].to_s))
         end
 
         if finish == "tool_calls" && on_tool
           tool_calls = message["tool_calls"] || []
-          return Result.new(error: "no tool calls") if tool_calls.empty?
 
-          # Add assistant message (with tool_calls) to conversation
-          conversation << message
+          # Qwen3 / some models return finish_reason "tool_calls" with no calls populated —
+          # fall back to whatever text the model produced rather than erroring.
+          if tool_calls.empty?
+            text = clean_content(message["content"].to_s)
+            return Result.new(text: text.presence || "No response.")
+          end
+
+          # Strip thinking tokens from content before adding to conversation history.
+          # Qwen3 on Groq injects <think>…</think> blocks into the assistant message;
+          # leaving them in causes the NEXT API call to be rejected with a 400.
+          tool_call_msg = message.dup
+          if tool_call_msg["content"].is_a?(String)
+            stripped = strip_thinking(tool_call_msg["content"])
+            tool_call_msg["content"] = stripped.empty? ? nil : stripped
+          end
+          conversation << tool_call_msg
 
           # Execute each tool and add results
           tool_calls.each do |tc|
@@ -149,11 +162,11 @@ module Ai
           end
         else
           # Unexpected finish — return whatever content we have
-          return Result.new(text: message["content"].to_s.presence || "No response.")
+          return Result.new(text: clean_content(message["content"].to_s).presence || "No response.")
         end
       end
 
-      Result.new(error: "tool call loop exceeded #{MAX_TOOL_ITERS} iterations")
+      Result.new(text: "I wasn't able to retrieve that information — the data lookup took too many steps. Please try rephrasing your question.")
     end
 
     private
@@ -184,10 +197,17 @@ module Ai
       if response.success?
         { ok: true, body: response.body }
       else
-        err = response.body.is_a?(Hash) ? response.body.dig("error", "message") : nil
+        rb  = response.body
+        err = if rb.is_a?(Hash)
+          rb.dig("error", "message") || rb["error"]&.to_s || rb.to_json.first(300)
+        else
+          rb.to_s.first(300)
+        end
+        Rails.logger.error("[Ai::AnthropicClient] API #{response.status}: #{err}")
         { ok: false, error: err || "LLM API error (#{response.status})" }
       end
     rescue Faraday::Error => e
+      Rails.logger.error("[Ai::AnthropicClient] Faraday error: #{e.message}")
       { ok: false, error: e.message }
     end
 
@@ -203,6 +223,16 @@ module Ai
       ENV.fetch(key_env) do
         raise "#{key_env} is not set — AI chat unavailable"
       end
+    end
+
+    # Remove Qwen3 thinking tokens that must not appear in conversation history.
+    def strip_thinking(text)
+      text.to_s.gsub(/<think>.*?<\/think>/m, "").strip
+    end
+
+    # Strip thinking tokens and normalise the final content returned to callers.
+    def clean_content(text)
+      strip_thinking(text)
     end
   end
 end

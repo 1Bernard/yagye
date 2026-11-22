@@ -10,6 +10,27 @@ export default class extends Controller {
     this.isOpen   = false
     this.threadId = null
     this.pendingCsv = null
+    this.ensureStyles()
+  }
+
+  ensureStyles() {
+    if (document.getElementById('ai-page-styles')) return
+    const style = document.createElement('style')
+    style.id = 'ai-page-styles'
+    style.textContent =
+      `.ai-trow:last-child td{border-bottom:none!important}` +
+      `.ai-trow:hover td{background:#f9fafb}` +
+      `.ai-fb-row{display:flex;align-items:center;gap:3px;margin-top:8px}` +
+      `.ai-fb-btn{display:flex;align-items:center;justify-content:center;` +
+        `width:24px;height:24px;border-radius:5px;border:none;` +
+        `background:none;cursor:pointer;color:#9ca3af;opacity:0.4;` +
+        `transition:opacity 0.15s,color 0.15s,background 0.15s;padding:0}` +
+      `.ai-fb-btn:hover{opacity:1;background:#f3f4f6}` +
+      `.ai-fb-btn.ai-fb-active{opacity:1}` +
+      `.ai-dot{width:6px;height:6px;border-radius:50%;background:#9ca3af;` +
+        `animation:ai-pulse 1.2s ease-in-out infinite}` +
+      `@keyframes ai-pulse{0%,100%{opacity:0.3;transform:scale(0.8)}50%{opacity:1;transform:scale(1)}}`
+    document.head.appendChild(style)
   }
 
   // ── Open / close ──────────────────────────────────────────────────────────
@@ -262,9 +283,69 @@ export default class extends Controller {
       <div class="text-[13.5px] leading-relaxed text-gray-700"
            style="word-break:break-word">
         ${this.renderMarkdown(text)}
-      </div>`
+      </div>
+      ${this.feedbackRowHtml(text)}`
     this.messagesTarget.appendChild(el)
     this.scrollBottom()
+  }
+
+  feedbackRowHtml(text) {
+    const encoded = this.esc(text)
+    return `
+      <div class="ai-fb-row">
+        <button type="button" class="ai-fb-btn" title="Copy response"
+                data-action="click->ai-chat#copyMessage" data-text="${encoded}">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+               stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
+          </svg>
+        </button>
+        <button type="button" class="ai-fb-btn" title="Good response"
+                data-action="click->ai-chat#thumbsUp">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+               stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M14 9V5a3 3 0 0 0-3-3l-4 9v11h11.28a2 2 0 0 0 2-1.7l1.38-9a2 2 0 0 0-2-2.3H14z"/>
+            <path d="M7 22H4a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2h3"/>
+          </svg>
+        </button>
+        <button type="button" class="ai-fb-btn" title="Bad response"
+                data-action="click->ai-chat#thumbsDown">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+               stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M10 15v4a3 3 0 0 0 3 3l4-9V2H5.72a2 2 0 0 0-2 1.7l-1.38 9a2 2 0 0 0 2 2.3H10z"/>
+            <path d="M17 2h2.67A2.31 2.31 0 0 1 22 4v7a2.31 2.31 0 0 1-2.33 2H17"/>
+          </svg>
+        </button>
+      </div>`
+  }
+
+  copyMessage(event) {
+    const text = event.currentTarget.dataset.text
+    navigator.clipboard?.writeText(text)
+      .then(() => {
+        const btn = event.currentTarget
+        const prev = btn.style.color
+        btn.style.color = "#10b981"
+        btn.style.opacity = "1"
+        setTimeout(() => { btn.style.color = prev; btn.style.opacity = "" }, 1800)
+      })
+      .catch(() => {})
+  }
+
+  thumbsUp(event) {
+    const btn = event.currentTarget
+    const row = btn.closest(".ai-fb-row")
+    const wasActive = btn.classList.contains("ai-fb-active")
+    row.querySelectorAll(".ai-fb-btn").forEach(b => { b.classList.remove("ai-fb-active"); b.style.color = "" })
+    if (!wasActive) { btn.classList.add("ai-fb-active"); btn.style.color = "#6366f1" }
+  }
+
+  thumbsDown(event) {
+    const btn = event.currentTarget
+    const row = btn.closest(".ai-fb-row")
+    const wasActive = btn.classList.contains("ai-fb-active")
+    row.querySelectorAll(".ai-fb-btn").forEach(b => { b.classList.remove("ai-fb-active"); b.style.color = "" })
+    if (!wasActive) { btn.classList.add("ai-fb-active"); btn.style.color = "#ef4444" }
   }
 
   appendThinking() {
@@ -291,18 +372,79 @@ export default class extends Controller {
     this.scrollBottom()
   }
 
-  // ── Markdown-lite ─────────────────────────────────────────────────────────
+  // ── Markdown ──────────────────────────────────────────────────────────────
 
   renderMarkdown(raw) {
-    let s = this.esc(raw)
+    const lines  = raw.split('\n')
+    const blocks = []
+    let i = 0
+
+    while (i < lines.length) {
+      if (i + 1 < lines.length &&
+          this.#isTableRow(lines[i]) &&
+          this.#isTableSep(lines[i + 1])) {
+        const tLines = [lines[i], lines[i + 1]]
+        i += 2
+        while (i < lines.length && this.#isTableRow(lines[i])) {
+          tLines.push(lines[i++])
+        }
+        blocks.push(this.#renderTable(tLines))
+      } else {
+        blocks.push(this.#renderInline(lines[i]))
+        i++
+      }
+    }
+
+    return blocks.join('<br>')
+  }
+
+  #isTableRow(line) {
+    return /^\s*\|/.test(line) && /\|\s*$/.test(line)
+  }
+
+  #isTableSep(line) {
+    return /^\s*\|[\s|:=-]+\|\s*$/.test(line)
+  }
+
+  #parseRow(line) {
+    return line.split('|').slice(1, -1).map(c => c.trim())
+  }
+
+  #renderTable(lines) {
+    const headers = this.#parseRow(lines[0])
+    const rows    = lines.slice(2).map(l => this.#parseRow(l))
+
+    const ths = headers.map(h =>
+      `<th style="padding:6px 10px;text-align:left;font-size:11px;font-weight:600;` +
+      `color:#6b7280;background:#f8fafc;border-bottom:1px solid #e5e7eb;white-space:nowrap">` +
+      `${this.#renderInline(h)}</th>`
+    ).join('')
+
+    const trs = rows.map(row => {
+      const tds = row.map(cell =>
+        `<td style="padding:5px 10px;font-size:12px;color:#374151;` +
+        `border-bottom:1px solid #f3f4f6">${this.#renderInline(cell)}</td>`
+      ).join('')
+      return `<tr class="ai-trow">${tds}</tr>`
+    }).join('')
+
+    return `<div style="overflow-x:auto;margin:4px 0;border-radius:8px;` +
+           `border:1px solid #e5e7eb;background:#fff">` +
+           `<table style="width:100%;border-collapse:collapse">` +
+           `<thead><tr>${ths}</tr></thead>` +
+           `<tbody>${trs}</tbody>` +
+           `</table></div>`
+  }
+
+  #renderInline(text) {
+    let s = this.esc(text)
     s = s.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
     s = s.replace(/`([^`]+)`/g,
-      '<code style="font-family:monospace;font-size:12.5px;background:#f1f5f9;' +
-      'padding:1px 5px;border-radius:4px;color:#4f46e5">$1</code>')
-    s = s.replace(/^[-•]\s+(.+)$/gm,
+      '<code style="font-family:monospace;font-size:12px;background:#f1f5f9;' +
+      'padding:1px 4px;border-radius:4px;color:#4f46e5">$1</code>')
+    s = s.replace(/^[-•]\s+(.+)$/,
       '<div style="display:flex;gap:8px;margin-top:4px">' +
       '<span style="color:#a5b4fc;flex-shrink:0;margin-top:1px">•</span><span>$1</span></div>')
-    s = s.replace(/\n/g, '<br>')
     return s
   }
 

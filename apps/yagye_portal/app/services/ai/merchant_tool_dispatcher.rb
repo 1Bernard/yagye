@@ -22,6 +22,8 @@ module Ai
       when "get_my_recent_payments"     then get_my_recent_payments(input)
       when "get_my_payout_balance"      then get_my_payout_balance
       when "get_my_settlement_batches"  then get_my_settlement_batches(input)
+      when "get_my_customers"           then get_my_customers(input)
+      when "get_my_refunds"             then get_my_refunds(input)
       else { error: "unknown tool: #{tool_name}" }
       end
     end
@@ -65,6 +67,22 @@ module Ai
               limit: { type: "integer", description: "Number of batches to return (1-10, default 5)." }
             }
           }
+        },
+        {
+          name: "get_my_customers",
+          description: "Returns this merchant's customer analytics: unique customer count, new customers this month, repeat rate, top spenders (amounts only, no personal data), and payment method breakdown.",
+          input_schema: { type: "object", properties: {} }
+        },
+        {
+          name: "get_my_refunds",
+          description: "Returns this merchant's refund summary for a given period: count, total amount, and breakdown by payment method.",
+          input_schema: {
+            type: "object",
+            properties: {
+              period: { type: "string", enum: %w[today 7d mtd 30d],
+                        description: "Time window. Defaults to mtd." }
+            }
+          }
         }
       ]
     end
@@ -80,18 +98,22 @@ module Ai
       range  = PERIOD_RANGES.fetch(period, PERIOD_RANGES["mtd"]).call
       scope  = scoped_payments
 
-      paid   = scope.where(status: %w[paid refunded], paid_at: range)
-      all_in = scope.where(created_at: range)
-      gross  = paid.sum(:amount)
-      count  = all_in.count
+      paid    = scope.where(status: %w[paid refunded], paid_at: range)
+      all_in  = scope.where(created_at: range)
+      count   = all_in.count
       success = paid.count
 
+      # Group by currency — mixing GHS and USD minor units would give a meaningless total
+      volume_by_currency = paid.group(:currency).sum(:amount)
+                               .transform_values.with_index { |amt, _| amt.to_i }
+                               .to_h
+
       {
-        period:        period,
-        gross_volume:  format_amount(gross),
-        tx_count:      count,
-        success_count: success,
-        success_rate:  count.positive? ? "#{(success.to_f / count * 100).round(1)}%" : "n/a"
+        period:             period,
+        volume_by_currency: volume_by_currency.map { |cur, amt| "#{cur}: #{format_amount(amt, cur)}" },
+        tx_count:           count,
+        success_count:      success,
+        success_rate:       count.positive? ? "#{(success.to_f / count * 100).round(1)}%" : "n/a"
       }
     end
 
@@ -103,7 +125,8 @@ module Ai
       scope.order(created_at: :desc).limit(limit).map do |p|
         {
           id:         p.reference,
-          amount:     format_amount(p.amount.to_i),
+          amount:     format_amount(p.amount.to_i, p.currency),
+          currency:   p.currency,
           status:     p.status,
           method:     p.payment_method,
           created_at: p.created_at&.strftime("%Y-%m-%d %H:%M UTC")
@@ -147,9 +170,88 @@ module Ai
       end
     end
 
-    def format_amount(pesewas)
-      return "GHS 0.00" if pesewas.nil? || pesewas.zero?
-      "GHS #{format('%.2f', pesewas.to_f / 100)}"
+    def get_my_customers(*)
+      scope      = scoped_payments
+      month_start = Time.current.beginning_of_month
+
+      # Unique customers by MSISDN (MoMo) or email (card/bank)
+      msisdn_ids = scope.where.not(customer_msisdn: [ nil, "" ]).distinct.pluck(:customer_msisdn)
+      email_ids  = scope.where(customer_msisdn: [ nil, "" ]).where.not(customer_email: [ nil, "" ])
+                        .distinct.pluck(:customer_email)
+      total_unique = (msisdn_ids + email_ids).uniq.size
+
+      # New this month: first payment on record is within this month
+      new_msisdn = scope.where(customer_msisdn: msisdn_ids)
+                        .group(:customer_msisdn)
+                        .having("MIN(created_at) >= ?", month_start)
+                        .count.size
+      new_email  = scope.where(customer_msisdn: [ nil, "" ]).where(customer_email: email_ids)
+                        .group(:customer_email)
+                        .having("MIN(created_at) >= ?", month_start)
+                        .count.size
+      new_this_month = new_msisdn + new_email
+
+      # Top 5 customers by total paid amount — amounts only, no PII sent to LLM.
+      # Group by customer AND currency to avoid summing GHS and USD minor units together.
+      top_rows = scope.where(status: %w[paid refunded])
+                      .group(Arel.sql(
+                        "COALESCE(NULLIF(customer_msisdn,''), customer_email), currency"
+                      ))
+                      .select(Arel.sql(
+                        "COALESCE(NULLIF(customer_msisdn,''), customer_email) AS ckey," \
+                        "currency, SUM(amount) AS total_minor, COUNT(*) AS tx_count"
+                      ))
+                      .order("total_minor DESC")
+                      .limit(10)
+
+      top_spenders = top_rows.each_with_index.map do |r, i|
+        {
+          rank:         i + 1,
+          total_spent:  format_amount(r.total_minor.to_i, r.currency),
+          currency:     r.currency,
+          transactions: r.tx_count.to_i
+        }
+      end
+
+      # Method split
+      by_method = scope.group(:payment_method).count
+
+      {
+        total_unique_customers: total_unique,
+        new_this_month:         new_this_month,
+        returning_customers:    total_unique - new_this_month,
+        top_spenders:           top_spenders,
+        by_payment_method:      by_method
+      }
+    end
+
+    def get_my_refunds(input)
+      period = input["period"] || "mtd"
+      range  = PERIOD_RANGES.fetch(period, PERIOD_RANGES["mtd"]).call
+      scope  = scoped_payments.where(status: "refunded", created_at: range)
+
+      total_count        = scope.count
+      total_by_currency  = scope.group(:currency).sum(:amount)
+                               .map { |cur, amt| format_amount(amt.to_i, cur) }
+
+      by_method = scope.group(:payment_method, :currency)
+                       .select(:payment_method, :currency,
+                               "COUNT(*) AS cnt", "SUM(amount) AS total_minor")
+                       .map { |r| [ "#{r.payment_method}/#{r.currency}", { count: r.cnt.to_i, total: format_amount(r.total_minor.to_i, r.currency) } ] }
+                       .to_h
+
+      {
+        period:            period,
+        refund_count:      total_count,
+        total_by_currency: total_by_currency,
+        by_method:         by_method
+      }
+    end
+
+    def format_amount(minor_units, currency = "GHS")
+      cur = currency.to_s.upcase.presence || "GHS"
+      return "#{cur} 0.00" if minor_units.nil? || minor_units.zero?
+      "#{cur} #{format('%.2f', minor_units.to_f / 100)}"
     end
   end
 end
