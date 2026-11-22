@@ -7,6 +7,8 @@ class ApplicationController < ActionController::Base
   allow_browser versions: :modern
   stale_when_importmap_changes
 
+  around_action :log_request_json
+
   before_action :authenticate_user!
   before_action :verify_user_session
   before_action :set_current_user
@@ -63,6 +65,46 @@ class ApplicationController < ActionController::Base
     else
       Current.mode = session[:portal_mode].presence_in(%w[test live]) || "test"
       session[:portal_mode] = Current.mode
+    end
+  end
+
+  # One structured JSON line per request → STDOUT → Docker log driver → Loki.
+  # Uses around_action instead of a process_action.action_controller subscriber
+  # because Rails 8.1 Evented subscribers are not reliably dispatched in Puma
+  # worker threads (subscriber is registered but block never fires).
+  def log_request_json
+    started = Process.clock_gettime(Process::CLOCK_MONOTONIC)
+    yield
+  ensure
+    begin
+      return unless Rails.env.production?
+      return if request.path == "/up"
+
+      duration_ms = ((Process.clock_gettime(Process::CLOCK_MONOTONIC) - started) * 1000).round(2)
+      status      = response.status rescue 500
+
+      entry = {
+        time:          Time.now.utc.iso8601(3),
+        service:       "yagye_portal",
+        environment:   "production",
+        release:       ENV.fetch("RELEASE_SHA", "local"),
+        host:          Socket.gethostname,
+        trace_id:      CorrelationId.current,
+        method:        request.method,
+        path:          request.path,
+        status:        status,
+        duration:      duration_ms,
+        format:        request.format.symbol&.to_s,
+        controller:    self.class.name,
+        action:        action_name,
+        merchant_code: current_user&.merchant_code,
+        mode:          Current.mode,
+        user_id:       current_user&.id
+      }.compact
+
+      STDOUT.write(entry.to_json + "\n")
+    rescue StandardError => e
+      STDERR.write("REQ_LOG_ERR pid=#{$$}: #{e.class}: #{e.message}\n") rescue nil
     end
   end
 

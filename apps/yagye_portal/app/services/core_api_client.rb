@@ -943,8 +943,7 @@ class CoreApiClient
   def request_headers
     headers = {
       "X-Service-Name"  => "portal",
-      "X-Service-Token" => service_secret,
-      "traceparent"     => CorrelationId.current
+      "X-Service-Token" => service_secret
     }
     actor = Current.user&.user_code
     headers["X-Actor-Code"] = actor if actor.present?
