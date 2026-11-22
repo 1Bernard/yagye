@@ -46,6 +46,7 @@ defmodule YagyeCore.Payments.Adapters.MTNMomoAdapter do
 
   @behaviour YagyeCore.Payments.Providers.ProviderAdapter
 
+  alias YagyeCore.Payments.Adapters.PspHttp
   alias YagyeCore.Payments.Schemas.{Payment, PaymentAttempt}
 
   # ── Public callbacks ──────────────────────────────────────────────────────────
@@ -73,7 +74,7 @@ defmodule YagyeCore.Payments.Adapters.MTNMomoAdapter do
         "payeeNote" => attempt.idempotency_token
       }
 
-      Req.post(
+      PspHttp.post(
         collection_url(credential, "/requesttopay"),
         [
           json: body,
@@ -98,7 +99,7 @@ defmodule YagyeCore.Payments.Adapters.MTNMomoAdapter do
   @impl true
   def query_charge(%PaymentAttempt{provider_reference: ref} = _attempt, credential) do
     with {:ok, token} <- fetch_token(credential) do
-      Req.get(
+      PspHttp.get(
         collection_url(credential, "/requesttopay/#{ref}"),
         [headers: api_headers(credential, token, nil), receive_timeout: 10_000] ++
           extra_req_opts()
@@ -112,7 +113,7 @@ defmodule YagyeCore.Payments.Adapters.MTNMomoAdapter do
     with {:ok, token} <- fetch_token(credential) do
       msisdn = normalise_msisdn(msisdn)
 
-      Req.get(
+      PspHttp.get(
         collection_url(credential, "/accountholder/msisdn/#{msisdn}/basicuserinfo"),
         [headers: api_headers(credential, token, nil), receive_timeout: 10_000] ++
           extra_req_opts()
@@ -147,7 +148,7 @@ defmodule YagyeCore.Payments.Adapters.MTNMomoAdapter do
       disbursement_sub_key =
         credential["disbursement_subscription_key"] || credential["subscription_key"]
 
-      Req.post(
+      PspHttp.post(
         disbursement_url(credential, "/transfer"),
         [
           json: body,
@@ -177,7 +178,7 @@ defmodule YagyeCore.Payments.Adapters.MTNMomoAdapter do
       :miss ->
         encoded = Base.encode64("#{user_id}:#{api_key}")
 
-        Req.post(
+        PspHttp.post(
           "#{base_url}/disbursement/token/",
           [
             body: "",
@@ -245,7 +246,7 @@ defmodule YagyeCore.Payments.Adapters.MTNMomoAdapter do
   defp do_token_request(base_url, sub_key, user_id, api_key, cache_key) do
     credentials = Base.encode64("#{user_id}:#{api_key}")
 
-    case Req.post(
+    case PspHttp.post(
            "#{base_url}/collection/token/",
            [
              body: "",

@@ -31,6 +31,7 @@ defmodule YagyeCore.Payments.Adapters.FlutterwaveAdapter do
 
   @behaviour YagyeCore.Payments.Providers.ProviderAdapter
 
+  alias YagyeCore.Payments.Adapters.PspHttp
   alias YagyeCore.Payments.Schemas.{Payment, PaymentAttempt}
 
   # Maps Yagye's internal network names to Flutterwave's codes.
@@ -64,7 +65,7 @@ defmodule YagyeCore.Payments.Adapters.FlutterwaveAdapter do
       fullname: get_in(payment.metadata, ["account_name"]) || "Customer"
     }
 
-    Req.post(
+    PspHttp.post(
       url("/charges", credential, type: "mobile_money_gh"),
       [json: body, headers: auth_headers(credential), receive_timeout: 15_000] ++ extra_req_opts()
     )
@@ -86,7 +87,7 @@ defmodule YagyeCore.Payments.Adapters.FlutterwaveAdapter do
   def query_charge(%PaymentAttempt{provider_reference: ref} = _attempt, credential) do
     # provider_reference for Flutterwave is the numeric transaction ID (data.id
     # from the charge response), stored as a string.
-    case Req.get(
+    case PspHttp.get(
            url("/transactions/#{ref}/verify", credential),
            [headers: auth_headers(credential), receive_timeout: 10_000] ++ extra_req_opts()
          ) do
@@ -127,7 +128,7 @@ defmodule YagyeCore.Payments.Adapters.FlutterwaveAdapter do
       meta: [%{mobile_number: msisdn}]
     }
 
-    Req.post(
+    PspHttp.post(
       url("/transfers", credential),
       [json: body, headers: auth_headers(credential), receive_timeout: 15_000] ++ extra_req_opts()
     )
@@ -155,7 +156,7 @@ defmodule YagyeCore.Payments.Adapters.FlutterwaveAdapter do
       narration: "Yagye payout #{ref}"
     }
 
-    Req.post(
+    PspHttp.post(
       url("/transfers", credential),
       [json: body, headers: auth_headers(credential), receive_timeout: 15_000] ++ extra_req_opts()
     )

@@ -33,7 +33,7 @@ defmodule YagyeCoreWeb.Plugs.AuditLog do
         api_version: get_req_header(conn, "x-api-version") |> List.first("2026-01-01"),
         status: conn.status,
         duration_ms: duration_ms,
-        trace_id: conn.assigns[:trace_id],
+        trace_id: otel_trace_id() || conn.assigns[:trace_id],
         idempotency_key: get_req_header(conn, "idempotency-key") |> List.first(),
         request_body_sha256: body_hash(conn.assigns[:raw_body]),
         error_code: conn.assigns[:error_code]
@@ -41,6 +41,21 @@ defmodule YagyeCoreWeb.Plugs.AuditLog do
 
       conn
     end)
+  end
+
+  defp otel_trace_id do
+    case OpenTelemetry.Tracer.current_span_ctx() do
+      :undefined ->
+        nil
+
+      span_ctx ->
+        trace_id = :otel_span.trace_id(span_ctx)
+
+        if trace_id == 0,
+          do: nil,
+          else:
+            trace_id |> Integer.to_string(16) |> String.downcase() |> String.pad_leading(32, "0")
+    end
   end
 
   defp body_hash(nil), do: nil

@@ -29,6 +29,7 @@ defmodule YagyeCore.DataLake.Workers.DataLakeIngestionWorker do
   import Ecto.Query
 
   alias YagyeCore.DataLake.S3Writer
+  alias YagyeCore.DataLake.SchemaRegistry
   alias YagyeCore.Outbox.Schemas.OutboxMessage
   alias YagyeCore.Repo
 
@@ -37,20 +38,68 @@ defmodule YagyeCore.DataLake.Workers.DataLakeIngestionWorker do
   @impl Oban.Worker
   def perform(%Oban.Job{}) do
     since = DateTime.add(DateTime.utc_now(), -@lookback_seconds, :second)
-    messages = fetch_messages(since)
+    {valid, rejected} = fetch_messages(since) |> classify_messages()
 
-    messages
-    |> Enum.group_by(&partition_key/1)
-    |> Enum.reduce(:ok, &write_partition/2)
+    result = flush_valid(valid)
+    flush_rejected(rejected)
+    result
   end
 
   # ── Private ──────────────────────────────────────────────────────────────────
 
-  defp write_partition({{date, prefix}, group}, acc) do
-    case S3Writer.write(prefix, date, Enum.map(group, & &1.envelope)) do
-      :ok -> acc
-      {:error, reason} -> {:error, reason}
-    end
+  defp classify_messages(messages) do
+    Enum.reduce(messages, {[], []}, fn msg, {valid_acc, rejected_acc} ->
+      case SchemaRegistry.validate(msg.envelope) do
+        :ok ->
+          {[msg | valid_acc], rejected_acc}
+
+        {:error, {_family, errors}} ->
+          Logger.warning("data_lake.envelope_rejected",
+            event_type: msg.event_type,
+            error_count: length(errors)
+          )
+
+          {valid_acc, [{msg, errors} | rejected_acc]}
+
+        {:error, reason} ->
+          Logger.warning("data_lake.envelope_rejected",
+            event_type: msg.event_type,
+            reason: inspect(reason)
+          )
+
+          {valid_acc, [{msg, [inspect(reason)]} | rejected_acc]}
+      end
+    end)
+  end
+
+  defp flush_valid(messages) do
+    messages
+    |> Enum.group_by(&partition_key/1)
+    |> Enum.reduce(:ok, fn {{date, prefix}, group}, acc ->
+      case S3Writer.write(prefix, date, Enum.map(group, & &1.envelope)) do
+        :ok -> acc
+        {:error, reason} -> {:error, reason}
+      end
+    end)
+  end
+
+  defp flush_rejected(rejected_pairs) do
+    rejected_pairs
+    |> Enum.group_by(fn {msg, _errors} -> partition_key(msg) end)
+    |> Enum.reduce(:ok, fn {{date, prefix}, group}, acc ->
+      envelopes =
+        Enum.map(group, fn {msg, errors} ->
+          Map.put(msg.envelope, "_rejection", %{
+            "errors" => format_errors(errors),
+            "rejected_at" => DateTime.to_iso8601(DateTime.utc_now())
+          })
+        end)
+
+      case S3Writer.write_rejected(prefix, date, envelopes) do
+        :ok -> acc
+        {:error, reason} -> {:error, reason}
+      end
+    end)
   end
 
   defp fetch_messages(since) do
@@ -63,8 +112,15 @@ defmodule YagyeCore.DataLake.Workers.DataLakeIngestionWorker do
   end
 
   defp partition_key(%OutboxMessage{occurred_at: occurred_at, event_type: event_type}) do
-    date = DateTime.to_date(occurred_at)
-    prefix = event_type |> String.split(".") |> List.first()
-    {date, prefix}
+    {DateTime.to_date(occurred_at), event_prefix(event_type)}
+  end
+
+  defp event_prefix(event_type), do: event_type |> String.split(".") |> List.first()
+
+  defp format_errors(errors) do
+    Enum.map(errors, fn
+      {description, path} -> "#{path}: #{description}"
+      error when is_binary(error) -> error
+    end)
   end
 end

@@ -1,0 +1,29 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "description": "Envelope schema for all merchant.* outbox events",
+  "type": "object",
+  "required": ["event_id", "event_type", "event_version", "aggregate_type", "aggregate_id", "aggregate_version", "mode", "occurred_at", "payload"],
+  "properties": {
+    "event_id":          { "type": "string", "minLength": 1 },
+    "event_type":        { "type": "string", "pattern": "^merchant\\." },
+    "event_version":     { "type": "integer", "minimum": 1 },
+    "aggregate_type":    { "type": "string", "minLength": 1 },
+    "aggregate_id":      { "type": "string", "minLength": 1 },
+    "aggregate_version": { "type": "integer", "minimum": 0 },
+    "merchant_id":       { "type": ["string", "null"] },
+    "mode":              { "type": "string", "enum": ["simulation", "sandbox", "live"] },
+    "correlation_id":    { "type": ["string", "null"] },
+    "occurred_at":       { "type": "string" },
+    "payload": {
+      "type": "object",
+      "required": ["merchant_code"],
+      "properties": {
+        "merchant_code":   { "type": "string", "minLength": 1 },
+        "business_name":   { "type": ["string", "null"] },
+        "country":         { "type": ["string", "null"] },
+        "sandbox_enabled": { "type": ["boolean", "null"] }
+      }
+    }
+  },
+  "additionalProperties": false
+}

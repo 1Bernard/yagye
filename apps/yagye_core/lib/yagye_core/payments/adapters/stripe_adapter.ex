@@ -45,6 +45,7 @@ defmodule YagyeCore.Payments.Adapters.StripeAdapter do
 
   @behaviour YagyeCore.Payments.Providers.ProviderAdapter
 
+  alias YagyeCore.Payments.Adapters.PspHttp
   alias YagyeCore.Payments.Schemas.{Payment, PaymentAttempt}
 
   @stripe_version "2024-06-20"
@@ -203,7 +204,7 @@ defmodule YagyeCore.Payments.Adapters.StripeAdapter do
   # ── Private ──────────────────────────────────────────────────────────────────
 
   defp stripe_post(path, params, idempotency_key, credential) do
-    Req.post(
+    PspHttp.post(
       url(path, credential),
       [
         form: params,
@@ -219,7 +220,7 @@ defmodule YagyeCore.Payments.Adapters.StripeAdapter do
   end
 
   defp stripe_get(path, credential) do
-    Req.get(
+    PspHttp.get(
       url(path, credential),
       [
         headers:

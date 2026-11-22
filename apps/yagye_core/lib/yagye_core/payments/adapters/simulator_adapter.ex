@@ -8,6 +8,7 @@ defmodule YagyeCore.Payments.Adapters.SimulatorAdapter do
 
   @behaviour YagyeCore.Payments.Providers.ProviderAdapter
 
+  alias YagyeCore.Payments.Adapters.PspHttp
   alias YagyeCore.Payments.Schemas.{Payment, PaymentAttempt}
 
   @impl true
@@ -22,7 +23,7 @@ defmodule YagyeCore.Payments.Adapters.SimulatorAdapter do
       |> maybe_add_wallet_fields(payment)
       |> maybe_add_card_fields(payment)
 
-    case Req.post(url("/charges", credential),
+    case PspHttp.post(url("/charges", credential),
            json: body,
            headers: auth_headers(credential),
            receive_timeout: 10_000
@@ -45,7 +46,7 @@ defmodule YagyeCore.Payments.Adapters.SimulatorAdapter do
 
   @impl true
   def query_charge(%PaymentAttempt{} = attempt, credential) do
-    case Req.get(url("/charges/#{attempt.provider_reference}", credential),
+    case PspHttp.get(url("/charges/#{attempt.provider_reference}", credential),
            headers: auth_headers(credential)
          ) do
       {:ok, %Req.Response{status: 200, body: body}} ->
@@ -103,7 +104,7 @@ defmodule YagyeCore.Payments.Adapters.SimulatorAdapter do
       destination_ref: params[:recipient_msisdn] || params[:reference] || Uniq.UUID.uuid4()
     }
 
-    case Req.post(url("/disbursements", credential),
+    case PspHttp.post(url("/disbursements", credential),
            json: body,
            headers: auth_headers(credential),
            receive_timeout: 10_000
@@ -128,7 +129,7 @@ defmodule YagyeCore.Payments.Adapters.SimulatorAdapter do
   def refund(%PaymentAttempt{provider_reference: ref}, amount_minor, credential) do
     body = %{amount_minor: amount_minor}
 
-    case Req.post(url("/charges/#{ref}/refunds", credential),
+    case PspHttp.post(url("/charges/#{ref}/refunds", credential),
            json: body,
            headers: auth_headers(credential),
            receive_timeout: 10_000
@@ -153,7 +154,7 @@ defmodule YagyeCore.Payments.Adapters.SimulatorAdapter do
   def name_enquiry(%{msisdn: msisdn, network: network}, credential) do
     body = %{network: network, msisdn: msisdn}
 
-    case Req.post(url("/name-enquiry", credential),
+    case PspHttp.post(url("/name-enquiry", credential),
            json: body,
            headers: auth_headers(credential),
            receive_timeout: 10_000

@@ -41,6 +41,31 @@ defmodule YagyeCore.DataLake.S3Writer do
 
   def write(_event_prefix, _date, []), do: :ok
 
+  @spec write_rejected(String.t(), Date.t(), [map()]) :: :ok | {:error, term()}
+  def write_rejected(event_prefix, date, rows) when rows != [] do
+    bucket = bronze_bucket()
+    key = build_rejected_key(event_prefix, date)
+    body = encode_ndjson(rows)
+
+    case ExAws.S3.put_object(bucket, key, body, content_type: "application/x-ndjson")
+         |> ExAws.request() do
+      {:ok, _} ->
+        Logger.warning("data_lake.s3.rejected_written",
+          bucket: bucket,
+          key: key,
+          row_count: length(rows)
+        )
+
+        :ok
+
+      {:error, reason} ->
+        Logger.warning("data_lake.s3.rejected_write_failed", key: key, reason: inspect(reason))
+        {:error, reason}
+    end
+  end
+
+  def write_rejected(_event_prefix, _date, []), do: :ok
+
   # ── Private ──────────────────────────────────────────────────────────────────
 
   defp bronze_bucket do
@@ -52,6 +77,12 @@ defmodule YagyeCore.DataLake.S3Writer do
     ts = System.os_time(:microsecond)
     ds = Date.to_iso8601(date)
     "events/dt=#{ds}/#{event_prefix}_#{ts}.ndjson"
+  end
+
+  defp build_rejected_key(event_prefix, %Date{} = date) do
+    ts = System.os_time(:microsecond)
+    ds = Date.to_iso8601(date)
+    "events/rejected/dt=#{ds}/#{event_prefix}_#{ts}.ndjson"
   end
 
   defp encode_ndjson(rows) do

@@ -37,6 +37,7 @@ defmodule YagyeCore.Payments.Adapters.PaystackAdapter do
 
   @behaviour YagyeCore.Payments.Providers.ProviderAdapter
 
+  alias YagyeCore.Payments.Adapters.PspHttp
   alias YagyeCore.Payments.Schemas.{Payment, PaymentAttempt}
 
   @network_map %{
@@ -70,7 +71,7 @@ defmodule YagyeCore.Payments.Adapters.PaystackAdapter do
       }
     }
 
-    Req.post(
+    PspHttp.post(
       url("/charge", credential),
       [json: body, headers: auth_headers(credential), receive_timeout: 15_000] ++ extra_req_opts()
     )
@@ -92,7 +93,7 @@ defmodule YagyeCore.Payments.Adapters.PaystackAdapter do
       }
     }
 
-    Req.post(
+    PspHttp.post(
       url("/charge", credential),
       [json: body, headers: auth_headers(credential), receive_timeout: 15_000] ++ extra_req_opts()
     )
@@ -112,7 +113,7 @@ defmodule YagyeCore.Payments.Adapters.PaystackAdapter do
   def query_charge(%PaymentAttempt{provider_reference: ref} = _attempt, credential) do
     # provider_reference for Paystack is the transaction reference string —
     # the same idempotency_token we passed as the charge reference.
-    case Req.get(
+    case PspHttp.get(
            url("/transaction/verify/#{ref}", credential),
            [headers: auth_headers(credential), receive_timeout: 10_000] ++ extra_req_opts()
          ) do
@@ -174,7 +175,7 @@ defmodule YagyeCore.Payments.Adapters.PaystackAdapter do
       currency: currency
     }
 
-    case Req.post(
+    case PspHttp.post(
            url("/transferrecipient", credential),
            [json: body, headers: auth_headers(credential), receive_timeout: 15_000] ++
              extra_req_opts()
@@ -218,7 +219,7 @@ defmodule YagyeCore.Payments.Adapters.PaystackAdapter do
       reason: "Yagye settlement #{reference}"
     }
 
-    case Req.post(
+    case PspHttp.post(
            url("/transfer", credential),
            [json: body, headers: auth_headers(credential), receive_timeout: 15_000] ++
              extra_req_opts()

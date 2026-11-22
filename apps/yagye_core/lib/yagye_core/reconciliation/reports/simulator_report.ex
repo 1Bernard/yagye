@@ -9,6 +9,7 @@ defmodule YagyeCore.Reconciliation.Reports.SimulatorReport do
   PSP settlement file would have.
   """
 
+  alias YagyeCore.Payments.Adapters.PspHttp
   alias YagyeCore.Providers
 
   @spec generate(binary(), String.t(), Date.t()) :: {:ok, map()} | {:error, term()}
@@ -29,7 +30,7 @@ defmodule YagyeCore.Reconciliation.Reports.SimulatorReport do
       [headers: [{"x-api-key", api_key}], receive_timeout: 15_000] ++
         Application.get_env(:yagye_core, :simulator_req_opts, [])
 
-    case Req.get(url, opts) do
+    case PspHttp.get(url, opts) do
       {:ok, %Req.Response{status: 200, body: body}} ->
         {:ok, build_payload(provider_id, mode, report_date, body)}
 
