@@ -113,6 +113,7 @@ config :yagye_core, Oban,
 config :opentelemetry,
   span_processor: :batch,
   traces_exporter: :otlp,
+  propagators: [:tracecontext, :baggage],
   resource: [service: [name: "yagye_core", version: "0.1.0"]]
 
 # Data lake — Bronze bucket (Silver/Gold written by yagye_data Python ETL)

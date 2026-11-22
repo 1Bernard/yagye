@@ -26,7 +26,7 @@ defmodule YagyeCore.MixProject do
   def application do
     [
       mod: {YagyeCore.Application, []},
-      extra_applications: [:logger, :runtime_tools]
+      extra_applications: [:logger, :runtime_tools, :inets]
     ]
   end
 
@@ -72,10 +72,12 @@ defmodule YagyeCore.MixProject do
       {:opentelemetry_api, "~> 1.5"},
       {:opentelemetry, "~> 1.7"},
       {:opentelemetry_exporter, "~> 1.10"},
-      {:opentelemetry_phoenix, "~> 2.0.0-rc.2"},
+      {:opentelemetry_phoenix, "~> 2.0"},
+      {:opentelemetry_bandit, "~> 0.2"},
       {:opentelemetry_ecto, "~> 1.0"},
       {:opentelemetry_req, "~> 1.0.0-beta.1"},
       {:opentelemetry_oban, "~> 1.0"},
+      {:opentelemetry_broadway, "~> 0.1"},
       {:brod, "~> 4.6"},
       # P15 — RabbitMQ outbound webhook delivery
       {:amqp, "~> 4.2"},
@@ -89,7 +91,9 @@ defmodule YagyeCore.MixProject do
       {:ex_aws_s3, "~> 2.5"},
       {:ex_aws_secretsmanager, "~> 2.0"},
       {:hackney, "~> 1.20"},
-      {:sweet_xml, "~> 0.7"}
+      {:sweet_xml, "~> 0.7"},
+      # P19 — JSON Schema validation for Bronze event envelopes
+      {:ex_json_schema, "~> 0.10"}
     ]
   end
 

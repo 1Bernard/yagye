@@ -6,9 +6,11 @@ defmodule YagyeCore.Application do
 
   @impl true
   def start(_type, _args) do
+    OpentelemetryBandit.setup()
     OpentelemetryPhoenix.setup(adapter: :bandit)
     OpentelemetryEcto.setup([:yagye_core, :repo])
     OpentelemetryOban.setup()
+    OpentelemetryBroadway.setup()
 
     children =
       [

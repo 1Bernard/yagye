@@ -59,6 +59,13 @@ if sm_host = System.get_env("AWS_SM_HOST") do
     port: String.to_integer(System.get_env("AWS_SM_PORT", "4566"))
 end
 
+# OTLP traces override — dev.exs sets traces_exporter: :none to avoid noise when
+# running natively. When OTEL_TRACES_ENABLED=true (set in docker-compose so Alloy
+# is reachable), this runtime override wins and enables the OTLP exporter.
+if System.get_env("OTEL_TRACES_ENABLED") == "true" do
+  config :opentelemetry, traces_exporter: :otlp
+end
+
 if config_env() == :dev do
   System.put_env(
     "CORE_PORTAL_SERVICE_SECRET",
