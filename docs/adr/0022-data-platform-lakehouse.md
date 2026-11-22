@@ -22,21 +22,30 @@ without touching the production DB.
 
 ### Storage layer: Floci (local) → AWS S3 (production)
 
-All analytical data is written to object storage as partitioned Parquet files.
-Locally, Floci emulates the S3 API (`s3://yagye-lake-raw/`). In production,
-real S3 buckets replace Floci with no code change — the S3 endpoint URL is
-injected at runtime.
+All analytical data is written to object storage. Locally, Floci (port 4566)
+emulates the S3 API. In production, real S3 buckets replace Floci with no code
+change — the S3 endpoint URL is injected at runtime.
 
-Two buckets:
-- `yagye-lake-raw` — raw event Parquet, append-only, partitioned by `year/month/day`
-- `yagye-lake-curated` — feature tables produced by DuckDB ETL jobs
+Three buckets:
+- `yagye-lake-raw` — raw Bronze events (NDJSON), append-only, partitioned by hive `dt=YYYY-MM-DD`
+- `yagye-lake-silver` — deduplicated, PII-hashed Parquet produced by DuckDB Silver ETL
+- `yagye-lake-gold` — aggregated feature tables produced by DuckDB Gold ETL
 
-### Ingestion: Redpanda Connect S3 sink
+Bronze S3 key format: `events/dt=YYYY-MM-DD/{event_prefix}_{microseconds}.ndjson`
+Rejected envelopes (schema validation failures): `events/rejected/dt=YYYY-MM-DD/…`
 
-A Redpanda Connect pipeline consumes the outbox topics published by Core
-(`payment.*`, `dispute.*`, `reconciliation.*`, `settlement.*`) and writes
-Parquet batches to `yagye-lake-raw`. No custom consumer code — Redpanda
-Connect handles schema evolution and backpressure natively.
+### Ingestion: DataLakeIngestionWorker (Oban)
+
+An Oban worker (`YagyeCore.DataLake.Workers.DataLakeIngestionWorker`) runs every
+60 seconds and batch-writes pending outbox events to Bronze. Each NDJSON batch
+contains the full event envelope (`event_id`, `event_type`, `event_version`,
+`payload`, `mode`, `correlation_id`, etc.) as JSON Draft-07 objects. Envelopes
+failing schema validation are written to the rejected prefix rather than dropped.
+
+Schemas for the nine event families (`payment`, `settlement`, `dispute`,
+`reconciliation`, `compliance`, `merchant`, `checkout_session`, `payment_link`,
+`webhook`) live in `apps/yagye_core/priv/schema_registry/` and are registered
+to Redpanda's schema registry via `mix yagye.schema_registry.register`.
 
 ### Analytics: DuckDB (not Spark / Glue)
 
@@ -53,7 +62,7 @@ S3. No Spark cluster, no Glue job, no EMR — they are too heavy for the data
 volumes Yagye will see in its first two years and introduce ops complexity
 that is not justified.
 
-### Synthetic data: gateway_simulator load generator
+### Synthetic data: yagye_simulator load generator
 
 A `mix simulator.generate_load` Mix task fires parameterised payment batches
 at Core via the API using deterministic MSISDN prefixes. This produces a
@@ -65,9 +74,9 @@ before any real merchant traffic exists.
 | Service | Docker network |
 |---------|---------------|
 | Floci | `data` (DB + Redpanda access) |
-| Redpanda Connect sink | `data` |
-| DuckDB ETL jobs (Python) | `data` |
-| ML scoring service | `core_mesh` (Core must reach it; Portal must not) |
+| DataLakeIngestionWorker (Oban, in yagye_core) | `core` |
+| DuckDB ETL jobs (yagye_data Python) | `data` |
+| ML scoring service (yagye_scoring) | `core_mesh` (Core must reach it; Portal must not) |
 
 ---
 
@@ -78,5 +87,5 @@ before any real merchant traffic exists.
   "dev mode" for data pipelines.
 - Parquet + DuckDB format is directly queryable by AWS Athena and Glue if
   the team ever needs a managed service — no migration required.
-- Event schemas must be stable before the sink is built. Breaking schema
+- Event schemas must be stable before ingestion is built. Breaking schema
   changes require a new partition prefix, not a migration.

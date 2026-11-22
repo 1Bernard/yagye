@@ -2267,10 +2267,10 @@ Core VerifyMode:  key.mode = 'simulation' ✓
 Core writes:      payments.mode = 'simulation'
                   ledger_postings.mode = 'simulation'
                       │
-Routing:          All simulation payments route to gateway_simulator
+Routing:          All simulation payments route to yagye_simulator
                   (ProviderCredential for simulation points to simulator URL)
                       │
-gateway_simulator: Returns deterministic outcome based on MSISDN prefix
+yagye_simulator: Returns deterministic outcome based on MSISDN prefix
                    024 100 0001 → success
                    024 100 0002 → insufficient_funds
                    024 100 0003 → timeout
@@ -2285,7 +2285,7 @@ Portal:           Projects into portal_payments with mode = 'simulation'.
                   Visible only to simulation-mode portal views.
 ```
 
-The gateway_simulator is stateless. It speaks the same HTTP protocol as real
+The yagye_simulator is stateless. It speaks the same HTTP protocol as real
 providers so Core's provider adapters are tested against real HTTP without
 sandbox credentials. (ADR-0013)
 
@@ -3060,26 +3060,20 @@ Each consumer is a Karafka consumer class. Karafka manages the Kafka protocol
 (offset commits, rebalancing, heartbeats). The consumer calls the ACL
 (§9b) and passes the normalised payload to the projection worker.
 
-**Consumer group: Data Platform**
+**Data platform ingestion: DataLakeIngestionWorker (Oban)**
 
-```
-Group: yagye-data-platform
-Consumer: BronzeIngestConsumer → subscribes to all topics
-                                  writes raw payloads to S3 Bronze
-```
+Bronze ingestion is handled by `YagyeCore.DataLake.Workers.DataLakeIngestionWorker`,
+an Oban worker that runs every 60 seconds and batch-writes pending outbox events
+directly from `outbox_messages` to S3 Bronze as NDJSON. It does not subscribe
+to Redpanda — it reads from Core's PostgreSQL outbox table, which is simpler
+and avoids a second consumer group that only Core owns.
 
-This consumer group is independent of Portal. It processes the same events
-from the beginning of the log — Redpanda delivers events to each consumer
-group independently. A slow data platform consumer does not affect Portal's
-consumer lag.
+Envelopes are validated against the SchemaRegistry before writing. Validation
+failures land in `events/rejected/dt=YYYY-MM-DD/` — never silently dropped.
 
-**Why Redpanda Connect (not a custom consumer) for the data platform:**
-
-The data platform does not need any transformation logic at ingestion —
-Bronze is raw and immutable. Redpanda Connect is a purpose-built S3 sink
-connector: it reads from a topic, batches records by time window, and writes
-Parquet files to S3. Writing a custom consumer for this is reinventing a
-solved problem.
+This worker is independent of Portal's Karafka consumer group. A slow ingestion
+run does not affect Portal's consumer lag because they read from different sources
+(outbox table vs. Redpanda topic).
 
 ### RabbitMQ (Core → Merchant webhooks)
 
@@ -3158,8 +3152,9 @@ fixed their endpoint) or discards them after investigation.
 
 | Event | Producer | Transport | Consumer |
 |---|---|---|---|
-| Payment lifecycle event | Core `OutboxRelayWorker` | Redpanda | Portal `PaymentEventsConsumer` + Bronze ingest |
-| Settlement event | Core `OutboxRelayWorker` | Redpanda | Portal `SettlementEventsConsumer` + Bronze ingest |
+| Payment lifecycle event | Core `OutboxRelayWorker` | Redpanda | Portal `PaymentEventsConsumer` |
+| Payment/all events (Bronze) | Core `DataLakeIngestionWorker` | outbox_messages (PostgreSQL) | S3 Bronze NDJSON |
+| Settlement event | Core `OutboxRelayWorker` | Redpanda | Portal `SettlementEventsConsumer` |
 | Merchant webhook | Core `WebhookFanoutWorker` | RabbitMQ | Broadway → merchant HTTPS endpoint |
 
 ---
@@ -3469,7 +3464,7 @@ renaming columns, and dropping in-use indexes are all flagged before deployment.
 | [data-flow.md](data-flow.md) | How data moves: outbox → projections → webhooks |
 | [docs/adr/](../adr/README.md) | All 26 Architecture Decision Records — the definitive "why" for each choice |
 | [docs/roadmap/remaining-features.md](../roadmap/remaining-features.md) | Every deferred feature: prerequisites, implementation approach, PSP relevance |
-| [docs/data-engineering/README.md](../data-engineering/README.md) | Lakehouse architecture, Floci, DuckDB, Redpanda Connect |
+| [docs/data-engineering/README.md](../data-engineering/README.md) | Lakehouse architecture, Floci, DuckDB, DataLakeIngestionWorker |
 | [docs/data-engineering/ml-architecture.md](../data-engineering/ml-architecture.md) | The four ML models: routing predictor, risk scorer, reserve recommender, churn predictor |
 | [docs/schema/yagye-core.dbml](../schema/yagye-core.dbml) | Full Core database schema |
 | [docs/schema/yagye-portal.dbml](../schema/yagye-portal.dbml) | Full Portal database schema |

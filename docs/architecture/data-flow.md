@@ -245,40 +245,38 @@ originating request.
 ## Data platform flow (Bronze → Silver → Gold)
 
 The data platform is a separate pipeline from the operational flow above.
-It consumes from Redpanda (at P14+) and feeds the analytics lakehouse.
+It is fed by an Oban worker that polls the outbox and writes to the lakehouse.
 
 ```
 Core DB: outbox_messages (all domain events)
-    │ OutboxRelayWorker → Redpanda topic "payment.events"
-    ▼
-Redpanda Connect (S3 Sink connector)
-    │ Batches 500 events OR 30s window
-    │ Writes Parquet files
+    │ DataLakeIngestionWorker (Oban, every 60s)
+    │   – validates each envelope against SchemaRegistry (9 event families)
+    │   – rejected envelopes → events/rejected/dt=YYYY-MM-DD/ (never dropped)
     ▼
 Bronze layer (S3: yagye-lake-raw/)
-    │ Immutable, append-only, raw event payloads
-    │ Partitioned by ingestion date + event type
+    │ Immutable, append-only, NDJSON event envelopes
+    │ Hive partition: events/dt=YYYY-MM-DD/{prefix}_{microseconds}.ndjson
     ▼
-Silver ETL (DuckDB, runs hourly)
+Silver ETL (yagye_data / DuckDB, runs hourly)
     │ Deduplication on event_id
     │ Type casting, PII hashing, reference data joins
     ▼
 Silver layer (S3: yagye-lake-silver/)
-    │ Validated, deduplicated, partitioned by effective_date
+    │ Validated, deduplicated Parquet, partitioned by effective_date
     ▼
-Gold ETL (DuckDB, various cadences)
+Gold ETL (yagye_data / DuckDB, various cadences)
     │ Aggregation: provider_health_hourly, merchant_features_weekly
     │ ML feature computation, regulatory report datasets
     ▼
 Gold layer (S3: yagye-lake-gold/)
     │
-    ├── ML scoring service (FastAPI) reads provider_health_hourly
-    │   for real-time routing features
+    ├── yagye_scoring (FastAPI) reads provider_health_hourly
+    │   for real-time routing enrichment features
     ├── Grafana dashboards (BI)
     └── Regulatory reports (Bank of Ghana monthly submissions)
 ```
 
 See `docs/data-engineering/README.md` for the full medallion architecture,
-CDC design, partitioning strategy, and DuckDB query patterns.
-See `docs/data-engineering/ml-architecture.md` for model training, evaluation,
-ONNX serving, and feedback loop design.
+partitioning strategy, and DuckDB query patterns.
+See `docs/data-engineering/ml-architecture.md` for future ONNX model training,
+evaluation, and feedback loop design (planned post-P22).

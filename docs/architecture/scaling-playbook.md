@@ -89,14 +89,13 @@ Three components require attention at multi-node deployment:
 
 ### 2a. Rate limiting
 
-Current implementation uses an in-process ETS table. This is correct for a
-single node — ETS is fast and persistent across requests. On multiple nodes,
-each node has an independent counter: a merchant can make N requests to node 1
-and N requests to node 2, bypassing the intended limit.
+The original single-node implementation used an in-process ETS table. On
+multiple nodes, each node had an independent counter, allowing a merchant to
+bypass per-node limits.
 
-**Fix (P17):** Replace ETS rate limiting with Redis-backed counters using the
-`hammer` library with the `Hammer.Backend.Redis` adapter. Redis is the single
-source of truth across all nodes. Rate limit state survives node restart.
+**Done in P17:** Replaced ETS rate limiting with Redis-backed distributed
+counters using the `hammer` library with `Hammer.Backend.Redis`. Redis is the
+single source of truth across all nodes. Rate limit state survives node restart.
 
 ```elixir
 # config/runtime.exs
@@ -107,8 +106,8 @@ config :hammer,
   ]}
 ```
 
-**When to do it:** Before deploying a second core node. Single-node deployments
-are safe with ETS.
+Multi-node deployments are safe. Single-node deployments remain valid — Redis
+overhead is negligible compared to the HTTP round-trip.
 
 ### 2b. Idempotency
 

@@ -365,7 +365,7 @@ PostgreSQL (core_db)
 │                                                                             │
 │  Properties:                                                                │
 │  ✓ Append-only. Files are never modified after write.                       │
-│  ✓ Partitioned by event date (year/month/day/hour)                          │
+│  ✓ Partitioned by hive date (dt=YYYY-MM-DD)                                  │
 │  ✓ All event types in separate prefixes                                     │
 │  ✓ Schema matches the outbox EventEnvelope exactly                          │
 │  ✗ May contain nulls, inconsistent types, duplicate deliveries              │

@@ -58,9 +58,9 @@ Last updated: 2026-10-18
                            └────────────────────┘
 
                                 ── OUTBOX RELAY ──
-                      outbox_messages → Oban → Portal projection jobs
+                      outbox_messages → OutboxRelayWorker (Oban)
                                       ↓
-                      (at P14: Oban relay replaced by Redpanda topic)
+                      Redpanda topics (P14+, live)
 
                          ┌────────────────────────┐
                          │    Redpanda  (P14+)     │
@@ -98,10 +98,10 @@ Last updated: 2026-10-18
            │  roles/permissions  │  ← dynamic RBAC tables
            └────────────────────┘
 
-──────────────────── DEV + CI ONLY ─────────────────────────
+──────────────────── SIMULATION MODE ────────────────────────
 
            ┌──────────────────────────────┐
-           │    gateway_simulator          │
+           │    yagye_simulator            │
            │  (Elixir / Phoenix)           │
            │  SQLite — stateless           │
            │                              │
@@ -112,8 +112,54 @@ Last updated: 2026-10-18
            │  MSISDN 024 100 0002 → fail  │
            │  MSISDN 024 100 0003 → timeout│
            │                              │
-           │  NEVER deployed to prod.     │
+           │  Used for simulation mode    │
+           │  payments in all envs.       │
            └──────────────────────────────┘
+
+──────────────────── CHECKOUT ───────────────────────────────
+
+           ┌────────────────────────────────────────────┐
+           │  yagye_checkout  (Elixir / Phoenix LiveView)│
+           │                                            │
+           │  Hosted checkout pages for payment links   │
+           │  and checkout sessions. Stateless — calls  │
+           │  yagye_core /v1/* to create/complete       │
+           │  payments. No own database.                │
+           └────────────────────────────────────────────┘
+
+──────────────────── ML / AI SCORING ────────────────────────
+
+           ┌────────────────────────────────────────────┐
+           │  yagye_scoring  (Python / FastAPI)          │
+           │  Network: core_mesh                        │
+           │                                            │
+           │  POST /score/routing — provider selection  │
+           │  POST /score/risk    — risk enrichment     │
+           │                                            │
+           │  Powered by: Anthropic Claude LLM          │
+           │  Observability: OpenLIT + Langfuse          │
+           │  Fallback: rule-based (if unreachable)     │
+           └────────────────────────────────────────────┘
+
+──────────────────── DATA PLATFORM ──────────────────────────
+
+           ┌────────────────────────────────────────────┐
+           │  yagye_data  (Python / DuckDB ETL)          │
+           │                                            │
+           │  Silver ETL (hourly):                      │
+           │    yagye-lake-raw/ NDJSON                  │
+           │    → deduplicate, PII-hash, cast           │
+           │    → yagye-lake-silver/ Parquet            │
+           │                                            │
+           │  Gold ETL (various cadences):              │
+           │    yagye-lake-silver/ Parquet              │
+           │    → aggregate features, ML training sets  │
+           │    → yagye-lake-gold/ Parquet              │
+           └────────────────────────────────────────────┘
+
+           Bronze ingestion: DataLakeIngestionWorker (Oban, in yagye_core)
+             outbox_messages → S3 yagye-lake-raw/ NDJSON (every 60s)
+             Local: Floci (port 4566) emulates S3 API
 
 ──────────────────── OBSERVABILITY ──────────────────────────
 

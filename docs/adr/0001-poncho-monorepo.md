@@ -1,15 +1,17 @@
-# ADR-0001: Poncho Monorepo over Umbrella or Separate Repos
+# ADR-0001: Plain Monorepo over Umbrella or Separate Repos
 
 **Date:** 2026-08-17
 **Status:** Accepted
 
 ## Context
 
-Yagye consists of three independently deployable services:
+Yagye consists of five independently deployable services:
 
-- `yagye_core` — Elixir/Phoenix; payment orchestration and ledger (66 tables)
+- `yagye_core` — Elixir/Phoenix; payment orchestration and ledger (~76 tables)
 - `yagye_portal` — Rails 8; merchant self-service portal (20 tables)
-- `gateway_simulator` — Elixir/Phoenix; mock payment gateway for testing (13 tables)
+- `yagye_simulator` — Elixir/Phoenix; mock payment gateway for testing (13 tables)
+- `yagye_scoring` — Python FastAPI; LLM scoring service (Claude + OpenLIT + Langfuse)
+- `yagye_data` — Python; DuckDB-based Silver/Gold ETL pipeline
 
 We needed to decide how to organise these services in version control.
 
@@ -21,17 +23,14 @@ completely independent. Teams work autonomously; CI and deployment are fully iso
 **Option B — Elixir umbrella**: a single `mix.exs` at the root with `apps/` children
 that share compilation context, deps resolution, and the OTP supervision tree.
 
-**Option C — Poncho monorepo**: each app has its own `mix.exs`, its own `deps/`,
-its own `_build/`, its own Dockerfile, and its own database. They share only the git
-root, CI config, and infra tooling.
-
-The name "poncho" comes from the Elixir community to distinguish this pattern from
-a true umbrella — apps are independent but share a roof.
+**Option C — Plain monorepo**: each app has its own language-appropriate build file
+(`mix.exs`, `Gemfile`, `pyproject.toml`), its own dependencies, its own Dockerfile,
+and its own database. They share only the git root, CI config, and infra tooling.
 
 ## Decision
 
-We use a **poncho monorepo** (`apps/yagye_core`, `apps/yagye_portal`,
-`apps/gateway_simulator`).
+We use a **plain monorepo** (`apps/yagye_core`, `apps/yagye_portal`,
+`apps/yagye_simulator`, `apps/yagye_scoring`, `apps/yagye_data`).
 
 ## Consequences
 

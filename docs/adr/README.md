@@ -38,7 +38,7 @@ What did we decide? One clear statement.
 | # | Title | Status |
 |---|-------|--------|
 | [0000](0000-record-architecture-decisions.md) | Record architecture decisions | Accepted |
-| [0001](0001-poncho-monorepo.md) | Poncho monorepo over umbrella or separate repos | Accepted |
+| [0001](0001-poncho-monorepo.md) | Plain monorepo over umbrella or separate repos | Accepted |
 | [0002](0002-integer-minor-units.md) | Integer minor units for monetary values | Accepted |
 | [0003](0003-phoenix-layered-architecture.md) | Phoenix two-layer architecture (core / web) | Accepted |
 | [0004](0004-structured-json-logging.md) | Structured JSON logging via logger_json | Accepted |
