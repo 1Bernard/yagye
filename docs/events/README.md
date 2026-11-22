@@ -12,13 +12,16 @@ All events carry a common envelope:
 
 ```json
 {
-  "event_id":        "01a051a0-...",
-  "event_type":      "payment.succeeded",
-  "aggregate_id":    "pay_01a051a0-...",
-  "aggregate_type":  "payment",
+  "event_id":          "01a051a0-...",
+  "event_type":        "payment.succeeded",
+  "event_version":     1,
+  "aggregate_id":      "pay_01a051a0-...",
+  "aggregate_type":    "payment",
   "aggregate_version": 3,
-  "occurred_at":     "2026-08-30T12:00:00.000Z",
-  "payload":         { ... }
+  "occurred_at":       "2026-08-30T12:00:00.000Z",
+  "mode":              "live",
+  "correlation_id":    "pay_01a051a0-...",
+  "payload":           { ... }
 }
 ```
 

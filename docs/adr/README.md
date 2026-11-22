@@ -64,6 +64,8 @@ What did we decide? One clear statement.
 | [0024](0024-agentic-finance-api-surface.md) | Agentic finance API surface | Accepted |
 | [0025](0025-rabbitmq-broadway-webhook-delivery.md) | RabbitMQ + Broadway for outbound webhook delivery | Accepted |
 | [0026](0026-portal-read-model-soft-delete.md) | Soft-delete on portal read models for JOIN preservation | Accepted |
+| [0027](0027-simulation-adapter-module-override.md) | Override `adapter_module` (not `code`) for simulation dispatch | Accepted |
+| [0028](0028-opentelemetry-grafana-stack.md) | OpenTelemetry + Grafana stack for observability | Accepted |
 
 ## Related documentation
 

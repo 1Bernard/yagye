@@ -12,13 +12,15 @@ and the payload fields. All envelopes share the common wrapper:
 ```json
 {
   "event_id": "uuid-v7",
-  "event_name": "payment.succeeded",
+  "event_type": "payment.succeeded",
+  "event_version": 1,
   "aggregate_id": "pay_018e…",
   "aggregate_type": "Payment",
   "aggregate_version": 3,
-  "merchant_id": "uuid",
   "occurred_at": "2026-08-30T12:00:00.000000Z",
-  "data": { ... }
+  "mode": "live",
+  "correlation_id": "pay_018e…",
+  "payload": { ... }
 }
 ```
 

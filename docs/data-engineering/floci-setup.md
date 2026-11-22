@@ -1,6 +1,6 @@
 # Floci Setup Guide
 
-**Last updated:** 2026-10-18
+**Last updated:** 2026-11-22
 
 Floci is the local AWS emulator used in development and CI to simulate S3 and
 KMS without real AWS credentials. It runs as a Docker service on the `data`
@@ -51,24 +51,32 @@ export AWS_ACCESS_KEY_ID=test
 export AWS_SECRET_ACCESS_KEY=test
 export AWS_DEFAULT_REGION=us-east-1
 
-# Raw events bucket (append-only)
-aws --endpoint-url http://localhost:4566 s3 mb s3://yagye-lake-raw
+# Bronze — raw NDJSON event envelopes (append-only, written by DataLakeIngestionWorker)
+aws --endpoint-url http://localhost:4566 s3 mb s3://yagye-lake-bronze
 
-# Curated feature tables bucket (rewritten by ETL jobs)
-aws --endpoint-url http://localhost:4566 s3 mb s3://yagye-lake-curated
+# Silver — deduplicated, typed Parquet (written by Silver ETL)
+aws --endpoint-url http://localhost:4566 s3 mb s3://yagye-lake-silver
+
+# Gold — aggregated mart tables for ML and analytics (written by Gold ETL)
+aws --endpoint-url http://localhost:4566 s3 mb s3://yagye-lake-gold
+
+# ML model artefacts bucket
+aws --endpoint-url http://localhost:4566 s3 mb s3://yagye-ml-models
 
 # KYB documents bucket (deferred to P21, but create now for readiness)
 aws --endpoint-url http://localhost:4566 s3 mb s3://yagye-kyb-documents
 
-# Verify all three exist
+# Verify all five exist
 aws --endpoint-url http://localhost:4566 s3 ls
 ```
 
 Expected output:
 ```
-2026-10-18 12:00:00 yagye-kyb-documents
-2026-10-18 12:00:00 yagye-lake-curated
-2026-10-18 12:00:00 yagye-lake-raw
+2026-11-22 12:00:00 yagye-kyb-documents
+2026-11-22 12:00:00 yagye-lake-bronze
+2026-11-22 12:00:00 yagye-lake-gold
+2026-11-22 12:00:00 yagye-lake-silver
+2026-11-22 12:00:00 yagye-ml-models
 ```
 
 ---
@@ -105,7 +113,7 @@ conn.execute("""
   SET s3_use_ssl = false;
 """)
 
-# Write a synthetic payment.succeeded event batch
+# Write a synthetic Silver payment row (Bronze is NDJSON, not Parquet)
 conn.execute("""
   COPY (
     SELECT
@@ -116,9 +124,9 @@ conn.execute("""
       10000          AS amount_minor,
       'GHS'          AS currency,
       'live'         AS mode,
-      TIMESTAMPTZ '2026-10-18 12:00:00' AS occurred_at
+      TIMESTAMPTZ '2026-11-22 12:00:00' AS occurred_at
   )
-  TO 's3://yagye-lake-raw/payment.succeeded/year=2026/month=10/day=18/test_batch.parquet'
+  TO 's3://yagye-lake-silver/payments/dt=2026-11-22/test_batch.parquet'
   (FORMAT 'parquet')
 """)
 
@@ -132,7 +140,7 @@ result = conn.execute("""
     COUNT(*) AS attempts,
     SUM(amount_minor) AS total_volume
   FROM read_parquet(
-    's3://yagye-lake-raw/payment.succeeded/year=2026/month=10/day=18/*.parquet'
+    's3://yagye-lake-silver/payments/dt=2026-11-22/*.parquet'
   )
   GROUP BY merchant_code, provider_code
 """).fetchall()

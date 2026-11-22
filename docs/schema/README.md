@@ -4,7 +4,7 @@ DBML source files for the three Yagye databases.
 
 | File | Service | Tables | Database |
 |------|---------|--------|----------|
-| [yagye-core.dbml](yagye-core.dbml) | `yagye_core` (Elixir/Phoenix) | ~66 | `yagye_core_dev` / `yagye_core_prod` |
+| [yagye-core.dbml](yagye-core.dbml) | `yagye_core` (Elixir/Phoenix) | ~76 | `yagye_core_dev` / `yagye_core_prod` |
 | [yagye-portal.dbml](yagye-portal.dbml) | `yagye_portal` (Rails 8) | ~20 | `yagye_portal_dev` / `yagye_portal_prod` |
 | [gateway-simulator.dbml](gateway-simulator.dbml) | `gateway_simulator` (Elixir/Phoenix) | ~13 | `gateway_simulator_dev` |
 
