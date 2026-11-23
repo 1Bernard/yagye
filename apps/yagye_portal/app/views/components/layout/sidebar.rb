@@ -36,6 +36,14 @@ module Layout
         ]
       },
       {
+        label: "ANALYTICS",
+        merchant_only: true,
+        items: [
+          { key: :analytics_fee_statement,        icon: :tag,          label: "Fee Statement",       path: :analytics_fee_statement_path },
+          { key: :analytics_provider_performance, icon: :trending_up,  label: "Channel Performance",  path: :analytics_provider_performance_path }
+        ]
+      },
+      {
         label: "TEAM",
         items: [
           { key: :team_users,         icon: :users,  label: "Users",               path: :team_users_path },

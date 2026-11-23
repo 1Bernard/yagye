@@ -108,7 +108,12 @@ module Payments
                   img(src: asset_path(logo), alt: "", class: "max-h-full max-w-full object-contain")
                 end
               end
-              span(class: UI::Theme::TYPE_BODY_MD) { plain @payment.payment_method&.humanize || "—" }
+              div do
+                span(class: UI::Theme::TYPE_BODY_MD) { plain @payment.method_label }
+                if (psp = @payment.external_psp_label)
+                  span(class: "block text-[10.5px] text-gray-400 mt-px") { plain psp }
+                end
+              end
             end
           end
           meta_cell("Date",      fmt_date(@payment.created_at))

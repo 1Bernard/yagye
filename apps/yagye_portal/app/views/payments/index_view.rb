@@ -144,6 +144,9 @@ module Payments
               end
               span(class: TYPE_BODY_MD) { plain p.method_label }
             end
+            if (psp = p.external_psp_label)
+              span(class: "block text-[10.5px] text-gray-400 mt-px") { plain psp }
+            end
             if show_merchant && p.mode.present?
               span(class: "inline-flex items-center px-[5px] py-px rounded text-[10px] font-semibold capitalize #{mode_cls} mt-[3px]") do
                 plain p.mode

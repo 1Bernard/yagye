@@ -15,20 +15,27 @@ module UI
 
       def initialize(labels:, data: nil, dataset_label: "", series: nil, format: :number,
                      stacked: false, area: false, center_label: nil, center_sublabel: nil,
-                     colors: nil, ring: false, selected_index: nil, height: 256)
-        @labels          = labels
-        @data            = data
-        @dataset_label   = dataset_label
-        @series          = series
-        @format          = format
-        @stacked         = stacked
-        @area            = area
-        @center_label    = center_label
-        @center_sublabel = center_sublabel
-        @colors          = colors
-        @ring            = ring
-        @selected_index  = selected_index
-        @height          = height
+                     colors: nil, ring: false, selected_index: nil, height: 256,
+                     horizontal: false, item_colors: nil, value_prefix: nil, value_suffix: nil,
+                     formatted_data_override: nil)
+        @labels                  = labels
+        @data                    = data
+        @dataset_label           = dataset_label
+        @series                  = series
+        @format                  = format
+        @stacked                 = stacked
+        @area                    = area
+        @center_label            = center_label
+        @center_sublabel         = center_sublabel
+        @colors                  = colors
+        @ring                    = ring
+        @selected_index          = selected_index
+        @height                  = height
+        @horizontal              = horizontal
+        @item_colors             = item_colors
+        @value_prefix            = value_prefix
+        @value_suffix            = value_suffix
+        @formatted_data_override = formatted_data_override
       end
 
       def view_template
@@ -49,26 +56,30 @@ module UI
 
       def stimulus_attrs
         {
-          data_controller:                      "ui--chart",
-          data_ui__chart_type_value:            chart_type,
-          data_ui__chart_labels_value:          @labels.to_json,
-          data_ui__chart_data_value:            (@data || []).to_json,
-          data_ui__chart_formatted_data_value:  formatted_data.to_json,
-          data_ui__chart_series_value:          formatted_series.to_json,
-          data_ui__chart_dataset_label_value:   @dataset_label,
-          data_ui__chart_currency_unit_value:   @format == :currency ? number_to_currency(1).gsub(/[\d.,\s]/, "").strip : "",
-          data_ui__chart_stacked_value:         @stacked,
-          data_ui__chart_area_value:            @area,
-          data_ui__chart_center_label_value:    @center_label.to_s,
-          data_ui__chart_center_sublabel_value: @center_sublabel.to_s,
-          data_ui__chart_colors_value:          (@colors || []).to_json,
-          data_ui__chart_ring_value:            @ring,
-          data_ui__chart_selected_index_value:  @selected_index || -1
+          data_controller:                        "ui--chart",
+          data_ui__chart_type_value:              chart_type,
+          data_ui__chart_labels_value:            @labels.to_json,
+          data_ui__chart_data_value:              (@data || []).to_json,
+          data_ui__chart_formatted_data_value:    formatted_data.to_json,
+          data_ui__chart_series_value:            formatted_series.to_json,
+          data_ui__chart_dataset_label_value:     @dataset_label,
+          data_ui__chart_currency_unit_value:     @format == :currency ? number_to_currency(1).gsub(/[\d.,\s]/, "").strip : "",
+          data_ui__chart_stacked_value:           @stacked,
+          data_ui__chart_area_value:              @area,
+          data_ui__chart_center_label_value:      @center_label.to_s,
+          data_ui__chart_center_sublabel_value:   @center_sublabel.to_s,
+          data_ui__chart_colors_value:            (@colors || []).to_json,
+          data_ui__chart_ring_value:              @ring,
+          data_ui__chart_selected_index_value:    @selected_index || -1,
+          data_ui__chart_horizontal_value:        @horizontal,
+          data_ui__chart_item_colors_value:       (@item_colors || []).to_json,
+          data_ui__chart_value_prefix_value:      @value_prefix.to_s,
+          data_ui__chart_value_suffix_value:      @value_suffix.to_s
         }
       end
 
       def formatted_data
-        (@data || []).map { |value| format_value(value) }
+        @formatted_data_override || (@data || []).map { |value| format_value(value) }
       end
 
       def formatted_series

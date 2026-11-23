@@ -408,6 +408,12 @@ get "payouts/:id/statement",            to: "payouts#statement",               a
             only:       %i[new create edit update destroy],
             as:         :settings_sso
 
+  # ── Analytics (merchant + ops) ──────────────────────────────────────────
+  scope module: "analytics" do
+    get "analytics/fee-statement",        to: "analytics#fee_statement",        as: :analytics_fee_statement
+    get "analytics/provider-performance", to: "analytics#provider_performance", as: :analytics_provider_performance
+  end
+
   # ── AI Analytics Chatbot ──────────────────────────────────────────────────
   scope module: "ai" do
     # Ops chatbot — internal_staff only (enforced in controller)

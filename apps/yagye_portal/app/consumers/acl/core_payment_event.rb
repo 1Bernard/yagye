@@ -60,7 +60,7 @@ module Acl
       else @p["mode"].to_s
       end
     end
-    def provider        = @p["provider"]
+    def provider        = @p["provider"].presence || @p["provider_code"].presence
     def customer_msisdn = @p["customer_msisdn"]
     def customer_email  = @p["customer_email"]
     def metadata        = @p["metadata"] || {}

@@ -20,7 +20,11 @@ export default class extends Controller {
     centerSublabel: String,
     colors:         Array,
     ring:           Boolean,
-    selectedIndex:  Number
+    selectedIndex:  Number,
+    horizontal:     { type: Boolean, default: false },
+    itemColors:     { type: Array,   default: [] },
+    valuePrefix:    String,
+    valueSuffix:    String
   }
 
   connect() {
@@ -150,37 +154,44 @@ export default class extends Controller {
   axisOption() {
     const { primary400, primary600, primary200, chip } = this.colors
     const isSingle = !this.hasSeries()
+    const h        = this.horizontalValue
+    const prefix   = this.valuePrefixValue || this.currencyUnitValue || ""
+    const suffix   = this.valueSuffixValue || ""
+
     const tooltip = {
       trigger:     "axis",
       axisPointer: { type: this.typeValue === "bar" ? "shadow" : "line" },
       ...this.tooltipStyle(),
       formatter:   isSingle
-        ? (params) => `${params[0].axisValueLabel}<br/>${this.formattedValueAt(params[0].dataIndex)}`
+        ? (params) => `${params[0].axisValueLabel}<br/>${prefix}${this.formattedValueAt(params[0].dataIndex)}${suffix}`
         : (params) => {
             const lines = params.map((p) => `${p.marker} ${p.seriesName}: ${this.seriesFormattedAt(p.seriesIndex, p.dataIndex)}`)
             return `${params[0].axisValueLabel}<br/>${lines.join("<br/>")}`
           }
     }
 
+    const catAxis = {
+      type:      "category",
+      data:      this.labelsValue,
+      axisLine:  { lineStyle: { color: chip } },
+      axisLabel: { interval: h ? 0 : this._xInterval(), color: "#9CA3AF", fontFamily: "Inter", fontSize: 11 }
+    }
+    const valAxis = {
+      type:      "value",
+      splitLine: { lineStyle: { color: chip } },
+      axisLabel: {
+        color: "#9CA3AF", fontFamily: "Inter", fontSize: 11,
+        formatter: (value) => `${prefix}${this.abbreviate(value)}${suffix}`
+      }
+    }
+
     return {
       color:   [primary600, primary400, primary200, chip],
       tooltip,
-      grid:  { left: 8, right: 8, top: 8, bottom: 8, containLabel: true },
-      xAxis: {
-        type:      "category",
-        data:      this.labelsValue,
-        axisLine:  { lineStyle: { color: chip } },
-        axisLabel: { interval: this._xInterval(), color: "#9CA3AF", fontFamily: "Inter", fontSize: 11 }
-      },
-      yAxis: {
-        type:      "value",
-        splitLine: { lineStyle: { color: chip } },
-        axisLabel: {
-          color: "#9CA3AF", fontFamily: "Inter", fontSize: 11,
-          formatter: (value) => `${this.currencyUnitValue}${this.abbreviate(value)}`
-        }
-      },
-      series: isSingle ? this.singleSeries() : this.multiSeries()
+      grid:    { left: 8, right: h ? 24 : 8, top: 8, bottom: 8, containLabel: true },
+      xAxis:   h ? valAxis : catAxis,
+      yAxis:   h ? { ...catAxis, inverse: true } : valAxis,
+      series:  isSingle ? this.singleSeries() : this.multiSeries()
     }
   }
 
@@ -190,20 +201,32 @@ export default class extends Controller {
 
   singleSeries() {
     const { primary600 } = this.colors
-    const isLine = this.typeValue === "line"
+    const isLine         = this.typeValue === "line"
+    const h              = this.horizontalValue
+    const hasItemColors  = this.itemColorsValue.length > 0
+    const radius         = h ? [0, 4, 4, 0] : [4, 4, 0, 0]
+
+    const data = hasItemColors
+      ? this.dataValue.map((v, i) => ({
+          value:     v,
+          itemStyle: { color: this.itemColorsValue[i] || primary600, borderRadius: radius }
+        }))
+      : this.dataValue
+
     return [{
-      type:       this.typeValue,
-      name:       this.datasetLabelValue,
-      data:       this.dataValue,
-      smooth:     isLine ? 0.4 : undefined,
-      symbol:     isLine ? "circle" : undefined,
-      symbolSize: isLine ? 5 : undefined,
-      showSymbol: false,
-      areaStyle:  this.areaValue ? this.gradientFill(primary600) : undefined,
-      lineStyle:  isLine ? { color: primary600, width: 2 } : undefined,
-      itemStyle:  isLine
-        ? { color: primary600, borderColor: "#fff", borderWidth: 1.5 }
-        : { color: primary600, borderRadius: 6 }
+      type:        this.typeValue,
+      name:        this.datasetLabelValue,
+      data,
+      smooth:      isLine ? 0.4 : undefined,
+      symbol:      isLine ? "circle" : undefined,
+      symbolSize:  isLine ? 5 : undefined,
+      showSymbol:  false,
+      barMaxWidth: this.typeValue === "bar" ? 32 : undefined,
+      areaStyle:   this.areaValue ? this.gradientFill(primary600) : undefined,
+      lineStyle:   isLine ? { color: primary600, width: 2 } : undefined,
+      itemStyle:   hasItemColors ? undefined
+                 : isLine       ? { color: primary600, borderColor: "#fff", borderWidth: 1.5 }
+                 :                { color: primary600, borderRadius: radius }
     }]
   }
 

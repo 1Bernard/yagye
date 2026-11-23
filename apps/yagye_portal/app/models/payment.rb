@@ -10,8 +10,16 @@ class Payment < ApplicationRecord
     "mtn_momo"     => "MTN MoMo",
     "telecel_cash" => "Telecel Cash",
     "airteltigo"   => "AirtelTigo Money",
-    "simulator"    => "Gateway Simulator"
+    "simulator"    => "Gateway Simulator",
+    "stripe"       => "Stripe",
+    "paystack"     => "Paystack",
+    "flutterwave"  => "Flutterwave"
   }.freeze
+
+  # Providers that sit outside Yagye's native rail. These need an explicit
+  # "via <PSP>" label on transaction rows so merchants can distinguish a
+  # Paystack MoMo from a Yagye-native MTN MoMo payment.
+  EXTERNAL_PSPS = %w[stripe paystack flutterwave].freeze
 
   PROVIDER_LOGOS = {
     "mtn_momo"     => "momo.png",
@@ -52,11 +60,23 @@ class Payment < ApplicationRecord
 
   def method_label
     case payment_method
-    when "mobile_money"  then provider_label.presence || "Mobile Money"
+    when "mobile_money"
+      # External PSPs (Stripe, Paystack, Flutterwave) also offer MoMo in some markets.
+      # Show "Mobile Money" for them — the PSP context comes from external_psp_label.
+      # Native rail: show the network name (MTN MoMo, Telecel Cash, etc.).
+      EXTERNAL_PSPS.include?(provider.to_s) ? "Mobile Money" : (provider_label.presence || "Mobile Money")
     when "card"          then "Card"
     when "bank_transfer" then "Bank Transfer"
     else payment_method&.humanize || "—"
     end
+  end
+
+  # Returns "via Stripe" / "via Paystack" etc. for payments routed through an
+  # external PSP — nil for Yagye-native rail and the simulator.
+  # Used to render a secondary label on transaction rows.
+  def external_psp_label
+    return nil unless EXTERNAL_PSPS.include?(provider.to_s)
+    "via #{PROVIDERS.fetch(provider.to_s, provider.to_s.humanize)}"
   end
 
   def method_logo
