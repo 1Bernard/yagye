@@ -894,7 +894,7 @@ defmodule YagyeCore.Payments do
     end
   end
 
-  defp fetch_payment_fee(payment, provider_code \\ nil) do
+  defp fetch_payment_fee(payment, provider_code) do
     case Pricing.compute_fee(
            payment.merchant_id,
            payment.amount,

@@ -76,6 +76,10 @@ defmodule YagyeCore.Webhooks.Workers.WebhookProcessorWorker do
     end
   end
 
+  defp route("flutterwave", "charge.dispute.retracted", %{"data" => data}) do
+    retract_dispute_by_provider_ref(to_string(data["id"]))
+  end
+
   # ── Paystack ─────────────────────────────────────────────────────────────────
   # Paystack uses the transaction reference string (which Yagye sets to the
   # idempotency_token) as the canonical identifier.
@@ -149,6 +153,10 @@ defmodule YagyeCore.Webhooks.Workers.WebhookProcessorWorker do
     end
   end
 
+  defp route("paystack", "charge.dispute.retracted", %{"data" => data}) do
+    retract_dispute_by_provider_ref(data["reference"])
+  end
+
   # ── Stripe ───────────────────────────────────────────────────────────────────
   # Stripe uses PaymentIntent ids (pi_...) as the canonical lookup key.
   # These are stored as provider_reference on the PaymentAttempt.
@@ -218,21 +226,6 @@ defmodule YagyeCore.Webhooks.Workers.WebhookProcessorWorker do
 
   # Ignore other Stripe events (checkout sessions, customers, etc.)
   defp route("stripe", _event_type, _payload), do: :ok
-
-  # ── Dispute Retractions ────────────────────────────────────────────────────────
-  # Card networks may signal a chargeback withdrawal via charge.dispute.retracted or
-  # charge.refunded. Look up the payment by provider reference and retract its
-  # open dispute if one exists.
-
-  defp route("flutterwave", "charge.dispute.retracted", %{"data" => data}) do
-    id_str = to_string(data["id"])
-    retract_dispute_by_provider_ref(id_str)
-  end
-
-  defp route("paystack", "charge.dispute.retracted", %{"data" => data}) do
-    ref = data["reference"]
-    retract_dispute_by_provider_ref(ref)
-  end
 
   # ── Fallthrough ───────────────────────────────────────────────────────────────
 
