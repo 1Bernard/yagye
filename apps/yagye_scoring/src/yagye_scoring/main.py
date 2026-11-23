@@ -12,7 +12,7 @@ import openlit
 
 from yagye_scoring.config import settings
 from yagye_scoring.registry import ModelRegistry
-from yagye_scoring.routers import churn, reserve, risk, routing
+from yagye_scoring.routers import churn, recon, reserve, risk, routing, velocity
 from yagye_scoring.shared.logging import configure_logging, get_logger
 
 openlit.init()
@@ -45,6 +45,8 @@ app.include_router(routing.router)
 app.include_router(risk.router)
 app.include_router(reserve.router)
 app.include_router(churn.router)
+app.include_router(velocity.router)
+app.include_router(recon.router)
 
 
 @app.get("/health", tags=["ops"])

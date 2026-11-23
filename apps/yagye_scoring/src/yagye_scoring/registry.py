@@ -28,9 +28,11 @@ import redis.asyncio as aioredis
 from yagye_scoring.config import settings
 from yagye_scoring.features.base import FeatureClient
 from yagye_scoring.models.churn_predictor import ChurnPredictor
+from yagye_scoring.models.recon_break_classifier import ReconBreakClassifier
 from yagye_scoring.models.reserve_recommender import ReserveRecommender
 from yagye_scoring.models.risk_scorer import RiskScorer
 from yagye_scoring.models.routing_predictor import RoutingPredictor, make_routing_models
+from yagye_scoring.models.velocity_scorer import VelocityScorer
 from yagye_scoring.shared.logging import get_logger
 from yagye_scoring.shared.s3_client import get_s3_client
 
@@ -44,6 +46,8 @@ class ModelRegistry:
     risk_scorer: RiskScorer
     reserve_recommender: ReserveRecommender
     churn_predictor: ChurnPredictor
+    velocity_scorer: VelocityScorer
+    recon_break_classifier: ReconBreakClassifier
     feature_client: FeatureClient
     _redis: aioredis.Redis = field(repr=False)  # type: ignore[type-arg]
 
@@ -61,6 +65,8 @@ class ModelRegistry:
             "risk_scorer": True,
             "reserve_recommender": True,
             "churn_predictor": True,
+            "velocity_scorer": True,
+            "recon_break_classifier": True,
             "redis": redis_ok,
         }
 
@@ -73,6 +79,8 @@ class ModelRegistry:
         risk = RiskScorer("risk_scorer")
         reserve = ReserveRecommender("reserve_recommender", settings.reserve_default_rate)
         churn = ChurnPredictor("churn_predictor")
+        velocity = VelocityScorer("velocity_scorer")
+        recon = ReconBreakClassifier("recon_break_classifier")
 
         registry = cls(
             routing_native_rail=native,
@@ -80,6 +88,8 @@ class ModelRegistry:
             risk_scorer=risk,
             reserve_recommender=reserve,
             churn_predictor=churn,
+            velocity_scorer=velocity,
+            recon_break_classifier=recon,
             feature_client=feature_client,
             _redis=redis,
         )
@@ -96,6 +106,8 @@ class ModelRegistry:
             (self.risk_scorer, "risk_scorer"),
             (self.reserve_recommender, "reserve_recommender"),
             (self.churn_predictor, "churn_predictor"),
+            (self.velocity_scorer, "velocity_scorer"),
+            (self.recon_break_classifier, "recon_break_classifier"),
         ]
         s3 = get_s3_client()
         bucket = settings.ml_models_bucket
@@ -129,6 +141,8 @@ class ModelRegistry:
             self.risk_scorer,
             self.reserve_recommender,
             self.churn_predictor,
+            self.velocity_scorer,
+            self.recon_break_classifier,
         ]:
             logger.info(
                 "model_status",

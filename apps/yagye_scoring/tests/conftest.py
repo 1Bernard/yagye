@@ -16,9 +16,11 @@ from fastapi.testclient import TestClient
 from yagye_scoring.features.base import FeatureClient
 from yagye_scoring.main import app
 from yagye_scoring.models.churn_predictor import ChurnPredictor
+from yagye_scoring.models.recon_break_classifier import ReconBreakClassifier
 from yagye_scoring.models.reserve_recommender import ReserveRecommender
 from yagye_scoring.models.risk_scorer import RiskScorer
 from yagye_scoring.models.routing_predictor import RoutingPredictor
+from yagye_scoring.models.velocity_scorer import VelocityScorer
 from yagye_scoring.registry import ModelRegistry
 
 
@@ -38,6 +40,8 @@ def make_test_registry() -> ModelRegistry:
     risk = RiskScorer("risk_scorer")
     reserve = ReserveRecommender("reserve_recommender", default_rate=0.05)
     churn = ChurnPredictor("churn_predictor")
+    velocity = VelocityScorer("velocity_scorer")
+    recon = ReconBreakClassifier("recon_break_classifier")
     client = NullFeatureClient()
 
     redis_mock = AsyncMock()
@@ -49,6 +53,8 @@ def make_test_registry() -> ModelRegistry:
         risk_scorer=risk,
         reserve_recommender=reserve,
         churn_predictor=churn,
+        velocity_scorer=velocity,
+        recon_break_classifier=recon,
         feature_client=client,
         _redis=redis_mock,
     )
