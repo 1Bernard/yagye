@@ -20,6 +20,7 @@ from yagye_data.pipeline.silver.enrichment.payments import enrich_batch
 from yagye_data.shared.duckdb_client import get_connection
 from yagye_data.shared.logging import get_logger
 from yagye_data.shared.s3_client import s3_uri
+from yagye_data.shared.silver_quality import emit as emit_quality
 
 logger = get_logger(__name__)
 
@@ -90,4 +91,7 @@ def run(
         (FORMAT parquet, COMPRESSION zstd, ROW_GROUP_SIZE 100000)
     """)
 
-    logger.info("silver.risk_flags.done", date=ds, rows=len(enriched_df))
+    output_rows = len(enriched_df)
+    logger.info("silver.risk_flags.done", date=ds, rows=output_rows)
+    emit_quality("risk_flags", ds, silver_prefix, output_rows, len(df),
+                 amount_col="risk_score", con=con)

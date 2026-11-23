@@ -24,6 +24,25 @@ logger = get_logger(__name__)
 _MIN_IMPROVEMENT = 0.005  # challenger must beat champion by at least 0.5% AUCPR
 
 
+def gate_on_metrics(metrics: dict, **min_thresholds: float) -> None:
+    """Raise ValueError if any metric in `metrics` is below its threshold.
+
+    Usage::
+
+        gate_on_metrics(metrics, min_roc_auc=0.70)
+        gate_on_metrics(metrics, min_macro_f1=0.75)
+    """
+    for kwarg_key, min_val in min_thresholds.items():
+        # Strip the leading "min_" to get the metric name, e.g. min_roc_auc → roc_auc
+        metric_name = kwarg_key[4:] if kwarg_key.startswith("min_") else kwarg_key
+        actual = metrics.get(metric_name, 0.0)
+        if actual < min_val:
+            raise ValueError(
+                f"Training gate failed: {metric_name}={actual:.4f} < required {min_val}"
+            )
+        logger.info("gate.passed", metric=metric_name, actual=round(actual, 4), threshold=min_val)
+
+
 def should_promote(
     model_name: str,
     challenger_onnx: object,

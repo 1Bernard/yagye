@@ -21,6 +21,7 @@ from yagye_data.config import settings
 from yagye_data.shared.duckdb_client import get_connection
 from yagye_data.shared.logging import get_logger
 from yagye_data.shared.s3_client import s3_uri
+from yagye_data.shared.silver_quality import emit as emit_quality
 
 logger = get_logger(__name__)
 
@@ -44,6 +45,15 @@ def run(
         Path(silver_prefix).parent.mkdir(parents=True, exist_ok=True)
 
     con = con if con is not None else get_connection()
+
+    # Count Bronze source rows for quality reporting (before dedup/filter).
+    source_count_row = con.execute(f"""
+        SELECT COUNT(*) FROM read_ndjson_auto('{bronze_glob}', union_by_name = true, ignore_errors = true)
+        WHERE occurred_at::TIMESTAMPTZ >= TIMESTAMPTZ '{window_start.isoformat()}'
+          AND occurred_at::TIMESTAMPTZ <  TIMESTAMPTZ '{window_end.isoformat()}'
+          AND event_type IN ('payment.succeeded', 'payment.failed', 'payment.indeterminate')
+    """).fetchone()
+    source_rows = source_count_row[0] if source_count_row else 0
 
     # Bronze is NDJSON (written by DataLakeIngestionWorker in yagye_core).
     # read_ndjson_auto() handles schema inference; nested `payload` object
@@ -97,4 +107,6 @@ def run(
         (FORMAT parquet, COMPRESSION zstd, ROW_GROUP_SIZE 100000)
     """).fetchone()
 
-    logger.info("silver.payments.done", date=ds, rows=result[0] if result else 0)
+    output_rows = result[0] if result else 0
+    logger.info("silver.payments.done", date=ds, rows=output_rows)
+    emit_quality("payments", ds, silver_prefix, output_rows, source_rows, con=con)

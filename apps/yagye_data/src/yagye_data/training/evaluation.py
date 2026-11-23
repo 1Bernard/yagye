@@ -40,9 +40,43 @@ from sklearn.metrics import (
     roc_curve,
 )
 
+from sklearn.metrics import f1_score
+
 from yagye_data.shared.logging import get_logger
 
 logger = get_logger(__name__)
+
+
+def evaluate_binary(
+    y_true: np.ndarray,
+    y_score: np.ndarray,
+    threshold: float = 0.5,
+) -> dict[str, float]:
+    """Lightweight binary evaluation returning a plain dict (no MLflow, no plots)."""
+    auc = float(roc_auc_score(y_true, y_score))
+    y_pred = (y_score >= threshold).astype(int)
+    tp = int(((y_pred == 1) & (y_true == 1)).sum())
+    fp = int(((y_pred == 1) & (y_true == 0)).sum())
+    fn = int(((y_pred == 0) & (y_true == 1)).sum())
+    precision = tp / (tp + fp) if (tp + fp) > 0 else 0.0
+    recall = tp / (tp + fn) if (tp + fn) > 0 else 0.0
+    f1 = 2 * precision * recall / (precision + recall) if (precision + recall) > 0 else 0.0
+    return {"roc_auc": auc, "precision": precision, "recall": recall, "f1": f1}
+
+
+def evaluate_multiclass(
+    y_true: np.ndarray,
+    y_proba: np.ndarray,
+    class_labels: list[str],
+) -> dict[str, float]:
+    """Lightweight multi-class evaluation returning a plain dict."""
+    y_pred = np.argmax(y_proba, axis=1)
+    macro_f1 = float(f1_score(y_true, y_pred, average="macro", zero_division=0))
+    per_class = {
+        label: float(f1_score(y_true == i, y_pred == i, average="binary", zero_division=0))
+        for i, label in enumerate(class_labels)
+    }
+    return {"macro_f1": macro_f1, **{f"f1_{k}": v for k, v in per_class.items()}}
 
 
 @dataclass

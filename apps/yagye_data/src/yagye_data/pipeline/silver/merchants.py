@@ -19,6 +19,7 @@ from yagye_data.config import settings
 from yagye_data.shared.duckdb_client import get_connection
 from yagye_data.shared.logging import get_logger
 from yagye_data.shared.s3_client import s3_uri
+from yagye_data.shared.silver_quality import emit as emit_quality
 
 logger = get_logger(__name__)
 
@@ -39,7 +40,16 @@ def run(window_start: datetime, window_end: datetime) -> None:
 
     event_list = ", ".join(f"'{e}'" for e in _MERCHANT_EVENTS)
     con = get_connection()
-    con.execute(f"""
+
+    source_count_row = con.execute(f"""
+        SELECT COUNT(*) FROM read_ndjson_auto('{bronze_glob}', union_by_name = true, ignore_errors = true)
+        WHERE occurred_at::TIMESTAMPTZ >= TIMESTAMPTZ '{window_start.isoformat()}'
+          AND occurred_at::TIMESTAMPTZ <  TIMESTAMPTZ '{window_end.isoformat()}'
+          AND event_type IN ({event_list})
+    """).fetchone()
+    source_rows = source_count_row[0] if source_count_row else 0
+
+    result = con.execute(f"""
         COPY (
             WITH raw AS (
                 SELECT *
@@ -82,4 +92,7 @@ def run(window_start: datetime, window_end: datetime) -> None:
         (FORMAT parquet, COMPRESSION zstd)
     """)
 
-    logger.info("silver.merchants.done", date=ds)
+    output_rows = result[0] if result else 0
+    logger.info("silver.merchants.done", date=ds, rows=output_rows)
+    emit_quality("merchants", ds, silver_prefix, output_rows, source_rows,
+                 amount_col=None, con=con)
