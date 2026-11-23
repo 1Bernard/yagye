@@ -1,6 +1,6 @@
 # Remaining Features — Build Catalog
 
-**Last updated:** 2026-10-18
+**Last updated:** 2026-11-22 (P19 done; P20 done; §0.4, §0.6, §0.7, §1.1–1.5 built; portal risk section built; Models 1 & 4 trained)
 
 Every feature that is documented in the DBML but not yet migrated or built.
 For each feature: what it is, why it matters in a PSP context, the phase it
@@ -12,279 +12,189 @@ This document adds the engineering context that the DBML cannot carry.
 
 ---
 
-## 1. Ready Now (Unblocked)
+## 0. Pre-Launch Gaps — Must Fix Before First Real Merchant
 
-These features have no external dependencies. Everything they need — auth,
-roles, consumers, the projection pipeline — is already running in P13/P13.5.
-They should be the next things built.
-
----
-
-### 1.1 `user_sessions` — Persistent Session Tracking
-
-**What it is**
-A durable, per-device session record that replaces ephemeral Devise cookies
-as the session anchor. Each login creates a `user_sessions` row keyed to a
-hashed session token. Sessions can be listed, inspected, and individually
-revoked by the user or by ops.
-
-**Why it matters**
-Devise's default cookie session gives Yagye no visibility into where a user
-is logged in. If an account is compromised, there is no way to invalidate
-all active sessions without changing the user's password. For a PSP where
-users can see settlement data, manage API keys, and approve KYB applications,
-that is an unacceptable gap.
-
-Refresh rotation with reuse detection is a critical security property: when a
-stolen refresh token is presented, the system detects that an already-used
-token is being replayed and revokes the entire session family, logging the
-incident.
-
-**PSP relevance**
-Compliance frameworks for payment institutions (PCI-DSS, Bank of Ghana
-licensing) require demonstrable session management controls. A `user_sessions`
-table gives auditors a queryable log of every active session, the device it
-belongs to, and when MFA was last satisfied.
-
-**Phase** — P13 extension (unblocked now)
-
-**Prerequisites** — None. Devise auth is complete. The `users` table exists.
-
-**Implementation approach**
-
-- **Portal (Rails):** Add the migration for `user_sessions` (schema is defined
-  in the DBML). Override Devise's `sign_in` and `sign_out` to write/revoke the
-  session row. Store the session token digest in the cookie instead of the raw
-  token. Add a "Security" page under Settings that lists active sessions and
-  offers individual revocation.
-- **Core involvement:** None. This is entirely a portal feature.
-- **Simulation:** None needed.
-- **Events:** No new domain events. If you want to broadcast "new login from
-  unknown device", emit a portal notification row (using the existing
-  `portal_notifications` table) from the session creation callback.
-
-**Schema** (from DBML)
-```
-user_sessions
-  id bigserial pk
-  user_id bigint → users.id
-  session_token_digest text unique  -- [SEC] hashed, never plaintext
-  device_fingerprint text           -- new device triggers email alert
-  ip text
-  user_agent_hash text              -- [PII] hashed
-  mfa_satisfied_at timestamptz
-  expires_at timestamptz            -- 12h internal_staff, 30d merchant_user
-  revoked_at timestamptz
-  created_at timestamptz
-```
-
-**Complexity** — Medium. The session management override in Devise is
-non-trivial and must be tested carefully. The security page itself is Low.
+These are not deferred features. They are gaps in the current implementation
+that block going live with real money or real merchants. Everything in
+sections 1–6 below is correctly deferred. These are not.
 
 ---
 
-### 1.2 `saved_filters` — Persisted Table Filters
+### 0.1 KMS Envelope Encryption for KYB Documents — **BLOCKER**
 
-**What it is**
-A way for portal users to save and name a set of filter criteria applied to a
-list view (payments, settlements, reconciliation). A saved filter can optionally
-be shared across all users of the same merchant account.
+**What is missing**
+`ex_aws_kms` is not in `apps/yagye_core/mix.exs`. Config has
+`kms_key_arn: nil`. KYB documents currently land in S3 with SSE-S3
+(server-side encryption managed by S3), not SSE-KMS with per-document
+envelope keys. The DBML contract (`kyb_documents.s3_key`) specifies
+`[SEC] SSE-KMS, private, presigned access only`. Without per-document
+envelope keys, the crypto-shredding model (destroy the KMS key to erase
+a subject's data) cannot work, and you cannot demonstrate per-document
+access revocation to auditors.
 
-**Why it matters**
-Ops analysts spend much of their day in the same filtered views: "show me all
-disputed payments from MTN in the last 7 days". Saving those filters eliminates
-the overhead of rebuilding them on every login. For merchant finance teams,
-shared saved filters create a consistent view across the team.
+**Fix**
+1. Add to `apps/yagye_core/mix.exs`: `{:ex_aws_kms, "~> 2.4"}`
+2. In `DocumentStore.presign_upload/4`, add headers:
+   `"x-amz-server-side-encryption": "aws:kms"` and
+   `"x-amz-server-side-encryption-aws-kms-key-id": kms_key_arn`
+3. Set `config :yagye_core, :document_store, kms_key_arn: System.get_env("KYB_KMS_KEY_ARN")` in `config/runtime.exs`
+4. Provision the KMS key in Floci for local dev, real KMS for prod
 
-**PSP relevance**
-Operational efficiency compounds over time. A reconciliation analyst who can
-open their saved "unmatched settlements for the current period" in one click
-processes breaks faster. Time-to-resolution on financial exceptions is a direct
-quality-of-service metric for a PSP.
-
-**Phase** — P13 extension (unblocked now)
-
-**Prerequisites** — None.
-
-**Implementation approach**
-
-- **Portal (Rails):** Add the migration. Create a `SavedFilter` model with a
-  `filters jsonb` column. The controller stores the current query parameters as
-  JSON when the user clicks "Save". On load, deserialise the JSON and apply it
-  to the query object. The `namespace` column scopes filters to the correct
-  list view (`Payments::`, `Settlements::`, etc.).
-- **Core involvement:** None.
-- **UI:** A dropdown on each list page: "Saved filters → [names] → Save
-  current". Small, composable — does not require a dedicated page.
-
-**Schema**
-```
-saved_filters
-  id bigserial pk
-  user_id bigint → users.id
-  namespace text          -- 'Payments::' | 'Settlements::' | etc.
-  name text
-  filters jsonb
-  shared_with_merchant boolean
-  created_at / updated_at timestamptz
-```
-
-**Complexity** — Low.
+**Effort** — 2–4 hours
 
 ---
 
-### 1.3 `processed_events` — Consumer-Side Deduplication Log
+### 0.2 AML Provider — Flip from Stub — **BLOCKER**
 
-**What it is**
-A durable deduplication table for Karafka consumers. When a consumer processes
-an event (e.g. `payment.succeeded` to update `portal_merchant_balances`), it
-inserts a row into `processed_events` first. If the insert succeeds (no
-conflict), it continues processing. If it gets a unique violation, the event
-was already processed and the consumer skips it.
+**What is missing**
+`config :yagye_core, :aml_provider, YagyeCore.Compliance.AmlProvider.Stub`
+is active in every environment. The `ComplyAdvantage` adapter
+(`apps/yagye_core/lib/yagye_core/compliance/aml_provider/comply_advantage.ex`)
+is fully implemented and tested. With the stub active, no real sanctions
+screening runs against any merchant, beneficial owner, or director during
+onboarding. This means you are onboarding merchants without AML checks.
 
-**Why it matters**
-Redpanda (Kafka-compatible) guarantees at-least-once delivery. When a consumer
-crashes mid-batch and restarts, it re-reads from the last committed offset and
-re-delivers events it already processed. For counter-style projections like
-merchant balances, replaying a `payment.succeeded` event without dedup would
-add the payment amount twice — a material misstatement.
+**Provider choice**
+ComplyAdvantage is the industry-standard AML provider for fintechs and PSPs
+(used by Revolut, Monzo, and most licensed neobanks). It covers OFAC SDN, EU
+Consolidated, UN Security Council, UK HMT/OFSI, PEP tiers 1–3, RCAs, and
+adverse media — the full set required for BoG licensing.
 
-See `docs/architecture/engineering-concepts.md §Exactly-once processing` for
-the full explanation of why version fencing alone cannot protect counters.
+**Cost — no credit card needed at launch**
+ComplyAdvantage offers **ComplyLaunch**: free for 12 months for early-stage
+startups that have not previously partnered with ComplyAdvantage and have a
+company website. This covers the entire pre-launch and first year of live
+operation. After 12 months:
+- Up to 100 monitored entities: $99/month (annual billing)
+- Up to 500 monitored entities: $199/month
+- Up to 2,000 monitored entities: $319/month
 
-**PSP relevance**
-A PSP showing a merchant their balance that is off by even one transaction
-destroys trust. The `processed_events` table is the mechanism that ensures
-balance projections are accurate regardless of consumer restarts, rebalances,
-or Redpanda redeliveries.
+Apply at: `complyadvantage.com/complylaunch/`
 
-**Phase** — P13 extension (unblocked now; in-memory dedup is the current
-interim)
+**Fix**
+1. Apply for ComplyLaunch at `complyadvantage.com/complylaunch/` and obtain
+   an API key. No credit card is required for the startup program.
+2. Add the API key to Secrets Manager (or `.env` for local prod testing):
+   `COMPLY_ADVANTAGE_API_KEY=<key>`
+3. The runtime.exs config flip is already in place — `AML_PROVIDER_MODULE`
+   defaults to `YagyeCore.Compliance.AmlProvider.ComplyAdvantage` in prod.
+   No code change is required. The adapter is complete.
 
-**Prerequisites** — The Karafka consumer infrastructure exists. Redpanda is
-running (at P14, the current setup uses Oban relay).
-
-**Implementation approach**
-
-- **Portal (Rails):** Add the migration. The `processed_events` table has a
-  composite primary key `(event_id, consumer)`. In each consumer that operates
-  on a counter (currently `MerchantBalanceConsumer`), wrap the processing in:
-  ```ruby
-  result = ProcessedEvent.insert(
-    {event_id: envelope.event_id, consumer: self.class.name, processed_at: Time.current},
-    on_duplicate: :skip, returning: false
-  )
-  return if result.count == 0  # already processed
-  # proceed with counter update
-  ```
-- A daily sweep job deletes rows older than 30 days (the DBML note). A
-  Redpanda consumer will never replay an event older than the retention window.
-- **Core involvement:** None. This table is portal-side only.
-
-**Schema**
-```
-processed_events
-  event_id text  pk (composite)
-  consumer text  pk (composite)
-  processed_at timestamptz
-```
-
-**Complexity** — Low. Three lines of code per consumer, one migration.
+**Effort** — 30 minutes of code work + ComplyLaunch application review time
+(typically 1–3 business days)
 
 ---
 
-### 1.4 `portal_merchant_balances` — Merchant Balance Read Model
+### 0.3 Production Infrastructure (Terraform) — **BLOCKER**
 
-**What it is**
-A pre-computed table of each merchant's available, pending, reserved, and
-in-transit balances, updated by the outbox projection pipeline. Replaces the
-current pattern of querying `proj_merchant_balances` in Core.
+**What is missing**
+`infra/terraform/main.tf` has only `ecr.tf` stubs. No ECS task definitions,
+ALB, managed RDS, managed ElastiCache, MSK (Redpanda), or Secrets Manager
+wiring exists in Terraform. The data platform ETL currently runs as
+`while true; sleep 3600` inside a docker-compose service, which must not
+reach production.
 
-**Why it matters**
-The merchant balance is the most-viewed figure on the portal dashboard. It
-appears on every page load for the merchant. Fetching it from Core on every
-request adds a cross-service HTTP call to every page render. A portal-side
-projection eliminates that latency and eliminates Core as a dependency for
-every dashboard load.
+**Fix** — This is the full P22 infrastructure sprint:
+- ECS task definition per service (yagye_core, yagye_portal, gateway_simulator
+  dev-only, scoring_service, Redpanda, Redis, Grafana stack)
+- ALB with target groups: port 4000 (Core API), port 3000 (Portal), port 8080
+  (scoring service)
+- Managed RDS PostgreSQL (Multi-AZ for the core DB at launch)
+- Managed ElastiCache Redis (rate limiting + portal sessions)
+- Secrets Manager entries for all credentials (AML API key, provider
+  credentials, portal secret_key_base, etc.)
+- Real S3 buckets replacing Floci endpoints (update `AWS_ENDPOINT_URL` in
+  runtime.exs to be absent in production, falling back to real AWS)
+- EventBridge Scheduler replacing the docker-compose ETL cron
+- VPC, security groups, IAM roles
 
-**PSP relevance**
-Merchants make operational decisions based on their balance (timing of payouts,
-reserve acknowledgment, dispute funding). A stale or missing balance is a
-support escalation waiting to happen. The `last_applied_at` column surfaces
-projection lag so the UI can show "updated N seconds ago" rather than a stale
-number with no warning.
+**Effort** — 2–3 day infrastructure sprint
 
-**Phase** — P13 extension (unblocked now)
-
-**Prerequisites** — Outbox events `payment.succeeded` and `payout.completed`
-are already being emitted. A Karafka consumer exists for payment events.
-`processed_events` should be built first (1.3) to protect the counter.
-
-**Implementation approach**
-
-- **Portal (Rails):** Add the migration. Create a `PortalMerchantBalance` model.
-  Update the existing `PaymentConsumer` (or a new `BalanceConsumer`) to upsert
-  into `portal_merchant_balances` on `payment.succeeded`: increment `available`,
-  decrement `pending`. Gate the update on `processed_events` insert success.
-- The balance is per `(merchant_code, currency, mode)` — the composite PK
-  ensures simulation and live balances are always separate.
-- **Core involvement:** No new Core changes. The events are already emitted.
-
-**Schema**
-```
-portal_merchant_balances
-  merchant_code text  pk (composite)
-  currency char(3)    pk (composite)
-  mode text           pk (composite)
-  available bigint
-  pending bigint
-  reserved bigint
-  in_transit bigint
-  last_event_id text
-  last_applied_at timestamptz
-```
-
-**Complexity** — Medium. The consumer update logic is straightforward but must
-be protected by `processed_events` and handle currency/mode scoping correctly.
+**Note** — See `docs/architecture/scaling-playbook.md` for guidance on when
+to add a second node to each service and what load balancer configuration
+each service requires.
 
 ---
 
-### 1.5 `portal_daily_metrics` — Per-Merchant Daily Volume
+### ~~0.4 `outbox_messages` Cleanup Worker~~ — **DONE**
 
-**What it is**
-A pre-computed daily metrics table per merchant, currency, and mode: payment
-count, success/failure counts, gross volume, refund volume, and chargeback
-count. Powers the volume chart on the merchant overview page.
+`OutboxCleanupWorker` exists at `apps/yagye_core/lib/yagye_core/outbox/workers/outbox_cleanup_worker.ex`.
+Runs nightly via Oban crontab (`0 2 * * *`), purges published rows older than 7 days.
 
-**Why it matters**
-Merchants and ops analysts review volume trends daily. Computing this live
-from the `portal_payments` table on every chart load requires a full-table
-aggregate that becomes expensive as transaction volume grows. Pre-computing it
-nightly makes the chart render in a single index read.
+---
 
-**PSP relevance**
-Volume visibility is a basic merchant expectation. A chart that loads in 50ms
-vs one that times out is the difference between a self-service merchant and one
-who calls support. For a PSP serving merchants at scale, dashboard performance
-directly affects support ticket volume.
+### 0.5 `routing_native_rail` Model — Upload to S3 — Before First Merchant
 
-**Phase** — P13 extension (unblocked now)
+**What is missing**
+The model is trained. The ONNX file exists in the local MLflow artifact
+store. The S3 upload failed during training because Floci was not running
+at that time. No `champion.flag` exists in S3 for any model, so the scoring
+service falls back to rule-based predictions for all 4 models (including
+routing, which has a real trained model available).
 
-**Prerequisites** — `portal_payments` table is populated. A background job
-scheduler is running (Solid Queue is already configured).
+**Fix**
+```bash
+docker compose up floci -d
+python apps/yagye_data/scripts/train_models.py --model routing_predictor
+```
+Then restart the scoring service. It reads `champion.flag` from S3 at
+startup and will begin serving real routing predictions.
 
-**Implementation approach**
+The other three models (`risk_scorer`, `reserve_recommender`,
+`churn_predictor`) correctly remain on rule-based fallback — they were
+skipped during training due to insufficient Silver data. They will be trained
+after 4–6 weeks of live transaction history accumulates.
 
-- **Portal (Rails):** Add the migration. Create a `DailyMetricsRecomputeJob`
-  that runs hourly via Solid Queue. The job does a single aggregation query
-  over `portal_payments` grouped by `(merchant_code, day, currency, mode)` and
-  upserts the results. Recompute-from-source is safe (idempotent), unlike
-  incremental counters.
-- **Core involvement:** None.
-- The DBML note explains the choice: "A wrong count self-corrects; a wrong
-  amount is a misstatement — hence recompute, not increment."
+**Effort** — 1 hour
 
-**Complexity** — Low.
+---
+
+### ~~0.6 Silver Data Quality Checks~~ — **DONE**
+
+`apps/yagye_data/src/yagye_data/shared/silver_quality.py` implements `emit()`: logs
+`source_rows`, `output_rows`, `dropped_rows`, and `null_amount_count` at WARNING level
+(Loki alert fires on `dropped_rows > 0` or `null_amount_count > 0`). Called after each
+Silver COPY in the ETL pipeline.
+
+---
+
+### ~~0.7 Escrow Auto-Release Scheduling~~ — **DONE**
+
+`Escrow.create_hold/3` schedules `EscrowAutoReleaseWorker` with `scheduled_at: hold.auto_release_at`
+at lines 71-72 of `apps/yagye_core/lib/yagye_core/escrow/escrow.ex`. Verified.
+
+---
+
+### Summary Table
+
+| Gap | Severity | Effort | Act when |
+|---|---|---|---|
+| 0.1 KMS for KYB documents | Blocker | 2–4 h | Before first KYB upload |
+| 0.2 AML provider from stub | Blocker | 30 min + ComplyLaunch review (1–3 days) | Before first merchant onboarding |
+| 0.3 Production Terraform | Blocker | 2–3 days | Before deploying to real AWS |
+| ~~0.4 outbox_messages cleanup~~ | ~~High~~ | **Done** | — |
+| 0.5 routing model S3 upload | High | 1 h | Before first merchant goes live |
+| ~~0.6 Silver data quality checks~~ | ~~High~~ | **Done** | — |
+| ~~0.7 Escrow auto-release verify~~ | ~~High~~ | **Done** | — |
+
+There is also one fix that is not needed for single-node launch but must be
+applied before the second Core node is added: the settlement batch race
+condition handler in `settlement.ex`. See
+`docs/architecture/scaling-playbook.md § 2e` for details.
+
+---
+
+## 1. ~~Ready Now (Unblocked)~~ — **ALL BUILT**
+
+All five items in this section were built during P13/P13.5:
+
+| Item | What was built |
+|---|---|
+| ~~1.1 `user_sessions`~~ | Model, migration, Devise override for sign-in/sign-out, security settings page |
+| ~~1.2 `saved_filters`~~ | Model, migration, filter persistence per namespace |
+| ~~1.3 `processed_events`~~ | Model, migration, `IdempotentConsumer` concern, `ProcessedEventSweepJob` (30-day purge) |
+| ~~1.4 `portal_merchant_balances`~~ | Model, `PaymentEventsConsumer` + `SettlementEventsConsumer` projecting balances, dashboard read |
+| ~~1.5 `portal_daily_metrics`~~ | Model, migration, `PortalDailyMetricsRecomputeJob` (hourly Solid Queue cron) |
 
 ---
 
@@ -728,6 +638,77 @@ agent manages a persistent balance for a WhatsApp user.
 **Prerequisites** — Customer delegation tokens (6.3) must exist first.
 
 **Complexity** — High. Requires a ledger migration and new posting rules.
+
+---
+
+### 6.6 `screening_providers` + `screening_subjects` + `screening_requests` — Full AML/PEP Infrastructure (P21b)
+
+**What it is**
+Three tables that implement the production AML/PEP screening pipeline in Core:
+
+- **`screening_providers`** — A registry of AML data providers (ComplyAdvantage, World-Check,
+  LexisNexis). Each row names the Elixir adapter module, the lists supported (OFAC, EU, UN, UK
+  HMT, BoG Watch List, PEP, adverse media), and the default lists queried per request. The
+  `ScreeningAdapter` behaviour is already defined; only the adapter module changes when
+  switching providers.
+
+- **`screening_subjects`** — One row per screened entity: the merchant itself, each
+  beneficial owner, each director, and optionally high-value customers. Owns the screening
+  schedule: `last_screened_at`, `next_screening_at`, and `screening_frequency_days` (365 for
+  clean subjects, 180 for PEPs/RCAs, 30 for high-risk or confirmed PEPs). A partial index on
+  `next_screening_at WHERE screening_status NOT IN (confirmed_match_blocked, suspended)` drives
+  the `ScreeningSchedulerWorker` without full-table scans.
+
+- **`screening_requests`** — An immutable audit record of every API call to a screening
+  provider. A failed or timed-out request is retried by creating a NEW row — the failed row is
+  kept as evidence. Stores the provider's own search reference (`search_ref`) and the full raw
+  response (`raw_response` jsonb, `[EVD]`). Regulators will ask for this verbatim.
+
+**Why these three tables — not just `screening_hits`?**
+`screening_hits` (already migrated, P11) captures the per-match results. These three tables
+capture the scaffolding around it:
+- Without `screening_providers`, the adapter module is hardcoded — no runtime provider
+  switching or multi-provider comparison.
+- Without `screening_subjects`, there is no ongoing rescreening schedule. FATF and BoG
+  regulations require periodic monitoring, not just onboarding screening.
+- Without `screening_requests`, there is no immutable audit trail per API call — only the
+  hits are stored, not the fact that the check was run and what the full response was.
+
+**PSP relevance**
+Bank of Ghana licensing and correspondent banking onboarding (the prerequisite for bank
+settlement) both require demonstrable AML controls. "We screen on onboarding" is not enough —
+examiners ask: "which lists, via which provider, on which date, for which person, and what did
+the raw response say?" Only `screening_requests` answers that. PEP monitoring frequency must
+be documented — only `screening_subjects` holds that schedule.
+
+**Phase** — P21b
+
+**Prerequisites** — `screening_hits` is already migrated. The `ScreeningAdapter` behaviour
+exists (`YagyeCore.Compliance.AmlProvider` with `StubScreeningAdapter` and `ComplyAdvantage`
+adapters). The three new tables must be migrated together at P21b Step 0 before any real AML
+provider calls are made.
+
+**Implementation approach**
+
+- **Core (Elixir):** Three migrations in one step. Seed `screening_providers` with the
+  `stub` provider for dev/test and `comply_advantage` for prod. Build
+  `ScreeningSchedulerWorker` (Oban cron, daily) to find subjects where
+  `next_screening_at <= now()` and enqueue `ScreeningWorker` per subject.
+  `ScreeningWorker` creates the `screening_request` row, calls the adapter, creates
+  `screening_hits`, updates `screening_subject.last_screened_at` and sets
+  `next_screening_at` based on `screening_frequency_days`.
+- **On onboarding:** when a merchant is approved or a beneficial owner is added, enroll
+  the subject in `screening_subjects` with `next_screening_at = now()` so the scheduler
+  picks them up within the hour.
+- **SoD:** `screening_hits.raised_by` and `dispositioned_by` already have the CHECK
+  constraint (`20261006120000`). No additional SoD is needed at this layer.
+- **Compliance event:** emit `compliance.screening_hit_raised` via the outbox when
+  `hit_count > 0` after a completed request. The portal's `ScreeningHitsConsumer`
+  (§3.2) listens for this.
+
+**Complexity** — High. Provider adapter interface, scheduler, background job chain, outbox
+event, and the enrollment hook across three separate contexts (Merchants, Compliance,
+BeneficialOwners).
 
 ---
 

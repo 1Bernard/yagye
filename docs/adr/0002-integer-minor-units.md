@@ -32,7 +32,20 @@ with an **ISO-4217 currency code** string, encapsulated in `Yagye.Money`:
 
 ```elixir
 %Yagye.Money{amount: 1250, currency: "USD"}  # $12.50
+%Yagye.Money{amount: 1250, currency: "GHS"}  # GHS 12.50 (pesewas)
+%Yagye.Money{amount: 1250, currency: "JPY"}  # ¥1,250 (yen has no sub-unit)
 ```
+
+**Why `"USD"` and not `"cents"`?**
+
+`currency` stores the ISO-4217 major-unit code, not the name of the minor unit.
+The major-unit code is all you need: ISO-4217 defines the decimal exponent for
+every currency (`USD` → 2 → divide by 100; `JPY` → 0 → divide by 1; `KWD` → 3
+→ divide by 1000). Storing `"cents"` or `"USD_CENTS"` would break this lookup and
+make the type useless for currencies other than USD.
+
+The rule is: **`amount` is always in the smallest unit; `currency` always names the
+major unit.** The formatting layer does the shift when displaying to humans.
 
 Addition, subtraction, and comparison are exact integer arithmetic.
 Allocation (splitting an amount into parts) uses the **largest-remainder algorithm**
@@ -50,8 +63,9 @@ is created or destroyed.
 - Amounts travel across service boundaries as integers in JSON with no precision loss.
 
 ### Negative / Trade-offs
-- Displaying a human-readable amount requires knowing the currency's decimal places
-  (USD has 2; JPY has 0; KWD has 3). A formatting layer is needed for UI/API output.
+- A formatting layer is required for display: `format_money(1250, currency: "GHS")` →
+  `"GHS 12.50"`. The decimal shift (÷100 for GHS, ÷1 for JPY, ÷1000 for KWD) is
+  derived from ISO-4217 at render time, not stored with the amount.
 - Cross-currency arithmetic is intentionally prevented at compile time (pattern
   matching on currency codes). Currency conversion is an explicit domain operation,
   not an automatic one.

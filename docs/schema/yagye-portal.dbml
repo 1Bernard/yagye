@@ -17,6 +17,16 @@
 //
 //  RBAC model: DB-backed roles + permissions + role_permissions grant matrix.
 //  No hardcoded role checks in policies — see ADR-0017.
+//
+//  DESIGN-AHEAD TABLES (in schema, not yet migrated — planned phases):
+//    break_notes             — P19+ compliance annotation workflow
+//    impersonation_sessions  — P21b ops tooling
+//    portal_breaks           — P19 reconciliation read model
+//    portal_refunds          — P19 refund read model
+//    portal_platform_*       — P20+ platform finance dashboards
+//    portal_kyb_documents    — P21b compliance review
+//    portal_screening_hits   — P21b AML screening read model
+//    portal_provider_connections — P22 orchestration console
 // ═══════════════════════════════════════════════════════════════════════════
 
 Project yagye_portal {
@@ -61,6 +71,7 @@ Table users [headercolor: #1A2B4C] {
   email_otp_digest text [note: '[SEC] hashed email OTP for passwordless step-up flows']
   email_otp_expires_at timestamptz
   email_otp_attempts integer [not null, default: 0]
+  invited_by_id uuid [ref: > users.id, note: 'self-referential — the ops or merchant user who sent the invitation; NULL for the first user or direct sign-up']
   created_at timestamptz [not null]
   updated_at timestamptz [not null]
   Note: 'HUMAN credentials only. Machine credentials (API keys) live in yagye_core — see ADR-0011. kind determines which role scope is valid for this user. A merchant_user can never hold an internal role and vice versa — enforced by DB CHECK on user_roles.'
@@ -115,10 +126,10 @@ Table permissions [headercolor: #B4531F] {
 }
 
 Table role_permissions [headercolor: #B4531F] {
-  role_key text [pk]
-  permission_key text [pk]
+  role_key text [pk, ref: > roles.key]
+  permission_key text [pk, ref: > permissions.key]
   granted_at timestamptz [not null]
-  Note: 'THE grant matrix. Seeded from db/seeds.rb, version-controlled, tested. permitted?() is a SQL EXISTS against this join cached per-request in Current.permissions. CI asserts no permission key is referenced in a policy but absent here. DBML cannot express the composite join-key FK semantics without conflicting with the PK uniqueness rules, so the FK is enforced in PostgreSQL schema/migration rather than in this diagram.'
+  Note: 'THE grant matrix. Seeded from db/seeds.rb, version-controlled, tested. permitted?() is a SQL EXISTS against this join cached per-request in Current.permissions. CI asserts no permission key is referenced in a policy but absent here. The composite PK (role_key, permission_key) doubles as the unique constraint; individual column FKs → roles and permissions are enforced in both the migration and the inline refs above.'
 }
 
 Table user_roles [headercolor: #B4531F] {
@@ -144,7 +155,7 @@ Table merchant_memberships [headercolor: #1F6B4A] {
   merchant_code text [not null, note: 'mch_01J… — reference to yagye_core, not a FK across databases']
   merchant_name text [not null, note: 'denormalised from the Kafka merchants topic for display without a core HTTP call']
   state text [not null, note: 'invited|active|suspended|removed']
-  invited_by_id uuid
+  invited_by_id uuid [ref: > users.id, note: 'the user who sent this invitation — not necessarily a member yet if an ops officer invited them directly']
   invitation_token_digest text [note: '[SEC] single use; cleared after acceptance']
   invitation_expires_at timestamptz
   accepted_at timestamptz
@@ -818,7 +829,7 @@ Table role_assignment_requests [headercolor: #B4531F] {
   id uuid [pk]
   target_user_id uuid [not null, ref: > users.id]
   requested_by_id uuid [not null, ref: > users.id]
-  reviewed_by_id uuid [note: 'NULL until reviewed; ref: > users.id']
+  reviewed_by_id uuid [ref: > users.id, note: 'NULL until reviewed — SoD: must differ from requested_by_id and target_user_id']
   current_role_keys text [not null, note: 'comma-separated snapshot of roles before the request — denormalised for audit']
   requested_role_keys text [not null, note: 'comma-separated target roles — what the requester asked for']
   status text [not null, note: 'pending|approved|rejected']

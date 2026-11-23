@@ -122,6 +122,9 @@ services:
       AWS_S3_HOST: floci
       AWS_S3_PORT: "4566"
       KYB_S3_BUCKET: yagye-kyb-documents
+      # Floci KMS: alias ARN is deterministic once floci_init creates alias/yagye-kyb-dev.
+      # Unset in staging/prod — real KMS key ARN comes from Terraform via Secrets Manager.
+      KYB_KMS_KEY_ARN: arn:aws:kms:us-east-1:000000000000:alias/yagye-kyb-dev
       # Checkout service — public URL as seen by browsers (host-side port mapping)
       CHECKOUT_BASE_URL: "http://localhost:4010"
       # P20 — Scoring service (shadow mode; rollout percent stays 0 until post-P22)
@@ -371,7 +374,15 @@ services:
     image: amazon/aws-cli:2.22.3
     entrypoint: ["/bin/sh", "-c"]
     command: >
-      "aws --endpoint-url http://floci:4566 s3 mb s3://tempo-traces --region us-east-1 2>/dev/null || true"
+      "aws --endpoint-url http://floci:4566 s3 mb s3://tempo-traces --region us-east-1 2>/dev/null || true;
+       aws --endpoint-url http://floci:4566 kms list-aliases --region us-east-1
+         --query \"Aliases[?AliasName=='alias/yagye-kyb-dev'].AliasName\" --output text 2>/dev/null
+         | grep -q yagye-kyb-dev
+       || (KEY=$(aws --endpoint-url http://floci:4566 kms create-key --region us-east-1
+                   --description 'Yagye KYB dev key'
+                   --query 'KeyMetadata.KeyId' --output text)
+           && aws --endpoint-url http://floci:4566 kms create-alias --region us-east-1
+                --alias-name alias/yagye-kyb-dev --target-key-id \"$KEY\") 2>/dev/null || true"
     environment:
       AWS_ACCESS_KEY_ID: test
       AWS_SECRET_ACCESS_KEY: test

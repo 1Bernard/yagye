@@ -217,6 +217,8 @@ controllers from bypassing context functions to touch schemas directly.
 - The ops-facing UI for Yagye internal staff (compliance, analyst, manager roles).
 - The merchant-facing dashboard (owner, finance, developer, support roles).
 - Risk & Compliance section: flagged payments, SAR export, disposition workflow.
+- Analytics pages: Fee Statement (Yagye fees by channel for a date range) and
+  Channel Performance (success rate, volume, avg latency, fees per payment channel).
 
 ### What it does NOT own
 

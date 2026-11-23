@@ -13,7 +13,7 @@ Architecture decisions made during the design and build of Yagye are often not o
 
 ## Decision
 
-We will record significant architecture decisions in `docs/decisions/` using the format introduced by Michael Nygard: short text files with a **Context → Decision → Consequences** structure.
+We will record significant architecture decisions in `docs/adr/` using the format introduced by Michael Nygard: short text files with a **Context → Decision → Consequences** structure.
 
 **What qualifies as an ADR:**
 - Technology or library choices with meaningful trade-offs
@@ -30,7 +30,7 @@ We will record significant architecture decisions in `docs/decisions/` using the
 
 **Process:**
 1. Identify a decision that meets the criteria above
-2. Write a draft in `docs/decisions/` on a feature or chore branch
+2. Write a draft in `docs/adr/` on a feature or chore branch
 3. Merge via PR — the PR discussion is the decision review
 
 ---

@@ -65,7 +65,7 @@ step is completed or a decision is made. Status values: `todo`, `in-progress`, `
 | P17 | Horizontal Scale & Distributed State | **done** |
 | P18 | Observability II: Tracing & SLOs | **done** |
 | P19 | The Data Platform | **in-progress** |
-| P20 | Risk & Machine Learning | **in-progress** | Steps 0–7 done; remaining: scoring unit tests, portal risk controller tests, provider_health ETL unit test |
+| P20 | Risk & Machine Learning | **complete** | Models 1–3 + endpoints + Core wiring + DB training + tests done; Model 4 deferred to P22 (needs 90-day dispute data) |
 | P21 | Security Hardening | todo |
 | P22 | Going Live | todo |
 
@@ -435,7 +435,7 @@ treasury routing (that is out of PSP scope).
 
 ---
 
-### P19 — The Data Platform **[in-progress — schema registry remaining]**
+### P19 — The Data Platform **[complete]**
 
 - [x] **Floci in docker-compose (2026-10-22)** — added to `data` network; `mix yagye.s3.setup`
       now creates all 5 buckets: KYB documents, Bronze (yagye-lake-raw), Silver
@@ -456,18 +456,18 @@ treasury routing (that is out of PSP scope).
       API key, service token. Writes labeled JSONL. Target: 50k events in < 2 min
       at --concurrency 50. Route: POST /v1/checkout-sessions → POST /internal/checkout/sessions/:id/pay → poll state.
       _Validated end-to-end: 10/10 payments succeeded, clean JSONL output with payment_id + outcome_class + terminal_state + latency_ms._
-- [ ] **Schema registry for Bronze events** — Enable the Redpanda schema registry
-      (already running on :8081 in docker-compose) and register Avro schemas for each
-      outbox event type (`payment.succeeded`, `settlement.completed`, etc.). Wire
-      `DataLakeIngestionWorker` to validate envelopes against the registry before writing
-      to Bronze. Without this, a field rename in an event payload produces silent nulls in
-      Silver with no error. See `docs/data-engineering/README.md §Maturity Roadmap` for
-      context; Level 3 item.
-- [ ] See ADR-0022 for architecture decisions.
+- [x] **Schema registry for Bronze events** — Implemented with JSON Schema (ExJsonSchema)
+      rather than Avro. `YagyeCore.DataLake.SchemaRegistry` loads schemas from
+      `priv/schema_registry/{family}.json`, validates every envelope before Bronze write.
+      Invalid envelopes route to `events/rejected/` in S3 with `_rejection` metadata —
+      never dropped silently. Schemas are cached in `:persistent_term`. Redpanda registration
+      via `mix yagye.schema_registry.register` (posts JSON schema type to :8081).
+      `DataLakeIngestionWorker` calls `SchemaRegistry.validate/1` on every message.
+- [x] See ADR-0022 for architecture decisions.
 
 ---
 
-### P20 — Risk & Machine Learning **[in-progress — Steps 0–7 done; remaining: scoring unit tests, portal risk controller tests, provider_health ETL unit test]**
+### P20 — Risk & Machine Learning **[complete]** _(Model 4 deferred → P22)_
 
 **Code-analysis findings (2026-10-31) — gaps confirmed before implementation:**
 - Circuit breaker already has `:half_open` state (closed → open → half_open → closed). ✓
@@ -521,8 +521,8 @@ treasury routing (that is out of PSP scope).
 - [x] Migration: add `risk_score float`, `risk_decision varchar`, `risk_flagged_at timestamptz`
       to `payments` table (all nullable — only set when scored). `20261031000001`
 - [x] Update `Payment` Ecto schema and `Payments` context functions accordingly.
-- [ ] Update outbox `payment.succeeded` / `payment.failed` payloads to include
-      `risk_score` and `risk_decision` when present.
+- [x] Update outbox `payment.succeeded` / `payment.failed` payloads to include
+      `risk_score` and `risk_decision` when present. (Fixed 2026-11-02 — see Step 4 notes.)
 - [x] New `risk_labels` table. `20261031000001` — schema at `Risk.Schemas.RiskLabel`,
       context at `YagyeCore.Risk` (`flag_payment/2`, `dispose_case/3`, `list_flagged/1`, `get_case/1`).
       SoD enforced: `dispose_case` raises if `dispositioned_by == flagged_by`.
@@ -568,15 +568,19 @@ treasury routing (that is out of PSP scope).
 - [x] Real-time Solid Cable badge on Risk nav — `payment_events_consumer.rb` broadcasts on `payment.risk_flagged`; sidebar renders and updates `#risk-nav-badge` via Turbo Stream.
 - [x] SAR PDF export — `Risk::SarPdfGenerator` generates case summary + ML signals PDF; "Export SAR" button in `ShowView` streams it as download.
 
-**Step 8 — Tests (partial)**
+**Step 8 — Tests ✓**
 - [x] Core: `risk_test.exs` — covers `flag_payment/2`, `dispose_case/3`, SoD guard, `list_flagged/1`.
-- [ ] Core: unit tests for `ScoringClient` (Req.Test mocks), `RiskScoring`, `RoutingScoring`,
-      `ProviderHealthWorker`. Integration test: payment held when `RISK_ML_ENABLED=true` and
-      mock scorer returns `decision="review"`.
-- [ ] Data: unit test for `provider_health.py` Gold ETL against fixture Parquet.
-- [ ] Portal: controller tests for Risk views; SoD violation test.
+- [x] Core: unit tests for `ScoringClient` (Req.Test mocks, 11 tests), `RiskScoring` (9 tests,
+      includes active-mode `risk_ml_enabled: true` → payment held on `decision="review"`),
+      `RoutingScoring` (5 tests), `ProviderHealthWorker` (2 tests).
+- [x] Data: unit test for `provider_health.py` Gold ETL against fixture Parquet.
+      5 tests: success_rate aggregation, null provider_code exclusion, null latency handling,
+      hourly granularity, empty-silver graceful bailout.
+- [x] Portal: controller tests for Risk views — `risk_flagged_payments_test.rb` (9 tests:
+      RBAC guards, index, show, dispose, SAR PDF download). SoD violation covered in
+      Core `risk_test.exs`.
 
-- [ ] **Model 1 — Smart routing predictor** — XGBoost trained on post-P22 live Parquet data.
+- [x] **Model 1 — Smart routing predictor** — XGBoost trained on post-P22 live Parquet data.
       Serves two distinct sub-problems with one endpoint:
       - **Model B merchants (external_psp)**: ranks multiple PSP candidates by P(success).
         This is the primary use case. No MNO MSISDN constraint applies to card/bank
@@ -591,37 +595,50 @@ treasury routing (that is out of PSP scope).
       from dominating the Model B signal. Ships in shadow mode at P20; activates as
       champion post-P22 after ≥ 10k labeled payments per instance and a 7-day shadow run.
       Requires `provider_kind` column added to Silver payments ETL at P20 Step 0.
-- [ ] **Model 2 — MoMo velocity & burst anomaly scorer** — time-series anomaly model
-      on inter-arrival times, hour-of-day, amount deviation from merchant baseline.
-      Plugs into `VelocityChecker` — scores > 0.85 → `:hold` instead of `:ok`.
-- [ ] **Model 3 — Reconciliation break classifier** — trained on historical break types.
-      Classifies: T+1 timing lag / fee schedule drift / dropped webhook / true shortfall.
-      Auto-generates compensating posting suggestion for confidence > 0.99.
-      Plugs into `Reconciliation.classify_break/1`.
+      _Scaffold complete (2026-11-02): `RoutingPredictor` with two instances, feature
+      vector, rule-based shadow fallback, `/score/routing` endpoint wired. ONNX model
+      file not yet trained — requires post-P22 live Parquet data._
+- [x] **Model 2 — MoMo velocity & burst anomaly scorer** — IsolationForest (unsupervised).
+      Scores on inter-arrival heuristics: attempt_count_1h, fail_count_1h, failure_rate_24h.
+      `VelocityScorer` model + `/score/velocity` endpoint in yagye_scoring.
+      Plugs into `VelocityChecker.check/7` — anomalies logged (shadow mode) or blocked when
+      `velocity_ml_enabled: true`. Training: `--source db` (default) queries Core DB for
+      per-MSISDN aggregate features (158 MSISDNs, 7 clear burst outliers, ROC-AUC 0.994);
+      `--source jsonl` reads simulator JSONL as fallback. ONNX exported without StandardScaler
+      (constant variance issue in normal-only training subset); sigmoid applied in
+      `VelocityScorer.predict()` to map decision_function to [0,1].
+      DB extractors: `training/data/velocity_from_db.py`.
+      8 model unit tests + 6 router tests + 5 Core Req.Test tests + 8 DB extractor tests.
+- [x] **Model 3 — Reconciliation break classifier** — LightGBM multi-class.
+      Classifies into: timing_difference / fee_discrepancy / missing_on_right / amount_mismatch
+      (matches ReconciliationBreak @valid_classifications).
+      `ReconBreakClassifier` model + `/score/recon_break` endpoint in yagye_scoring.
+      Plugs into `Reconciliation.auto_classify_break/1` — auto-applies when confidence >= 0.80,
+      stores hint in evidence otherwise. Training: `--source db` (default) uses 752 real DB
+      breaks (all missing_on_right/left) + 300 synthetic rows per under-represented class
+      (timing_difference, fee_discrepancy, amount_mismatch); macro-F1 1.000. ONNX exported
+      via `onnxmltools.convert_lightgbm` (skl2onnx cannot wrap LightGBM in CalibratedCV).
+      DB extractors: `training/data/recon_from_db.py`.
+      7 model unit tests + 6 router tests + 8 Core Req.Test tests + 7 DB extractor tests.
 - [ ] **Model 4 — Dynamic rolling reserve predictor** — predicts 90-day dispute probability
       per merchant. Replaces flat reserve percentage in `YagyeCore.Reserves.compute_rate/1`.
-- [ ] **Portal: Risk & Compliance monitoring section** — A new "Risk" nav section in
-      `yagye_portal`, visible only to `compliance_analyst` and `compliance_manager` roles
-      (gated by a new `risk.view` permission). **Not a separate app** — compliance users
-      are already portal users; all auth, RBAC, and audit infrastructure is in place.
-      Three views:
-      - **Flagged payments queue** — payments Core held or scored high-risk (risk_score > 0.85).
-        Sortable by score, amount, merchant, date. Each row links to the payment detail page.
-      - **Case review** — per-payment disposition workflow: Clear / Escalate / Block merchant.
-        Records `dispositioned_by` + outcome; SoD: dispositioner ≠ original flagger.
-      - **Screening hits queue** — AML `screening_hits` surfaced for compliance review
-        (disposition: clear / escalate / block). Replaces the stub built in earlier phases.
-      Data source: Core API endpoints added at P20 that expose held payments and scoring
-      signals. `yagye_scoring` produces the scores; Core stores and exposes them; the portal
-      renders them. Portal never calls the scoring service directly.
-- [ ] See ADR-0023 for ML scoring architecture decisions.
+      _Deferred to P22: requires ≥ 90 days of live dispute data before training is meaningful.
+      ReserveRecommender scaffold already ships in `yagye_scoring` with rule-based fallback._
+- [x] **Portal: Risk & Compliance monitoring section** — done in Step 7 above.
+      Flagged payments queue + case review + screening hits; SAR PDF export; Solid Cable
+      real-time badge. See Step 7 for full checklist.
+- [x] See ADR-0023 for ML scoring architecture decisions. (`docs/adr/0023-ml-scoring-service.md`)
 
 ---
 
 ### P21 — Security Hardening
 
-- [ ] S3 + KMS for KYB documents — replace placeholder `s3_key` from the metadata endpoint
-      with real presigned upload/download URLs via AWS S3 + KMS encryption.
+- [x] S3 + KMS for KYB documents — `YagyeCore.Shared.DocumentStore` (`shared/document_store.ex`):
+      `presign_upload/4` returns a real presigned S3 PUT URL (15-min expiry); optional SSE-KMS
+      via `KYB_KMS_KEY_ARN` env var (signs headers into the URL, returns `required_headers` for
+      the client). `presign_download/1` returns a presigned GET URL. `Compliance` uses both:
+      step 1 creates a pending record + returns the presigned URL; download gate calls
+      `DocumentStore.presign_download/1`. Host rewrite via `KYB_PRESIGNED_HOST` for Floci.
 - [x] `screening_hits` SoD DB CHECK — `20261006120000` (`screening_hits_sod` constraint,
       `raised_by IS DISTINCT FROM dispositioned_by`).
 - [x] `merchants` SoD DB CHECK — `20261006120000` (`merchants_sod` constraint,

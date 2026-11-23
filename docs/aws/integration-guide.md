@@ -587,3 +587,348 @@ When you move from Floci to real AWS, for each service:
 
 No NAT Gateway, no ALB (use Caddy on EC2 directly), no Multi-AZ, no managed MSK —
 run Redpanda as a container on the same EC2 instance.
+
+---
+
+## P22 Networking — VPC, Subnets, Security Groups
+
+**No Floci equivalent.** VPC constructs exist in LocalStack but are unenforced no-ops —
+Docker handles local isolation. Build this in real AWS first, before provisioning any other
+service. Everything else (EC2, RDS, S3 Gateway Endpoint) depends on the VPC being in place.
+
+### Architecture
+
+```
+VPC: 10.0.0.0/16  (us-east-1, single region — all services in same region)
+
+  Public subnet:  10.0.1.0/24  (us-east-1a)
+    └── EC2 t3.medium (Caddy + all Docker containers: Core, Portal, Redpanda,
+                       Redis, Prometheus, Loki, Tempo, Grafana, Oban)
+
+  Private subnet: 10.0.2.0/24  (us-east-1a)
+    └── RDS db.t3.micro PostgreSQL (Single-AZ)
+
+Internet Gateway → attached to VPC → route 0.0.0.0/0 from public subnet
+
+No NAT Gateway   — RDS is private and needs no outbound internet
+No ALB           — Caddy on EC2 handles TLS termination (port 80/443)
+                   Revisit ALB when you need WAF or multi-instance
+```
+
+### Security groups
+
+```hcl
+# ec2-sg: the instance running all containers
+resource "aws_security_group" "ec2" {
+  name   = "yagye-ec2"
+  vpc_id = aws_vpc.main.id
+
+  ingress {
+    description = "HTTPS from internet"
+    from_port   = 443
+    to_port     = 443
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+  ingress {
+    description = "HTTP redirect (Caddy redirects to HTTPS)"
+    from_port   = 80
+    to_port     = 80
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+  ingress {
+    description = "SSH from your IP only"
+    from_port   = 22
+    to_port     = 22
+    protocol    = "tcp"
+    cidr_blocks = ["<YOUR_IP>/32"]
+  }
+  egress {
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+}
+
+# rds-sg: PostgreSQL — reachable only from EC2, never from internet
+resource "aws_security_group" "rds" {
+  name   = "yagye-rds"
+  vpc_id = aws_vpc.main.id
+
+  ingress {
+    description     = "Postgres from EC2 only"
+    from_port       = 5432
+    to_port         = 5432
+    protocol        = "tcp"
+    security_groups = [aws_security_group.ec2.id]
+  }
+}
+```
+
+### Terraform — full VPC block
+
+```hcl
+resource "aws_vpc" "main" {
+  cidr_block           = "10.0.0.0/16"
+  enable_dns_hostnames = true
+  enable_dns_support   = true
+  tags = { Name = "yagye-vpc" }
+}
+
+resource "aws_internet_gateway" "igw" {
+  vpc_id = aws_vpc.main.id
+}
+
+resource "aws_subnet" "public" {
+  vpc_id                  = aws_vpc.main.id
+  cidr_block              = "10.0.1.0/24"
+  availability_zone       = "us-east-1a"
+  map_public_ip_on_launch = true
+  tags = { Name = "yagye-public" }
+}
+
+resource "aws_subnet" "private" {
+  vpc_id            = aws_vpc.main.id
+  cidr_block        = "10.0.2.0/24"
+  availability_zone = "us-east-1a"
+  tags = { Name = "yagye-private" }
+}
+
+resource "aws_route_table" "public" {
+  vpc_id = aws_vpc.main.id
+  route {
+    cidr_block = "0.0.0.0/0"
+    gateway_id = aws_internet_gateway.igw.id
+  }
+}
+
+resource "aws_route_table_association" "public" {
+  subnet_id      = aws_subnet.public.id
+  route_table_id = aws_route_table.public.id
+}
+
+# S3 Gateway Endpoint — free, keeps S3 traffic inside AWS (no data transfer charge)
+resource "aws_vpc_endpoint" "s3" {
+  vpc_id            = aws_vpc.main.id
+  service_name      = "com.amazonaws.us-east-1.s3"
+  vpc_endpoint_type = "Gateway"
+  route_table_ids   = [aws_route_table.public.id]
+}
+```
+
+### What to verify after provisioning
+
+```bash
+# Confirm EC2 is reachable
+curl -I https://portal.yagye.com   # should return 200
+
+# Confirm RDS is NOT reachable from your laptop directly (should time out)
+psql -h <rds-endpoint> -U yagye -d yagye_core_production   # must time out
+
+# Confirm RDS IS reachable from EC2
+ssh ec2-user@<ec2-ip>
+psql -h <rds-endpoint> -U yagye -d yagye_core_production   # must connect
+
+# Confirm S3 traffic uses the Gateway Endpoint (no charge)
+# In VPC Flow Logs, S3 traffic should show destination as the endpoint, not 0.0.0.0
+```
+
+### When to add ALB
+
+Add an Application Load Balancer when any of these is true:
+- You need AWS WAF (web application firewall) in front of Portal
+- You are running more than one EC2 instance and need load balancing
+- You need a fixed DNS name that survives EC2 replacement without updating DNS
+
+At that point: provision `aws_lb` → target group → listener (443 with ACM cert) → update Caddy to listen on 8080 internally only. Estimated cost: +$18/month for ALB.
+
+---
+
+## IAM Policy Reference
+
+Minimum policies needed at P22, consolidated in one place. Attach all to a single
+EC2 instance profile role (never use hardcoded credentials).
+
+```json
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "SecretsManager",
+      "Effect": "Allow",
+      "Action": ["secretsmanager:GetSecretValue"],
+      "Resource": "arn:aws:secretsmanager:us-east-1:*:secret:yagye/*"
+    },
+    {
+      "Sid": "ParameterStore",
+      "Effect": "Allow",
+      "Action": ["ssm:GetParameter", "ssm:GetParametersByPath"],
+      "Resource": "arn:aws:ssm:us-east-1:*:parameter/yagye/*"
+    },
+    {
+      "Sid": "S3DataLake",
+      "Effect": "Allow",
+      "Action": ["s3:GetObject", "s3:PutObject", "s3:ListBucket", "s3:DeleteObject"],
+      "Resource": [
+        "arn:aws:s3:::yagye-lake-bronze",
+        "arn:aws:s3:::yagye-lake-bronze/*",
+        "arn:aws:s3:::yagye-lake-silver",
+        "arn:aws:s3:::yagye-lake-silver/*",
+        "arn:aws:s3:::yagye-lake-gold",
+        "arn:aws:s3:::yagye-lake-gold/*"
+      ]
+    },
+    {
+      "Sid": "S3KybDocuments",
+      "Effect": "Allow",
+      "Action": ["s3:GetObject", "s3:PutObject", "s3:ListBucket"],
+      "Resource": [
+        "arn:aws:s3:::yagye-kyb-documents-<account-last-4>",
+        "arn:aws:s3:::yagye-kyb-documents-<account-last-4>/*"
+      ]
+    },
+    {
+      "Sid": "KmsKyb",
+      "Effect": "Allow",
+      "Action": ["kms:GenerateDataKey", "kms:Decrypt"],
+      "Resource": "arn:aws:kms:us-east-1:*:key/alias/yagye-kyb"
+    },
+    {
+      "Sid": "SesSmtp",
+      "Effect": "Allow",
+      "Action": ["ses:SendEmail", "ses:SendRawEmail"],
+      "Resource": "*",
+      "Condition": {
+        "StringEquals": {"ses:FromAddress": "noreply@yagye.com"}
+      }
+    },
+    {
+      "Sid": "EventBridgeDataLake",
+      "Effect": "Allow",
+      "Action": ["events:PutEvents"],
+      "Resource": "arn:aws:events:us-east-1:*:event-bus/default"
+    },
+    {
+      "Sid": "SqsWebhookDlq",
+      "Effect": "Allow",
+      "Action": [
+        "sqs:SendMessage", "sqs:ReceiveMessage",
+        "sqs:DeleteMessage", "sqs:GetQueueAttributes"
+      ],
+      "Resource": "arn:aws:sqs:us-east-1:*:yagye-webhooks*"
+    }
+  ]
+}
+```
+
+---
+
+## AWS Testing Phase — End-to-End Checklist
+
+This is what to verify once you are on real AWS with the ~$47/month stack.
+Work through it top to bottom. Each item calls out what is different from
+Floci and what a failure tells you.
+
+### Infrastructure (do these first)
+
+- [ ] **Billing alarm set** — AWS Console → Billing → Budgets → $20 threshold → email alert.
+  Do this before anything else. Misconfigured NAT Gateways can rack up $50/day silently.
+
+- [ ] **EC2 reachable via HTTPS** — `curl -I https://portal.yagye.com` returns `200 OK`
+  with Caddy TLS cert from Let's Encrypt. If 502: Caddy is up but Portal container
+  is not. If connection refused: Caddy is not running or port 443 is not open in ec2-sg.
+
+- [ ] **RDS unreachable from outside VPC** — `psql -h <rds-endpoint>` from your laptop
+  times out after ~30 seconds. If it connects: rds-sg has 0.0.0.0/0 open — fix immediately.
+
+- [ ] **EC2 → RDS connection works** — SSH into EC2, run
+  `psql -h <rds-endpoint> -U yagye -d yagye_core_production -c '\l'`. If it fails:
+  check rds-sg allows port 5432 from ec2-sg, and that RDS subnet route table has no
+  conflicting rules.
+
+### IAM and credentials
+
+- [ ] **No hardcoded credentials in containers** — `docker exec yagye_core env | grep AWS`
+  should show no `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY`. The app must use the
+  EC2 instance metadata service (IMDS) instead. If keys appear: remove from docker-compose
+  and attach an instance profile role to the EC2 instead.
+
+- [ ] **Instance profile has correct role** — `curl http://169.254.169.254/latest/meta-data/iam/info`
+  from EC2 returns a role ARN. If empty: no instance profile is attached — go to EC2
+  console → Actions → Security → Modify IAM Role.
+
+### Service health (run after IAM verified)
+
+- [ ] **Secrets Manager** — `aws secretsmanager get-secret-value --secret-id yagye/core/db_password`
+  from EC2 (without `--endpoint-url`) returns the secret. If `AccessDenied`: the instance
+  profile is missing `secretsmanager:GetSecretValue`. Check the IAM policy above.
+
+- [ ] **Parameter Store** — `aws ssm get-parameters-by-path --path /yagye/core` from EC2
+  returns parameters. If empty: parameters were not migrated from Floci — re-run the
+  `awsfl ssm put-parameter` commands against real AWS.
+
+- [ ] **SES email delivery** — trigger a portal password reset for a real email address
+  (not a test address, since SES sandbox only allows verified addresses). Email arrives
+  within 60 seconds. If it doesn't arrive: check SES console → Sending Statistics for
+  bounces or rejections. If `MessageRejected`: sender domain not verified or still in sandbox.
+
+- [ ] **S3 KYB upload** — upload a KYB test document through the portal. Confirm in
+  AWS Console → S3 → `yagye-kyb-documents-<suffix>` that the object exists with
+  `Server-side encryption: aws:kms` shown. If encryption is `AES-256` (SSE-S3 not SSE-KMS):
+  the bucket default encryption is not set — re-run `s3api put-bucket-encryption`.
+
+- [ ] **S3 presigned URL** — from the portal, generate a KYB document download link.
+  Open the URL in a fresh browser tab (not logged in). It must resolve and return the
+  file. If 403: the presigned URL was generated with Floci credentials — confirm the
+  app is using IMDS credentials, not `AWS_ACCESS_KEY_ID=test`.
+
+- [ ] **S3 Gateway Endpoint** — confirm S3 traffic does not leave the VPC. In VPC Flow
+  Logs (enable temporarily if not on): S3 destination IPs should be in the AWS-owned
+  prefix, not routed through the internet gateway. Alternatively: remove the EC2's public
+  route and confirm S3 still works (the Gateway Endpoint does not need a default route).
+
+- [ ] **Data lake write** — trigger `DataLakeIngestionWorker` manually:
+  `mix run -e "YagyeCore.DataLake.Workers.DataLakeIngestionWorker.perform(%Oban.Job{})"`.
+  Confirm an NDJSON object appears in `s3://yagye-lake-bronze/events/dt=<today>/`.
+  If `AccessDenied`: the instance profile is missing the S3 data lake policy.
+
+- [ ] **EventBridge scheduling** — wait for the next scheduled EventBridge rule to fire
+  (or manually trigger it via AWS Console → EventBridge → Rules → Send test event).
+  Confirm a data lake ingestion job runs and a new object lands in Bronze S3.
+  If nothing happens: check the EventBridge target SQS queue for messages stuck in DLQ.
+
+- [ ] **SQS DLQ** — send a webhook to a deliberately broken endpoint 5 times. Check
+  `yagye-webhooks-dlq` queue depth increases by 1. If the message disappears without
+  going to DLQ: the `maxReceiveCount` or DLQ ARN in the redrive policy is wrong.
+
+### Observability (run last — depends on all services being up)
+
+- [ ] **Alloy → Grafana Cloud** — Alloy config uses real Grafana Cloud endpoints
+  (not `loki:3100`/`tempo:4317`). Open Grafana Cloud → Explore → Loki, query
+  `{service_name="yagye_core"}`. Logs from the last 5 minutes should appear.
+  If empty: check Alloy logs on EC2 (`docker logs yagye_alloy`) for auth errors.
+
+- [ ] **Full distributed trace** — make a payment through the portal. In Grafana Cloud
+  → Tempo → Search, query `service.name = yagye_portal`. Find the trace and confirm
+  it shows spans from both `yagye_portal` and `yagye_core` in a single waterfall.
+  If Core spans are missing: `traceparent` header propagation is broken between Portal
+  → Core — check `CoreApiClient` injects the header.
+
+- [ ] **Prometheus alert firing** — temporarily set the `DiskUsedPercent > 80` alert
+  threshold to `> 1` in `alerts.yml` and reload Prometheus. Confirm Alertmanager
+  sends an email to `ops@yagye.com` via SES (not Mailpit — that is Floci only).
+  Revert the threshold after confirming. If email does not arrive: Alertmanager
+  is still pointed at `mailpit:1025` — update to SES SMTP endpoint.
+
+- [ ] **AI chat (Portal)** — open the AI Assistant panel in the portal as a merchant.
+  Send a message. Response streams back within 5 seconds. Check Langfuse dashboard
+  for the LLM call trace. If 500 error: `ANTHROPIC_API_KEY` is not set in the
+  Portal container env — add it to Secrets Manager and fetch at startup.
+
+### Sign-off criteria
+
+All items above checked. No hardcoded credentials. No 0.0.0.0/0 on rds-sg.
+Billing alarm confirmed active. At this point the stack is ready for the first
+real merchant onboarding test.

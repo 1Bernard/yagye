@@ -423,6 +423,7 @@ Table service_agreements [headercolor: #9B3232] {
 //                → update screening_subject status
 //                  → compliance.screening_hit_raised event (if any hits)
 
+// DEFERRED: screening_providers — P21b AML/PEP screening. Table not yet migrated.
 Table screening_providers [headercolor: #B4531F] {
   code text [pk, note: 'stub|comply_advantage|world_check|lexisnexis — string key, not uuid, for the same reason as providers.code']
   display_name text [not null]
@@ -434,6 +435,7 @@ Table screening_providers [headercolor: #B4531F] {
   Note: 'Abstraction layer for PEP/sanctions data providers. A ScreeningAdapter behaviour defines the contract — only the adapter module changes when you switch providers. stub is used in test and simulation mode.'
 }
 
+// DEFERRED: screening_subjects — P21b AML/PEP screening. Table not yet migrated.
 Table screening_subjects [headercolor: #B4531F] {
   id uuid [pk]
   subject_type text [not null, note: 'entity (the merchant itself)|beneficial_owner|director|customer (KYC at transaction time for high-value payments)']
@@ -455,6 +457,7 @@ Table screening_subjects [headercolor: #B4531F] {
   Note: 'One row per screened subject. Created on onboarding; updated after each completed screening_request. A confirmed_match_blocked status must immediately propagate to the merchant risk_rating and block payouts — the compliance officer cannot manually override a sanctions match.'
 }
 
+// DEFERRED: screening_requests — P21b AML/PEP screening. Table not yet migrated.
 Table screening_requests [headercolor: #B4531F] {
   id uuid [pk]
   subject_id uuid [not null]
@@ -656,6 +659,7 @@ Table payments [headercolor: #1A2B4C] {
   risk_decision text [note: 'allow|review|block']
   metadata jsonb [not null]
   settlement_batch_id uuid [note: 'set when the payment is swept into a settlement batch (P9). NULL = unsettled.']
+  split_rule_id uuid [note: 'set when this payment has an active split rule (P16.6). NULL = no split.']
   expires_at timestamptz
   inserted_at timestamptz [not null]
   updated_at timestamptz [not null]
@@ -869,6 +873,133 @@ Table disputes [headercolor: #9B3232] {
   inserted_at timestamptz [not null]
   updated_at timestamptz [not null]
   Note: 'P5 simplified implementation. Multi-stage chargeback lifecycle (retrieval, representment, pre-arbitration), scheme reason codes, and provider references come in P12. Arrives 60-120 days after the payment. Also the LABEL for the fraud model.'
+}
+
+// ─── SPLIT PAYMENTS ───────────────────────────────────────────────────────
+
+Table split_rules [headercolor: #2E4A73] {
+  id uuid [pk]
+  public_id varchar(255) [unique, not null, note: 'P16.6 split payout']
+  merchant_id uuid [not null]
+  name varchar(255) [not null]
+  description text
+  mode varchar(255) [not null]
+  active boolean [not null, default: true]
+  metadata jsonb
+  inserted_at timestamp [not null]
+  updated_at timestamp [not null]
+  indexes {
+    public_id [unique]
+    merchant_id
+    (merchant_id, active) [note: 'active rule lookup for a merchant']
+  }
+  Note: 'A named split configuration for a merchant. Each rule has one or more legs that together define how a payment amount is distributed across recipients.'
+}
+
+Table split_rule_legs [headercolor: #2E4A73] {
+  id uuid [pk]
+  public_id varchar(255) [unique, not null]
+  split_rule_id uuid [not null]
+  merchant_id uuid [not null]
+  label varchar(255) [not null]
+  split_type varchar(255) [not null, note: 'percentage|fixed — determines whether value is basis points or minor units']
+  value bigint [not null, note: 'percentage: basis points (e.g. 2500 = 25%). fixed: minor units.']
+  rank integer [not null, default: 0, note: 'display/application order within a rule']
+  metadata jsonb
+  inserted_at timestamp [not null]
+  updated_at timestamp [not null]
+  indexes {
+    public_id [unique]
+    split_rule_id
+  }
+}
+
+Table split_records [headercolor: #B4531F] {
+  id uuid [pk]
+  public_id varchar(255) [unique, not null]
+  payment_id uuid [not null]
+  split_rule_id uuid [not null]
+  split_rule_leg_id uuid [not null]
+  merchant_id uuid [not null]
+  amount bigint [not null, note: '[FIN] amount allocated to this leg']
+  currency char(3) [not null]
+  mode varchar(255) [not null]
+  state varchar(255) [not null, default: 'pending', note: 'pending|settled|failed']
+  settled_at timestamp
+  metadata jsonb
+  inserted_at timestamp [not null]
+  updated_at timestamp [not null]
+  indexes {
+    public_id [unique]
+    payment_id
+    merchant_id
+    split_rule_id
+    state
+  }
+  Note: '[FIN] One row per leg per payment. The authoritative record of how a split was actually distributed.'
+}
+
+// ─── ESCROW ───────────────────────────────────────────────────────────────
+
+Table escrow_holds [headercolor: #9B3232] {
+  id uuid [pk]
+  public_id varchar(255) [unique, not null, note: 'P16.5 escrow']
+  payment_id uuid [unique, not null, note: 'one hold per payment — UNIQUE enforced']
+  payment_link_id uuid [not null]
+  merchant_id uuid [not null]
+  amount bigint [not null, note: '[FIN]']
+  currency char(3) [not null]
+  mode varchar(255) [not null]
+  state varchar(255) [not null, default: 'held', note: 'held|buyer_confirmed|released|disputed|refunded']
+  buyer_confirmed_at timestamp
+  auto_release_at timestamp [not null, note: 'if the buyer does not confirm, the hold releases automatically']
+  dispute_window_ends_at timestamp [not null]
+  released_at timestamp
+  refunded_at timestamp
+  metadata jsonb
+  inserted_at timestamp [not null]
+  updated_at timestamp [not null]
+  indexes {
+    payment_id [unique]
+    merchant_id
+    state
+    auto_release_at [note: 'scheduler index for auto-release worker']
+  }
+  Note: 'Holds funds from a completed payment pending buyer confirmation. Used for marketplace and goods delivery flows where the payer confirms receipt before the merchant receives the funds.'
+}
+
+Table escrow_dispute_events [headercolor: #9B3232] {
+  id uuid [pk]
+  public_id varchar(255) [unique, not null]
+  escrow_hold_id uuid [not null]
+  merchant_id uuid [not null]
+  event_type varchar(255) [not null, note: 'buyer_confirmed|auto_released|disputed|refunded|released — append-only audit trail']
+  actor varchar(255) [not null, note: 'buyer|system|ops — who triggered this event']
+  note text
+  metadata jsonb
+  inserted_at timestamp [not null]
+  updated_at timestamp [not null]
+  indexes {
+    escrow_hold_id
+    public_id [unique]
+  }
+  Note: 'APPEND ONLY. Every state transition on an escrow hold is recorded here for dispute evidence and audit.'
+}
+
+// ─── RISK LABELS ──────────────────────────────────────────────────────────
+
+Table risk_labels [headercolor: #B4531F] {
+  id uuid [pk, default: `gen_random_uuid()`]
+  payment_id uuid [not null]
+  label varchar(255) [not null, note: 'fraud|high_risk|chargeback_risk|velocity_breach — ops-applied or model-applied risk tags']
+  labelled_by varchar(255) [not null, note: 'ops_user:usr_X | model:fraud_v3 | system:velocity_check']
+  note text
+  inserted_at timestamp [not null, default: `now()`]
+  indexes {
+    payment_id
+    label
+  }
+  Note: 'Risk tags applied to payments, either by the fraud model or ops. No updated_at — labels are never edited; a correction adds a new row.'
 }
 
 // ─── CHECKOUT ─────────────────────────────────────────────────────────────
@@ -1713,6 +1844,7 @@ TableGroup payments_core {
   payment_events
   payment_captures
   card_declines
+  risk_labels
 }
 TableGroup payment_methods {
   payment_card_details
@@ -1723,6 +1855,15 @@ TableGroup payment_methods {
 TableGroup reversals {
   refunds
   disputes
+}
+TableGroup split_payments {
+  split_rules
+  split_rule_legs
+  split_records
+}
+TableGroup escrow {
+  escrow_holds
+  escrow_dispute_events
 }
 TableGroup checkout {
   checkout_sessions
@@ -2000,14 +2141,121 @@ Ref: invoices.customer_id > customers.id
 // invoices.payment_link_id omitted: nullable many-to-one reference is not representable in DBML as `-` when the child key is not unique
 Ref: invoice_line_items.invoice_id > invoices.id
 Ref: invoice_deliveries.invoice_id > invoices.id
-// checkout_sessions.payment_link_id omitted: nullable many-to-one reference is not representable in DBML as `-` when the child key is not unique
 Ref: payouts.destination_id > payout_destinations.id
 Ref: bank_statement_lines.statement_id > bank_statements.id
-// data_subject_requests.merchant_id omitted: nullable many-to-one reference is not representable in DBML as `-` when the child key is not unique
-// data_subject_requests.subject_ref omitted: nullable many-to-one reference is not representable in DBML as `-` when the child key is not unique
-// payment_card_details.cardholder_name_subject_ref omitted: nullable many-to-one reference is not representable in DBML as `-` when the child key is not unique
-// payment_mobile_money_details.msisdn_subject_ref omitted: nullable many-to-one reference is not representable in DBML as `-` when the child key is not unique
-// checkout_sessions.customer_subject_ref omitted: nullable many-to-one reference is not representable in DBML as `-` when the child key is not unique
+
+// ── Refs present in DB but previously omitted — added to match real FK constraints ──
+
+// account_verifications
+Ref: account_verifications.payment_id > payments.id [delete: no action]
+
+// api_requests
+Ref: api_requests.api_key_id > api_keys.id [delete: restrict]
+Ref: api_requests.merchant_id > merchants.id [delete: restrict]
+
+// card_declines
+Ref: card_declines.attempt_id > payment_attempts.id [delete: restrict]
+
+// checkout_sessions — additional FKs
+Ref: checkout_sessions.payment_id > payments.id [delete: restrict]
+Ref: checkout_sessions.payment_link_id > payment_links.id [delete: restrict]
+Ref: checkout_sessions.template_id > checkout_templates.id [delete: set null]
+
+// disputes
+Ref: disputes.merchant_id > merchants.id [delete: restrict]
+
+// escrow
+Ref: escrow_dispute_events.escrow_hold_id > escrow_holds.id [delete: restrict]
+Ref: escrow_dispute_events.merchant_id > merchants.id [delete: restrict]
+Ref: escrow_holds.merchant_id > merchants.id [delete: restrict]
+Ref: escrow_holds.payment_id > payments.id [delete: restrict]
+Ref: escrow_holds.payment_link_id > payment_links.id [delete: restrict]
+
+// fee_records — additional FKs
+Ref: fee_records.pricing_plan_id > pricing_plans.id [delete: no action]
+Ref: fee_records.pricing_rule_id > pricing_rules.id [delete: no action]
+Ref: fee_records.reversal_of_id > fee_records.id [delete: no action]
+
+// invoices — additional FK
+Ref: invoices.payment_link_id > payment_links.id [delete: restrict]
+
+// ledger — additional FKs
+Ref: ledger_balances.account_id > ledger_accounts.id [delete: restrict]
+Ref: ledger_entries.reverses_entry_id > ledger_entries.id [delete: no action]
+
+// merchant child tables
+Ref: merchant_addresses.merchant_id > merchants.id [delete: cascade]
+Ref: merchant_applications.merchant_id > merchants.id [delete: restrict]
+Ref: merchant_checkout_configs.merchant_id > merchants.id [delete: cascade]
+Ref: merchant_contacts.merchant_id > merchants.id [delete: cascade]
+Ref: merchant_modes.merchant_id > merchants.id [delete: cascade]
+Ref: merchant_settlement_controls.merchant_id > merchants.id [delete: cascade]
+
+// momo
+Ref: momo_float_balances.ledger_account_id > ledger_accounts.id [delete: set null]
+
+// payment_attempts — additional FK
+Ref: payment_attempts.routing_configuration_id > routing_configurations.id [delete: set null]
+
+// payment instrument detail tables
+Ref: payment_bank_transfer_details.payment_id > payments.id [delete: restrict]
+Ref: payment_card_details.payment_id > payments.id [delete: restrict]
+Ref: payment_mobile_money_details.payment_id > payments.id [delete: restrict]
+Ref: payment_three_ds.payment_id > payments.id [delete: restrict]
+
+// payments — additional FKs
+Ref: payments.customer_id > customers.id [delete: set null]
+Ref: payments.settlement_batch_id > settlement_batches.id [delete: restrict]
+Ref: payments.split_rule_id > split_rules.id [delete: restrict]
+
+// payout_destinations
+Ref: payout_destinations.merchant_id > merchants.id [delete: restrict]
+
+// provider_credentials — additional FK
+Ref: provider_credentials.merchant_id > merchants.id [delete: restrict]
+
+// reconciliation — additional FKs
+Ref: reconciliation_breaks.merchant_id > merchants.id [delete: restrict]
+Ref: reconciliation_breaks.provider_id > providers.id [delete: restrict]
+Ref: reconciliation_breaks.resolving_entry_id > ledger_entries.id [delete: set null]
+Ref: reconciliation_runs.merchant_id > merchants.id [delete: restrict]
+Ref: reconciliation_runs.provider_id > providers.id [delete: restrict]
+
+// refunds — additional FKs
+Ref: refunds.dispute_id > disputes.id [delete: restrict]
+Ref: refunds.merchant_id > merchants.id [delete: restrict]
+
+// risk
+Ref: risk_labels.payment_id > payments.id [delete: restrict]
+
+// routing — additional FKs
+Ref: routing_rules.merchant_id > merchants.id [delete: restrict]
+Ref: routing_rules.routing_configuration_id > routing_configurations.id [delete: set null]
+
+// screening — additional FK
+Ref: screening_hits.screening_request_id > screening_requests.id [delete: restrict]
+
+// service agreements
+Ref: service_agreements.merchant_id > merchants.id [delete: cascade]
+
+// settlement_batches — additional FK
+Ref: settlement_batches.reconciliation_run_id > reconciliation_runs.id [delete: set null]
+
+// split payments
+Ref: split_records.merchant_id > merchants.id [delete: restrict]
+Ref: split_records.payment_id > payments.id [delete: restrict]
+Ref: split_records.split_rule_id > split_rules.id [delete: restrict]
+Ref: split_records.split_rule_leg_id > split_rule_legs.id [delete: restrict]
+Ref: split_rule_legs.merchant_id > merchants.id [delete: restrict]
+Ref: split_rule_legs.split_rule_id > split_rules.id [delete: restrict]
+Ref: split_rules.merchant_id > merchants.id [delete: restrict]
+
+// pii_vault — data_subject_requests cross-links (nullable, documented in-column notes)
+// data_subject_requests.merchant_id: nullable many-to-one — enforced at app layer
+// data_subject_requests.subject_ref: nullable ref to pii_vault.subject_ref — enforced at app layer
+// payment_card_details.cardholder_name_subject_ref → pii_vault.subject_ref — app layer
+// payment_mobile_money_details.msisdn_subject_ref → pii_vault.subject_ref — app layer
+// checkout_sessions.customer_subject_ref → pii_vault.subject_ref — app layer
 
 TableGroup merchant_product {
   payment_links
