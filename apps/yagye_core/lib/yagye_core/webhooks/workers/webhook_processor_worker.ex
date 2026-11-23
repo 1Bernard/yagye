@@ -219,6 +219,13 @@ defmodule YagyeCore.Webhooks.Workers.WebhookProcessorWorker do
   # Ignore other Stripe events (checkout sessions, customers, etc.)
   defp route("stripe", _event_type, _payload), do: :ok
 
+  # ── Fallthrough ───────────────────────────────────────────────────────────────
+
+  defp route(provider, event_type, _payload),
+    do: {:error, {:unknown_event, provider, event_type}}
+
+  # ── Helpers ───────────────────────────────────────────────────────────────────
+
   defp maybe_retract_dispute(payment_id, status) when status in ["won", "charge_refunded"] do
     with {:ok, d} <- Disputes.find_open_dispute_for_payment(payment_id) do
       Disputes.retract_dispute(d)
@@ -226,13 +233,6 @@ defmodule YagyeCore.Webhooks.Workers.WebhookProcessorWorker do
   end
 
   defp maybe_retract_dispute(_payment_id, _status), do: :ok
-
-  # ── Fallthrough ───────────────────────────────────────────────────────────────
-
-  defp route(provider, event_type, _payload),
-    do: {:error, {:unknown_event, provider, event_type}}
-
-  # ── Helpers ───────────────────────────────────────────────────────────────────
 
   defp process_payment_webhook(attempt, payment, result) do
     if payment.state in @terminal_payment_states do
