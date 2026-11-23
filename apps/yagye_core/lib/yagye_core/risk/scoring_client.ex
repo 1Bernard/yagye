@@ -74,6 +74,12 @@ defmodule YagyeCore.Risk.ScoringClient do
     end
   end
 
+  @doc """
+  Raw HTTP POST to any scoring endpoint. Used by VelocityScoring and ReconScoring.
+  Returns {:ok, atomized_map} or {:error, :scoring_unavailable}.
+  """
+  def post_raw(path, body), do: post(path, body)
+
   # ── Private ──────────────────────────────────────────────────────────────────
 
   # FastAPI returns `risk_score`; Core callers historically read `score`.

@@ -8,6 +8,7 @@ defmodule YagyeCore.Escrow do
   alias Ecto.Multi
   alias YagyeCore.Checkout.Schemas.CheckoutSession
   alias YagyeCore.Escrow.Schemas.{EscrowDisputeEvent, EscrowHold}
+  alias YagyeCore.Escrow.Workers.EscrowAutoReleaseWorker
   alias YagyeCore.Ledger
   alias YagyeCore.Outbox
   alias YagyeCore.PaymentLinks.Schemas.PaymentLink
@@ -65,6 +66,12 @@ defmodule YagyeCore.Escrow do
         },
         correlation_id: payment.public_id
       )
+    end)
+    |> Multi.run(:auto_release_job, fn _repo, %{hold: hold} ->
+      EscrowAutoReleaseWorker.new(%{"hold_id" => hold.id},
+        scheduled_at: hold.auto_release_at
+      )
+      |> Oban.insert()
     end)
     |> Repo.transaction()
     |> case do

@@ -14,9 +14,12 @@ defmodule YagyeCore.Reconciliation do
     ReconciliationRun
   }
 
+  alias YagyeCore.Reconciliation.ReconScoring
   alias YagyeCore.Repo
 
   import Ecto.Query
+
+  require Logger
 
   # ── Public API ───────────────────────────────────────────────────────────────
 
@@ -187,6 +190,66 @@ defmodule YagyeCore.Reconciliation do
 
       break
       |> ReconciliationBreak.changeset(changes)
+      |> Repo.update()
+    end
+  end
+
+  @doc """
+  Attempts to auto-classify a break using the ML scoring service.
+
+  When the model is confident (>= 0.80), applies the classification immediately
+  and transitions the break to "triaged". When confidence is below the threshold
+  or the scoring service is unavailable, the break stays in "detected" state for
+  manual review.
+
+  Returns `{:ok, break}` with the updated break (or the unchanged break), or
+  `{:error, reason}`.
+  """
+  def auto_classify_break(public_id) do
+    with {:ok, break} <- get_break(public_id) do
+      case ReconScoring.score(break) do
+        {:ok, result} when is_map(result) ->
+          apply_ml_result(break, public_id, result)
+
+        {:error, :scoring_unavailable} ->
+          Logger.info("recon_break.scoring_unavailable", break_id: public_id)
+          {:ok, break}
+      end
+    end
+  end
+
+  defp apply_ml_result(break, public_id, result) do
+    if ReconScoring.auto_classify?(result) do
+      Logger.info("recon_break.auto_classified",
+        break_id: public_id,
+        classification: result.classification,
+        confidence: result.confidence
+      )
+
+      classify_break(public_id, result.classification, %{
+        evidence:
+          Map.merge(break.evidence || %{}, %{
+            "ml_classification" => result.classification,
+            "ml_confidence" => result.confidence,
+            "ml_model_version" => result.model_version
+          })
+      })
+    else
+      Logger.info("recon_break.ml_low_confidence",
+        break_id: public_id,
+        classification: result.classification,
+        confidence: result.confidence
+      )
+
+      break
+      |> ReconciliationBreak.changeset(%{
+        evidence:
+          Map.merge(break.evidence || %{}, %{
+            "ml_classification_hint" => result.classification,
+            "ml_confidence" => result.confidence,
+            "ml_model_version" => result.model_version
+          })
+      })
       |> Repo.update()
     end
   end

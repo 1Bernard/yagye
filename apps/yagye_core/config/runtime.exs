@@ -59,6 +59,14 @@ if sm_host = System.get_env("AWS_SM_HOST") do
     port: String.to_integer(System.get_env("AWS_SM_PORT", "4566"))
 end
 
+# KMS key ARN for KYB document SSE-KMS encryption — active in all environments where set.
+# In dev (Docker), Floci provides KMS at the same 4566 port as S3; floci_init creates
+# a key with alias/yagye-kyb-dev so the ARN below is deterministic.
+# In prod, KYB_KMS_KEY_ARN points to a real AWS KMS key provisioned by Terraform.
+if kms_arn = System.get_env("KYB_KMS_KEY_ARN") do
+  config :yagye_core, :document_store, kms_key_arn: kms_arn
+end
+
 # OTLP traces override — dev.exs sets traces_exporter: :none to avoid noise when
 # running natively. When OTEL_TRACES_ENABLED=true (set in docker-compose so Alloy
 # is reachable), this runtime override wins and enables the OTLP exporter.
@@ -187,6 +195,17 @@ if config_env() == :prod do
     download_expiry_seconds: 1800,
     kms_key_arn: kms_key_arn,
     presigned_host_override: System.get_env("KYB_PRESIGNED_HOST")
+
+  # AML provider — ComplyAdvantage in production by default.
+  # Override with AML_PROVIDER_MODULE for staged rollouts or emergency fallback to Stub.
+  aml_provider_mod =
+    System.get_env(
+      "AML_PROVIDER_MODULE",
+      "YagyeCore.Compliance.AmlProvider.ComplyAdvantage"
+    )
+
+  # String.to_atom is safe here — the value comes from our own env var, not user input.
+  config :yagye_core, :aml_provider, String.to_atom("Elixir." <> aml_provider_mod)
 
   # Simulator mode: set NATIVE_RAIL_ADAPTER_MODULE to override the global adapter.
   # Defaults to SimulatorAdapter so local Docker dev works without real PSP credentials.

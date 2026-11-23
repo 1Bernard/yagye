@@ -463,6 +463,19 @@ defmodule YagyeCore.Settlement do
 
   defp unwrap_batch_result({:error, :payments, :no_payments, _}), do: {:error, :no_payments}
   defp unwrap_batch_result({:error, :payments, :below_minimum, _}), do: {:error, :below_minimum}
+
+  # Multi-node race: two nodes both pass guard_no_open_batch, then one hits a unique
+  # constraint on insert. Treat it the same as :batch_already_open so dispatch_batch
+  # returns :skip instead of raising FunctionClauseError.
+  defp unwrap_batch_result({:error, :batch, %Ecto.Changeset{} = cs, _}) do
+    unique_violation? =
+      Enum.any?(cs.errors, fn {_field, {_msg, opts}} ->
+        Keyword.get(opts, :constraint) == :unique
+      end)
+
+    if unique_violation?, do: {:error, :batch_already_open}, else: {:error, cs}
+  end
+
   defp unwrap_batch_result({:error, _step, %Ecto.Changeset{} = cs, _}), do: {:error, cs}
   defp unwrap_batch_result({:error, _step, reason, _}), do: {:error, reason}
 

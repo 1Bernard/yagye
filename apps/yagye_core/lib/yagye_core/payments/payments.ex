@@ -203,6 +203,7 @@ defmodule YagyeCore.Payments do
           mode: p.mode,
           provider_code: provider_code_from_attempt(attempt),
           provider_kind: provider_kind_from_attempt(attempt),
+          provider: provider_code_from_attempt(attempt),
           customer_msisdn: get_in(p.metadata, ["msisdn"]),
           latency_ms: attempt.latency_ms,
           risk_score: p.risk_score,
@@ -248,6 +249,7 @@ defmodule YagyeCore.Payments do
           mode: p.mode,
           provider_code: provider_code_from_attempt(attempt),
           provider_kind: provider_kind_from_attempt(attempt),
+          provider: provider_code_from_attempt(attempt),
           customer_msisdn: get_in(p.metadata, ["msisdn"]),
           latency_ms: attempt.latency_ms
         },
@@ -310,6 +312,7 @@ defmodule YagyeCore.Payments do
           mode: p.mode,
           provider_code: provider_code_from_attempt(attempt),
           provider_kind: provider_kind_from_attempt(attempt),
+          provider: provider_code_from_attempt(attempt),
           customer_msisdn: get_in(p.metadata, ["msisdn"]),
           latency_ms: attempt.latency_ms,
           risk_score: p.risk_score,
@@ -504,31 +507,7 @@ defmodule YagyeCore.Payments do
       Outbox.build_changeset(
         p,
         "payment.succeeded",
-        %{
-          public_id: p.public_id,
-          state: p.state,
-          mode: p.mode,
-          method: p.method,
-          merchant_code: merchant_code(p.merchant_id),
-          merchant_reference: p.merchant_reference,
-          description: p.description,
-          provider_code: result[:provider_code] || provider_code_from_attempt(attempt),
-          provider_kind: provider_kind_from_attempt(attempt),
-          network: get_in(p.metadata, ["network"]),
-          provider: network_to_provider(get_in(p.metadata, ["network"])),
-          amount: p.amount,
-          currency: p.currency,
-          net_amount: if(fr, do: p.amount - fr.amount, else: p.amount),
-          checkout_session_id: get_in(p.metadata, ["checkout_session_id"]),
-          customer_msisdn: get_in(p.metadata, ["msisdn"]),
-          customer_email: get_in(p.metadata, ["customer_email"]),
-          customer_name: c && c.name,
-          latency_ms: attempt.latency_ms,
-          paid_at: DateTime.utc_now() |> DateTime.to_iso8601(),
-          risk_score: p.risk_score,
-          risk_decision: p.risk_decision,
-          risk_assessed_at: p.risk_assessed_at && DateTime.to_iso8601(p.risk_assessed_at)
-        },
+        build_succeeded_outbox_payload(p, result, attempt, fr, c),
         correlation_id: p.public_id
       )
     end)
@@ -543,6 +522,38 @@ defmodule YagyeCore.Payments do
       {:ok, %{succeeded: payment}} -> {:ok, payment}
       {:error, _step, reason, _changes} -> {:error, reason}
     end
+  end
+
+  defp build_succeeded_outbox_payload(p, result, attempt, fr, c) do
+    provider =
+      provider_code_from_attempt(attempt) || result[:provider_code] ||
+        network_to_provider(get_in(p.metadata, ["network"]))
+
+    %{
+      public_id: p.public_id,
+      state: p.state,
+      mode: p.mode,
+      method: p.method,
+      merchant_code: merchant_code(p.merchant_id),
+      merchant_reference: p.merchant_reference,
+      description: p.description,
+      provider_code: result[:provider_code] || provider_code_from_attempt(attempt),
+      provider_kind: provider_kind_from_attempt(attempt),
+      network: get_in(p.metadata, ["network"]),
+      provider: provider,
+      amount: p.amount,
+      currency: p.currency,
+      net_amount: if(fr, do: p.amount - fr.amount, else: p.amount),
+      checkout_session_id: get_in(p.metadata, ["checkout_session_id"]),
+      customer_msisdn: get_in(p.metadata, ["msisdn"]),
+      customer_email: get_in(p.metadata, ["customer_email"]),
+      customer_name: c && c.name,
+      latency_ms: attempt.latency_ms,
+      paid_at: DateTime.utc_now() |> DateTime.to_iso8601(),
+      risk_score: p.risk_score,
+      risk_decision: p.risk_decision,
+      risk_assessed_at: p.risk_assessed_at && DateTime.to_iso8601(p.risk_assessed_at)
+    }
   end
 
   defp fetch_payment_customer(%{customer_id: nil}), do: {:ok, nil}
@@ -758,7 +769,22 @@ defmodule YagyeCore.Payments do
       amount = Map.get(attrs, :amount) || Map.get(attrs, "amount")
       method = Map.get(attrs, :method) || Map.get(attrs, "method")
       currency = Map.get(attrs, :currency) || Map.get(attrs, "currency")
-      VelocityChecker.check(merchant_id, customer_id, amount, method, currency)
+
+      meta = Map.get(attrs, :metadata) || Map.get(attrs, "metadata") || %{}
+      hashed_meta = ensure_msisdn_hash(meta)
+      msisdn_hash = Map.get(hashed_meta, "msisdn_hash")
+
+      payment_stub = %{id: nil, merchant_id: merchant_id, amount: amount, method: method}
+
+      VelocityChecker.check(
+        merchant_id,
+        customer_id,
+        amount,
+        method,
+        currency,
+        payment_stub,
+        msisdn_hash
+      )
     else
       :ok
     end

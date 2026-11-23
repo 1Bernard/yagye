@@ -10,6 +10,7 @@ defmodule YagyeCore.Reconciliation.Workers.ReconciliationRunWorker do
   alias Ecto.Multi
   alias YagyeCore.Outbox
   alias YagyeCore.Payments.Schemas.{Payment, PaymentAttempt}
+  alias YagyeCore.Reconciliation
 
   alias YagyeCore.Reconciliation.Schemas.{
     ProviderReportLine,
@@ -279,11 +280,12 @@ defmodule YagyeCore.Reconciliation.Workers.ReconciliationRunWorker do
       {:ok, length(matches)}
     end)
     |> Multi.run(:breaks, fn repo, _changes ->
-      Enum.each(breaks, fn attrs ->
-        repo.insert!(ReconciliationBreak.changeset(%ReconciliationBreak{}, attrs))
-      end)
+      inserted =
+        Enum.map(breaks, fn attrs ->
+          repo.insert!(ReconciliationBreak.changeset(%ReconciliationBreak{}, attrs))
+        end)
 
-      {:ok, length(breaks)}
+      {:ok, inserted}
     end)
     |> Multi.run(:mark_lines, fn _repo, _changes ->
       matched_line_ids = matches |> Enum.flat_map(fn m -> m.right_ids end)
@@ -319,6 +321,15 @@ defmodule YagyeCore.Reconciliation.Workers.ReconciliationRunWorker do
       })
     end)
     |> Repo.transaction()
+    |> tap(fn
+      {:ok, %{breaks: inserted_breaks}} when is_list(inserted_breaks) ->
+        Enum.each(inserted_breaks, fn break ->
+          Task.start(fn -> Reconciliation.auto_classify_break(break.public_id) end)
+        end)
+
+      _ ->
+        :ok
+    end)
   end
 
   # ── Helpers ───────────────────────────────────────────────────────────────────

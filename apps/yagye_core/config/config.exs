@@ -86,6 +86,8 @@ config :yagye_core, Oban,
        {"0 6 * * *", YagyeCore.FX.Workers.FetchFxRatesWorker},
        # Escalate disputes past their evidence_due_at deadline daily at 03:00 UTC
        {"0 3 * * *", YagyeCore.Disputes.Workers.DisputeEscalationWorker},
+       # Purge published outbox_messages older than 7 days at 02:00 UTC
+       {"0 2 * * *", YagyeCore.Outbox.Workers.OutboxCleanupWorker},
        # Bronze ingestion: poll outbox every minute and write NDJSON to S3
        {"* * * * *", YagyeCore.DataLake.Workers.DataLakeIngestionWorker},
        # Provider health features → Redis every 2 min (feeds yagye_scoring routing model)

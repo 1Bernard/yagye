@@ -3,23 +3,32 @@ defmodule YagyeCore.Customers.Rules.VelocityChecker do
 
   import Ecto.Query
 
+  require Logger
+
   alias YagyeCore.Customers.Schemas.{Customer, VelocityLimit}
   alias YagyeCore.Merchants.Schemas.Merchant
   alias YagyeCore.Payments.Schemas.Payment
   alias YagyeCore.Repo
+  alias YagyeCore.Risk.VelocityScoring
 
   # ── Public API ───────────────────────────────────────────────────────────────
 
   @doc """
-  Checks both merchant and customer velocity limits before a payment is created.
+  Checks merchant and customer velocity limits before a payment is created.
+  Returns `:ok` or `{:error, reason}`.
 
-  Returns `:ok` or `{:error, reason}` where reason is one of:
-    :single_txn_limit_exceeded | :daily_limit_exceeded | :monthly_limit_exceeded
-
-  Uses hardcoded defaults from VelocityLimit.default_limits/0 when no DB row
-  exists — the system works without pre-seeded data.
+  Optionally pass `payment` and `msisdn_hash` to also run the ML anomaly check
+  (velocity_ml_enabled config flag controls whether anomalies block or just log).
   """
-  def check(merchant_id, customer_id, amount, method, currency) do
+  def check(
+        merchant_id,
+        customer_id,
+        amount,
+        method,
+        currency,
+        payment \\ nil,
+        msisdn_hash \\ nil
+      ) do
     with {:ok, merchant_risk} <- load_merchant_risk(merchant_id),
          :ok <-
            check_entity(
@@ -31,12 +40,49 @@ defmodule YagyeCore.Customers.Rules.VelocityChecker do
              customer_id,
              amount,
              :merchant
-           ) do
-      check_customer_limits(customer_id, method, currency, amount)
+           ),
+         :ok <- check_customer_limits(customer_id, method, currency, amount) do
+      maybe_ml_anomaly_check(payment, msisdn_hash)
     end
   end
 
   # ── Private ──────────────────────────────────────────────────────────────────
+
+  defp maybe_ml_anomaly_check(nil, _msisdn_hash), do: :ok
+  defp maybe_ml_anomaly_check(_payment, nil), do: :ok
+
+  defp maybe_ml_anomaly_check(payment, msisdn_hash) do
+    ml_enabled =
+      Application.get_env(:yagye_core, :velocity_ml_enabled, false)
+
+    case VelocityScoring.score(payment, msisdn_hash) do
+      {:ok, %{is_anomaly: true, anomaly_score: score}} when ml_enabled ->
+        Logger.warning(
+          "velocity.ml_anomaly_blocked",
+          payment_id: payment.id,
+          anomaly_score: score
+        )
+
+        {:error, :velocity_anomaly_detected}
+
+      {:ok, %{is_anomaly: true, anomaly_score: score}} ->
+        # Shadow mode — log but don't block
+        Logger.info(
+          "velocity.ml_anomaly_shadow",
+          payment_id: payment.id,
+          anomaly_score: score
+        )
+
+        :ok
+
+      {:ok, _result} ->
+        :ok
+
+      {:error, :scoring_unavailable} ->
+        # Scoring service down — fail open (rule-based limits already passed)
+        :ok
+    end
+  end
 
   defp load_merchant_risk(merchant_id) do
     from(m in Merchant, where: m.id == ^merchant_id, select: {m.id, m.risk_rating})
